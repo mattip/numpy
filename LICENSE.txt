@@ -58,3 +58,8 @@ Name: dragon4
 Files: numpy/core/src/multiarray/dragon4.c
 License: One of a kind
   For license text, see numpy/core/src/multiarray/dragon4.c
+
+Name: randomgen
+Files: numpy/random/randomgen and docs/source/random
+Licence: NCSA
+  For license text, see numpy/random/randomgen/LICENSE.md

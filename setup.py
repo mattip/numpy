@@ -197,12 +197,13 @@ class sdist_checked(sdist):
 def generate_cython():
     cwd = os.path.abspath(os.path.dirname(__file__))
     print("Cythonizing sources")
-    p = subprocess.call([sys.executable,
-                          os.path.join(cwd, 'tools', 'cythonize.py'),
-                          'numpy/random'],
-                         cwd=cwd)
-    if p != 0:
-        raise RuntimeError("Running cythonize failed!")
+    for d in ('mtrand', 'randomgen'):
+        p = subprocess.call([sys.executable,
+                              os.path.join(cwd, 'tools', 'cythonize.py'),
+                              'numpy/random/{0}'.format(d)],
+                             cwd=cwd)
+        if p != 0:
+            raise RuntimeError("Running cythonize failed!")
 
 
 def parse_setuppy_commands():

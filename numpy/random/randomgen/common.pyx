@@ -8,7 +8,7 @@ import sys
 import numpy as np
 cimport numpy as np
 
-from randomgen.common cimport *
+from .common cimport *
 
 np.import_array()
 

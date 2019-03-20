@@ -7,7 +7,7 @@ from libc.stdint cimport (uint8_t, uint16_t, uint32_t, uint64_t,
                           uintptr_t)
 from libc.math cimport sqrt
 
-from randomgen.distributions cimport brng_t 
+from .distributions cimport brng_t 
 import numpy as np
 cimport numpy as np
 

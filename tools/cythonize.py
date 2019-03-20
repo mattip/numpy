@@ -52,7 +52,7 @@ except NameError:
 # Rules
 #
 def process_pyx(fromfile, tofile):
-    flags = ['--fast-fail']
+    flags = ['-3', '--fast-fail']
     if tofile.endswith('.cxx'):
         flags += ['--cplus']
 
