@@ -16,7 +16,11 @@ git add _randomgen/README-git.md
 git commit -m"Add README-git.md"
 git checkout -b randomgen
 cd ../numpy
+git checkout -b randomgen
 git remote add randomgen ../randomgen
+git fetch randomgen randomgen
 git merge --allow-unrelated-histories randomgen/randomgen
 git remote remove randomgen
+# Now all the randomgen commits are on the randomgen branch in numpy,
+# and there is a subdirectory _randomgen with the content
 ```
