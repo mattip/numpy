@@ -4,6 +4,7 @@ from os.path import join
 import sys
 import os
 import platform
+import struct
 from distutils.dep_util import newer
 from distutils.msvccompiler import get_build_version as get_msvc_build_version
 
@@ -123,8 +124,8 @@ def configuration(parent_package='',top_path=None):
     config.add_extension('randomgen.dsfmt',
                         sources=[join('randomgen', x) for x in
                             ['dsfmt.c', 'src/dsfmt/dSFMT.c',
-                             'src/dsfmt/DSFMT-jump.c',
-                             'src/aligned_malloc/allignd_malloc.c']],
+                             'src/dsfmt/dSFMT-jump.c',
+                             'src/aligned_malloc/aligned_malloc.c']],
                         include_dirs=[join('randomgen', 'src', 'dsfmt')],
                         libraries=EXTRA_LIBRARIES,
                         extra_compile_args=EXTRA_COMPILE_ARGS,
@@ -139,7 +140,7 @@ def configuration(parent_package='',top_path=None):
                             ['legacy/_legacy.c',
                              'src/legacy/distributions-boxmuller.c',
                              'src/distributions/distributions.c' ]],
-                        include_dirs=[join('randomgen', 'legacy')],
+                        include_dirs=['randomgen', join('randomgen', 'legacy')],
                         libraries=EXTRA_LIBRARIES,
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,

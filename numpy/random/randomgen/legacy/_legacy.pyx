@@ -16,11 +16,11 @@ try:
 except ImportError:
     from dummy_threading import Lock
 
-from randomgen.common cimport cont, disc, CONS_NONE, CONS_POSITIVE, CONS_NON_NEGATIVE, CONS_BOUNDED_0_1
-from randomgen.distributions cimport brng_t
-from randomgen.legacy.legacy_distributions cimport *
-from randomgen.xoroshiro128 import Xoroshiro128
-import randomgen.pickle
+from ..common cimport cont, disc, CONS_NONE, CONS_POSITIVE, CONS_NON_NEGATIVE, CONS_BOUNDED_0_1
+from ..distributions cimport brng_t
+from .legacy_distributions cimport *
+from ..xoroshiro128 import Xoroshiro128
+from ..pickle import __legacy_ctor
 
 np.import_array()
 
@@ -119,7 +119,7 @@ cdef class _LegacyGenerator:
         self.state = state
 
     def __reduce__(self):
-        return (randomgen.pickle.__legacy_ctor,
+        return (__legacy_ctor,
                 (self.state['brng'],),
                 self.state)
 

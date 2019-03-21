@@ -4,11 +4,11 @@ import numpy as np
 from cpython.pycapsule cimport PyCapsule_New
 from libc.stdlib cimport malloc, free
 
-from randomgen.common import interface
-from randomgen.common cimport *
-from randomgen.distributions cimport brng_t
-from randomgen.entropy import random_entropy, seed_by_array
-import randomgen.pickle
+from .common import interface
+from .common cimport *
+from .distributions cimport brng_t
+from .entropy import random_entropy, seed_by_array
+from .pickle import __brng_ctor
 
 np.import_array()
 
@@ -192,7 +192,7 @@ cdef class ThreeFry32:
         self.state = state
 
     def __reduce__(self):
-        return (randomgen.pickle.__brng_ctor,
+        return (__brng_ctor,
                 (self.state['brng'],),
                 self.state)
 

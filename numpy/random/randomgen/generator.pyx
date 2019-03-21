@@ -19,11 +19,11 @@ try:
 except ImportError:
     from dummy_threading import Lock
 
-from randomgen.bounded_integers cimport *
-from randomgen.common cimport *
-from randomgen.distributions cimport *
-from randomgen.xoroshiro128 import Xoroshiro128
-import randomgen.pickle
+from .bounded_integers cimport *
+from .common cimport *
+from .distributions cimport *
+from .xoroshiro128 import Xoroshiro128
+from .pickle import __generator_ctor
 
 np.import_array()
 
@@ -128,7 +128,7 @@ cdef class RandomGenerator:
         self.state = state
 
     def __reduce__(self):
-        return (randomgen.pickle.__generator_ctor,
+        return (__generator_ctor,
                 (self.state['brng'],),
                 self.state)
 
