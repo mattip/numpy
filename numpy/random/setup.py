@@ -44,6 +44,7 @@ def configuration(parent_package='',top_path=None):
         defs.append(("NPY_NEEDS_MINGW_TIME_WORKAROUND", None))
 
     libs = []
+    defs.append(('NPY_NO_DEPRECATED_API', 0))
     # Configure mtrand
     config.add_extension('mtrand',
                          sources=[join('mtrand', x) for x in
@@ -158,6 +159,7 @@ def configuration(parent_package='',top_path=None):
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=[join('randomgen', '%s.pyx' % gen)],
+                        define_macros=defs,
                         )
     for gen in ['philox', 'threefry', 'threefry32',
                 'xoroshiro128', 'xorshift1024', 'xoshiro256starstar',
@@ -173,6 +175,7 @@ def configuration(parent_package='',top_path=None):
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=[join('randomgen', '%s.pyx' % gen)],
+                        define_macros=defs,
                         )
     for gen in ['common']:
         # gen.pyx
@@ -182,6 +185,7 @@ def configuration(parent_package='',top_path=None):
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=[join('randomgen', '%s.pyx' % gen)],
+                        define_macros=defs,
                         )
     for gen in ['generator', 'bounded_integers']:
         # gen.pyx, src/distributions/distributions.c
@@ -193,6 +197,7 @@ def configuration(parent_package='',top_path=None):
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=[join('randomgen', '%s.pyx' % gen)],
+                        define_macros=defs,
                         )
     return config
 if __name__ == '__main__':
