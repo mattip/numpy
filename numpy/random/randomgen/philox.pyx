@@ -9,7 +9,7 @@ from .common import interface
 from .common cimport *
 from .distributions cimport brng_t
 from .entropy import random_entropy, seed_by_array
-import randomgen.pickle
+
 
 np.import_array()
 
@@ -195,7 +195,8 @@ cdef class Philox:
         self.state = state
 
     def __reduce__(self):
-        return (randomgen.pickle.__brng_ctor,
+        from ._pickle import __brng_ctor
+        return (__brng_ctor,
                 (self.state['brng'],),
                 self.state)
 

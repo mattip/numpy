@@ -1,29 +1,29 @@
 from .generator import RandomGenerator
-from .dsfmt import DSFMT
-from .mt19937 import MT19937
-from randomgen.pcg32 import PCG32
-from randomgen.pcg64 import PCG64
-from randomgen.philox import Philox
-from randomgen.threefry import ThreeFry
-from randomgen.threefry32 import ThreeFry32
-from randomgen.xoroshiro128 import Xoroshiro128
-from randomgen.xorshift1024 import Xorshift1024
-from randomgen.xoshiro256starstar import Xoshiro256StarStar
-from randomgen.xoshiro512starstar import Xoshiro512StarStar
-from randomgen.legacy import LegacyGenerator
-
-BasicRNGS = {'MT19937': MT19937,
-             'DSFMT': DSFMT,
-             'PCG32': PCG32,
-             'PCG64': PCG64,
-             'Philox': Philox,
-             'ThreeFry': ThreeFry,
-             'ThreeFry32': ThreeFry32,
-             'Xorshift1024': Xorshift1024,
-             'Xoroshiro128': Xoroshiro128,
-             'Xoshiro256StarStar': Xoshiro256StarStar,
-             'Xoshiro512StarStar': Xoshiro512StarStar,
-             }
+# from .dsfmt import DSFMT
+# from .mt19937 import MT19937
+# from .pcg32 import PCG32
+# from .pcg64 import PCG64
+# from .philox import Philox
+# from .threefry import ThreeFry
+# from .threefry32 import ThreeFry32
+# from .xoroshiro128 import Xoroshiro128
+# from .xorshift1024 import Xorshift1024
+# from .xoshiro256starstar import Xoshiro256StarStar
+# from .xoshiro512starstar import Xoshiro512StarStar
+# from .legacy import LegacyGenerator
+# 
+# BasicRNGS = {'MT19937': MT19937,
+#              'DSFMT': DSFMT,
+#              'PCG32': PCG32,
+#              'PCG64': PCG64,
+#              'Philox': Philox,
+#              'ThreeFry': ThreeFry,
+#              'ThreeFry32': ThreeFry32,
+#              'Xorshift1024': Xorshift1024,
+#              'Xoroshiro128': Xoroshiro128,
+#              'Xoshiro256StarStar': Xoshiro256StarStar,
+#              'Xoshiro512StarStar': Xoshiro512StarStar,
+#              }
 
 
 def __generator_ctor(brng_name='mt19937'):

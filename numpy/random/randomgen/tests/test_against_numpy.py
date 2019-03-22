@@ -2,7 +2,7 @@ import numpy as np
 import numpy.random
 from numpy.testing import assert_allclose, assert_array_equal, assert_equal
 
-import randomgen
+import numpy.random.randomgen as randomgen
 from randomgen import RandomGenerator, MT19937
 from randomgen._testing import suppress_warnings
 from randomgen.legacy import LegacyGenerator

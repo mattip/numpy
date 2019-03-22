@@ -23,7 +23,6 @@ from .bounded_integers cimport *
 from .common cimport *
 from .distributions cimport *
 from .xoroshiro128 import Xoroshiro128
-from .pickle import __generator_ctor
 
 np.import_array()
 
@@ -128,6 +127,7 @@ cdef class RandomGenerator:
         self.state = state
 
     def __reduce__(self):
+        from ._pickle import __generator_ctor
         return (__generator_ctor,
                 (self.state['brng'],),
                 self.state)
