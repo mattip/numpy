@@ -278,6 +278,7 @@ cdef class PCG64:
             state of the RNG
         """
         # IF PCG_EMULATED_MATH==1:
+        # TODO: push this into an #ifdef in the C code
         state = 2 **64 * self.rng_state.pcg_state.state.high
         state += self.rng_state.pcg_state.state.low
         inc = 2 **64 * self.rng_state.pcg_state.inc.high

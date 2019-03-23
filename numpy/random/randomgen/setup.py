@@ -76,6 +76,8 @@ def configuration(parent_package='',top_path=None):
             EXTRA_INCLUDE_DIRS += [join(MOD_DIR, 'src', 'common')]
 
     PCG64_DEFS = []
+    # TODO: remove the unconditional forced emulation, move code from pcg64.pyx
+    # to an #ifdef
     if 1 or sys.maxsize < 2 ** 32 or os.name == 'nt':
         # Force emulated mode here
         PCG_EMULATED_MATH = True
