@@ -1,3 +1,3 @@
-from randomgen.legacy.legacy import LegacyGenerator
+from .legacy import LegacyGenerator
 
 __all__ = ['LegacyGenerator']

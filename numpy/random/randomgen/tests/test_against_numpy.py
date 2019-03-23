@@ -1,11 +1,11 @@
 import numpy as np
 import numpy.random
-from numpy.testing import assert_allclose, assert_array_equal, assert_equal
+from numpy.testing import (assert_allclose, assert_array_equal, assert_equal,
+            suppress_warnings)
 
 import numpy.random.randomgen as randomgen
-from randomgen import RandomGenerator, MT19937
-from randomgen._testing import suppress_warnings
-from randomgen.legacy import LegacyGenerator
+from ...randomgen import RandomGenerator, MT19937
+from ...randomgen.legacy import LegacyGenerator
 
 
 def compare_0_input(f1, f2):
@@ -413,7 +413,8 @@ class TestAgainstNumPy(object):
                           'test', '__warningregistry__', '_numpy_tester',
                           'division', 'get_state', 'set_state', 'seed',
                           'ranf', 'random', 'sample', 'absolute_import',
-                          'print_function', 'RandomState']
+                          'print_function', 'RandomState', 'randomgen',
+                          'tests']
         mod += known_exlcuded
         diff = set(npmod).difference(mod)
         assert_equal(len(diff), 0)

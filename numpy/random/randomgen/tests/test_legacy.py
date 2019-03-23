@@ -1,6 +1,6 @@
 import pickle
 
-from randomgen.legacy import LegacyGenerator
+from ...randomgen.legacy import LegacyGenerator
 
 
 def test_pickle():

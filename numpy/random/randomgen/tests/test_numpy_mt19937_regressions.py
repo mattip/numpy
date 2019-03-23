@@ -5,7 +5,7 @@ from numpy.testing import (assert_, assert_array_equal)
 from numpy.compat import long
 import numpy as np
 import pytest
-from randomgen import RandomGenerator, MT19937
+from ...randomgen import RandomGenerator, MT19937
 
 mt19937 = RandomGenerator(MT19937())
 

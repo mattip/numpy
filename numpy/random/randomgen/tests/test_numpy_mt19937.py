@@ -7,11 +7,10 @@ import numpy as np
 from numpy.testing import (
     assert_, assert_raises, assert_equal,
     assert_warns, assert_no_warnings, assert_array_equal,
-    assert_array_almost_equal)
+    assert_array_almost_equal, suppress_warnings)
 
-from randomgen._testing import suppress_warnings
-from randomgen import RandomGenerator, MT19937
-from randomgen.legacy import LegacyGenerator
+from ...randomgen import RandomGenerator, MT19937
+from ...randomgen.legacy import LegacyGenerator
 
 random = mt19937 = RandomGenerator(MT19937())
 legacy = LegacyGenerator(MT19937())

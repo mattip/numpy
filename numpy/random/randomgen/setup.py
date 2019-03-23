@@ -22,7 +22,7 @@ def needs_mingw_ftime_workaround():
 
 def configuration(parent_package='',top_path=None):
     from numpy.distutils.misc_util import Configuration, get_mathlibs
-    config = Configuration('random', parent_package, top_path)
+    config = Configuration('randomgen', parent_package, top_path)
 
     def generate_libraries(ext, build_dir):
         config_cmd = config.get_config_cmd()
@@ -186,6 +186,7 @@ def configuration(parent_package='',top_path=None):
                         depends=['%s.pyx' % gen],
                         define_macros=defs,
                         )
+    config.add_subpackage('legacy')
     return config
 if __name__ == '__main__':
     from numpy.distutils.core import setup

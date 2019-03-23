@@ -1,8 +1,6 @@
-from randomgen.generator import RandomGenerator
-from randomgen.mt19937 import MT19937
-from randomgen.legacy._legacy import _LegacyGenerator
-import randomgen.pickle
-
+from ..generator import RandomGenerator
+from ..mt19937 import MT19937
+from ._legacy import _LegacyGenerator
 
 _LEGACY_ATTRIBUTES = tuple(a for a in dir(
     _LegacyGenerator) if not a.startswith('_'))
@@ -109,6 +107,7 @@ class LegacyGenerator(with_metaclass(LegacyGeneratorType, RandomGenerator)):
         self.state = state
 
     def __reduce__(self):
-        return (randomgen.pickle._experiment_ctor,
+        from .._pickle import _experiment_ctor
+        return (_experiment_ctor,
                 (self.state['brng'],),
                 self.state)

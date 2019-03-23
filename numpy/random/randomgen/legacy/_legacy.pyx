@@ -20,7 +20,6 @@ from ..common cimport cont, disc, CONS_NONE, CONS_POSITIVE, CONS_NON_NEGATIVE, C
 from ..distributions cimport brng_t
 from .legacy_distributions cimport *
 from ..xoroshiro128 import Xoroshiro128
-from ..pickle import __legacy_ctor
 
 np.import_array()
 
@@ -119,6 +118,7 @@ cdef class _LegacyGenerator:
         self.state = state
 
     def __reduce__(self):
+        from .._pickle import __legacy_ctor
         return (__legacy_ctor,
                 (self.state['brng'],),
                 self.state)
