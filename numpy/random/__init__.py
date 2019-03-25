@@ -86,8 +86,6 @@ set_state            Set state of generator.
 """
 from __future__ import division, absolute_import, print_function
 
-import warnings
-
 __all__ = [
     'beta',
     'binomial',
@@ -138,9 +136,15 @@ __all__ = [
     'zipf'
 ]
 
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
-    from .mtrand import *
+# from .mtrand import *
+from .randomgen.legacy import LegacyGenerator as RandomState
+mtrand = RandomState()
+for _x in dir(mtrand):
+    if _x[0] != '_' and _x not in ('poisson_lam_max', 'state'):
+        locals()[_x] = getattr(mtrand, _x)
+del _x
+get_state = mtrand.get_state
+set_state = mtrand.set_state
 
 # Some aliases:
 ranf = random = sample = random_sample

@@ -8,6 +8,7 @@ _LEGACY_ATTRIBUTES = tuple(a for a in dir(
 _LEGACY_ATTRIBUTES += ('__getstate__', '__setstate__', '__reduce__')
 
 
+
 def with_metaclass(meta, *bases):
     """Create a base class with a metaclass."""
     # This requires a bit of explanation: the basic idea is to make a dummy
@@ -91,6 +92,10 @@ class LegacyGenerator(with_metaclass(LegacyGeneratorType, RandomGenerator)):
     def __init__(self, brng=None):
         if brng is None:
             brng = MT19937()
+        elif isinstance(brng, MT19937):
+            pass
+        else:
+            brng = MT19937(brng)
         super(LegacyGenerator, self).__init__(brng)
         self.__legacy = _LegacyGenerator(brng)
 

@@ -404,6 +404,7 @@ class TestAgainstNumPy(object):
         nprs_d = set(dir(self.nprs))
         rs_d = dir(self.rg)
         excluded = {'get_state', 'set_state'}
+        nprs_d.discard('_LegacyGenerator__legacy')
         nprs_d.difference_update(excluded)
         assert (len(nprs_d.difference(rs_d)) == 0)
 

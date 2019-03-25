@@ -185,9 +185,16 @@ cdef class _LegacyGenerator:
         st['gauss'] = self._aug_state.gauss
         return st
 
+    def get_state(self):
+        st = self._basicrng.state
+        if st['brng'] != 'MT19937':
+                raise ValueError('get_state only supported for MT19937')
+        return (st['brng'], st['state']['key'], st['state']['pos'],
+                self._aug_state.has_gauss, self._aug_state.gauss)
+
     @state.setter
     def state(self, value):
-        if isinstance(value, tuple):
+        if isinstance(value, (tuple, list)):
             if value[0] != 'MT19937':
                 raise ValueError('tuple only supported for MT19937')
             st = {'brng': value[0],
@@ -199,6 +206,9 @@ cdef class _LegacyGenerator:
         self._aug_state.gauss = value.get('gauss', 0.0)
         self._aug_state.has_gauss = value.get('has_gauss', 0)
         self._basicrng.state = value
+
+    def set_state(self, value):
+        self.state = value
 
     def beta(self, a, b, size=None):
         """
