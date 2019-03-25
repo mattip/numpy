@@ -3,9 +3,10 @@ import numpy.random
 from numpy.testing import (assert_allclose, assert_array_equal, assert_equal,
             suppress_warnings)
 
-import numpy.random.randomgen as randomgen
-from ...randomgen import RandomGenerator, MT19937
-from ...randomgen.legacy import LegacyGenerator
+import pytest
+
+from numpy.random.randomgen import RandomGenerator, MT19937, generator
+from numpy.random.randomgen.legacy import LegacyGenerator
 
 
 def compare_0_input(f1, f2):
@@ -407,7 +408,7 @@ class TestAgainstNumPy(object):
         assert (len(nprs_d.difference(rs_d)) == 0)
 
         npmod = dir(numpy.random)
-        mod = dir(randomgen.generator)
+        mod = dir(generator)
         known_exlcuded = ['__all__', '__cached__', '__path__', 'Tester',
                           'info', 'bench', '__RandomState_ctor', 'mtrand',
                           'test', '__warningregistry__', '_numpy_tester',
@@ -567,3 +568,27 @@ class TestAgainstNumPy(object):
         assert_allclose(f(np.array(mu), np.array(cov), size=(7, 31)),
                         g(np.array(mu), np.array(cov), size=(7, 31)))
         self._is_state_common_legacy()
+
+
+funcs = [generator.exponential,
+         generator.zipf,
+         generator.chisquare,
+         generator.logseries,
+         generator.poisson]
+ids = [f.__name__ for f in funcs]
+
+
+@pytest.mark.filterwarnings('ignore:invalid value encountered:RuntimeWarning')
+@pytest.mark.parametrize('func', funcs, ids=ids )
+def test_nan_guard(func):
+    with pytest.raises(ValueError):
+        func([np.nan])
+    with pytest.raises(ValueError):
+        func(np.nan)
+
+
+def test_cons_gte1_nan_guard():
+    with pytest.raises(ValueError):
+        generator.hypergeometric(10, 10, [np.nan])
+    with pytest.raises(ValueError):
+        generator.hypergeometric(10, 10, np.nan)
