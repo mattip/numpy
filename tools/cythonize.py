@@ -204,32 +204,32 @@ def process(path, fromfile, tofile, processor_function, hash_db):
 
 def find_process_files(root_dir):
     hash_db = load_hashes(HASH_FILE)
-    for cur_dir, dirs, files in os.walk(root_dir):
-        # .pxi or .pxi.in files are most likely dependencies for
-        # .pyx files, so we need to process them first
-        files.sort(key=lambda name: (name.endswith('.pxi') or
-                                     name.endswith('.pxi.in') or
-                                     name.endswith('.pxd.in')),
-                   reverse=True)
+    files  = [x for x in os.listdir(root_dir) if not os.path.isdir(x)]
+    # .pxi or .pxi.in files are most likely dependencies for
+    # .pyx files, so we need to process them first
+    files.sort(key=lambda name: (name.endswith('.pxi') or
+                                 name.endswith('.pxi.in') or
+                                 name.endswith('.pxd.in')),
+               reverse=True)
 
-        for filename in files:
-            in_file = os.path.join(cur_dir, filename + ".in")
-            for fromext, value in rules.items():
-                if filename.endswith(fromext):
-                    if not value:
-                        break
-                    function, toext = value
-                    if toext == '.c':
-                        with open(os.path.join(cur_dir, filename), 'rb') as f:
-                            data = f.read()
-                            m = re.search(br"^\s*#\s*distutils:\s*language\s*=\s*c\+\+\s*$", data, re.I|re.M)
-                            if m:
-                                toext = ".cxx"
-                    fromfile = filename
-                    tofile = filename[:-len(fromext)] + toext
-                    process(cur_dir, fromfile, tofile, function, hash_db)
-                    save_hashes(hash_db, HASH_FILE)
+    for filename in files:
+        in_file = os.path.join(root_dir, filename + ".in")
+        for fromext, value in rules.items():
+            if filename.endswith(fromext):
+                if not value:
                     break
+                function, toext = value
+                if toext == '.c':
+                    with open(os.path.join(root_dir, filename), 'rb') as f:
+                        data = f.read()
+                        m = re.search(br"^\s*#\s*distutils:\s*language\s*=\s*c\+\+\s*$", data, re.I|re.M)
+                        if m:
+                            toext = ".cxx"
+                fromfile = filename
+                tofile = filename[:-len(fromext)] + toext
+                process(root_dir, fromfile, tofile, function, hash_db)
+                save_hashes(hash_db, HASH_FILE)
+                break
 
 def main():
     try:
