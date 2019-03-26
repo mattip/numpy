@@ -3975,15 +3975,17 @@ cdef class RandomGenerator:
 
         if check_valid != 'ignore':
             if check_valid != 'warn' and check_valid != 'raise':
-                raise ValueError("check_valid must equal 'warn', 'raise', or 'ignore'")
+                raise ValueError(
+                    "check_valid must equal 'warn', 'raise', or 'ignore'")
 
             psd = np.allclose(np.dot(v.T * s, v), cov, rtol=tol, atol=tol)
             if not psd:
                 if check_valid == 'warn':
                     warnings.warn("covariance is not positive-semidefinite.",
-                                  RuntimeWarning)
+                        RuntimeWarning)
                 else:
-                    raise ValueError("covariance is not positive-semidefinite.")
+                    raise ValueError(
+                        "covariance is not positive-semidefinite.")
 
         x = np.dot(x, np.sqrt(s)[:, None] * v)
         x += mean

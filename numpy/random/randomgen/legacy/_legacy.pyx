@@ -1724,6 +1724,7 @@ cdef class _LegacyGenerator:
             Behavior when the covariance matrix is not positive semidefinite.
         tol : float, optional
             Tolerance when checking the singular values in covariance matrix.
+            `cov` is cast to double before the check.
 
         Returns
         -------
@@ -1836,6 +1837,8 @@ cdef class _LegacyGenerator:
         # order to preserve current outputs. Note that symmetry has not
         # been checked.
 
+        # GH10839, ensure double to make tol meaningful
+        cov = cov.astype(np.double)
         (u, s, v) = svd(cov)
 
         if check_valid != 'ignore':
