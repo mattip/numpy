@@ -143,8 +143,6 @@ for _x in dir(mtrand):
     if _x[0] != '_' and _x not in ('poisson_lam_max', 'state'):
         locals()[_x] = getattr(mtrand, _x)
 del _x
-get_state = mtrand.get_state
-set_state = mtrand.set_state
 
 # Some aliases:
 ranf = random = sample = random_sample

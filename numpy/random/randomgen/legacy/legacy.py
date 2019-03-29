@@ -2,7 +2,11 @@ from ..generator import RandomGenerator
 from ..mt19937 import MT19937
 from ._legacy import _LegacyGenerator
 
+# Attributes in RandomGenerator that should not appear in LegacyGenerator
+_HIDDEN_ATTRIBUTES = ['complex_normal', 'random_raw', 'random_uintegers']
+
 _LEGACY_ATTRIBUTES = tuple(a for a in dir(
+
     _LegacyGenerator) if not a.startswith('_'))
 
 _LEGACY_ATTRIBUTES += ('__getstate__', '__setstate__', '__reduce__')
@@ -89,6 +93,9 @@ class LegacyGenerator(with_metaclass(LegacyGeneratorType, RandomGenerator)):
     1.6465621229906502
     """
 
+    __atttributes = sorted(set(dir(_LegacyGenerator) +
+                           dir(RandomGenerator)).difference(_HIDDEN_ATTRIBUTES))
+
     def __init__(self, brng=None):
         if brng is None:
             brng = MT19937()
@@ -100,9 +107,14 @@ class LegacyGenerator(with_metaclass(LegacyGeneratorType, RandomGenerator)):
         self.__legacy = _LegacyGenerator(brng)
 
     def __getattribute__(self, name):
+        if name in _HIDDEN_ATTRIBUTES:
+            raise AttributeError('No attribute {0}'.format(name))
         if name in _LEGACY_ATTRIBUTES:
             return self.__legacy.__getattribute__(name)
         return object.__getattribute__(self, name)
+
+    def __dir__(self):
+        return self.__atttributes
 
     # Pickling support:
     def __getstate__(self):
