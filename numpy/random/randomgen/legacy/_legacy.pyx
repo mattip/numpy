@@ -510,22 +510,22 @@ cdef class _LegacyGenerator:
             uniformly distributed discrete non-integers.
         Examples
         --------
-        >>> randomgen.generator.randint(2, size=10)
+        >>> np.random.randint(2, size=10)
         array([1, 0, 0, 0, 1, 1, 0, 0, 1, 0]) # random
-        >>> randomgen.generator.randint(1, size=10)
+        >>> np.random.randint(1, size=10)
         array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) # random
         Generate a 2 x 4 array of ints between 0 and 4, inclusive:
-        >>> randomgen.generator.randint(5, size=(2, 4))
+        >>> np.random.randint(5, size=(2, 4))
         array([[4, 0, 2, 1], # random
                [3, 2, 2, 0]])
         Generate a 1 x 3 array with 3 different upper bounds
-        >>> randomgen.generator.randint(1, [3, 5, 10])
+        >>> np.random.randint(1, [3, 5, 10])
         array([2, 2, 9]) # random
         Generate a 1 by 3 array with 3 different lower bounds
-        >>> randomgen.generator.randint([1, 5, 7], 10)
+        >>> np.random.randint([1, 5, 7], 10)
         array([9, 8, 7]) # random
         Generate a 2 by 4 array using broadcasting with dtype of uint8
-        >>> randomgen.generator.randint([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
+        >>> np.random.randint([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
         array([[ 8,  6,  9,  7], # random
                [ 1, 16,  9, 12]], dtype=uint8)
         """
@@ -2055,7 +2055,7 @@ cdef class _LegacyGenerator:
         standard deviation:
 
         >>> list((x[0,0,:] - mean) < 0.6)
-        [True, True]
+        [True, True]  # random
 
         """
         from numpy.dual import svd
