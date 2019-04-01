@@ -6,7 +6,7 @@ from numpy.testing import (assert_allclose, assert_array_equal, assert_equal,
 import pytest
 
 from numpy.random.randomgen import RandomGenerator, MT19937, generator
-from numpy.random.randomgen.mtrand import RandomState
+from numpy.random import RandomState
 
 
 def compare_0_input(f1, f2):

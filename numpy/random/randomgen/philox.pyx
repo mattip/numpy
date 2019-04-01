@@ -472,7 +472,7 @@ cdef class Philox:
 
         Returns
         -------
-        gen : randomgen.generator.RandomGenerator
+        gen : numpy.random.randomgen.generator.RandomGenerator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:

@@ -6,8 +6,8 @@ import numpy as np
 cimport numpy as np
 cimport cython
 
-from randomgen.common cimport brng_t
-from randomgen.xoroshiro128 import Xoroshiro128
+from numpy.random.randomgen.common cimport brng_t
+from numpy.random.randomgen import Xoroshiro128
 
 np.import_array()
 

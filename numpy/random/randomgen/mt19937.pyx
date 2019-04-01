@@ -99,8 +99,8 @@ cdef class MT19937:
     generators should be initialized with the same seed to ensure that the
     segments come from the same sequence.
 
-    >>> from randomgen.entropy import random_entropy
-    >>> from randomgen import RandomGenerator, MT19937
+    >>> from numpy.random.randomgen.entropy import random_entropy
+    >>> from numpy.random.randomgen import RandomGenerator, MT19937
     >>> seed = random_entropy()
     >>> rs = [RandomGenerator(MT19937(seed) for _ in range(10)]
     # Advance rs[i] by i jumps
@@ -354,7 +354,7 @@ cdef class MT19937:
 
         Returns
         -------
-        gen : randomgen.generator.RandomGenerator
+        gen : numpy.random.randomgen.generator.RandomGenerator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:

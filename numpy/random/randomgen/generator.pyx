@@ -411,7 +411,9 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> rg = np.random.randomgen.RandomGenerator() # need a RandomGenerator object
+        Need to construct a RandomGenerator object
+
+        >>> rg = np.random.randomgen.RandomGenerator()
         >>> rg.tomaxint((2,2,2))
         array([[[1170048599, 1600360186], # random
                 [ 739731006, 1947757578]],

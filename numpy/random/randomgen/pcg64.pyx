@@ -431,7 +431,7 @@ cdef class PCG64:
 
         Returns
         -------
-        gen : randomgen.generator.RandomGenerator
+        gen : numpy.random.randomgen.generator.RandomGenerator
             Random generator using this instance as the core RNG
         """
         if self._generator is None:

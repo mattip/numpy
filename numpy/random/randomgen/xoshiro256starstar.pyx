@@ -354,7 +354,7 @@ cdef class Xoshiro256StarStar:
 
         Returns
         -------
-        gen : randomgen.generator.RandomGenerator
+        gen : numpy.random.randomgen.generator.RandomGenerator
             Random generator used this instance as the basic RNG
         """
         if self._generator is None:

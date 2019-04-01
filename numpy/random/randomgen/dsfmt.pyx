@@ -103,8 +103,8 @@ cdef class DSFMT:
     generators should be initialized with the same seed to ensure that the
     segments come from the same sequence.
 
-    >>> from randomgen.entropy import random_entropy
-    >>> from randomgen import RandomGenerator, DSFMT
+    >>> from numpy.random.randomgen.entropy import random_entropy
+    >>> from numpy.random.randomgen import RandomGenerator, DSFMT
     >>> seed = random_entropy()
     >>> rs = [RandomGenerator(DSFMT(seed)) for _ in range(10)]
     # Advance rs[i] by i jumps
@@ -397,7 +397,7 @@ cdef class DSFMT:
 
         Returns
         -------
-        gen : randomgen.generator.RandomGenerator
+        gen : numpy.random.randomgen.generator.RandomGenerator
             Random generator used this instance as the basic RNG
         """
         if self._generator is None:

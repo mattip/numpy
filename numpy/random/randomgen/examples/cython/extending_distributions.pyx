@@ -3,9 +3,9 @@ import numpy as np
 cimport numpy as np
 cimport cython
 from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
-from randomgen.common cimport *
-from randomgen.distributions cimport random_gauss_zig
-from randomgen.xoroshiro128 import Xoroshiro128
+from numpy.random.randomgen.common cimport *
+from numpy.random.randomgen.distributions cimport random_gauss_zig
+from numpy.random.randomgen import Xoroshiro128
 
 
 @cython.boundscheck(False)
