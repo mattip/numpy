@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-
-import operator
-
 cimport numpy as np
 import numpy as np
 
@@ -24,6 +20,7 @@ cdef Py_ssize_t compute_numel(size):
     else:
         n = size
     return n
+
 
 def seed_by_array(object seed, Py_ssize_t n):
     """
