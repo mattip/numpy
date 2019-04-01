@@ -237,11 +237,6 @@ class RNG(object):
         rg2 = RandomGenerator(self.brng(*self.seed))
         rg.random_sample()
         rg2.random_sample()
-        if not comp_state(rg.state, rg2.state):
-            for key in rg.state:
-                print(key)
-                print(rg.state[key])
-                print(rg2.state[key])
         assert_(comp_state(rg.state, rg2.state))
 
     def test_reset_state_gauss(self):
