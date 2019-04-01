@@ -2,6 +2,7 @@ import os
 import pickle
 import sys
 import time
+from functools import partial
 
 import numpy as np
 import pytest
@@ -152,13 +153,6 @@ class RNG(object):
             brng_name = self.rg._basicrng.__class__.__name__
             pytest.skip('Jump is not supported by {0}'.format(brng_name))
 
-    def test_random_uintegers(self):
-        assert_(len(self.rg.random_uintegers(10)) == 10)
-
-    def test_random_raw(self):
-        assert_(len(self.rg.random_raw(10)) == 10)
-        assert_(self.rg.random_raw((10, 10)).shape == (10, 10))
-
     def test_uniform(self):
         r = self.rg.uniform(-1.0, 0.0, size=10)
         assert_(len(r) == 10)
@@ -200,6 +194,20 @@ class RNG(object):
         assert_(len(self.rg.standard_exponential(10)) == 10)
         params_0(self.rg.standard_exponential)
 
+    def test_standard_exponential_float(self):
+        randoms = self.rg.standard_exponential(10, dtype='float32')
+        assert_(len(randoms) == 10)
+        assert randoms.dtype == np.float32
+        params_0(partial(self.rg.standard_exponential, dtype='float32'))
+
+    def test_standard_exponential_float_log(self):
+        randoms = self.rg.standard_exponential(10, dtype='float32',
+                                               method='inv')
+        assert_(len(randoms) == 10)
+        assert randoms.dtype == np.float32
+        params_0(partial(self.rg.standard_exponential, dtype='float32',
+                         method='inv'))
+
     def test_standard_cauchy(self):
         assert_(len(self.rg.standard_cauchy(10)) == 10)
         params_0(self.rg.standard_cauchy)
@@ -214,9 +222,9 @@ class RNG(object):
 
     def test_reset_state(self):
         state = self.rg.state
-        int_1 = self.rg.random_raw(1)
+        int_1 = self.rg.randint(2**31)
         self.rg.state = state
-        int_2 = self.rg.random_raw(1)
+        int_2 = self.rg.randint(2**31)
         assert_(int_1 == int_2)
 
     def test_entropy_init(self):
@@ -256,14 +264,14 @@ class RNG(object):
         n2 = rg2.randint(0, 2 ** 24, 10, dtype=np.uint32)
         assert_array_equal(n1, n2)
 
-    def test_reset_state_uintegers(self):
+    def test_reset_state_float(self):
         rg = RandomGenerator(self.brng(*self.seed))
-        rg.random_uintegers(bits=32)
+        rg.random_sample(dtype='float32')
         state = rg.state
-        n1 = rg.random_uintegers(bits=32, size=10)
+        n1 = rg.random_sample(size=10, dtype='float32')
         rg2 = RandomGenerator(self.brng())
         rg2.state = state
-        n2 = rg2.random_uintegers(bits=32, size=10)
+        n2 = rg2.random_sample(size=10, dtype='float32')
         assert_((n1 == n2).all())
 
     def test_shuffle(self):
@@ -678,6 +686,10 @@ class RNG(object):
         rg.state = state
         direct = rg.standard_normal(size=size)
         assert_equal(direct, existing)
+
+        sized = np.empty(size)
+        rg.state = state
+        rg.standard_normal(out=sized, size=sized.shape)
 
         existing = np.empty(size, dtype=np.float32)
         rg.state = state

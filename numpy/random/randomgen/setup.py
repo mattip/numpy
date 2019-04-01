@@ -122,17 +122,6 @@ def configuration(parent_package='',top_path=None):
                                 ],
                         define_macros=defs + DSFMT_DEFS,
                         )
-    config.add_extension('legacy._legacy',
-                        sources=['legacy/_legacy.c',
-                             'src/legacy/distributions-boxmuller.c',
-                             'src/distributions/distributions.c' ],
-                        include_dirs=['.', 'legacy'],
-                        libraries=EXTRA_LIBRARIES,
-                        extra_compile_args=EXTRA_COMPILE_ARGS,
-                        extra_link_args=EXTRA_LINK_ARGS,
-                        depends=[join('legacy', '_legacy.pyx')],
-                        define_macros=defs + DSFMT_DEFS,
-                        )
     for gen in ['mt19937']:
         # gen.pyx, src/gen/gen.c, src/gen/gen-jump.c
         config.add_extension(gen,
@@ -185,6 +174,17 @@ def configuration(parent_package='',top_path=None):
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=['%s.pyx' % gen],
                         define_macros=defs,
+                        )
+    config.add_extension('mtrand',
+                        sources=['mtrand.c',
+                             'src/legacy/distributions-boxmuller.c',
+                             'src/distributions/distributions.c' ],
+                        include_dirs=['.', 'legacy'],
+                        libraries=EXTRA_LIBRARIES,
+                        extra_compile_args=EXTRA_COMPILE_ARGS,
+                        extra_link_args=EXTRA_LINK_ARGS,
+                        depends=['mtrand.pyx'],
+                        define_macros=defs + DSFMT_DEFS,
                         )
     config.add_subpackage('legacy')
     return config

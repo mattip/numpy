@@ -137,7 +137,7 @@ __all__ = [
 ]
 
 # from .mtrand import *
-from .randomgen.legacy import LegacyGenerator as RandomState
+from .randomgen.mtrand import RandomState
 mtrand = RandomState()
 for _x in dir(mtrand):
     if _x[0] != '_' and _x not in ('poisson_lam_max', 'state'):
@@ -145,7 +145,7 @@ for _x in dir(mtrand):
 del _x
 
 # Some aliases:
-ranf = random = sample = random_sample
+ranf = random = sample = mtrand.random_sample
 __all__.extend(['ranf', 'random', 'sample'])
 
 def __RandomState_ctor():

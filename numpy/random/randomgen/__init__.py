@@ -10,11 +10,10 @@ from .xoroshiro128 import Xoroshiro128
 from .xorshift1024 import Xorshift1024
 from .xoshiro256starstar import Xoshiro256StarStar
 from .xoshiro512starstar import Xoshiro512StarStar
-
+from .mtrand import RandomState
 __all__ = ['RandomGenerator', 'DSFMT', 'MT19937', 'PCG64', 'PCG32', 'Philox',
            'ThreeFry', 'ThreeFry32', 'Xoroshiro128', 'Xorshift1024',
-           'Xoshiro256StarStar', 'Xoshiro512StarStar',
-           'hypergeometric', 'multinomial', 'random_sample']
+           'Xoshiro256StarStar', 'Xoshiro512StarStar', 'RandomState']
 
 #from ._version import get_versions
 
