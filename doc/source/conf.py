@@ -234,7 +234,9 @@ numpydoc_use_plots = True
 # -----------------------------------------------------------------------------
 
 import glob
-autosummary_generate = glob.glob("reference/*.rst")
+autosummary_generate = (glob.glob("reference/*.rst") +
+                        glob.glob("reference/randomgen/*.rst") +
+                        glob.glob("reference/randomgen/brng/*.rst"))
 
 # -----------------------------------------------------------------------------
 # Coverage checker
