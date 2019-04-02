@@ -9,7 +9,6 @@ try:
 except ImportError:
     from dummy_threading import Lock
 
-from .common import interface
 from .common cimport *
 from .distributions cimport brng_t
 from .entropy import random_entropy, seed_by_array
