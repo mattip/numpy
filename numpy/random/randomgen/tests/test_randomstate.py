@@ -1,5 +1,6 @@
-import warnings
 import pickle
+import sys
+import warnings
 
 import numpy as np
 from numpy.testing import (
@@ -7,7 +8,6 @@ from numpy.testing import (
         assert_no_warnings, assert_array_equal, assert_array_almost_equal,
         suppress_warnings
         )
-import sys
 
 from ...randomgen import MT19937, Xoshiro256StarStar, mtrand as random
 
