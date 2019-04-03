@@ -33,7 +33,7 @@ when accessing the state so that these extra values are saved.
    lg.standard_exponential()
    
 
-.. currentmodule:: randomgen.legacy.legacy
+.. currentmodule:: numpy.random.randomgen.legacy
 
 .. autoclass::
    LegacyGenerator
@@ -44,7 +44,8 @@ Seeding and State
 .. autosummary::
    :toctree: generated/
 
-   ~LegacyGenerator.state
+   ~LegacyGenerator.get_state
+   ~LegacyGenerator.set_state
    
 Simple random data
 ==================
@@ -58,8 +59,6 @@ Simple random data
    ~LegacyGenerator.random_sample
    ~LegacyGenerator.choice
    ~LegacyGenerator.bytes
-   ~LegacyGenerator.random_uintegers
-   ~LegacyGenerator.random_raw
 
 Permutations
 ============
@@ -77,7 +76,6 @@ Distributions
    ~LegacyGenerator.beta
    ~LegacyGenerator.binomial
    ~LegacyGenerator.chisquare
-   ~LegacyGenerator.complex_normal
    ~LegacyGenerator.dirichlet
    ~LegacyGenerator.exponential
    ~LegacyGenerator.f

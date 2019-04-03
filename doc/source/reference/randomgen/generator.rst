@@ -12,7 +12,7 @@ distributions. The default basic RNG used by
 changed by passing an instantized basic RNG to 
 :class:`~randomgen.generator.RandomGenerator`. 
 
-.. currentmodule:: randomgen.generator
+.. currentmodule:: numpy.random.randomgen.generator
 
 .. autoclass::
    RandomGenerator
@@ -37,8 +37,6 @@ Simple random data
    ~RandomGenerator.random_sample
    ~RandomGenerator.choice
    ~RandomGenerator.bytes
-   ~RandomGenerator.random_uintegers
-   ~RandomGenerator.random_raw
 
 Permutations
 ============
@@ -56,7 +54,6 @@ Distributions
    ~RandomGenerator.beta
    ~RandomGenerator.binomial
    ~RandomGenerator.chisquare
-   ~RandomGenerator.complex_normal
    ~RandomGenerator.dirichlet
    ~RandomGenerator.exponential
    ~RandomGenerator.f

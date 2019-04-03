@@ -1,9 +1,9 @@
 Double SIMD Mersenne Twister (dSFMT) 
 ------------------------------------
 
-.. module:: randomgen.dsfmt
+.. module:: numpy.random.randomgen.dsfmt
 
-.. currentmodule:: randomgen.dsfmt
+.. currentmodule:: numpy.random.randomgen.dsfmt
 
 
 .. autoclass:: DSFMT

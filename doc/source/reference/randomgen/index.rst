@@ -1,8 +1,10 @@
-RandomGen
-=========
+Randomgen.RandomGen
+===================
 This package contains replacements for the NumPy
 :class:`~numpy.random.RandomState` object that allows the core random number
 generator be be changed.
+
+.. current_module numpy.random.randomgen
 
 Quick Start
 -----------
@@ -187,14 +189,14 @@ Random Generator
 .. toctree::
    :maxdepth: 1
 
-   Random Generation <generator>
+   generator
    legacy
 
 Basic Random Number Generators
 ------------------------------
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
 
    Basic Random Number Generators <brng/index>
 

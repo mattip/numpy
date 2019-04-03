@@ -41,7 +41,8 @@ help:
 	@echo "  upload USERNAME=... RELEASE=... to upload built docs to docs.scipy.org"
 
 clean:
-	-rm -rf build/* source/reference/generated
+	-rm -rf build/* 
+	find . -name generated -type d -prune -exec rm -rf "{}" ";"
 
 gitwash-update:
 	rm -rf source/dev/gitwash

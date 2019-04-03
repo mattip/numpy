@@ -1,9 +1,9 @@
 Xoroshiro128+
 -------------
 
-.. module:: randomgen.xoroshiro128
+.. module:: numpy.random.randomgen.xoroshiro128
 
-.. currentmodule:: randomgen.xoroshiro128
+.. currentmodule:: numpy.random.randomgen.xoroshiro128
 
 .. autoclass:: Xoroshiro128
 

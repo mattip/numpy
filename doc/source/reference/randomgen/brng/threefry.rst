@@ -1,9 +1,9 @@
 ThreeFry Counter-based RNG
 --------------------------
 
-.. module:: randomgen.threefry
+.. module:: numpy.random.randomgen.threefry
 
-.. currentmodule:: randomgen.threefry
+.. currentmodule:: numpy.random.randomgen.threefry
 
 .. autoclass:: ThreeFry
 

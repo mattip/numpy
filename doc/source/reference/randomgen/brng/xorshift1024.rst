@@ -1,9 +1,9 @@
 Xorshift1024*φ
 --------------
 
-.. module:: randomgen.xorshift1024
+.. module:: numpy.random.randomgen.xorshift1024
 
-.. currentmodule:: randomgen.xorshift1024
+.. currentmodule:: numpy.random.randomgen.xorshift1024
 
 .. autoclass:: Xorshift1024
 

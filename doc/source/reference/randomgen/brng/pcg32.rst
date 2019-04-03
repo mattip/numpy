@@ -1,9 +1,9 @@
 Parallel Congruent Generator (32-bit, PCG32)
 --------------------------------------------
 
-.. module:: randomgen.pcg32
+.. module:: numpy.random.randomgen.pcg32
 
-.. currentmodule:: randomgen.pcg32
+.. currentmodule:: numpy.random.randomgen.pcg32
 
 .. autoclass:: PCG32
 
