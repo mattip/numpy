@@ -12,6 +12,7 @@ double legacy_gauss(aug_brng_t *aug_state) {
     return temp;
   } else {
     double f, x1, x2, r2;
+    double f, x1, x2, r2;
 
     do {
       x1 = 2.0 * legacy_double(aug_state) - 1.0;
