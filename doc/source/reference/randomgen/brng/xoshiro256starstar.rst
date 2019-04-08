@@ -6,6 +6,7 @@ Xoshiro256**
 .. currentmodule:: numpy.random.randomgen.xoshiro256starstar
 
 .. autoclass:: Xoshiro256StarStar
+	:exclude-members:
 
 Seeding and State
 =================

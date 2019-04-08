@@ -6,6 +6,7 @@ Parallel Congruent Generator (32-bit, PCG32)
 .. currentmodule:: numpy.random.randomgen.pcg32
 
 .. autoclass:: PCG32
+	:exclude-members:
 
 Seeding and State
 =================

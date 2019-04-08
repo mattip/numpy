@@ -14,8 +14,8 @@ changed by passing an instantized basic RNG to
 
 .. currentmodule:: numpy.random.randomgen.generator
 
-.. autoclass::
-   RandomGenerator
+.. autoclass:: RandomGenerator
+	:exclude-members:
 
 Seed and State Manipulation
 ===========================

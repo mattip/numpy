@@ -6,6 +6,7 @@ Mersenne Twister (MT19937)
 .. currentmodule:: numpy.random.randomgen.mt19937
 
 .. autoclass:: MT19937
+	:exclude-members:
 
 Seeding and State
 =================

@@ -7,6 +7,7 @@ Double SIMD Mersenne Twister (dSFMT)
 
 
 .. autoclass:: DSFMT
+	:exclude-members:
 
 Seeding and State
 =================

@@ -6,6 +6,7 @@ Philox Counter-based RNG
 .. currentmodule:: numpy.random.randomgen.philox
 
 .. autoclass:: Philox
+	:exclude-members:
 
 Seeding and State
 =================

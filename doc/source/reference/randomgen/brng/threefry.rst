@@ -6,6 +6,7 @@ ThreeFry Counter-based RNG
 .. currentmodule:: numpy.random.randomgen.threefry
 
 .. autoclass:: ThreeFry
+	:exclude-members:
 
 Seeding and State
 =================

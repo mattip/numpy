@@ -6,6 +6,7 @@ Xorshift1024*φ
 .. currentmodule:: numpy.random.randomgen.xorshift1024
 
 .. autoclass:: Xorshift1024
+	:exclude-members:
 
 Seeding and State
 =================

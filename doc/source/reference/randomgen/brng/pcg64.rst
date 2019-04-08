@@ -6,6 +6,7 @@ Parallel Congruent Generator (64-bit, PCG64)
 .. currentmodule:: numpy.random.randomgen.pcg64
 
 .. autoclass:: PCG64
+	:exclude-members:
 
 Seeding and State
 =================

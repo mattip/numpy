@@ -6,6 +6,7 @@ Xoroshiro128+
 .. currentmodule:: numpy.random.randomgen.xoroshiro128
 
 .. autoclass:: Xoroshiro128
+	:exclude-members:
 
 Seeding and State
 =================

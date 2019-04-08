@@ -35,8 +35,8 @@ when accessing the state so that these extra values are saved.
 
 .. currentmodule:: numpy.random.randomgen.legacy
 
-.. autoclass::
-   LegacyGenerator
+.. autoclass:: LegacyGenerator
+	:exclude-members:
 
 Seeding and State
 =================
