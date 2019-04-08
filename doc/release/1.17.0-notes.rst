@@ -18,11 +18,11 @@ New functions
 Deprecations
 ============
 
-``np.polynomial`` functions warn when passed ``float``s in place of ``int``s
-----------------------------------------------------------------------------
-Previously functions in this module would accept ``float``s provided their
-values were integral. For consistency with the rest of numpy, doing so is now
-deprecated, and in future will raise a ``TypeError``.
+``np.polynomial`` functions warn when passed ``float`` in place of ``int``
+--------------------------------------------------------------------------
+Previously functions in this module would accept ``float`` values provided they
+were integral (``1.0``, ``2.0``, etc). For consistency with the rest of numpy,
+doing so is now deprecated, and in future will raise a ``TypeError``.
 
 Similarly, passing a float like ``0.5`` in place of an integer will now raise a
 ``TypeError`` instead of the previous ``ValueError``.
@@ -72,6 +72,11 @@ Looking up ``__buffer__`` attribute in `numpy.frombuffer` was undocumented and
 non-functional. This code was removed. If needed, use
 ``frombuffer(memoryview(obj), ...)`` instead.
 
+``out``is buffered for memory overlaps in ``np.take``, ``np.choose``, ``np.put``
+--------------------------------------------------------------------------------
+If the out argument to these functions is provided and has memory overlap with
+the other arguments, it is now buffered to avoid order-dependent behavior.
+
 
 C API changes
 =============
@@ -119,6 +124,10 @@ divmod operation is now supported for two ``timedelta64`` operands
 The divmod operator now handles two ``np.timedelta64`` operands, with
 type signature mm->qm.
 
+New mode "empty" for ``np.pad``
+-------------------------------
+This mode pads an array to a desired shape without initializing the new
+entries.
 
 Improvements
 ============
@@ -170,6 +179,12 @@ but with this change, you can do::
         pass
 
 thereby saving a level of indentation
+
+Improve performance of ``np.pad``
+---------------------------------
+The performance of the function has been improved for most cases by filling in
+a preallocated array with the desired padded shape instead of using
+concatenation.
 
 ``np.interp`` handles infinities more robustly
 ----------------------------------------------
