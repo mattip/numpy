@@ -136,16 +136,11 @@ __all__ = [
     'zipf'
 ]
 
-# from .mtrand import *
-from .randomgen.mtrand import RandomState
-mtrand = RandomState()
-for _x in dir(mtrand):
-    if _x[0] != '_' and _x not in ('poisson_lam_max', 'state'):
-        locals()[_x] = getattr(mtrand, _x)
-del _x
+from .randomgen import mtrand
+from .randomgen.mtrand import *
 
 # Some aliases:
-ranf = random = sample = mtrand.random_sample
+ranf = random = sample = random_sample
 __all__.extend(['ranf', 'random', 'sample'])
 
 def __RandomState_ctor():
