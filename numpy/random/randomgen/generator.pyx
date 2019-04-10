@@ -49,7 +49,7 @@ cdef class RandomGenerator:
 
     Notes
     -----
-    The Python stdlib module "random" contains pseudo-random number generator
+    The Python stdlib module `random` contains pseudo-random number generator
     with a number of methods that are similar to the ones available in
     ``RandomGenerator``. It uses Mersenne Twister, and this basic RNG can be
     accessed using ``MT19937``. ``RandomGenerator``, besides being
