@@ -15,13 +15,12 @@ changed by passing an instantized basic RNG to ``RandomGenerator``.
 .. autoclass:: RandomGenerator
 	:exclude-members:
 
-Seed and State Manipulation
-===========================
+Accessing the RNG
+=================
 .. autosummary::
    :toctree: generated/
 
-   ~RandomGenerator.seed
-   ~RandomGenerator.state
+   ~RandomGenerator.brng
 
 Simple random data
 ==================
