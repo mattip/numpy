@@ -1849,6 +1849,23 @@ class TestBroadcast(object):
         assert_raises(ValueError, logseries, bad_p_one * 3)
         assert_raises(ValueError, logseries, bad_p_two * 3)
 
+    def test_multinomial(self):
+        random.seed(self.seed)
+        actual = random.multinomial([5, 20], [1 / 6.] * 6, size=(3, 2))
+        desired = np.array([[[1, 1, 1, 1, 0, 1],
+                             [4, 5, 1, 4, 3, 3]],
+                            [[1, 1, 1, 0, 0, 2],
+                             [2, 0, 4, 3, 7, 4]],
+                            [[1, 2, 0, 0, 2, 2],
+                             [3, 2, 3, 4, 2, 6]]], dtype=np.int64)
+        assert_array_equal(actual, desired)
+
+        random.seed(self.seed)
+        actual = random.multinomial([5, 20], [1 / 6.] * 6)
+        desired = np.array([[1, 1, 1, 1, 0, 1],
+                            [4, 5, 1, 4, 3, 3]], dtype=np.int64)
+        assert_array_equal(actual, desired)
+
 
 class TestThread(object):
     # make sure each state produces the same sequence even in threads
