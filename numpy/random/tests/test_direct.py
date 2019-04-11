@@ -7,10 +7,10 @@ from numpy.testing import assert_equal, assert_allclose, assert_array_equal, \
     assert_raises
 import pytest
 
-from ...randomgen import RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry, \
+from numpy.random import RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry, \
     PCG32, PCG64, Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar, \
     Xoshiro512StarStar, RandomState
-from ...randomgen.common import interface
+from numpy.random.common import interface
 
 try:
     import cffi  # noqa: F401

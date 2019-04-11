@@ -5,7 +5,7 @@ from numpy.testing import (assert_allclose, assert_array_equal, assert_equal,
 
 import pytest
 
-from numpy.random.randomgen import RandomGenerator, MT19937, generator
+from numpy.random import RandomGenerator, MT19937, generator
 from numpy.random import RandomState
 
 
@@ -399,27 +399,6 @@ class TestAgainstNumPy(object):
         assert_equal(s.randint(1000), 973)
         s = RandomGenerator(MT19937([4294967295]))
         assert_equal(s.randint(1000), 265)
-
-    def test_dir(self):
-        nprs_d = set(dir(self.nprs))
-        rs_d = dir(self.rg)
-        excluded = {'get_state', 'set_state', '_basicrng', 'seed', '__getstate__'}
-        nprs_d.difference_update(excluded)
-        d = nprs_d.difference(rs_d)
-        assert (len(d) == 0)
-
-        npmod = dir(numpy.random)
-        mod = dir(generator)
-        known_exlcuded = ['__all__', '__cached__', '__path__', 'Tester',
-                          'info', 'bench', '__RandomState_ctor', 'mtrand',
-                          'test', '__warningregistry__', '_numpy_tester',
-                          'division', 'get_state', 'set_state', 'seed',
-                          'ranf', 'random', 'sample', 'absolute_import',
-                          'print_function', 'RandomState', 'randomgen',
-                          'tests', 'Lock']
-        mod += known_exlcuded
-        diff = set(npmod).difference(mod)
-        assert_equal(len(diff), 0)
 
     # Tests using legacy generator
     def test_chisquare(self):

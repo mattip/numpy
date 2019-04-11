@@ -7,7 +7,7 @@ from numpy.testing import (
     assert_warns, assert_no_warnings, assert_array_equal,
     assert_array_almost_equal, suppress_warnings)
 
-from ...randomgen import RandomGenerator, MT19937
+from numpy.random import RandomGenerator, MT19937
 
 random = RandomGenerator(MT19937())
 

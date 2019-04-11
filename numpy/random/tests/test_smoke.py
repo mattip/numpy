@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from numpy.testing import (assert_almost_equal, assert_equal, assert_,
     assert_array_equal, suppress_warnings)
-from ...randomgen import (RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry,
+from numpy.random import (RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry,
     PCG32, PCG64, Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar,
     Xoshiro512StarStar, entropy)
 
