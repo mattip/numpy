@@ -804,8 +804,7 @@ class TestRandomDist(object):
         assert_raises(ValueError, random.geometric, [1.1] * 10)
         assert_raises(ValueError, random.geometric, -0.1)
         assert_raises(ValueError, random.geometric, [-0.1] * 10)
-        with suppress_warnings() as sup:
-            sup.record(RuntimeWarning)
+        with np.errstate(invalid='ignore'):
             assert_raises(ValueError, random.geometric, np.nan)
             assert_raises(ValueError, random.geometric, [np.nan] * 10)
 
@@ -888,8 +887,7 @@ class TestRandomDist(object):
         assert_array_equal(actual, desired)
 
     def test_logseries_exceptions(self):
-        with suppress_warnings() as sup:
-            sup.record(RuntimeWarning)
+        with np.errstate(invalid='ignore'):
             assert_raises(ValueError, random.logseries, np.nan)
             assert_raises(ValueError, random.logseries, [np.nan] * 10)
 
@@ -964,8 +962,7 @@ class TestRandomDist(object):
         assert_array_equal(actual, desired)
 
     def test_negative_binomial_exceptions(self):
-        with suppress_warnings() as sup:
-            sup.record(RuntimeWarning)
+        with np.errstate(invalid='ignore'):
             assert_raises(ValueError, random.negative_binomial, 100, np.nan)
             assert_raises(ValueError, random.negative_binomial, 100,
                           [np.nan] * 10)
@@ -1046,8 +1043,7 @@ class TestRandomDist(object):
         assert_raises(ValueError, random.poisson, [lamneg] * 10)
         assert_raises(ValueError, random.poisson, lambig)
         assert_raises(ValueError, random.poisson, [lambig] * 10)
-        with suppress_warnings() as sup:
-            sup.record(RuntimeWarning)
+        with np.errstate(invalid='ignore'):
             assert_raises(ValueError, random.poisson, np.nan)
             assert_raises(ValueError, random.poisson, [np.nan] * 10)
 
