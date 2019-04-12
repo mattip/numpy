@@ -1358,11 +1358,11 @@ cdef class RandomState:
         the probability density function:
 
         >>> import matplotlib.pyplot as plt
-        >>> import scipy.special as sps
+        >>> import scipy.special as sps  # doctest: +SKIP
         >>> count, bins, ignored = plt.hist(s, 50, density=True)
-        >>> y = bins**(shape-1) * ((np.exp(-bins/scale))/ \\
+        >>> y = bins**(shape-1) * ((np.exp(-bins/scale))/ \\  # doctest: +SKIP
         ...                       (sps.gamma(shape) * scale**shape))
-        >>> plt.plot(bins, y, linewidth=2, color='r')
+        >>> plt.plot(bins, y, linewidth=2, color='r')  # doctest: +SKIP
         >>> plt.show()
 
         """
@@ -1437,11 +1437,11 @@ cdef class RandomState:
         the probability density function:
 
         >>> import matplotlib.pyplot as plt
-        >>> import scipy.special as sps
+        >>> import scipy.special as sps  # doctest: +SKIP
         >>> count, bins, ignored = plt.hist(s, 50, density=True)
-        >>> y = bins**(shape-1)*(np.exp(-bins/scale) /
+        >>> y = bins**(shape-1)*(np.exp(-bins/scale) /  # doctest: +SKIP
         ...                      (sps.gamma(shape)*scale**shape))
-        >>> plt.plot(bins, y, linewidth=2, color='r')
+        >>> plt.plot(bins, y, linewidth=2, color='r')  # doctest: +SKIP
         >>> plt.show()
 
         """
@@ -1991,11 +1991,11 @@ cdef class RandomState:
         the probability density function:
 
         >>> import matplotlib.pyplot as plt
-        >>> from scipy.special import i0
+        >>> from scipy.special import i0  # doctest: +SKIP
         >>> plt.hist(s, 50, density=True)
         >>> x = np.linspace(-np.pi, np.pi, num=51)
-        >>> y = np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))
-        >>> plt.plot(x, y, linewidth=2, color='r')
+        >>> y = np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))  # doctest: +SKIP
+        >>> plt.plot(x, y, linewidth=2, color='r')  # doctest: +SKIP
         >>> plt.show()
 
         """
@@ -2273,25 +2273,25 @@ cdef class RandomState:
 
         Compare the power function distribution to the inverse of the Pareto.
 
-        >>> from scipy import stats
+        >>> from scipy import stats # doctest: +SKIP
         >>> rvs = np.random.power(5, 1000000)
         >>> rvsp = np.random.pareto(5, 1000000)
         >>> xx = np.linspace(0,1,100)
-        >>> powpdf = stats.powerlaw.pdf(xx,5)
+        >>> powpdf = stats.powerlaw.pdf(xx,5)  # doctest: +SKIP
 
         >>> plt.figure()
         >>> plt.hist(rvs, bins=50, density=True)
-        >>> plt.plot(xx,powpdf,'r-')
+        >>> plt.plot(xx,powpdf,'r-')  # doctest: +SKIP
         >>> plt.title('np.random.power(5)')
 
         >>> plt.figure()
         >>> plt.hist(1./(1.+rvsp), bins=50, density=True)
-        >>> plt.plot(xx,powpdf,'r-')
+        >>> plt.plot(xx,powpdf,'r-')  # doctest: +SKIP
         >>> plt.title('inverse of 1 + np.random.pareto(5)')
 
         >>> plt.figure()
         >>> plt.hist(1./(1.+rvsp), bins=50, density=True)
-        >>> plt.plot(xx,powpdf,'r-')
+        >>> plt.plot(xx,powpdf,'r-')  # doctest: +SKIP
         >>> plt.title('inverse of stats.pareto(5)')
 
         """
@@ -3282,14 +3282,14 @@ cdef class RandomState:
         the probability density function:
 
         >>> import matplotlib.pyplot as plt
-        >>> from scipy import special
+        >>> from scipy import special  # doctest: +SKIP
 
         Truncate s values at 50 so plot is interesting:
 
         >>> count, bins, ignored = plt.hist(s[s<50], 50, density=True)
         >>> x = np.arange(1., 50.)
-        >>> y = x**(-a) / special.zetac(a)
-        >>> plt.plot(x, y/max(y), linewidth=2, color='r')
+        >>> y = x**(-a) / special.zetac(a)  # doctest: +SKIP
+        >>> plt.plot(x, y/max(y), linewidth=2, color='r')  # doctest: +SKIP
         >>> plt.show()
 
         """
