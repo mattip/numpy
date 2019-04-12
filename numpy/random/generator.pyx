@@ -58,19 +58,22 @@ cdef class RandomGenerator:
 
     Examples
     --------
-    >>> from np.random.randomgen import RandomGenerator
+    >>> from numpy.random import RandomGenerator
     >>> rg = RandomGenerator()
     >>> rg.standard_normal()
+    -0.203  # random
 
     Using a specific generator
 
-    >>> from np.random.randomgen import MT19937
+    >>> from numpy.random import MT19937
     >>> rg = RandomGenerator(MT19937())
 
     The generator is also directly available from basic RNGs
 
     >>> rg = MT19937().generator
     >>> rg.standard_normal()
+    -0.203  # random
+
     """
     cdef public object brng
     cdef brng_t *_brng
@@ -352,14 +355,12 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> rg = np.random.randomgen.RandomGenerator() # need a RandomGenerator object
+        >>> rg = np.random.RandomGenerator() # need a RandomGenerator object
         >>> rg.tomaxint((2,2,2))
         array([[[1170048599, 1600360186], # random
                 [ 739731006, 1947757578]],
                [[1871712945,  752307660],
                 [1601631370, 1479324245]]])
-        >>> np.iinfo(np.int).max
-        2147483647
         >>> rg.tomaxint((2,2,2)) < np.iinfo(np.int).max
         array([[[ True,  True],
                 [ True,  True]],

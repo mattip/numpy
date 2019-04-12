@@ -83,11 +83,11 @@ cdef class Xorshift1024:
     in each worker process. All generators should be initialized with the same
     seed to ensure that the segments come from the same sequence.
 
-    >>> from randomgen import RandomGenerator, Xorshift1024
+    >>> from numpy.random import RandomGenerator, Xorshift1024
     >>> rg = [RandomGenerator(Xorshift1024(1234)) for _ in range(10)]
-    # Advance rg[i] by i jumps
+    # Advance each Xorshift1024 instance by i jumps
     >>> for i in range(10):
-    ...     rg[i].jump(i)
+    ...     rg[i].brng.jump(i)
 
     **State and Seeding**
 
@@ -107,14 +107,16 @@ cdef class Xorshift1024:
 
     Examples
     --------
-    >>> from randomgen import RandomGenerator, Xorshift1024
+    >>> from numpy.random import RandomGenerator, Xorshift1024
     >>> rg = RandomGenerator(Xorshift1024(1234))
     >>> rg.standard_normal()
+    0.123  # random
 
     Identical method using only Xoroshiro128
 
-    >>> rg = Xorshift10241234).generator
+    >>> rg = Xorshift1024(1234).generator
     >>> rg.standard_normal()
+    0.123  # random
 
     References
     ----------
@@ -358,7 +360,7 @@ cdef class Xorshift1024:
 
         Returns
         -------
-        gen : numpy.random.randomgen.generator.RandomGenerator
+        gen : numpy.random.RandomGenerator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:

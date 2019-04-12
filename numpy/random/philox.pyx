@@ -112,15 +112,15 @@ cdef class Philox:
     in parallel applications by using a sequence of distinct keys where each
     instance uses different key.
 
-    >>> from randomgen import RandomGenerator, Philox
+    >>> from numpy.random import RandomGenerator, Philox
     >>> rg = [RandomGenerator(Philox(1234)) for _ in range(10)]
-    # Advance rs[i] by i jumps
+    # Advance each Philox instance by i jumps
     >>> for i in range(10):
-    ...     rg[i].jump(i)
+    ...     rg[i].brng.jump(i)
 
     Using distinct keys produces independent streams
 
-    >>> key = 2**196 + 2**132 + 2**65 + 2**33 + 2**17 + 2**9
+    >>> key = 2**96 + 2**32 + 2**65 + 2**33 + 2**17 + 2**9
     >>> rg = [RandomGenerator(Philox(key=key+i)) for i in range(10)]
 
     **State and Seeding**
@@ -144,14 +144,16 @@ cdef class Philox:
 
     Examples
     --------
-    >>> from randomgen import RandomGenerator, Philox
+    >>> from numpy.random import RandomGenerator, Philox
     >>> rg = RandomGenerator(Philox(1234))
     >>> rg.standard_normal()
+    0.123  # random
 
     Identical method using only Philox
 
     >>> rg = Philox(1234).generator
     >>> rg.standard_normal()
+    0.123  # random
 
     References
     ----------
@@ -473,7 +475,7 @@ cdef class Philox:
 
         Returns
         -------
-        gen : numpy.random.randomgen.generator.RandomGenerator
+        gen : numpy.random.RandomGenerator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:

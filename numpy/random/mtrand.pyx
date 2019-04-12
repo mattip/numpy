@@ -137,7 +137,7 @@ cdef class RandomState:
         The best method to access seed is to directly use a basic RNG instance.
         This example demonstrates this best practice.
 
-        >>> from numpy.random.randomgen import MT19937
+        >>> from numpy.random import MT19937
         >>> from numpy.random import RandomState
         >>> brng = MT19937(123456789)
         >>> rs = RandomState(brng)
@@ -481,8 +481,6 @@ cdef class RandomState:
                 [ 739731006, 1947757578]],
                [[1871712945,  752307660],
                 [1601631370, 1479324245]]])
-        >>> np.iinfo(np.int).max
-        2147483647
         >>> rs.tomaxint((2,2,2)) < np.iinfo(np.int).max
         array([[[ True,  True],
                 [ True,  True]],

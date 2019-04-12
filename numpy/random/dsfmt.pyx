@@ -106,9 +106,9 @@ cdef class DSFMT:
     >>> from numpy.random import RandomGenerator, DSFMT
     >>> seed = random_entropy()
     >>> rs = [RandomGenerator(DSFMT(seed)) for _ in range(10)]
-    # Advance rs[i] by i jumps
+    # Advance each DSFMT instance by i jumps
     >>> for i in range(10):
-    ...     rs[i].jump()
+    ...     rs[i].brng.jump()
 
     **State and Seeding**
 
@@ -398,7 +398,7 @@ cdef class DSFMT:
 
         Returns
         -------
-        gen : numpy.random.randomgen.generator.RandomGenerator
+        gen : numpy.random.RandomGenerator  # ignore
             Random generator used this instance as the basic RNG
         """
         if self._generator is None:
