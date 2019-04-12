@@ -1,4 +1,4 @@
-.. currentmodule:: numpy.random.randomgen
+.. currentmodule:: numpy.random
 
 Extending
 ---------
@@ -19,7 +19,7 @@ provided by ``ctypes.next_double``.
 
 .. code-block:: python
 
-    from randomgen import Xoroshiro128
+    from numpy.random import Xoroshiro128
     import numpy as np
     import numba as nb
 
@@ -79,9 +79,9 @@ removing bounds checks and wrap around, providing array alignment information
     cimport numpy as np
     cimport cython
     from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
-    from randomgen.common cimport *
-    from randomgen.distributions cimport random_gauss_zig
-    from randomgen.xoroshiro128 import Xoroshiro128
+    from numpy.random.common cimport *
+    from numpy.random.distributions cimport random_gauss_zig
+    from numpy.random.xoroshiro128 import Xoroshiro128
 
 
    @cython.boundscheck(False)

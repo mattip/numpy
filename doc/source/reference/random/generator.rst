@@ -1,4 +1,4 @@
-.. currentmodule:: numpy.random.randomgen
+.. currentmodule:: numpy.random
 
 Random Generator
 ----------------

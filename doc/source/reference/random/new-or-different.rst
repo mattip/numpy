@@ -1,6 +1,6 @@
 .. _new-or-different:
 
-.. currentmodule:: numpy.random.randomgen
+.. currentmodule:: numpy.random
 
 What's New or Different
 -----------------------
@@ -38,7 +38,7 @@ What's New or Different
 
 .. ipython:: python
 
-  from  numpy.random.randomgen import Xoroshiro128
+  from  numpy.random import Xoroshiro128
   import numpy.random
   rg = Xoroshiro128().generator
   %timeit rg.standard_normal(100000)
