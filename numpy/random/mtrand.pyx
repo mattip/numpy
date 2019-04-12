@@ -90,8 +90,10 @@ cdef class RandomState:
         self.lock = brng.lock
 
     def __dealloc__(self):
-        free(self._binomial)
-        free(self._aug_state)
+        if self._binomial:
+            free(self._binomial)
+        if self._aug_state:
+            free(self._aug_state)
 
     def __repr__(self):
         return self.__str__() + ' at 0x{:X}'.format(id(self))
