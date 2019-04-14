@@ -1,21 +1,21 @@
 Legacy Random Generation
 ------------------------
-The :class:`~legacy.LegacyGenerator` provides access to 
+The :class:`~mtrand.RandomState` provides access to
 legacy generators.  These all depend on Box-Muller normals or
-inverse CDF exponentials or gammas. This class should only be used 
+inverse CDF exponentials or gammas. This class should only be used
 if it is essential to have randoms that are identical to what
-would have been produced by NumPy. 
+would have been produced by NumPy.
 
-:class:`~legacy.LegacyGenerator` add additional information
+:class:`~mtrand.RandomState` adds additional information
 to the state which is required when using Box-Muller normals since these
-are produced in pairs. It is important to use 
-:attr:`~legacy.LegacyGenerator.state` 
-when accessing the state so that these extra values are saved. 
+are produced in pairs. It is important to use
+:attr:`~mtrand.RandomState.get_state`
+when accessing the state so that these extra values are saved.
 
 .. code-block:: python
-  
+
    from numpy.random import MT19937
-   from numpy.random.legacy import LegacyGenerator
+   from numpy.random._mtrand import RandomState as LegacyGenerator
    from numpy.random import RandomState
       # Use same seed
    rs = RandomState(12345)
@@ -31,11 +31,11 @@ when accessing the state so that these extra values are saved.
 
    rs.standard_exponential()
    lg.standard_exponential()
-   
 
-.. currentmodule:: numpy.random.legacy
 
-.. autoclass:: LegacyGenerator
+.. currentmodule:: numpy.random.mtrand
+
+.. autoclass:: RandomState
 	:exclude-members:
 
 Seeding and State
@@ -44,67 +44,67 @@ Seeding and State
 .. autosummary::
    :toctree: generated/
 
-   ~LegacyGenerator.get_state
-   ~LegacyGenerator.set_state
-   
+   ~RandomState.get_state
+   ~RandomState.set_state
+
 Simple random data
 ==================
 .. autosummary::
    :toctree: generated/
 
-   ~LegacyGenerator.rand
-   ~LegacyGenerator.randn
-   ~LegacyGenerator.randint
-   ~LegacyGenerator.random_integers
-   ~LegacyGenerator.random_sample
-   ~LegacyGenerator.choice
-   ~LegacyGenerator.bytes
+   ~RandomState.rand
+   ~RandomState.randn
+   ~RandomState.randint
+   ~RandomState.random_integers
+   ~RandomState.random_sample
+   ~RandomState.choice
+   ~RandomState.bytes
 
 Permutations
 ============
 .. autosummary::
    :toctree: generated/
 
-   ~LegacyGenerator.shuffle
-   ~LegacyGenerator.permutation
+   ~RandomState.shuffle
+   ~RandomState.permutation
 
 Distributions
 =============
 .. autosummary::
    :toctree: generated/
 
-   ~LegacyGenerator.beta
-   ~LegacyGenerator.binomial
-   ~LegacyGenerator.chisquare
-   ~LegacyGenerator.dirichlet
-   ~LegacyGenerator.exponential
-   ~LegacyGenerator.f
-   ~LegacyGenerator.gamma
-   ~LegacyGenerator.geometric
-   ~LegacyGenerator.gumbel
-   ~LegacyGenerator.hypergeometric
-   ~LegacyGenerator.laplace
-   ~LegacyGenerator.logistic
-   ~LegacyGenerator.lognormal
-   ~LegacyGenerator.logseries
-   ~LegacyGenerator.multinomial
-   ~LegacyGenerator.multivariate_normal
-   ~LegacyGenerator.negative_binomial
-   ~LegacyGenerator.noncentral_chisquare
-   ~LegacyGenerator.noncentral_f
-   ~LegacyGenerator.normal
-   ~LegacyGenerator.pareto
-   ~LegacyGenerator.poisson
-   ~LegacyGenerator.power
-   ~LegacyGenerator.rayleigh
-   ~LegacyGenerator.standard_cauchy
-   ~LegacyGenerator.standard_exponential
-   ~LegacyGenerator.standard_gamma
-   ~LegacyGenerator.standard_normal
-   ~LegacyGenerator.standard_t
-   ~LegacyGenerator.triangular
-   ~LegacyGenerator.uniform
-   ~LegacyGenerator.vonmises
-   ~LegacyGenerator.wald
-   ~LegacyGenerator.weibull
-   ~LegacyGenerator.zipf
+   ~RandomState.beta
+   ~RandomState.binomial
+   ~RandomState.chisquare
+   ~RandomState.dirichlet
+   ~RandomState.exponential
+   ~RandomState.f
+   ~RandomState.gamma
+   ~RandomState.geometric
+   ~RandomState.gumbel
+   ~RandomState.hypergeometric
+   ~RandomState.laplace
+   ~RandomState.logistic
+   ~RandomState.lognormal
+   ~RandomState.logseries
+   ~RandomState.multinomial
+   ~RandomState.multivariate_normal
+   ~RandomState.negative_binomial
+   ~RandomState.noncentral_chisquare
+   ~RandomState.noncentral_f
+   ~RandomState.normal
+   ~RandomState.pareto
+   ~RandomState.poisson
+   ~RandomState.power
+   ~RandomState.rayleigh
+   ~RandomState.standard_cauchy
+   ~RandomState.standard_exponential
+   ~RandomState.standard_gamma
+   ~RandomState.standard_normal
+   ~RandomState.standard_t
+   ~RandomState.triangular
+   ~RandomState.uniform
+   ~RandomState.vonmises
+   ~RandomState.wald
+   ~RandomState.weibull
+   ~RandomState.zipf
