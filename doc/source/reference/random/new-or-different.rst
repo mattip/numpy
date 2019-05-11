@@ -21,9 +21,10 @@ Quick comparison of legacy `mtrand <legacy>`_ to the new `generator
 Feature             Older Equivalent    Notes
 ------------------- ------------------- -------------
 `RandomGenerator`   `RandomState`       ``RandomGenerator`` requires a stream
-                                        source, called a RandomNumberGenerator
-                                        (RNG). A number of different basic
-                                        `RNGs <brng>`_ exist.  ``RandomState``
+                                        source, called a BitGenerator. A
+                                        number of different
+                                        `bit generators <bit_generators>`_
+                                        exist.  ``RandomState``
                                         uses only the Box- Muller method.
 ------------------- ------------------- -------------
 ``np.random.gen.``  ``np.random.``      Access the next values in an already-
@@ -51,12 +52,11 @@ And in more detail:
   `~.RandomGenerator.standard_exponential` or
   `~.RandomGenerator.standard_gamma`.
 * The Box-Muller used to produce NumPy's normals is no longer available.
-* All basic random generators functions to produce doubles, uint64s and
+* All bit generators expose functions to produce doubles, uint64s and
   uint32s via CTypes (`~.xoroshiro128.Xoroshiro128.
   ctypes`) and CFFI (`~.xoroshiro128.Xoroshiro128.cffi`).
-  This allows these basic RNGs to be used in numba.
-* The basic random number generators can be used in downstream projects via
-  Cython.
+  This allows these bit generators to be used in numba.
+* The bit generators can be used in downstream projects via Cython.
 
 
 .. ipython:: python

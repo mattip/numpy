@@ -2,16 +2,16 @@
 
 Extending
 ---------
-The basic RNGs have been designed to be extendable using standard tools for
+The bit generators have been designed to be extendable using standard tools for
 high-performance Python -- numba and Cython.
 The `~RandomGenerator` object can also be used with
-user-provided basic RNGs as long as these export a small set of required
+user-provided bit generators as long as these export a small set of required
 functions.
 
 Numba
 =====
 Numba can be used with either CTypes or CFFI.  The current iteration of the
-basic RNGs all export a small set of functions through both interfaces.
+bit generators all export a small set of functions through both interfaces.
 
 This example shows how numba can be used to produce Box-Muller normals using
 a pure Python implementation which is then compiled.  The random numbers are
@@ -66,7 +66,7 @@ examples folder.
 Cython
 ======
 
-Cython can be used to unpack the ``PyCapsule`` provided by a basic RNG.
+Cython can be used to unpack the ``PyCapsule`` provided by a bit generator.
 This example uses `~xoroshiro128.Xoroshiro128` and
 ``random_gauss_zig``, the Ziggurat-based generator for normals, to fill an
 array.  The usual caveats for writing high-performance code using Cython --
@@ -107,8 +107,8 @@ removing bounds checks and wrap around, providing array alignment information
        return randoms
 
 
-The basic RNG can also be directly accessed using the members of the basic
-RNG structure.
+The bit generator can also be directly accessed using the members of the bit
+generator structure.
 
 .. code-block:: cython
 
@@ -140,8 +140,8 @@ examples folder.
 New Basic RNGs
 ==============
 `~RandomGenerator` can be used with other
-user-provided basic RNGs.  The simplest way to write a new basic RNG is to
-examine the pyx file of one of the existing basic RNGs. The key structure
+user-provided bit generators.  The simplest way to write a new bit generator is to
+examine the pyx file of one of the existing bit generators. The key structure
 that must be provided is the ``capsule`` which contains a ``PyCapsule`` to a
 struct pointer of type ``brng_t``,
 
@@ -156,7 +156,7 @@ struct pointer of type ``brng_t``,
   } brng_t;
 
 which provides 5 pointers. The first is an opaque pointer to the data structure
-used by the basic RNG.  The next three are function pointers which return the
+used by the bit generator.  The next three are function pointers which return the
 next 64- and 32-bit unsigned integers, the next random double and the next
 raw value.  This final function is used for testing and so can be set to
 the next 64-bit unsigned integer function if not needed. Functions inside

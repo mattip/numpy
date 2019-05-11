@@ -52,7 +52,7 @@ It is accessable as ``gen.brng``.
   rg.standard_normal()
 
 
-Seeds can be passed to any of the basic RNGs. Here `mt19937.MT19937` is used
+Seeds can be passed to any of the bit generators. Here `mt19937.MT19937` is used
 and the ``RandomGenerator`` is accessed via the attribute `mt19937.MT19937.
 generator`.
 
@@ -67,22 +67,22 @@ Introduction
 ------------
 RandomGen takes a different approach to producing random numbers from the
 :class:`numpy.random.RandomState` object.  Random number generation is
-separated into two components, a basic RNG and a random generator.
+separated into two components, a bit generator and a random generator.
 
-The basic RNG has a limited set of responsibilities. It manages the
+The bit generator has a limited set of responsibilities. It manages the
 underlying RNG state and provides functions to produce random doubles and
-random unsigned 32- and 64-bit values. The basic random generator also handles
-all seeding since this varies when using alternative basic RNGs.
+random unsigned 32- and 64-bit values. The bit generator also handles
+all seeding since this varies when using alternative bit generators.
 
 The `random generator <~RandomGenerator>` takes the
-basic RNG-provided functions and transforms them into more useful
+bit generator-provided functions and transforms them into more useful
 distributions, e.g., simulated normal random values. This structure allows
-alternative basic RNGs to be used without code duplication.
+alternative bit generators to be used without code duplication.
 
 The ``RandomGenerator`` is the user-facing object
 that is nearly identical to :class:`~.RandomState`. The canonical
-method to initialize a generator passes a basic RNG -- `~mt19937.MT19937`, the
-underlying RNG in NumPy  -- as the sole argument. Note that the basic RNG must
+method to initialize a generator passes a bit generator -- `~mt19937.MT19937`, the
+underlying RNG in NumPy  -- as the sole argument. Note that the bit generator must
 be instantized.
 
 .. code-block:: python
@@ -91,7 +91,7 @@ be instantized.
   rg = RandomGenerator(MT19937())
   rg.random_sample()
 
-Seed information is directly passed to the basic RNG.
+Seed information is directly passed to the bit generator.
 
 .. code-block:: python
 
@@ -99,7 +99,7 @@ Seed information is directly passed to the basic RNG.
   rg.random_sample()
 
 A shorthand method is also available which uses the `~mt19937.MT19937.
-generator` property from a basic RNG to access an embedded random generator.
+generator` property from a bit generator to access an embedded random generator.
 
 .. code-block:: python
 
@@ -128,11 +128,11 @@ What's New or Different
 * `~entropy.random_entropy` provides access to the system
   source of randomness that is used in cryptographic applications (e.g.,
   ``/dev/urandom`` on Unix).
-* All basic random generators functions can produce doubles, uint64s and
+* All bit generators functions can produce doubles, uint64s and
   uint32s via CTypes (`~xoroshiro128.Xoroshiro128.ctypes`)
   and CFFI (:meth:`~xoroshiro128.Xoroshiro128.cffi`).
-  This allows these basic RNGs to be used in numba.
-* The basic random number generators can be used in downstream projects via
+  This allows these bit generators to be used in numba.
+* The bit generators can be used in downstream projects via
   :ref:`Cython <randomgen_cython>`.
 * Support for Lemire’s method [Lemire]_ of generating uniform integers on an
   arbitrary interval by setting ``use_masked=True`` in

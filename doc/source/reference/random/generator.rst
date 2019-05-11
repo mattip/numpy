@@ -5,11 +5,11 @@ Random Generator
 The `~RandomGenerator` provides access to
 a wide range of distributions, and served as a replacement for
 :class:`~numpy.random.RandomState`.  The main difference between
-the two is that ``RandomGenerator`` relies on an additional basic RNG to
+the two is that ``RandomGenerator`` relies on an additional bit generator to
 manage state and generate the random bits, which are then transformed into
-random values from useful distributions. The default basic RNG used by
-``RandomGenerator`` is :class:`~xoroshiro128.Xoroshiro128`.  The basic RNG can be
-changed by passing an instantized basic RNG to ``RandomGenerator``.
+random values from useful distributions. The default bit generator used by
+``RandomGenerator`` is :class:`~xoroshiro128.Xoroshiro128`.  The bit generator
+can be changed by passing an instantized bit generator to ``RandomGenerator``.
 
 
 .. autoclass:: RandomGenerator
