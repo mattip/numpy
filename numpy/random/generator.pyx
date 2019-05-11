@@ -75,7 +75,7 @@ cdef class RandomGenerator:
     -0.203  # random
 
     """
-    cdef public object bitgen
+    cdef public object bit_generator
     cdef bitgen_t *_bitgen
     cdef binomial_t *_binomial
     cdef object lock
@@ -84,7 +84,7 @@ cdef class RandomGenerator:
     def __init__(self, bitgen=None):
         if bitgen is None:
             bitgen = Xoroshiro128()
-        self.bitgen = bitgen
+        self.bit_generator = bitgen
 
         capsule = bitgen.capsule
         cdef const char *name = "BitGenerator"
@@ -103,19 +103,20 @@ cdef class RandomGenerator:
 
     def __str__(self):
         _str = self.__class__.__name__
-        _str += '(' + self.bitgen.__class__.__name__ + ')'
+        _str += '(' + self.bit_generator.__class__.__name__ + ')'
         return _str
 
     # Pickling support:
     def __getstate__(self):
-        return self.bitgen.state
+        return self.bit_generator.state
 
     def __setstate__(self, state):
-        self.bitgen.state = state
+        self.bit_generator.state = state
 
     def __reduce__(self):
         from ._pickle import __generator_ctor
-        return __generator_ctor, (self.bitgen.state['bitgen'],), self.bitgen.state
+        return (__generator_ctor, (self.bit_generator.state['bitgen'],),
+                self.bit_generator.state)
 
     def random_sample(self, size=None, dtype=np.float64, out=None):
         """
