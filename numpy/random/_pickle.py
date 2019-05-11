@@ -12,7 +12,7 @@ from .xoshiro256starstar import Xoshiro256StarStar
 from .xoshiro512starstar import Xoshiro512StarStar
 from .mtrand import RandomState
 
-BasicRNGS = {'MT19937': MT19937,
+BitGeneratorS = {'MT19937': MT19937,
              'DSFMT': DSFMT,
              'PCG32': PCG32,
              'PCG64': PCG64,
@@ -26,79 +26,79 @@ BasicRNGS = {'MT19937': MT19937,
              }
 
 
-def __generator_ctor(brng_name='mt19937'):
+def __generator_ctor(bitgen_name='mt19937'):
     """
     Pickling helper function that returns a RandomGenerator object
 
     Parameters
     ----------
-    brng_name: str
-        String containing the core BasicRNG
+    bitgen_name: str
+        String containing the core BitGenerator
 
     Returns
     -------
     rg: RandomGenerator
-        RandomGenerator using the named core BasicRNG
+        RandomGenerator using the named core BitGenerator
     """
     try:
-        brng_name = brng_name.decode('ascii')
+        bitgen_name = bitgen_name.decode('ascii')
     except AttributeError:
         pass
-    if brng_name in BasicRNGS:
-        brng = BasicRNGS[brng_name]
+    if bitgen_name in BitGeneratorS:
+        bitgen = BitGeneratorS[bitgen_name]
     else:
-        raise ValueError(str(brng_name) + ' is not a known BasicRNG module.')
+        raise ValueError(str(bitgen_name) + ' is not a known BitGenerator module.')
 
-    return RandomGenerator(brng())
+    return RandomGenerator(bitgen())
 
 
-def __brng_ctor(brng_name='mt19937'):
+def __bitgen_ctor(bitgen_name='mt19937'):
     """
-    Pickling helper function that returns a basic RNG object
+    Pickling helper function that returns a bit generator object
 
     Parameters
     ----------
-    brng_name: str
-        String containing the name of the Basic RNG
+    bitgen_name: str
+        String containing the name of the bit generator
 
     Returns
     -------
-    brng: BasicRNG
+    bitgen: BitGenerator
         Basic RNG instance
     """
     try:
-        brng_name = brng_name.decode('ascii')
+        bitgen_name = bitgen_name.decode('ascii')
     except AttributeError:
         pass
-    if brng_name in BasicRNGS:
-        brng = BasicRNGS[brng_name]
+    if bitgen_name in BitGeneratorS:
+        bitgen = BitGeneratorS[bitgen_name]
     else:
-        raise ValueError(str(brng_name) + ' is not a known BasicRNG module.')
+        raise ValueError(str(bitgen_name) + ' is not a known BitGenerator module.')
 
-    return brng()
+    return bitgen()
 
 
-def __randomstate_ctor(brng_name='mt19937'):
+def __randomstate_ctor(bitgen_name='mt19937'):
     """
     Pickling helper function that returns a legacy RandomState-like object
 
     Parameters
     ----------
-    brng_name: str
-        String containing the core BasicRNG
+    bitgen_name: str
+        String containing the core BitGenerator
 
     Returns
     -------
     rs: RandomState
-        Legacy RandomState using the named core BasicRNG
+        Legacy RandomState using the named core BitGenerator
     """
     try:
-        brng_name = brng_name.decode('ascii')
+        bitgen_name = bitgen_name.decode('ascii')
     except AttributeError:
         pass
-    if brng_name in BasicRNGS:
-        brng = BasicRNGS[brng_name]
+    if bitgen_name in BitGeneratorS:
+        bitgen = BitGeneratorS[bitgen_name]
     else:
-        raise ValueError(str(brng_name) + ' is not a known BasicRNG module.')
+        raise ValueError(str(bitgen_name) + ' is not a known BitGenerator module.')
 
-    return RandomState(brng())
+    return RandomState(bitgen())
