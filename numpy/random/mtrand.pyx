@@ -47,8 +47,8 @@ cdef class RandomState:
     ----------
     bitgen : {None, int, array_like, BitGenerator}, optional
         Random seed used to initialize the pseudo-random number generator or
-        an instantized BitGenerator.  If an integer or array, used as a seed for
-        the MT19937 BitGenerator. Values can be any integer between 0 and
+        an instantized BitGenerator.  If an integer or array, used as a seed
+        for the MT19937 BitGenerator. Values can be any integer between 0 and
         2**32 - 1 inclusive, an array (or other sequence) of such integers,
         or ``None`` (the default).  If `seed` is ``None``, then the `MT19937`
         BitGenerator is initialized by reading data from ``/dev/urandom``
@@ -129,11 +129,11 @@ cdef class RandomState:
 
         Notes
         -----
-        Arguments are directly passed to the bit generator. This is a convenience
-        function.
+        Arguments are directly passed to the bit generator. This is a
+        convenience function.
 
-        The best method to access seed is to directly use a bit generator instance.
-        This example demonstrates this best practice.
+        The best method to access seed is to directly use a bit generator
+        instance. This example demonstrates this best practice.
 
         >>> from numpy.random import MT19937
         >>> from numpy.random import RandomState
@@ -236,12 +236,12 @@ cdef class RandomState:
         Notes
         -----
         `set_state` and `get_state` are not needed to work with any of the
-        random distributions in NumPy. If the internal state is manually altered,
-        the user should know exactly what he/she is doing.
+        random distributions in NumPy. If the internal state is manually
+        altered, the user should know exactly what he/she is doing.
 
-        For backwards compatibility, the form (str, array of 624 uints, int) is
-        also accepted although it is missing some information about the cached
-        Gaussian value: ``state = ('MT19937', keys, pos)``.
+        For backwards compatibility, the form (str, array of 624 uints, int)
+        is also accepted although it is missing some information about the
+        cached Gaussian value: ``state = ('MT19937', keys, pos)``.
 
         References
         ----------
@@ -259,8 +259,8 @@ cdef class RandomState:
             if not isinstance(state, (tuple, list)):
                 raise TypeError('state must be a dict or a tuple.')
             if state[0] != 'MT19937':
-                raise ValueError('set_state can only be used with legacy MT19937'
-                                 'state instances.')
+                raise ValueError('set_state can only be used with legacy '
+                                 'MT19937 state instances.')
             st = {'bitgen': state[0],
                   'state': {'key': state[1], 'pos': state[2]}}
             if len(state) > 3:
@@ -294,8 +294,8 @@ cdef class RandomState:
         Returns
         -------
         out : float or ndarray of floats
-            Array of random floats of shape `size` (unless ``size=None``, in which
-            case a single float is returned).
+            Array of random floats of shape `size` (unless ``size=None``, in
+            which case a single float is returned).
 
         Examples
         --------
@@ -450,9 +450,9 @@ cdef class RandomState:
         """
         tomaxint(size=None)
 
-        Return a sample of uniformly distributed random integers in the interval
-        [0, ``np.iinfo(np.int).max``]. The np.int type translates to the C long
-        integer type and its precision is platform dependent.
+        Return a sample of uniformly distributed random integers in the
+        interval [0, ``np.iinfo(np.int).max``]. The np.int type translates to
+        the C long integer type and its precision is platform dependent.
 
         Parameters
         ----------
@@ -546,8 +546,8 @@ cdef class RandomState:
         --------
         random.random_integers : similar to `randint`, only for the closed
             interval [`low`, `high`], and 1 is the lowest value if `high` is
-            omitted. In particular, this other one is the one to use to generate
-            uniformly distributed discrete non-integers.
+            omitted. In particular, this other one is the one to use to
+            generate uniformly distributed discrete non-integers.
 
         Examples
         --------
@@ -589,23 +589,32 @@ cdef class RandomState:
             raise TypeError('Unsupported dtype "%s" for randint' % key)
 
         if key == 'int32':
-            ret = _rand_int32(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_int32(low, high, size, use_masked, self._bitgen,
+                              self.lock)
         elif key == 'int64':
-            ret = _rand_int64(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_int64(low, high, size, use_masked, self._bitgen,
+                              self.lock)
         elif key == 'int16':
-            ret = _rand_int16(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_int16(low, high, size, use_masked, self._bitgen,
+                              self.lock)
         elif key == 'int8':
-            ret = _rand_int8(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_int8(low, high, size, use_masked, self._bitgen,
+                             self.lock)
         elif key == 'uint64':
-            ret = _rand_uint64(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_uint64(low, high, size, use_masked, self._bitgen,
+                               self.lock)
         elif key == 'uint32':
-            ret = _rand_uint32(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_uint32(low, high, size, use_masked, self._bitgen,
+                               self.lock)
         elif key == 'uint16':
-            ret = _rand_uint16(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_uint16(low, high, size, use_masked, self._bitgen,
+                               self.lock)
         elif key == 'uint8':
-            ret = _rand_uint8(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_uint8(low, high, size, use_masked, self._bitgen,
+                              self.lock)
         elif key == 'bool':
-            ret = _rand_bool(low, high, size, use_masked, self._bitgen, self.lock)
+            ret = _rand_bool(low, high, size, use_masked, self._bitgen,
+                             self.lock)
 
         if size is None and dtype in (np.bool, np.int, np.long):
             if np.array(ret).shape == ():
@@ -635,7 +644,8 @@ cdef class RandomState:
 
         """
         cdef Py_ssize_t n_uint32 = ((length - 1) // 4 + 1)
-        return self.randint(0, 4294967296, size=n_uint32, dtype=np.uint32).tobytes()[:length]
+        return self.randint(0, 4294967296, size=n_uint32,
+                            dtype=np.uint32).tobytes()[:length]
 
     @cython.wraparound(True)
     def choice(self, a, size=None, replace=True, p=None):
