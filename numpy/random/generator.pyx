@@ -20,11 +20,11 @@ from .xoroshiro128 import Xoroshiro128
 np.import_array()
 
 
-cdef class Generator :
+cdef class Generator:
     """
     Generator (bitgen=None)
 
-    Container for the Basic Random Number Generators.
+    Generate random numbers from a bit generator source
 
     ``Generator`` exposes a number of methods for generating random
     numbers drawn from a variety of probability distributions. In addition to the
@@ -43,8 +43,8 @@ cdef class Generator :
 
     Parameters
     ----------
-    bitgen : Basic RNG, optional
-        Basic RNG to use as the core generator. If none is provided, uses
+    bitgen : BitGenerator, optional
+        BitGenerator to use as the core generator. If none is provided, uses
         Xoroshiro128.
 
     Notes

@@ -324,7 +324,7 @@ cdef class Xorshift1024:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the Basic RNG struct
+            * bitgen - pointer to the BitGenerator struct
         """
         if self._ctypes is None:
             self._ctypes = prepare_ctypes(self._bitgen)
@@ -346,7 +346,7 @@ cdef class Xorshift1024:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the Basic RNG struct
+            * bitgen - pointer to the BitGenerator struct
         """
         if self._cffi is not None:
             return self._cffi

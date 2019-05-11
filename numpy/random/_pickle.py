@@ -64,7 +64,7 @@ def __bitgen_ctor(bitgen_name='mt19937'):
     Returns
     -------
     bitgen: BitGenerator
-        Basic RNG instance
+        BitGenerator instance
     """
     try:
         bitgen_name = bitgen_name.decode('ascii')
