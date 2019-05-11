@@ -20,13 +20,13 @@ from .xoroshiro128 import Xoroshiro128
 np.import_array()
 
 
-cdef class RandomGenerator:
+cdef class Generator :
     """
-    RandomGenerator(bitgen=None)
+    Generator (bitgen=None)
 
     Container for the Basic Random Number Generators.
 
-    ``RandomGenerator`` exposes a number of methods for generating random
+    ``Generator`` exposes a number of methods for generating random
     numbers drawn from a variety of probability distributions. In addition to the
     distribution-specific arguments, each method takes a keyword argument
     `size` that defaults to ``None``. If `size` is ``None``, then a single
@@ -36,9 +36,9 @@ cdef class RandomGenerator:
 
     **No Compatibility Guarantee**
 
-    ``RandomGenerator`` is evolving and so it isn't possible to provide a
+    ``Generator`` is evolving and so it isn't possible to provide a
     compatibility guarantee like NumPy does. In particular, better algorithms
-    have already been added. This will change once ``RandomGenerator``
+    have already been added. This will change once ``Generator``
     stabilizes.
 
     Parameters
@@ -51,22 +51,22 @@ cdef class RandomGenerator:
     -----
     The Python stdlib module `random` contains pseudo-random number generator
     with a number of methods that are similar to the ones available in
-    ``RandomGenerator``. It uses Mersenne Twister, and this bit generator can be
-    accessed using ``MT19937``. ``RandomGenerator``, besides being
+    ``Generator``. It uses Mersenne Twister, and this bit generator can be
+    accessed using ``MT19937``. ``Generator``, besides being
     NumPy-aware, has the advantage that it provides a much larger number
     of probability distributions to choose from.
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator
-    >>> rg = RandomGenerator()
+    >>> from numpy.random import Generator
+    >>> rg = Generator ()
     >>> rg.standard_normal()
     -0.203  # random
 
     Using a specific generator
 
     >>> from numpy.random import MT19937
-    >>> rg = RandomGenerator(MT19937())
+    >>> rg = Generator (MT19937())
 
     The generator is also directly available from bit generators
 
@@ -354,7 +354,7 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> rg = np.random.RandomGenerator() # need a RandomGenerator object
+        >>> rg = np.random.Generator() # need a Generator object
         >>> rg.tomaxint((2,2,2))
         array([[[1170048599, 1600360186], # random
                 [ 739731006, 1947757578]],
@@ -4123,7 +4123,7 @@ cdef class RandomGenerator:
         self.shuffle(idx)
         return arr[idx]
 
-_random_generator = RandomGenerator()
+_random_generator = Generator ()
 
 beta = _random_generator.beta
 binomial = _random_generator.binomial

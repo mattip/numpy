@@ -88,7 +88,7 @@ cdef class DSFMT:
     -----
     ``DSFMT`` directly provides generators for doubles, and unsigned 32 and 64-
     bit integers [1]_ . These are not directly available and must be consumed
-    via a ``RandomGenerator`` object.
+    via a ``Generator`` object.
 
     The Python stdlib module "random" also contains a Mersenne Twister
     pseudo-random number generator.
@@ -103,9 +103,9 @@ cdef class DSFMT:
     segments come from the same sequence.
 
     >>> from numpy.random.entropy import random_entropy
-    >>> from numpy.random import RandomGenerator, DSFMT
+    >>> from numpy.random import Generator, DSFMT
     >>> seed = random_entropy()
-    >>> rs = [RandomGenerator(DSFMT(seed)) for _ in range(10)]
+    >>> rs = [Generator(DSFMT(seed)) for _ in range(10)]
     # Advance each DSFMT instance by i jumps
     >>> for i in range(10):
     ...     rs[i].bitgen.jump()
@@ -156,7 +156,7 @@ cdef class DSFMT:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bitgen.state = <void *>self.rng_state
+        self._bit_generator.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &dsfmt_uint64
         self._bitgen.next_uint32 = &dsfmt_uint32
         self._bitgen.next_double = &dsfmt_double
@@ -394,14 +394,14 @@ cdef class DSFMT:
     @property
     def generator(self):
         """
-        Return a RandomGenerator object
+        Return a Generator object
 
         Returns
         -------
-        gen : numpy.random.RandomGenerator  # ignore
+        gen : numpy.random.Generator  # ignore
             Random generator used this instance as the bit generator
         """
         if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
+            from .generator import Generator
+            self._generator = Generator (self)
         return self._generator

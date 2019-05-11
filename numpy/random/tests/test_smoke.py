@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from numpy.testing import (assert_almost_equal, assert_equal, assert_,
     assert_array_equal, suppress_warnings)
-from numpy.random import (RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry,
+from numpy.random import (Generator, MT19937, DSFMT, ThreeFry32, ThreeFry,
     PCG32, PCG64, Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar,
     Xoshiro512StarStar, entropy)
 
@@ -105,8 +105,8 @@ class RNG(object):
         cls.bitgen = Xoshiro256StarStar
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -118,39 +118,39 @@ class RNG(object):
         cls.seed_error = TypeError
 
     def _reset_state(self):
-        self.rg.bitgen.state = self.initial_state
+        self.rg.bit_generator.state = self.initial_state
 
     def test_init(self):
-        rg = RandomGenerator(self.bitgen())
-        state = rg.bitgen.state
+        rg = Generator(self.bitgen())
+        state = rg.bit_generator.state
         rg.standard_normal(1)
         rg.standard_normal(1)
-        rg.bitgen.state = state
-        new_state = rg.bitgen.state
+        rg.bit_generator.state = state
+        new_state = rg.bit_generator.state
         assert_(comp_state(state, new_state))
 
     def test_advance(self):
-        state = self.rg.bitgen.state
-        if hasattr(self.rg.bitgen, 'advance'):
-            self.rg.bitgen.advance(self.advance)
-            assert_(not comp_state(state, self.rg.bitgen.state))
+        state = self.rg.bit_generator.state
+        if hasattr(self.rg.bit_generator, 'advance'):
+            self.rg.bit_generator.advance(self.advance)
+            assert_(not comp_state(state, self.rg.bit_generator.state))
         else:
-            bitgen_name = self.rg.bitgen.__class__.__name__
+            bitgen_name = self.rg.bit_generator.__class__.__name__
             pytest.skip('Advance is not supported by {0}'.format(bitgen_name))
 
     def test_jump(self):
-        state = self.rg.bitgen.state
-        if hasattr(self.rg.bitgen, 'jump'):
-            self.rg.bitgen.jump()
-            jumped_state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
+        if hasattr(self.rg.bit_generator, 'jump'):
+            self.rg.bit_generator.jump()
+            jumped_state = self.rg.bit_generator.state
             assert_(not comp_state(state, jumped_state))
             self.rg.random_sample(2 * 3 * 5 * 7 * 11 * 13 * 17)
-            self.rg.bitgen.state = state
-            self.rg.bitgen.jump()
-            rejumped_state = self.rg.bitgen.state
+            self.rg.bit_generator.state = state
+            self.rg.bit_generator.jump()
+            rejumped_state = self.rg.bit_generator.state
             assert_(comp_state(jumped_state, rejumped_state))
         else:
-            bitgen_name = self.rg.bitgen.__class__.__name__
+            bitgen_name = self.rg.bit_generator.__class__.__name__
             pytest.skip('Jump is not supported by {0}'.format(bitgen_name))
 
     def test_uniform(self):
@@ -221,51 +221,51 @@ class RNG(object):
         assert_(self.rg.binomial(1000, .5) >= 0)
 
     def test_reset_state(self):
-        state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
         int_1 = self.rg.randint(2**31)
-        self.rg.bitgen.state = state
+        self.rg.bit_generator.state = state
         int_2 = self.rg.randint(2**31)
         assert_(int_1 == int_2)
 
     def test_entropy_init(self):
-        rg = RandomGenerator(self.bitgen())
-        rg2 = RandomGenerator(self.bitgen())
-        assert_(not comp_state(rg.bitgen.state, rg2.bitgen.state))
+        rg = Generator(self.bitgen())
+        rg2 = Generator(self.bitgen())
+        assert_(not comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_seed(self):
-        rg = RandomGenerator(self.bitgen(*self.seed))
-        rg2 = RandomGenerator(self.bitgen(*self.seed))
+        rg = Generator(self.bitgen(*self.seed))
+        rg2 = Generator(self.bitgen(*self.seed))
         rg.random_sample()
         rg2.random_sample()
-        assert_(comp_state(rg.bitgen.state, rg2.bitgen.state))
+        assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_reset_state_gauss(self):
-        rg = RandomGenerator(self.bitgen(*self.seed))
+        rg = Generator(self.bitgen(*self.seed))
         rg.standard_normal()
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         n1 = rg.standard_normal(size=10)
-        rg2 = RandomGenerator(self.bitgen())
-        rg2.bitgen.state = state
+        rg2 = Generator(self.bitgen())
+        rg2.bit_generator.state = state
         n2 = rg2.standard_normal(size=10)
         assert_array_equal(n1, n2)
 
     def test_reset_state_uint32(self):
-        rg = RandomGenerator(self.bitgen(*self.seed))
+        rg = Generator(self.bitgen(*self.seed))
         rg.randint(0, 2 ** 24, 120, dtype=np.uint32)
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         n1 = rg.randint(0, 2 ** 24, 10, dtype=np.uint32)
-        rg2 = RandomGenerator(self.bitgen())
-        rg2.bitgen.state = state
+        rg2 = Generator(self.bitgen())
+        rg2.bit_generator.state = state
         n2 = rg2.randint(0, 2 ** 24, 10, dtype=np.uint32)
         assert_array_equal(n1, n2)
 
     def test_reset_state_float(self):
-        rg = RandomGenerator(self.bitgen(*self.seed))
+        rg = Generator(self.bitgen(*self.seed))
         rg.random_sample(dtype='float32')
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         n1 = rg.random_sample(size=10, dtype='float32')
-        rg2 = RandomGenerator(self.bitgen())
-        rg2.bitgen.state = state
+        rg2 = Generator(self.bitgen())
+        rg2.bit_generator.state = state
         n2 = rg2.random_sample(size=10, dtype='float32')
         assert_((n1 == n2).all())
 
@@ -354,29 +354,29 @@ class RNG(object):
         assert_(len(vals) == 10)
 
     def test_rand(self):
-        state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
         vals = self.rg.rand(10, 10, 10)
-        self.rg.bitgen.state = state
+        self.rg.bit_generator.state = state
         assert_((vals == self.rg.random_sample((10, 10, 10))).all())
         assert_(vals.shape == (10, 10, 10))
         vals = self.rg.rand(10, 10, 10, dtype=np.float32)
         assert_(vals.shape == (10, 10, 10))
 
     def test_randn(self):
-        state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
         vals = self.rg.randn(10, 10, 10)
-        self.rg.bitgen.state = state
+        self.rg.bit_generator.state = state
         assert_equal(vals, self.rg.standard_normal((10, 10, 10)))
         assert_equal(vals.shape, (10, 10, 10))
 
-        state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
         vals = self.rg.randn(10, 10, 10)
-        self.rg.bitgen.state = state
+        self.rg.bit_generator.state = state
         assert_equal(vals, self.rg.standard_normal((10, 10, 10)))
 
-        state = self.rg.bitgen.state
+        state = self.rg.bit_generator.state
         self.rg.randn(10, 10, 10)
-        self.rg.bitgen.state = state
+        self.rg.bit_generator.state = state
         vals = self.rg.randn(10, 10, 10, dtype=np.float32)
         assert_(vals.shape == (10, 10, 10))
 
@@ -487,12 +487,12 @@ class RNG(object):
         pick = pickle.dumps(self.rg)
         unpick = pickle.loads(pick)
         assert_((type(self.rg) == type(unpick)))
-        assert_(comp_state(self.rg.bitgen.state, unpick.bitgen.state))
+        assert_(comp_state(self.rg.bit_generator.state, unpick.bit_generator.state))
 
         pick = pickle.dumps(self.rg)
         unpick = pickle.loads(pick)
         assert_((type(self.rg) == type(unpick)))
-        assert_(comp_state(self.rg.bitgen.state, unpick.bitgen.state))
+        assert_(comp_state(self.rg.bit_generator.state, unpick.bit_generator.state))
 
     def test_seed_array(self):
         if self.seed_vector_bits is None:
@@ -505,32 +505,32 @@ class RNG(object):
         else:
             dtype = np.uint64
         seed = np.array([1], dtype=dtype)
-        self.rg.bitgen.seed(seed)
-        state1 = self.rg.bitgen.state
-        self.rg.bitgen.seed(1)
-        state2 = self.rg.bitgen.state
+        self.rg.bit_generator.seed(seed)
+        state1 = self.rg.bit_generator.state
+        self.rg.bit_generator.seed(1)
+        state2 = self.rg.bit_generator.state
         assert_(comp_state(state1, state2))
 
         seed = np.arange(4, dtype=dtype)
-        self.rg.bitgen.seed(seed)
-        state1 = self.rg.bitgen.state
-        self.rg.bitgen.seed(seed[0])
-        state2 = self.rg.bitgen.state
+        self.rg.bit_generator.seed(seed)
+        state1 = self.rg.bit_generator.state
+        self.rg.bit_generator.seed(seed[0])
+        state2 = self.rg.bit_generator.state
         assert_(not comp_state(state1, state2))
 
         seed = np.arange(1500, dtype=dtype)
-        self.rg.bitgen.seed(seed)
-        state1 = self.rg.bitgen.state
-        self.rg.bitgen.seed(seed[0])
-        state2 = self.rg.bitgen.state
+        self.rg.bit_generator.seed(seed)
+        state1 = self.rg.bit_generator.state
+        self.rg.bit_generator.seed(seed[0])
+        state2 = self.rg.bit_generator.state
         assert_(not comp_state(state1, state2))
 
         seed = 2 ** np.mod(np.arange(1500, dtype=dtype),
                            self.seed_vector_bits - 1) + 1
-        self.rg.bitgen.seed(seed)
-        state1 = self.rg.bitgen.state
-        self.rg.bitgen.seed(seed[0])
-        state2 = self.rg.bitgen.state
+        self.rg.bit_generator.seed(seed)
+        state1 = self.rg.bit_generator.state
+        self.rg.bit_generator.seed(seed[0])
+        state2 = self.rg.bit_generator.state
         assert_(not comp_state(state1, state2))
 
     def test_seed_array_error(self):
@@ -541,164 +541,164 @@ class RNG(object):
 
         seed = -1
         with pytest.raises(ValueError):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         seed = np.array([-1], dtype=np.int32)
         with pytest.raises(ValueError):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         seed = np.array([1, 2, 3, -5], dtype=np.int32)
         with pytest.raises(ValueError):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         seed = np.array([1, 2, 3, out_of_bounds])
         with pytest.raises(ValueError):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
     def test_uniform_float(self):
-        rg = RandomGenerator(self.bitgen(12345))
+        rg = Generator(self.bitgen(12345))
         warmup(rg)
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         r1 = rg.random_sample(11, dtype=np.float32)
-        rg2 = RandomGenerator(self.bitgen())
+        rg2 = Generator(self.bitgen())
         warmup(rg2)
-        rg2.bitgen.state = state
+        rg2.bit_generator.state = state
         r2 = rg2.random_sample(11, dtype=np.float32)
         assert_array_equal(r1, r2)
         assert_equal(r1.dtype, np.float32)
-        assert_(comp_state(rg.bitgen.state, rg2.bitgen.state))
+        assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_gamma_floats(self):
-        rg = RandomGenerator(self.bitgen())
+        rg = Generator(self.bitgen())
         warmup(rg)
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         r1 = rg.standard_gamma(4.0, 11, dtype=np.float32)
-        rg2 = RandomGenerator(self.bitgen())
+        rg2 = Generator(self.bitgen())
         warmup(rg2)
-        rg2.bitgen.state = state
+        rg2.bit_generator.state = state
         r2 = rg2.standard_gamma(4.0, 11, dtype=np.float32)
         assert_array_equal(r1, r2)
         assert_equal(r1.dtype, np.float32)
-        assert_(comp_state(rg.bitgen.state, rg2.bitgen.state))
+        assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_normal_floats(self):
-        rg = RandomGenerator(self.bitgen())
+        rg = Generator(self.bitgen())
         warmup(rg)
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         r1 = rg.standard_normal(11, dtype=np.float32)
-        rg2 = RandomGenerator(self.bitgen())
+        rg2 = Generator(self.bitgen())
         warmup(rg2)
-        rg2.bitgen.state = state
+        rg2.bit_generator.state = state
         r2 = rg2.standard_normal(11, dtype=np.float32)
         assert_array_equal(r1, r2)
         assert_equal(r1.dtype, np.float32)
-        assert_(comp_state(rg.bitgen.state, rg2.bitgen.state))
+        assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_normal_zig_floats(self):
-        rg = RandomGenerator(self.bitgen())
+        rg = Generator(self.bitgen())
         warmup(rg)
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         r1 = rg.standard_normal(11, dtype=np.float32)
-        rg2 = RandomGenerator(self.bitgen())
+        rg2 = Generator(self.bitgen())
         warmup(rg2)
-        rg2.bitgen.state = state
+        rg2.bit_generator.state = state
         r2 = rg2.standard_normal(11, dtype=np.float32)
         assert_array_equal(r1, r2)
         assert_equal(r1.dtype, np.float32)
-        assert_(comp_state(rg.bitgen.state, rg2.bitgen.state))
+        assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_output_fill(self):
         rg = self.rg
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         size = (31, 7, 97)
         existing = np.empty(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_normal(out=existing)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_normal(size=size)
         assert_equal(direct, existing)
 
         sized = np.empty(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_normal(out=sized, size=sized.shape)
 
         existing = np.empty(size, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_normal(out=existing, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_normal(size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
     def test_output_filling_uniform(self):
         rg = self.rg
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         size = (31, 7, 97)
         existing = np.empty(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.random_sample(out=existing)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.random_sample(size=size)
         assert_equal(direct, existing)
 
         existing = np.empty(size, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.random_sample(out=existing, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.random_sample(size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
     def test_output_filling_exponential(self):
         rg = self.rg
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         size = (31, 7, 97)
         existing = np.empty(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_exponential(out=existing)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_exponential(size=size)
         assert_equal(direct, existing)
 
         existing = np.empty(size, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_exponential(out=existing, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_exponential(size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
     def test_output_filling_gamma(self):
         rg = self.rg
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         size = (31, 7, 97)
         existing = np.zeros(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_gamma(1.0, out=existing)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_gamma(1.0, size=size)
         assert_equal(direct, existing)
 
         existing = np.zeros(size, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_gamma(1.0, out=existing, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_gamma(1.0, size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
     def test_output_filling_gamma_broadcast(self):
         rg = self.rg
-        state = rg.bitgen.state
+        state = rg.bit_generator.state
         size = (31, 7, 97)
         mu = np.arange(97.0) + 1.0
         existing = np.zeros(size)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_gamma(mu, out=existing)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_gamma(mu, size=size)
         assert_equal(direct, existing)
 
         existing = np.zeros(size, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         rg.standard_gamma(mu, out=existing, dtype=np.float32)
-        rg.bitgen.state = state
+        rg.bit_generator.state = state
         direct = rg.standard_gamma(mu, size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
@@ -795,8 +795,8 @@ class TestMT19937(RNG):
         cls.bitgen = MT19937
         cls.advance = None
         cls.seed = [2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 32
         cls._extra_setup()
         cls.seed_error = ValueError
@@ -805,8 +805,8 @@ class TestMT19937(RNG):
         nprg = np.random.RandomState()
         nprg.standard_normal(99)
         state = nprg.get_state()
-        self.rg.bitgen.state = state
-        state2 = self.rg.bitgen.state
+        self.rg.bit_generator.state = state
+        state2 = self.rg.bit_generator.state
         assert_((state[1] == state2['state']['key']).all())
         assert_((state[2] == state2['state']['pos']))
 
@@ -818,8 +818,8 @@ class TestPCG64(RNG):
         cls.advance = 2 ** 96 + 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1
         cls.seed = [2 ** 96 + 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1,
                     2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = None
         cls._extra_setup()
 
@@ -832,20 +832,20 @@ class TestPCG64(RNG):
 
         seed = -1
         with pytest.raises(ValueError):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         error_type = ValueError if self.seed_vector_bits else TypeError
         seed = np.array([-1], dtype=np.int32)
         with pytest.raises(error_type):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         seed = np.array([1, 2, 3, -5], dtype=np.int32)
         with pytest.raises(error_type):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
         seed = np.array([1, 2, 3, out_of_bounds])
         with pytest.raises(error_type):
-            self.rg.bitgen.seed(seed)
+            self.rg.bit_generator.seed(seed)
 
 
 class TestPhilox(RNG):
@@ -854,8 +854,8 @@ class TestPhilox(RNG):
         cls.bitgen = Philox
         cls.advance = 2**63 + 2**31 + 2**15 + 1
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -866,8 +866,8 @@ class TestThreeFry(RNG):
         cls.bitgen = ThreeFry
         cls.advance = 2 ** 63 + 2 ** 31 + 2 ** 15 + 1
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -878,8 +878,8 @@ class TestXoroshiro128(RNG):
         cls.bitgen = Xoroshiro128
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -890,8 +890,8 @@ class TestXoshiro256StarStar(RNG):
         cls.bitgen = Xoshiro256StarStar
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -902,8 +902,8 @@ class TestXoshiro512StarStar(RNG):
         cls.bitgen = Xoshiro512StarStar
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -914,8 +914,8 @@ class TestXorshift1024(RNG):
         cls.bitgen = Xorshift1024
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
 
@@ -926,8 +926,8 @@ class TestDSFMT(RNG):
         cls.bitgen = DSFMT
         cls.advance = None
         cls.seed = [12345]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls._extra_setup()
         cls.seed_vector_bits = 32
 
@@ -938,8 +938,8 @@ class TestThreeFry32(RNG):
         cls.bitgen = ThreeFry32
         cls.advance = 2**63 + 2**31 + 2**15 + 1
         cls.seed = [2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = 64
         cls._extra_setup()
         cls.seed_error = ValueError
@@ -971,7 +971,7 @@ class TestPCG32(TestPCG64):
         cls.advance = 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1
         cls.seed = [2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1,
                     2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.bitgen(*cls.seed))
-        cls.initial_state = cls.rg.bitgen.state
+        cls.rg = Generator(cls.bitgen(*cls.seed))
+        cls.initial_state = cls.rg.bit_generator.state
         cls.seed_vector_bits = None
         cls._extra_setup()

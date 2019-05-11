@@ -1,4 +1,4 @@
-from .generator import RandomGenerator
+from .generator import Generator
 from .dsfmt import DSFMT
 from .mt19937 import MT19937
 from .pcg32 import PCG32
@@ -28,7 +28,7 @@ BitGeneratorS = {'MT19937': MT19937,
 
 def __generator_ctor(bitgen_name='mt19937'):
     """
-    Pickling helper function that returns a RandomGenerator object
+    Pickling helper function that returns a Generator object
 
     Parameters
     ----------
@@ -37,8 +37,8 @@ def __generator_ctor(bitgen_name='mt19937'):
 
     Returns
     -------
-    rg: RandomGenerator
-        RandomGenerator using the named core BitGenerator
+    rg: Generator
+        Generator using the named core BitGenerator
     """
     try:
         bitgen_name = bitgen_name.decode('ascii')
@@ -49,7 +49,7 @@ def __generator_ctor(bitgen_name='mt19937'):
     else:
         raise ValueError(str(bitgen_name) + ' is not a known BitGenerator module.')
 
-    return RandomGenerator(bitgen())
+    return Generator(bitgen())
 
 
 def __bitgen_ctor(bitgen_name='mt19937'):

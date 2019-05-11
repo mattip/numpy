@@ -139,7 +139,7 @@ cdef class RandomState:
         >>> from numpy.random import RandomState
         >>> bitgen = MT19937(123456789)
         >>> rs = RandomState(bitgen)
-        >>> bitgen.seed(987654321)
+        >>> bit_generator.seed(987654321)
 
         These best practice examples are equivalent to
 
@@ -168,12 +168,12 @@ cdef class RandomState:
             4. an integer ``has_gauss``.
             5. a float ``cached_gaussian``.
 
-            If `legacy` is False, or the bit generator is not NT19937, then
+            If `legacy` is False, or the bit generator is not MT19937, then
             state is returned as a dictionary.
 
         legacy : bool
-            Flag indicating the return a legacy tuple state when the bit generator
-            is MT19937.
+            Flag indicating the return a legacy tuple state when the bit
+            generator is MT19937.
 
         See Also
         --------
@@ -182,8 +182,8 @@ cdef class RandomState:
         Notes
         -----
         `set_state` and `get_state` are not needed to work with any of the
-        random distributions in NumPy. If the internal state is manually altered,
-        the user should know exactly what he/she is doing.
+        random distributions in NumPy. If the internal state is manually
+        altered, the user should know exactly what he/she is doing.
 
         """
         st = self._bit_generator.state
@@ -205,9 +205,10 @@ cdef class RandomState:
 
         Set the internal state of the generator from a tuple.
 
-        For use if one has reason to manually (re-)set the internal state of the
-        Basic RNG used by the RandomState instance. By default, RandomState uses
-        the "Mersenne Twister"[1]_ pseudo-random number generating algorithm.
+        For use if one has reason to manually (re-)set the internal state of
+        the bit generator used by the RandomState instance. By default,
+        RandomState uses the "Mersenne Twister"[1]_ pseudo-random number
+        generating algorithm.
 
         Parameters
         ----------
@@ -220,8 +221,8 @@ cdef class RandomState:
             4. an integer ``has_gauss``.
             5. a float ``cached_gaussian``.
 
-            If state is a dictionary, it is directly set using the BitGenerators
-            `state` property.
+            If state is a dictionary, it is directly set using the
+            BitGenerators `state` property.
 
         Returns
         -------

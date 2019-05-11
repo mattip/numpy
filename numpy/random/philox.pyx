@@ -91,7 +91,7 @@ cdef class Philox:
 
     ``Philox`` exposes no user-facing API except ``generator``,
     ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -112,8 +112,8 @@ cdef class Philox:
     in parallel applications by using a sequence of distinct keys where each
     instance uses different key.
 
-    >>> from numpy.random import RandomGenerator, Philox
-    >>> rg = [RandomGenerator(Philox(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, Philox
+    >>> rg = [Generator(Philox(1234)) for _ in range(10)]
     # Advance each Philox instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bitgen.jump(i)
@@ -121,7 +121,7 @@ cdef class Philox:
     Using distinct keys produces independent streams
 
     >>> key = 2**96 + 2**32 + 2**65 + 2**33 + 2**17 + 2**9
-    >>> rg = [RandomGenerator(Philox(key=key+i)) for i in range(10)]
+    >>> rg = [Generator(Philox(key=key+i)) for i in range(10)]
 
     **State and Seeding**
 
@@ -144,8 +144,8 @@ cdef class Philox:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, Philox
-    >>> rg = RandomGenerator(Philox(1234))
+    >>> from numpy.random import Generator, Philox
+    >>> rg = Generator (Philox(1234))
     >>> rg.standard_normal()
     0.123  # random
 
@@ -180,7 +180,7 @@ cdef class Philox:
         self.seed(seed, counter, key)
         self.lock = Lock()
 
-        self._bitgen.state = <void *> self.rng_state
+        self._bit_generator.state = <void *> self.rng_state
         self._bitgen.next_uint64 = &philox_uint64
         self._bitgen.next_uint32 = &philox_uint32
         self._bitgen.next_double = &philox_double
@@ -471,14 +471,14 @@ cdef class Philox:
     @property
     def generator(self):
         """
-        Return a RandomGenerator object
+        Return a Generator object
 
         Returns
         -------
-        gen : numpy.random.RandomGenerator
+        gen : numpy.random.Generator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
+            from .generator import Generator
+            self._generator = Generator (self)
         return self._generator

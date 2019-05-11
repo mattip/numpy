@@ -64,7 +64,7 @@ cdef class Xoshiro256StarStar:
 
     ``Xoshiro256StarStar`` exposes no user-facing API except ``generator``,
     ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -83,8 +83,8 @@ cdef class Xoshiro256StarStar:
     in each worker process. All generators should be initialized with the same
     seed to ensure that the segments come from the same sequence.
 
-    >>> from numpy.random import RandomGenerator, Xoshiro256StarStar
-    >>> rg = [RandomGenerator(Xoshiro256StarStar(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, Xoshiro256StarStar
+    >>> rg = [Generator(Xoshiro256StarStar(1234)) for _ in range(10)]
     # Advance each Xoshiro256StarStar instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bitgen.jump(i)
@@ -108,8 +108,8 @@ cdef class Xoshiro256StarStar:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, Xoshiro256StarStar
-    >>> rg = RandomGenerator(Xoshiro256StarStar(1234))
+    >>> from numpy.random import Generator, Xoshiro256StarStar
+    >>> rg = Generator (Xoshiro256StarStar(1234))
     >>> rg.standard_normal()
     0.123  # random
 
@@ -138,7 +138,7 @@ cdef class Xoshiro256StarStar:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bitgen.state = <void *>self.rng_state
+        self._bit_generator.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &xoshiro256starstar_uint64
         self._bitgen.next_uint32 = &xoshiro256starstar_uint32
         self._bitgen.next_double = &xoshiro256starstar_double
@@ -353,14 +353,14 @@ cdef class Xoshiro256StarStar:
     @property
     def generator(self):
         """
-        Return a RandomGenerator object
+        Return a Generator object
 
         Returns
         -------
-        gen : numpy.random.RandomGenerator
+        gen : numpy.random.Generator
             Random generator used this instance as the bit generator
         """
         if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
+            from .generator import Generator
+            self._generator = Generator (self)
         return self._generator

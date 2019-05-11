@@ -88,7 +88,7 @@ cdef class ThreeFry32:
 
     ``ThreeFry32`` exposes no user-facing API except ``generator``,
     ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -109,8 +109,8 @@ cdef class ThreeFry32:
     in parallel applications by using a sequence of distinct keys where each
     instance uses different key.
 
-    >>> from numpy.random import RandomGenerator, ThreeFry32
-    >>> rg = [RandomGenerator(ThreeFry32(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, ThreeFry32
+    >>> rg = [Generator(ThreeFry32(1234)) for _ in range(10)]
     # Advance each ThreeFry32 instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bitgen.jump(i)
@@ -118,7 +118,7 @@ cdef class ThreeFry32:
     Using distinct keys produces independent streams
 
     >>> key = 2**65 + 2**33 + 2**17 + 2**9
-    >>> rg = [RandomGenerator(ThreeFry32(key=key+i)) for i in range(10)]
+    >>> rg = [Generator(ThreeFry32(key=key+i)) for i in range(10)]
 
     **State and Seeding**
 
@@ -142,8 +142,8 @@ cdef class ThreeFry32:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, ThreeFry32
-    >>> rg = RandomGenerator(ThreeFry32(1234))
+    >>> from numpy.random import Generator, ThreeFry32
+    >>> rg = Generator (ThreeFry32(1234))
     >>> rg.standard_normal()
     0.123  # random
 
@@ -176,7 +176,7 @@ cdef class ThreeFry32:
         self.seed(seed, counter, key)
         self.lock = Lock()
 
-        self._bitgen.state = <void *> self.rng_state
+        self._bit_generator.state = <void *> self.rng_state
         self._bitgen.next_uint64 = &threefry32_uint64
         self._bitgen.next_uint32 = &threefry32_uint32
         self._bitgen.next_double = &threefry32_double
@@ -458,14 +458,14 @@ cdef class ThreeFry32:
     @property
     def generator(self):
         """
-        Return a RandomGenerator object
+        Return a Generator object
 
         Returns
         -------
-        gen : numpy.random.RandomGenerator
+        gen : numpy.random.Generator
             Random generator used this instance as the core PRNG
         """
         if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
+            from .generator import Generator
+            self._generator = Generator (self)
         return self._generator
