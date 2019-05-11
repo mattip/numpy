@@ -180,7 +180,7 @@ cdef class Philox:
         self.seed(seed, counter, key)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *> self.rng_state
+        self._bitgen.state = <void *> self.rng_state
         self._bitgen.next_uint64 = &philox_uint64
         self._bitgen.next_uint32 = &philox_uint32
         self._bitgen.next_double = &philox_double

@@ -20,11 +20,11 @@ cdef object benchmark(bitgen_t *bitgen, object lock, Py_ssize_t cnt, object meth
     if method==u'uint64':
         with lock, nogil:
             for i in range(cnt):
-                bitgen.next_uint64(bit_generator.state)
+                bitgen.next_uint64(bitgen.state)
     elif method==u'double':
         with lock, nogil:
             for i in range(cnt):
-                bitgen.next_double(bit_generator.state)
+                bitgen.next_double(bitgen.state)
     else:
         raise ValueError('Unknown method')
 
@@ -65,17 +65,17 @@ cdef object random_raw(bitgen_t *bitgen, object lock, object size, object output
     if not output:
         if size is None:
             with lock:
-                bitgen.next_raw(bit_generator.state)
+                bitgen.next_raw(bitgen.state)
             return None
         n = np.asarray(size).sum()
         with lock, nogil:
             for i in range(n):
-                bitgen.next_raw(bit_generator.state)
+                bitgen.next_raw(bitgen.state)
         return None
 
     if size is None:
         with lock:
-            return bitgen.next_raw(bit_generator.state)
+            return bitgen.next_raw(bitgen.state)
 
     randoms = <np.ndarray>np.empty(size, np.uint64)
     randoms_data = <uint64_t*>np.PyArray_DATA(randoms)
@@ -83,7 +83,7 @@ cdef object random_raw(bitgen_t *bitgen, object lock, object size, object output
 
     with lock, nogil:
         for i in range(n):
-            randoms_data[i] = bitgen.next_raw(bit_generator.state)
+            randoms_data[i] = bitgen.next_raw(bitgen.state)
     return randoms
 
 cdef object prepare_cffi(bitgen_t *bitgen):
@@ -113,8 +113,8 @@ cdef object prepare_cffi(bitgen_t *bitgen):
         raise ImportError('cffi cannot be imported.')
 
     ffi = cffi.FFI()
-    _cffi = interface(<uintptr_t>bit_generator.state,
-                      ffi.cast('void *', <uintptr_t>bit_generator.state),
+    _cffi = interface(<uintptr_t>bitgen.state,
+                      ffi.cast('void *', <uintptr_t>bitgen.state),
                       ffi.cast('uint64_t (*)(void *)', <uintptr_t>bitgen.next_uint64),
                       ffi.cast('uint32_t (*)(void *)', <uintptr_t>bitgen.next_uint32),
                       ffi.cast('double (*)(void *)', <uintptr_t>bitgen.next_double),
@@ -144,8 +144,8 @@ cdef object prepare_ctypes(bitgen_t *bitgen):
     """
     import ctypes
 
-    _ctypes = interface(<uintptr_t>bit_generator.state,
-                        ctypes.c_void_p(<uintptr_t>bit_generator.state),
+    _ctypes = interface(<uintptr_t>bitgen.state,
+                        ctypes.c_void_p(<uintptr_t>bitgen.state),
                         ctypes.cast(<uintptr_t>bitgen.next_uint64,
                                     ctypes.CFUNCTYPE(ctypes.c_uint64,
                                                      ctypes.c_void_p)),

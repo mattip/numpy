@@ -133,7 +133,7 @@ cdef class PCG32:
         self.seed(seed, inc)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &pcg32_uint64
         self._bitgen.next_uint32 = &pcg32_uint32
         self._bitgen.next_double = &pcg32_double

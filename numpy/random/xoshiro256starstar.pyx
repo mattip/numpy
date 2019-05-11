@@ -138,7 +138,7 @@ cdef class Xoshiro256StarStar:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &xoshiro256starstar_uint64
         self._bitgen.next_uint32 = &xoshiro256starstar_uint32
         self._bitgen.next_double = &xoshiro256starstar_double

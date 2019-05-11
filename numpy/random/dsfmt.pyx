@@ -156,7 +156,7 @@ cdef class DSFMT:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &dsfmt_uint64
         self._bitgen.next_uint32 = &dsfmt_uint32
         self._bitgen.next_double = &dsfmt_double

@@ -131,7 +131,7 @@ cdef class MT19937:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &mt19937_uint64
         self._bitgen.next_uint32 = &mt19937_uint32
         self._bitgen.next_double = &mt19937_double

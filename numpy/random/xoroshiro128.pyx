@@ -138,7 +138,7 @@ cdef class Xoroshiro128:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &xoroshiro128_uint64
         self._bitgen.next_uint32 = &xoroshiro128_uint32
         self._bitgen.next_double = &xoroshiro128_double

@@ -176,7 +176,7 @@ cdef class ThreeFry32:
         self.seed(seed, counter, key)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *> self.rng_state
+        self._bitgen.state = <void *> self.rng_state
         self._bitgen.next_uint64 = &threefry32_uint64
         self._bitgen.next_uint32 = &threefry32_uint32
         self._bitgen.next_double = &threefry32_double

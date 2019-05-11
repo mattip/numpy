@@ -144,7 +144,7 @@ cdef class Xorshift1024:
         self.seed(seed)
         self.lock = Lock()
 
-        self._bit_generator.state = <void *>self.rng_state
+        self._bitgen.state = <void *>self.rng_state
         self._bitgen.next_uint64 = &xorshift1024_uint64
         self._bitgen.next_uint32 = &xorshift1024_uint32
         self._bitgen.next_double = &xorshift1024_double
