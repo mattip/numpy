@@ -86,7 +86,7 @@ nom_size = 100000
 
 class RNG(Benchmark):
     param_names = ['rng']
-    params = ['DSFMT', 'PCG64', 'PCG32', 'MT19937', 'Xoroshiro128',
+    params = ['DSFMT', 'MT19937', 'Xoroshiro128',
               'Xorshift1024', 'Xoshiro256StarStar', 'Xoshiro512StarStar',
               'Philox', 'ThreeFry', 'ThreeFry32', 'numpy']
 
@@ -122,26 +122,24 @@ class Bounded(Benchmark):
     u16 = np.uint16
     u32 = np.uint32
     u64 = np.uint64
-    param_names = ['rng', 'dt_max_masked']
+    param_names = ['rng', 'dt_max']
     params = [['DSFMT', 'PCG64', 'PCG32', 'MT19937', 'Xoroshiro128',
                'Xorshift1024', 'Xoshiro256StarStar', 'Xoshiro512StarStar',
                'Philox', 'ThreeFry', 'ThreeFry32', 'numpy'],
-              [[u8,  95, True],
-               [u8,  64, False],  # Worst case for legacy
-               [u8,  95, False],   # Typ. avg. case for legacy
-               [u8, 127, False],  # Best case for legacy
-               [u16,   95, True],
-               [u16, 1024, False],  # Worst case for legacy
-               [u16, 1535, False],   # Typ. avg. case for legacy
-               [u16, 2047, False],  # Best case for legacy
-               [u32,   95, True],
-               [u32, 1024, False],  # Worst case for legacy
-               [u32, 1535, False],   # Typ. avg. case for legacy
-               [u32, 2047, False],  # Best case for legacy
-               [u64,   95, True],
-               [u64, 1024, False],  # Worst case for legacy
-               [u64, 1535, False],   # Typ. avg. case for legacy
-               [u64, 2047, False],  # Best case for legacy
+              [[u8,    95],
+               [u8,    64],  # Worst case for legacy
+               [u8,   127],  # Best case for legacy
+               [u16,   95],
+               [u16, 1024],  # Worst case for legacy
+               [u16, 1535],   # Typ. avg. case for legacy
+               [u16, 2047],  # Best case for legacy
+               [u32, 1024],  # Worst case for legacy
+               [u32, 1535],   # Typ. avg. case for legacy
+               [u32, 2047],  # Best case for legacy
+               [u64,   95],
+               [u64, 1024],  # Worst case for legacy
+               [u64, 1535],   # Typ. avg. case for legacy
+               [u64, 2047],  # Best case for legacy
              ]]
 
     def setup(self, brng, args):
@@ -161,20 +159,6 @@ class Bounded(Benchmark):
                 output dtype
             max : int
                 Upper bound for range. Lower is always 0.  Must be <= 2**bits.
-            use_masked: bool
-                If True, masking and rejection sampling is used to generate a random
-                number in an interval. If False, Lemire's algorithm is used if
-                available to generate a random number in an interval.
-
-            Notes
-            -----
-            Lemire's algorithm has improved performance when max+1 is not a
-            power of two.
             """
-            dt, max, use_masked = args
-            if brng == 'numpy':
-                self.rg.randint(0, max + 1, nom_size, dtype=dt)
-            else:
-                self.rg.randint(0, max + 1, nom_size, dtype=dt,
-                                use_masked=use_masked)
-        
+            dt, max = args
+            self.rg.randint(0, max + 1, nom_size, dtype=dt)

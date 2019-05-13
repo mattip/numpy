@@ -30,8 +30,7 @@ type_info = (('uint32', 'uint32', 'uint64', 'NPY_UINT64', 0, 0, 0, '0X100000000U
 {{for  nptype, utype, nptype_up, npctype, remaining, bitshift, lb, ub in type_info}}
 {{ py: otype = nptype + '_' if nptype == 'bool' else nptype }}
 cdef object _rand_{{nptype}}_broadcast(np.ndarray low, np.ndarray high, object size,
-                                       bint use_masked, bint closed,
-                                       brng_t *state, object lock):
+                                       bint closed, brng_t *state, object lock):
     """
     Array path for smaller integer types
 
@@ -93,7 +92,7 @@ cdef object _rand_{{nptype}}_broadcast(np.ndarray low, np.ndarray high, object s
                 # Smallest bit mask >= max
                 mask = <{{utype}}_t>_gen_mask(rng)
 
-            out_data[i] = random_buffered_bounded_{{utype}}(state, off, rng, mask, use_masked, &buf_rem, &buf)
+            out_data[i] = random_buffered_bounded_{{utype}}(state, off, rng, mask, &buf_rem, &buf)
 
             np.PyArray_MultiIter_NEXT(it)
     return out_arr
@@ -106,8 +105,7 @@ big_type_info = (('uint64', 'uint64', 'NPY_UINT64', '0x0ULL', '0xFFFFFFFFFFFFFFF
 {{for  nptype, utype, npctype, lb, ub in big_type_info}}
 {{ py: otype = nptype}}
 cdef object _rand_{{nptype}}_broadcast(object low, object high, object size,
-                                       bint use_masked, bint closed,
-                                       brng_t *state, object lock):
+                                       bint closed, brng_t *state, object lock):
     """
     Array path for 64-bit integer types
 
@@ -188,7 +186,7 @@ cdef object _rand_{{nptype}}_broadcast(object low, object high, object size,
 
             if rng != last_rng:
                 mask = _gen_mask(rng)
-            out_data[i] = random_bounded_uint64(state, off, rng, mask, use_masked)
+            out_data[i] = random_bounded_uint64(state, off, rng, mask)
 
             np.PyArray_MultiIter_NEXT(it)
 
@@ -209,10 +207,9 @@ type_info = (('uint64', 'uint64', '0x0ULL', '0xFFFFFFFFFFFFFFFFULL'),
 {{for  nptype, utype, lb, ub in type_info}}
 {{ py: otype = nptype + '_' if nptype == 'bool' else nptype }}
 cdef object _rand_{{nptype}}(object low, object high, object size,
-                             bint use_masked, bint closed,
-                             brng_t *state, object lock):
+                             bint closed, brng_t *state, object lock):
     """
-    _rand_{{nptype}}(low, high, size, use_masked, *state, lock)
+    _rand_{{nptype}}(low, high, size, *state, lock)
 
     Return random np.{{nptype}} integers from `low` (inclusive) to `high` (exclusive).
 
@@ -234,8 +231,6 @@ cdef object _rand_{{nptype}}(object low, object high, object size,
         Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
         ``m * n * k`` samples are drawn.  Default is None, in which case a
         single value is returned.
-    use_masked : bool
-        If True then rejection sampling with a range mask is used else Lemire's algorithm is used.
     closed : bool
         If True then sample from [low, high].  If False, sample [low, high)
     state : basic random state
@@ -290,14 +285,14 @@ cdef object _rand_{{nptype}}(object low, object high, object size,
         off = <{{utype}}_t>(<{{nptype}}_t>low)
         if size is None:
             with lock:
-                random_bounded_{{utype}}_fill(state, off, rng, 1, use_masked, &out_val)
+                random_bounded_{{utype}}_fill(state, off, rng, 1, &out_val)
             return np.{{otype}}(<{{nptype}}_t>out_val)
         else:
             out_arr = <np.ndarray>np.empty(size, np.{{nptype}})
             cnt = np.PyArray_SIZE(out_arr)
             out_data = <{{utype}}_t *>np.PyArray_DATA(out_arr)
             with lock, nogil:
-                random_bounded_{{utype}}_fill(state, off, rng, cnt, use_masked, out_data)
+                random_bounded_{{utype}}_fill(state, off, rng, cnt, out_data)
             return out_arr
-    return _rand_{{nptype}}_broadcast(low_arr, high_arr, size, use_masked, closed, state, lock)
+    return _rand_{{nptype}}_broadcast(low_arr, high_arr, size, closed, state, lock)
 {{endfor}}
