@@ -24,13 +24,6 @@ Parallel generation
 
    ~Xoshiro256StarStar.jump
 
-Random Generator
-================
-.. autosummary::
-   :toctree: generated/
-
-   ~Xoshiro256StarStar.generator
-
 Extending
 =========
 .. autosummary::

@@ -4,9 +4,7 @@ Random Number Generation
 ========================
 
 Instantiate a RandomNumberGenerator (RNG) and wrap it in a RandomGenerator
-which will convert the uniform stream to a number of distributions. For
-covenience, the module provides an instantiated instance of a RandomGenerator
-available as ``gen``. 
+which will convert the uniform stream to a number of distributions.
 
 ==================== =========================================================
 Utility functions
@@ -93,8 +91,6 @@ Random Number Streams that work with RandomGenerator
 ==============================================================================
 MT19937
 DSFMT
-PCG32
-PCG64
 Philox
 ThreeFry
 ThreeFry32
@@ -162,8 +158,6 @@ from .mtrand import *
 from .dsfmt import DSFMT
 from .generator import RandomGenerator
 from .mt19937 import MT19937
-from .pcg32 import PCG32
-from .pcg64 import PCG64
 from .philox import Philox
 from .threefry import ThreeFry
 from .threefry32 import ThreeFry32
@@ -173,11 +167,9 @@ from .xoshiro256starstar import Xoshiro256StarStar
 from .xoshiro512starstar import Xoshiro512StarStar
 from .mtrand import RandomState
 
-gen = RandomGenerator(Xoshiro512StarStar())
-
-__all__ += ['RandomGenerator', 'DSFMT', 'MT19937', 'PCG64', 'PCG32', 'Philox',
+__all__ += ['RandomGenerator', 'DSFMT', 'MT19937', 'Philox',
            'ThreeFry', 'ThreeFry32', 'Xoroshiro128', 'Xorshift1024',
-           'Xoshiro256StarStar', 'Xoshiro512StarStar', 'RandomState', 'gen']
+           'Xoshiro256StarStar', 'Xoshiro512StarStar', 'RandomState']
 
 # Some aliases:
 ranf = random = sample = random_sample

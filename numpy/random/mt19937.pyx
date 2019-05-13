@@ -122,7 +122,6 @@ cdef class MT19937:
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
-    cdef object _generator
     cdef public object lock
 
     def __init__(self, seed=None):
@@ -139,7 +138,6 @@ cdef class MT19937:
 
         self._ctypes = None
         self._cffi = None
-        self._generator = None
 
         cdef const char *name = "BasicRNG"
         self.capsule = PyCapsule_New(<void *>self._brng, name, NULL)
@@ -347,18 +345,3 @@ cdef class MT19937:
             return self._cffi
         self._cffi = prepare_cffi(self._brng)
         return self._cffi
-
-    @property
-    def generator(self):
-        """
-        Return a RandomGenerator object
-
-        Returns
-        -------
-        gen : numpy.random.RandomGenerator
-            Random generator used this instance as the core PRNG
-        """
-        if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
-        return self._generator

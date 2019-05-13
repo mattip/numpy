@@ -8,7 +8,7 @@ from numpy.testing import assert_equal, assert_allclose, assert_array_equal, \
 import pytest
 
 from numpy.random import RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry, \
-    PCG32, PCG64, Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar, \
+    Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar, \
     Xoshiro512StarStar, RandomState
 from numpy.random.common import interface
 
@@ -244,10 +244,6 @@ class Base(object):
         assert str(self.brng.__name__) in str(rs)
         assert '{:#x}'.format(id(rs)).upper().replace('X', 'x') not in str(rs)
 
-    def test_generator(self):
-        brng = self.brng(*self.data1['seed'])
-        assert isinstance(brng.generator, RandomGenerator)
-
     def test_pickle(self):
         import pickle
 
@@ -256,8 +252,8 @@ class Base(object):
         brng_pkl = pickle.dumps(brng)
         reloaded = pickle.loads(brng_pkl)
         reloaded_state = reloaded.state
-        assert_array_equal(brng.generator.standard_normal(1000),
-                           reloaded.generator.standard_normal(1000))
+        assert_array_equal(RandomGenerator(brng).standard_normal(1000),
+                           RandomGenerator(reloaded).standard_normal(1000))
         assert brng is not reloaded
         assert_state_equal(reloaded_state, state)
 
@@ -396,37 +392,6 @@ class TestThreeFry(Base):
         keyed = self.brng(counter=state['state']['counter'],
                           key=state['state']['key'])
         assert_state_equal(brng.state, keyed.state)
-
-
-class TestPCG64(Base):
-    @classmethod
-    def setup_class(cls):
-        cls.brng = PCG64
-        cls.bits = 64
-        cls.dtype = np.uint64
-        cls.data1 = cls._read_csv(join(pwd, './data/pcg64-testset-1.csv'))
-        cls.data2 = cls._read_csv(join(pwd, './data/pcg64-testset-2.csv'))
-        cls.seed_error_type = TypeError
-        cls.invalid_seed_types = [(np.array([1, 2]),), (3.2,),
-                                  (None, np.zeros(1))]
-        cls.invalid_seed_values = [(-1,), (2 ** 129 + 1,), (None, -1),
-                                   (None, 2 ** 129 + 1)]
-
-    def test_seed_float_array(self):
-        rs = RandomGenerator(self.brng(*self.data1['seed']))
-        assert_raises(self.seed_error_type, rs.brng.seed, np.array([np.pi]))
-        assert_raises(self.seed_error_type, rs.brng.seed, np.array([-np.pi]))
-        assert_raises(self.seed_error_type, rs.brng.seed,
-                      np.array([np.pi, -np.pi]))
-        assert_raises(self.seed_error_type, rs.brng.seed, np.array([0, np.pi]))
-        assert_raises(self.seed_error_type, rs.brng.seed, [np.pi])
-        assert_raises(self.seed_error_type, rs.brng.seed, [0, np.pi])
-
-    def test_seed_out_of_range_array(self):
-        rs = RandomGenerator(self.brng(*self.data1['seed']))
-        assert_raises(self.seed_error_type, rs.brng.seed,
-                      [2 ** (2 * self.bits + 1)])
-        assert_raises(self.seed_error_type, rs.brng.seed, [-1])
 
 
 class TestPhilox(Base):
@@ -607,18 +572,3 @@ class TestThreeFry32(Base):
         keyed = self.brng(counter=state['state']['counter'],
                           key=state['state']['key'])
         assert_state_equal(brng.state, keyed.state)
-
-
-class TestPCG32(TestPCG64):
-    @classmethod
-    def setup_class(cls):
-        cls.brng = PCG32
-        cls.bits = 32
-        cls.dtype = np.uint32
-        cls.data1 = cls._read_csv(join(pwd, './data/pcg32-testset-1.csv'))
-        cls.data2 = cls._read_csv(join(pwd, './data/pcg32-testset-2.csv'))
-        cls.seed_error_type = TypeError
-        cls.invalid_seed_types = [(np.array([1, 2]),), (3.2,),
-                                  (None, np.zeros(1))]
-        cls.invalid_seed_values = [(-1,), (2 ** 129 + 1,), (None, -1),
-                                   (None, 2 ** 129 + 1)]

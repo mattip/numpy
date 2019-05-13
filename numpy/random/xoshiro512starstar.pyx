@@ -62,9 +62,8 @@ cdef class Xoshiro512StarStar:
     and supports jumping the sequence in increments of :math:`2^{256}`,
     which allows multiple non-overlapping sequences to be generated.
 
-    ``Xoshiro512StarStar`` exposes no user-facing API except ``generator``,
-    ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Xoshiro512StarStar`` exposes no user-facing API except ``state``,
+    ``cffi`` and ``ctypes``. Designed for use in a ``RandomGenerator`` object.
 
     **Compatibility Guarantee**
 
@@ -113,12 +112,6 @@ cdef class Xoshiro512StarStar:
     >>> rg.standard_normal()
     0.123  # random
 
-    Identical method using only Xoshiro512StarStar
-
-    >>> rg = Xoshiro512StarStar(1234).generator
-    >>> rg.standard_normal()
-    0.123  # random
-
     References
     ----------
     .. [1] "xoroshiro+ / xorshift* / xorshift+ generators and the PRNG shootout",
@@ -129,7 +122,6 @@ cdef class Xoshiro512StarStar:
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
-    cdef object _generator
     cdef public object lock
 
     def __init__(self, seed=None):
@@ -146,7 +138,6 @@ cdef class Xoshiro512StarStar:
 
         self._ctypes = None
         self._cffi = None
-        self._generator = None
 
         cdef const char *name = "BasicRNG"
         self.capsule = PyCapsule_New(<void *>self._brng, name, NULL)
@@ -343,18 +334,3 @@ cdef class Xoshiro512StarStar:
             return self._cffi
         self._cffi = prepare_cffi(self._brng)
         return self._cffi
-
-    @property
-    def generator(self):
-        """
-        Return a RandomGenerator object
-
-        Returns
-        -------
-        gen : numpy.random.RandomGenerator
-            Random generator used this instance as the basic RNG
-        """
-        if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
-        return self._generator

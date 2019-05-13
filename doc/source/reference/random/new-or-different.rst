@@ -61,9 +61,9 @@ And in more detail:
 
 .. ipython:: python
 
-  from  numpy.random import Xoroshiro128
+  from  numpy.random import RandomGenerator, Xoroshiro128
   import numpy.random
-  rg = Xoroshiro128().generator
+  rg = RandomGenerator(Xoroshiro128())
   %timeit rg.standard_normal(100000)
   %timeit numpy.random.standard_normal(100000)
 

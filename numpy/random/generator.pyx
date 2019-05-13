@@ -68,12 +68,6 @@ cdef class RandomGenerator:
     >>> from numpy.random import MT19937
     >>> rg = RandomGenerator(MT19937())
 
-    The generator is also directly available from basic RNGs
-
-    >>> rg = MT19937().generator
-    >>> rg.standard_normal()
-    -0.203  # random
-
     """
     cdef public object brng
     cdef brng_t *_brng
@@ -152,16 +146,16 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.random_sample()
+        >>> np.random.RandomGenerator().random_sample()
         0.47108547995356098 # random
-        >>> type(np.random.gen.random_sample())
+        >>> type(np.random.RandomGenerator().random_sample())
         <class 'float'>
-        >>> np.random.gen.random_sample((5,))
+        >>> np.random.RandomGenerator().random_sample((5,))
         array([ 0.30220482,  0.86820401,  0.1654503 ,  0.11659149,  0.54323428]) # random
 
         Three-by-two array of random numbers from [-5, 0):
 
-        >>> 5 * np.random.gen.random_sample((3, 2)) - 5
+        >>> 5 * np.random.RandomGenerator().random_sample((3, 2)) - 5
         array([[-3.99149989, -0.52338984], # random
                [-2.99091858, -0.79479508],
                [-1.23204345, -1.75224494]])
@@ -307,7 +301,7 @@ cdef class RandomGenerator:
         --------
         Output a 3x8000 array:
 
-        >>> n = np.random.gen.standard_exponential((3, 8000))
+        >>> n = np.random.RandomGenerator().standard_exponential((3, 8000))
 
         """
         key = np.dtype(dtype).name
@@ -427,30 +421,30 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.randint(2, size=10)
+        >>> np.random.RandomGenerator().randint(2, size=10)
         array([1, 0, 0, 0, 1, 1, 0, 0, 1, 0])  # random
-        >>> np.random.gen.randint(1, size=10)
+        >>> np.random.RandomGenerator().randint(1, size=10)
         array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
         Generate a 2 x 4 array of ints between 0 and 4, inclusive:
 
-        >>> np.random.gen.randint(5, size=(2, 4))
+        >>> np.random.RandomGenerator().randint(5, size=(2, 4))
         array([[4, 0, 2, 1],
                [3, 2, 2, 0]])  # random
 
         Generate a 1 x 3 array with 3 different upper bounds
 
-        >>> np.random.gen.randint(1, [3, 5, 10])
+        >>> np.random.RandomGenerator().randint(1, [3, 5, 10])
         array([2, 2, 9])  # random
 
         Generate a 1 by 3 array with 3 different lower bounds
 
-        >>> np.random.gen.randint([1, 5, 7], 10)
+        >>> np.random.RandomGenerator().randint([1, 5, 7], 10)
         array([9, 8, 7])  # random
 
         Generate a 2 by 4 array using broadcasting with dtype of uint8
 
-        >>> np.random.gen.randint([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
+        >>> np.random.RandomGenerator().randint([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
         array([[ 8,  6,  9,  7],
                [ 1, 16,  9, 12]], dtype=uint8)  # random
 
@@ -510,7 +504,7 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.bytes(10)
+        >>> np.random.RandomGenerator().bytes(10)
         ' eh\\x85\\x022SZ\\xbf\\xa4' #random
 
         """
@@ -567,33 +561,33 @@ cdef class RandomGenerator:
         --------
         Generate a uniform random sample from np.arange(5) of size 3:
 
-        >>> np.random.gen.choice(5, 3)
+        >>> np.random.RandomGenerator().choice(5, 3)
         array([0, 3, 4]) # random
-        >>> #This is equivalent to np.random.gen.randint(0,5,3)
+        >>> #This is equivalent to np.random.RandomGenerator().randint(0,5,3)
 
         Generate a non-uniform random sample from np.arange(5) of size 3:
 
-        >>> np.random.gen.choice(5, 3, p=[0.1, 0, 0.3, 0.6, 0])
+        >>> np.random.RandomGenerator().choice(5, 3, p=[0.1, 0, 0.3, 0.6, 0])
         array([3, 3, 0]) # random
 
         Generate a uniform random sample from np.arange(5) of size 3 without
         replacement:
 
-        >>> np.random.gen.choice(5, 3, replace=False)
+        >>> np.random.RandomGenerator().choice(5, 3, replace=False)
         array([3,1,0]) # random
-        >>> #This is equivalent to np.random.gen.permutation(np.arange(5))[:3]
+        >>> #This is equivalent to np.random.RandomGenerator().permutation(np.arange(5))[:3]
 
         Generate a non-uniform random sample from np.arange(5) of size
         3 without replacement:
 
-        >>> np.random.gen.choice(5, 3, replace=False, p=[0.1, 0, 0.3, 0.6, 0])
+        >>> np.random.RandomGenerator().choice(5, 3, replace=False, p=[0.1, 0, 0.3, 0.6, 0])
         array([2, 3, 0]) # random
 
         Any of the above can be repeated with an arbitrary array-like
         instead of just integers. For instance:
 
         >>> aa_milne_arr = ['pooh', 'rabbit', 'piglet', 'Christopher']
-        >>> np.random.gen.choice(aa_milne_arr, 5, p=[0.5, 0.1, 0.1, 0.3])
+        >>> np.random.RandomGenerator().choice(aa_milne_arr, 5, p=[0.5, 0.1, 0.1, 0.3])
         array(['pooh', 'pooh', 'pooh', 'Christopher', 'piglet'], # random
               dtype='<U11')
 
@@ -675,7 +669,7 @@ cdef class RandomGenerator:
                 found = np.zeros(shape, dtype=np.int64)
                 flat_found = found.ravel()
                 while n_uniq < size:
-                    x = self.rand(size - n_uniq)
+                    x = self.random_sample((size - n_uniq,))
                     if n_uniq > 0:
                         p[flat_found[0:n_uniq]] = 0
                     cdf = np.cumsum(p)
@@ -783,9 +777,6 @@ cdef class RandomGenerator:
                           interval ``[low, high]``.
         random_sample : Floats uniformly distributed over ``[0, 1)``.
         random : Alias for `random_sample`.
-        rand : Convenience function that accepts dimensions as input, e.g.,
-               ``rand(2,2)`` would generate a 2-by-2 array of floats,
-               uniformly distributed over ``[0, 1)``.
 
         Notes
         -----
@@ -805,7 +796,7 @@ cdef class RandomGenerator:
         --------
         Draw samples from the distribution:
 
-        >>> s = np.random.gen.uniform(-1,0,1000)
+        >>> s = np.random.RandomGenerator().uniform(-1,0,1000)
 
         All values are within the given interval:
 
@@ -858,117 +849,6 @@ cdef class RandomGenerator:
                     0.0, '', CONS_NONE,
                     None)
 
-    def rand(self, *args, dtype=np.float64):
-        """
-        rand(d0, d1, ..., dn, dtype='d')
-
-        Random values in a given shape.
-
-        .. note::
-            This is a convenience function for users porting code from Matlab,
-            and wraps `numpy.random.gen.random_sample`. That function takes a
-            tuple to specify the size of the output, which is consistent with
-            other NumPy functions like `numpy.zeros` and `numpy.ones`.
-
-        Create an array of the given shape and populate it with
-        random samples from a uniform distribution
-        over ``[0, 1)``.
-
-        Parameters
-        ----------
-        d0, d1, ..., dn : int, optional
-            The dimensions of the returned array, must be non-negative.
-            If no argument is given a single Python float is returned.
-        dtype : {str, dtype}, optional
-            Desired dtype of the result, either 'd' (or 'float64') or 'f'
-            (or 'float32'). All dtypes are determined by their name. The
-            default value is 'd'.
-
-        Returns
-        -------
-        out : ndarray, shape ``(d0, d1, ..., dn)``
-            Random values.
-
-        See Also
-        --------
-        random
-
-        Examples
-        --------
-        >>> np.random.gen.rand(3,2)
-        array([[ 0.14022471,  0.96360618],  #random
-               [ 0.37601032,  0.25528411],  #random
-               [ 0.49313049,  0.94909878]]) #random
-
-        """
-        if len(args) == 0:
-            return self.random_sample(dtype=dtype)
-        else:
-            return self.random_sample(size=args, dtype=dtype)
-
-    def randn(self, *args, dtype=np.float64):
-        """
-        randn(d0, d1, ..., dn, dtype='d')
-
-        Return a sample (or samples) from the "standard normal" distribution.
-
-        .. note::
-            This is a convenience function for users porting code from Matlab,
-            and wraps `numpy.random.gen.standard_normal`. That function takes a
-            tuple to specify the size of the output, which is consistent with
-            other NumPy functions like `numpy.zeros` and `numpy.ones`.
-
-        If positive int_like arguments are provided, `randn` generates an array
-        of shape ``(d0, d1, ..., dn)``, filled
-        with random floats sampled from a univariate "normal" (Gaussian)
-        distribution of mean 0 and variance 1. A single float randomly sampled
-        from the distribution is returned if no argument is provided.
-
-        Parameters
-        ----------
-        d0, d1, ..., dn : int, optional
-            The dimensions of the returned array, must be non-negative.
-            If no argument is given a single Python float is returned.
-        dtype : {str, dtype}, optional
-            Desired dtype of the result, either 'd' (or 'float64') or 'f'
-            (or 'float32'). All dtypes are determined by their name. The
-            default value is 'd'.
-
-        Returns
-        -------
-        Z : ndarray or float
-            A ``(d0, d1, ..., dn)``-shaped array of floating-point samples from
-            the standard normal distribution, or a single such float if
-            no parameters were supplied.
-
-        See Also
-        --------
-        standard_normal : Similar, but takes a tuple as its argument.
-        normal : Also accepts mu and sigma arguments.
-
-        Notes
-        -----
-        For random samples from :math:`N(\\mu, \\sigma^2)`, use:
-
-        ``sigma * np.random.gen.randn(...) + mu``
-
-        Examples
-        --------
-        >>> np.random.gen.randn()
-        2.1923875335537315  # random
-
-        Two-by-four array of samples from N(3, 6.25):
-
-        >>> 3 + 2.5 * np.random.gen.randn(2, 4)
-        array([[-4.49401501,  4.00950034, -1.81814867,  7.29718677],   # random
-               [ 0.39924804,  4.68456316,  4.99394529,  4.84057254]])  # random
-
-        """
-        if len(args) == 0:
-            return self.standard_normal(dtype=dtype)
-        else:
-            return self.standard_normal(size=args, dtype=dtype)
-
     def random_integers(self, low, high=None, size=None):
         """
         random_integers(low, high=None, size=None)
@@ -1016,15 +896,15 @@ cdef class RandomGenerator:
         To sample from N evenly spaced floating-point numbers between a and b,
         use::
 
-          a + (b - a) * (np.random.gen.random_integers(N) - 1) / (N - 1.)
+          a + (b - a) * (np.random.RandomGenerator().random_integers(N) - 1) / (N - 1.)
 
         Examples
         --------
-        >>> np.random.gen.random_integers(5)
+        >>> np.random.RandomGenerator().random_integers(5)
         4 # random
-        >>> type(np.random.gen.random_integers(5))
+        >>> type(np.random.RandomGenerator().random_integers(5))
         <class 'numpy.int64'>
-        >>> np.random.gen.random_integers(5, size=(3,2))
+        >>> np.random.RandomGenerator().random_integers(5, size=(3,2))
         array([[5, 4], # random
                [3, 3],
                [4, 5]])
@@ -1033,13 +913,13 @@ cdef class RandomGenerator:
         numbers between 0 and 2.5, inclusive (*i.e.*, from the set
         :math:`{0, 5/8, 10/8, 15/8, 20/8}`):
 
-        >>> 2.5 * (np.random.gen.random_integers(5, size=(5,)) - 1) / 4.
+        >>> 2.5 * (np.random.RandomGenerator().random_integers(5, size=(5,)) - 1) / 4.
         array([ 0.625,  1.25 ,  0.625,  0.625,  2.5  ]) # random
 
         Roll two six sided dice 1000 times and sum the results:
 
-        >>> d1 = np.random.gen.random_integers(1, 6, 1000)
-        >>> d2 = np.random.gen.random_integers(1, 6, 1000)
+        >>> d1 = np.random.RandomGenerator().random_integers(1, 6, 1000)
+        >>> d2 = np.random.RandomGenerator().random_integers(1, 6, 1000)
         >>> dsums = d1 + d2
 
         Display results as a histogram:
@@ -1096,8 +976,8 @@ cdef class RandomGenerator:
         -----
         For random samples from :math:`N(\\mu, \\sigma^2)`, use one of::
 
-            mu + sigma * np.random.gen.standard_normal(size=...)
-            np.random.gen.normal(mu, sigma, size=...)
+            mu + sigma * np.random.RandomGenerator().standard_normal(size=...)
+            np.random.RandomGenerator().normal(mu, sigma, size=...)
 
         See Also
         --------
@@ -1107,22 +987,22 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.standard_normal()
+        >>> np.random.RandomGenerator().standard_normal()
         2.1923875335537315 #random
 
-        >>> s = np.random.gen.standard_normal(8000)
+        >>> s = np.random.RandomGenerator().standard_normal(8000)
         >>> s
         array([ 0.6888893 ,  0.78096262, -0.89086505, ...,  0.49876311,  # random
                -0.38672696, -0.4685006 ])                                # random
         >>> s.shape
         (8000,)
-        >>> s = np.random.gen.standard_normal(size=(3, 4, 2))
+        >>> s = np.random.RandomGenerator().standard_normal(size=(3, 4, 2))
         >>> s.shape
         (3, 4, 2)
 
         Two-by-four array of samples from :math:`N(3, 6.25)`:
 
-        >>> 3 + 2.5 * np.random.gen.standard_normal(size=(2, 4))
+        >>> 3 + 2.5 * np.random.RandomGenerator().standard_normal(size=(2, 4))
         array([[-4.49401501,  4.00950034, -1.81814867,  7.29718677],   # random
                [ 0.39924804,  4.68456316,  4.99394529,  4.84057254]])  # random
 
@@ -1189,8 +1069,8 @@ cdef class RandomGenerator:
         The function has its peak at the mean, and its "spread" increases with
         the standard deviation (the function reaches 0.607 times its maximum at
         :math:`x + \\sigma` and :math:`x - \\sigma` [2]_).  This implies that
-        `numpy.random.gen.normal` is more likely to return samples lying close to
-        the mean, rather than those far away.
+        `numpy.random.RandomGenerator().normal` is more likely to return
+        samples lying close to the mean, rather than those far away.
 
         References
         ----------
@@ -1205,7 +1085,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> mu, sigma = 0, 0.1 # mean and standard deviation
-        >>> s = np.random.gen.normal(mu, sigma, 1000)
+        >>> s = np.random.RandomGenerator().normal(mu, sigma, 1000)
 
         Verify the mean and the variance:
 
@@ -1227,7 +1107,7 @@ cdef class RandomGenerator:
 
         Two-by-four array of samples from N(3, 6.25):
 
-        >>> np.random.gen.normal(3, 2.5, size=(2, 4))
+        >>> np.random.RandomGenerator().normal(3, 2.5, size=(2, 4))
         array([[-4.49401501,  4.00950034, -1.81814867,  7.29718677],   # random
                [ 0.39924804,  4.68456316,  4.99394529,  4.84057254]])  # random
 
@@ -1301,7 +1181,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> shape, scale = 2., 1. # mean and width
-        >>> s = np.random.gen.standard_gamma(shape, 1000000)
+        >>> s = np.random.RandomGenerator().standard_gamma(shape, 1000000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -1389,7 +1269,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> shape, scale = 2., 2.  # mean=4, std=2*sqrt(2)
-        >>> s = np.random.gen.gamma(shape, scale, 1000)
+        >>> s = np.random.RandomGenerator().gamma(shape, scale, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -1479,7 +1359,7 @@ cdef class RandomGenerator:
 
         >>> dfnum = 1. # between group degrees of freedom
         >>> dfden = 48. # within groups degrees of freedom
-        >>> s = np.random.gen.f(dfnum, dfden, 1000)
+        >>> s = np.random.RandomGenerator().f(dfnum, dfden, 1000)
 
         The lower bound for the top 1% of the samples is :
 
@@ -1558,9 +1438,9 @@ cdef class RandomGenerator:
         >>> dfnum = 3 # between group deg of freedom
         >>> dfden = 20 # within groups degrees of freedom
         >>> nonc = 3.0
-        >>> nc_vals = np.random.gen.noncentral_f(dfnum, dfden, nonc, 1000000)
+        >>> nc_vals = np.random.RandomGenerator().noncentral_f(dfnum, dfden, nonc, 1000000)
         >>> NF = np.histogram(nc_vals, bins=50, density=True)
-        >>> c_vals = np.random.gen.f(dfnum, dfden, 1000000)
+        >>> c_vals = np.random.RandomGenerator().f(dfnum, dfden, 1000000)
         >>> F = np.histogram(c_vals, bins=50, density=True)
         >>> import matplotlib.pyplot as plt
         >>> plt.plot(F[1][1:], F[0])
@@ -1632,7 +1512,7 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.chisquare(2,4)
+        >>> np.random.RandomGenerator().chisquare(2,4)
         array([ 1.89920014,  9.00867716,  3.13710533,  5.62318272]) # random
 
         """
@@ -1691,7 +1571,7 @@ cdef class RandomGenerator:
         Draw values from the distribution and plot the histogram
 
         >>> import matplotlib.pyplot as plt
-        >>> values = plt.hist(np.random.gen.noncentral_chisquare(3, 20, 100000),
+        >>> values = plt.hist(np.random.RandomGenerator().noncentral_chisquare(3, 20, 100000),
         ...                   bins=200, density=True)
         >>> plt.show()
 
@@ -1699,9 +1579,9 @@ cdef class RandomGenerator:
         and compare to a chisquare.
 
         >>> plt.figure()
-        >>> values = plt.hist(np.random.gen.noncentral_chisquare(3, .0000001, 100000),
+        >>> values = plt.hist(np.random.RandomGenerator().noncentral_chisquare(3, .0000001, 100000),
         ...                   bins=np.arange(0., 25, .1), density=True)
-        >>> values2 = plt.hist(np.random.gen.chisquare(3, 100000),
+        >>> values2 = plt.hist(np.random.RandomGenerator().chisquare(3, 100000),
         ...                    bins=np.arange(0., 25, .1), density=True)
         >>> plt.plot(values[1][0:-1], values[0]-values2[0], 'ob')
         >>> plt.show()
@@ -1710,7 +1590,7 @@ cdef class RandomGenerator:
         distribution.
 
         >>> plt.figure()
-        >>> values = plt.hist(np.random.gen.noncentral_chisquare(3, 20, 100000),
+        >>> values = plt.hist(np.random.RandomGenerator().noncentral_chisquare(3, 20, 100000),
         ...                   bins=200, density=True)
         >>> plt.show()
 
@@ -1776,7 +1656,7 @@ cdef class RandomGenerator:
         Draw samples and plot the distribution:
 
         >>> import matplotlib.pyplot as plt
-        >>> s = np.random.gen.standard_cauchy(1000000)
+        >>> s = np.random.RandomGenerator().standard_cauchy(1000000)
         >>> s = s[(s>-25) & (s<25)]  # truncate distribution so it plots well
         >>> plt.hist(s, bins=100)
         >>> plt.show()
@@ -1849,7 +1729,7 @@ cdef class RandomGenerator:
         We have 10 degrees of freedom, so is the sample mean within 95% of the
         recommended value?
 
-        >>> s = np.random.gen.standard_t(10, size=100000)
+        >>> s = np.random.RandomGenerator().standard_t(10, size=100000)
         >>> np.mean(intake)
         6753.636363636364
         >>> intake.std(ddof=1)
@@ -1943,7 +1823,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> mu, kappa = 0.0, 4.0 # mean and dispersion
-        >>> s = np.random.gen.vonmises(mu, kappa, 1000)
+        >>> s = np.random.RandomGenerator().vonmises(mu, kappa, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2043,7 +1923,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> a, m = 3., 2.  # shape and mode
-        >>> s = (np.random.gen.pareto(a, 1000) + 1) * m
+        >>> s = (np.random.RandomGenerator().pareto(a, 1000) + 1) * m
 
         Display the histogram of the samples, along with the probability
         density function:
@@ -2136,7 +2016,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> a = 5. # shape
-        >>> s = np.random.gen.weibull(a, 1000)
+        >>> s = np.random.RandomGenerator().weibull(a, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2146,7 +2026,7 @@ cdef class RandomGenerator:
         >>> def weib(x,n,a):
         ...     return (a / n) * (x / n)**(a - 1) * np.exp(-(x / n)**a)
 
-        >>> count, bins, ignored = plt.hist(np.random.gen.weibull(5.,1000))
+        >>> count, bins, ignored = plt.hist(np.random.RandomGenerator().weibull(5.,1000))
         >>> x = np.arange(1,100.)/50.
         >>> scale = count.max()/weib(x, 1., 5.).max()
         >>> plt.plot(x, weib(x, 1., 5.)*scale)
@@ -2216,7 +2096,7 @@ cdef class RandomGenerator:
 
         >>> a = 5. # shape
         >>> samples = 1000
-        >>> s = np.random.gen.power(a, samples)
+        >>> s = np.random.RandomGenerator().power(a, samples)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2232,20 +2112,20 @@ cdef class RandomGenerator:
         Compare the power function distribution to the inverse of the Pareto.
 
         >>> from scipy import stats  # doctest: +SKIP
-        >>> rvs = np.random.gen.power(5, 1000000)
-        >>> rvsp = np.random.gen.pareto(5, 1000000)
+        >>> rvs = np.random.RandomGenerator().power(5, 1000000)
+        >>> rvsp = np.random.RandomGenerator().pareto(5, 1000000)
         >>> xx = np.linspace(0,1,100)
         >>> powpdf = stats.powerlaw.pdf(xx,5)  # doctest: +SKIP
 
         >>> plt.figure()
         >>> plt.hist(rvs, bins=50, density=True)
         >>> plt.plot(xx,powpdf,'r-')  # doctest: +SKIP
-        >>> plt.title('np.random.gen.power(5)')
+        >>> plt.title('np.random.RandomGenerator().power(5)')
 
         >>> plt.figure()
         >>> plt.hist(1./(1.+rvsp), bins=50, density=True)
         >>> plt.plot(xx,powpdf,'r-')  # doctest: +SKIP
-        >>> plt.title('inverse of 1 + np.random.gen.pareto(5)')
+        >>> plt.title('inverse of 1 + np.random.RandomGenerator().pareto(5)')
 
         >>> plt.figure()
         >>> plt.hist(1./(1.+rvsp), bins=50, density=True)
@@ -2320,7 +2200,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution
 
         >>> loc, scale = 0., 1.
-        >>> s = np.random.gen.laplace(loc, scale, 1000)
+        >>> s = np.random.RandomGenerator().laplace(loc, scale, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2423,7 +2303,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> mu, beta = 0, 0.1 # location and scale
-        >>> s = np.random.gen.gumbel(mu, beta, 1000)
+        >>> s = np.random.RandomGenerator().gumbel(mu, beta, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2441,7 +2321,7 @@ cdef class RandomGenerator:
         >>> means = []
         >>> maxima = []
         >>> for i in range(0,1000) :
-        ...    a = np.random.gen.normal(mu, beta, 1000)
+        ...    a = np.random.RandomGenerator().normal(mu, beta, 1000)
         ...    means.append(a.mean())
         ...    maxima.append(a.max())
         >>> count, bins, ignored = plt.hist(maxima, 30, density=True)
@@ -2523,7 +2403,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> loc, scale = 10, 1
-        >>> s = np.random.gen.logistic(loc, scale, 10000)
+        >>> s = np.random.RandomGenerator().logistic(loc, scale, 10000)
         >>> import matplotlib.pyplot as plt
         >>> count, bins, ignored = plt.hist(s, bins=50)
 
@@ -2606,7 +2486,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> mu, sigma = 3., 1. # mean and standard deviation
-        >>> s = np.random.gen.lognormal(mu, sigma, 1000)
+        >>> s = np.random.RandomGenerator().lognormal(mu, sigma, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -2630,7 +2510,7 @@ cdef class RandomGenerator:
         >>> # values, drawn from a normal distribution.
         >>> b = []
         >>> for i in range(1000):
-        ...    a = 10. + np.random.gen.standard_normal(100)
+        ...    a = 10. + np.random.RandomGenerator().standard_normal(100)
         ...    b.append(np.product(a))
 
         >>> b = np.array(b) / np.min(b) # scale values to be positive
@@ -2698,7 +2578,7 @@ cdef class RandomGenerator:
         Draw values from the distribution and plot the histogram
 
         >>> from matplotlib.pyplot import hist
-        >>> values = hist(np.random.gen.rayleigh(3, 100000), bins=200, density=True)
+        >>> values = hist(np.random.RandomGenerator().rayleigh(3, 100000), bins=200, density=True)
 
         Wave heights tend to follow a Rayleigh distribution. If the mean wave
         height is 1 meter, what fraction of waves are likely to be larger than 3
@@ -2706,7 +2586,7 @@ cdef class RandomGenerator:
 
         >>> meanvalue = 1
         >>> modevalue = np.sqrt(2 / np.pi) * meanvalue
-        >>> s = np.random.gen.rayleigh(modevalue, 1000000)
+        >>> s = np.random.RandomGenerator().rayleigh(modevalue, 1000000)
 
         The percentage of waves larger than 3 meters is:
 
@@ -2778,7 +2658,7 @@ cdef class RandomGenerator:
         Draw values from the distribution and plot the histogram:
 
         >>> import matplotlib.pyplot as plt
-        >>> h = plt.hist(np.random.gen.wald(3, 2, 100000), bins=200, density=True)
+        >>> h = plt.hist(np.random.RandomGenerator().wald(3, 2, 100000), bins=200, density=True)
         >>> plt.show()
 
         """
@@ -2845,7 +2725,7 @@ cdef class RandomGenerator:
         Draw values from the distribution and plot the histogram:
 
         >>> import matplotlib.pyplot as plt
-        >>> h = plt.hist(np.random.gen.triangular(-3, 0, 8, 100000), bins=200,
+        >>> h = plt.hist(np.random.RandomGenerator().triangular(-3, 0, 8, 100000), bins=200,
         ...              density=True)
         >>> plt.show()
 
@@ -2958,7 +2838,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> n, p = 10, .5  # number of trials, probability of each trial
-        >>> s = np.random.gen.binomial(n, p, 1000)
+        >>> s = np.random.RandomGenerator().binomial(n, p, 1000)
         # result of flipping a coin 10 times, tested 1000 times.
 
         A real world example. A company drills 9 wild-cat oil exploration
@@ -2968,7 +2848,7 @@ cdef class RandomGenerator:
         Let's do 20,000 trials of the model, and count the number that
         generate zero positive results.
 
-        >>> sum(np.random.gen.binomial(9, 0.1, 20000) == 0)/20000.
+        >>> sum(np.random.RandomGenerator().binomial(9, 0.1, 20000) == 0)/20000.
         # answer = 0.38885, or 38%.
 
         """
@@ -3095,7 +2975,7 @@ cdef class RandomGenerator:
         for each successive well, that is what is the probability of a
         single success after drilling 5 wells, after 6 wells, etc.?
 
-        >>> s = np.random.gen.negative_binomial(1, 0.1, 100000)
+        >>> s = np.random.RandomGenerator().negative_binomial(1, 0.1, 100000)
         >>> for i in range(1, 11): # doctest: +SKIP
         ...    probability = sum(s<i) / 100000.
         ...    print(i, "wells drilled, probability of one success =", probability)
@@ -3159,7 +3039,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> import numpy as np
-        >>> s = np.random.gen.poisson(5, 10000)
+        >>> s = np.random.RandomGenerator().poisson(5, 10000)
 
         Display histogram of the sample:
 
@@ -3169,7 +3049,7 @@ cdef class RandomGenerator:
 
         Draw each 100 values for lambda 100 and 500:
 
-        >>> s = np.random.gen.poisson(lam=(100., 500.), size=(100, 2))
+        >>> s = np.random.RandomGenerator().poisson(lam=(100., 500.), size=(100, 2))
 
         """
         return disc(&random_poisson, self._brng, size, self.lock, 1, 0,
@@ -3234,7 +3114,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> a = 2. # parameter
-        >>> s = np.random.gen.zipf(a, 1000)
+        >>> s = np.random.RandomGenerator().zipf(a, 1000)
 
         Display the histogram of the samples, along with
         the probability density function:
@@ -3295,7 +3175,7 @@ cdef class RandomGenerator:
         Draw ten thousand values from the geometric distribution,
         with the probability of an individual success equal to 0.35:
 
-        >>> z = np.random.gen.geometric(p=0.35, size=10000)
+        >>> z = np.random.RandomGenerator().geometric(p=0.35, size=10000)
 
         How many trials succeeded after a single run?
 
@@ -3385,7 +3265,7 @@ cdef class RandomGenerator:
 
         >>> ngood, nbad, nsamp = 100, 2, 10
         # number of good, number of bad, and number of samples
-        >>> s = np.random.gen.hypergeometric(ngood, nbad, nsamp, 1000)
+        >>> s = np.random.RandomGenerator().hypergeometric(ngood, nbad, nsamp, 1000)
         >>> from matplotlib.pyplot import hist
         >>> hist(s)
         #   note that it is very unlikely to grab both bad items
@@ -3394,7 +3274,7 @@ cdef class RandomGenerator:
         If you pull 15 marbles at random, how likely is it that
         12 or more of them are one color?
 
-        >>> s = np.random.gen.hypergeometric(15, 15, 15, 100000)
+        >>> s = np.random.RandomGenerator().hypergeometric(15, 15, 15, 100000)
         >>> sum(s>=12)/100000. + sum(s<=3)/100000.
         #   answer = 0.003 ... pretty unlikely!
 
@@ -3489,7 +3369,7 @@ cdef class RandomGenerator:
         Draw samples from the distribution:
 
         >>> a = .6
-        >>> s = np.random.gen.logseries(a, 10000)
+        >>> s = np.random.RandomGenerator().logseries(a, 10000)
         >>> import matplotlib.pyplot as plt
         >>> count, bins, ignored = plt.hist(s)
 
@@ -3579,7 +3459,7 @@ cdef class RandomGenerator:
         Diagonal covariance means that points are oriented along x or y-axis:
 
         >>> import matplotlib.pyplot as plt
-        >>> x, y = np.random.gen.multivariate_normal(mean, cov, 5000).T
+        >>> x, y = np.random.RandomGenerator().multivariate_normal(mean, cov, 5000).T
         >>> plt.plot(x, y, 'x')
         >>> plt.axis('equal')
         >>> plt.show()
@@ -3599,7 +3479,7 @@ cdef class RandomGenerator:
         --------
         >>> mean = (1, 2)
         >>> cov = [[1, 0], [0, 1]]
-        >>> x = np.random.gen.multivariate_normal(mean, cov, (3, 3))
+        >>> x = np.random.RandomGenerator().multivariate_normal(mean, cov, (3, 3))
         >>> x.shape
         (3, 3, 2)
 
@@ -3713,14 +3593,14 @@ cdef class RandomGenerator:
         --------
         Throw a dice 20 times:
 
-        >>> np.random.gen.multinomial(20, [1/6.]*6, size=1)
+        >>> np.random.RandomGenerator().multinomial(20, [1/6.]*6, size=1)
         array([[4, 1, 7, 5, 2, 1]])  # random
 
         It landed 4 times on 1, once on 2, etc.
 
         Now, throw the dice 20 times, and 20 times again:
 
-        >>> np.random.gen.multinomial(20, [1/6.]*6, size=2)
+        >>> np.random.RandomGenerator().multinomial(20, [1/6.]*6, size=2)
         array([[3, 4, 3, 3, 4, 3],
                [2, 4, 3, 4, 0, 7]])  # random
 
@@ -3730,7 +3610,7 @@ cdef class RandomGenerator:
         Now, do one experiment throwing the dice 10 time, and 10 times again,
         and another throwing the dice 20 times, and 20 times again:
 
-        >>> np.random.gen.multinomial([[10], [20]], [1/6.]*6, size=2)
+        >>> np.random.RandomGenerator().multinomial([[10], [20]], [1/6.]*6, size=2)
         array([[[2, 4, 0, 1, 2, 1],
                 [1, 3, 0, 3, 1, 2]],
                [[1, 4, 4, 4, 4, 3],
@@ -3741,7 +3621,7 @@ cdef class RandomGenerator:
 
         A loaded die is more likely to land on number 6:
 
-        >>> np.random.gen.multinomial(100, [1/7.]*5 + [2/7.])
+        >>> np.random.RandomGenerator().multinomial(100, [1/7.]*5 + [2/7.])
         array([11, 16, 14, 17, 16, 26])  # random
 
         The probability inputs should be normalized. As an implementation
@@ -3750,12 +3630,12 @@ cdef class RandomGenerator:
         A biased coin which has twice as much weight on one side as on the
         other should be sampled like so:
 
-        >>> np.random.gen.multinomial(100, [1.0 / 3, 2.0 / 3])  # RIGHT
+        >>> np.random.RandomGenerator().multinomial(100, [1.0 / 3, 2.0 / 3])  # RIGHT
         array([38, 62])  # random
 
         not like:
 
-        >>> np.random.gen.multinomial(100, [1.0, 2.0])  # WRONG
+        >>> np.random.RandomGenerator().multinomial(100, [1.0, 2.0])  # WRONG
         Traceback (most recent call last):
         ValueError: pvals < 0, pvals > 1 or pvals contains NaNs
 
@@ -3888,7 +3768,7 @@ cdef class RandomGenerator:
         average length, but allowing some variation in the relative sizes of
         the pieces.
 
-        >>> s = np.random.gen.dirichlet((10, 5, 3), 20).transpose()
+        >>> s = np.random.RandomGenerator().dirichlet((10, 5, 3), 20).transpose()
 
         >>> import matplotlib.pyplot as plt
         >>> plt.barh(range(20), s[0])
@@ -3980,14 +3860,14 @@ cdef class RandomGenerator:
         Examples
         --------
         >>> arr = np.arange(10)
-        >>> np.random.gen.shuffle(arr)
+        >>> np.random.RandomGenerator().shuffle(arr)
         >>> arr
         [1 7 5 2 9 4 3 6 0 8] # random
 
         Multi-dimensional arrays are only shuffled along the first axis:
 
         >>> arr = np.arange(9).reshape((3, 3))
-        >>> np.random.gen.shuffle(arr)
+        >>> np.random.RandomGenerator().shuffle(arr)
         >>> arr
         array([[3, 4, 5], # random
                [6, 7, 8],
@@ -4089,14 +3969,14 @@ cdef class RandomGenerator:
 
         Examples
         --------
-        >>> np.random.gen.permutation(10)
+        >>> np.random.RandomGenerator().permutation(10)
         array([1, 7, 4, 3, 0, 9, 2, 5, 8, 6]) # random
 
-        >>> np.random.gen.permutation([1, 4, 9, 12, 15])
+        >>> np.random.RandomGenerator().permutation([1, 4, 9, 12, 15])
         array([15,  1,  9,  4, 12]) # random
 
         >>> arr = np.arange(9).reshape((3, 3))
-        >>> np.random.gen.permutation(arr)
+        >>> np.random.RandomGenerator().permutation(arr)
         array([[6, 7, 8], # random
                [0, 1, 2],
                [3, 4, 5]])
@@ -4150,9 +4030,7 @@ pareto = _random_generator.pareto
 permutation = _random_generator.permutation
 poisson = _random_generator.poisson
 power = _random_generator.power
-rand = _random_generator.rand
 randint = _random_generator.randint
-randn = _random_generator.randn
 random_integers = _random_generator.random_integers
 random_sample = _random_generator.random_sample
 rayleigh = _random_generator.rayleigh

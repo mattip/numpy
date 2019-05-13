@@ -144,7 +144,6 @@ cdef class DSFMT:
     cdef public object capsule
     cdef public object _cffi
     cdef public object _ctypes
-    cdef public object _generator
     cdef public object lock
 
     def __init__(self, seed=None):
@@ -166,7 +165,6 @@ cdef class DSFMT:
 
         self._cffi = None
         self._ctypes = None
-        self._generator = None
 
     # Pickling support:
     def __getstate__(self):
@@ -390,18 +388,3 @@ cdef class DSFMT:
             return self._cffi
         self._cffi = prepare_cffi(self._brng)
         return self._cffi
-
-    @property
-    def generator(self):
-        """
-        Return a RandomGenerator object
-
-        Returns
-        -------
-        gen : numpy.random.RandomGenerator  # ignore
-            Random generator used this instance as the basic RNG
-        """
-        if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
-        return self._generator

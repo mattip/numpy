@@ -181,18 +181,12 @@ generators, 'in addition' to the standard PRNG in NumPy.  The included PRNGs are
   `~xoshiro256starstar.Xoshirt256StarStar.jump` for
   details. More information about these PRNGs is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
-* PCG-64 - Fast generator that support many parallel streams and
-  can be advanced by an arbitrary amount. See the documentation for
-  `~pcg64.PCG64.advance`. PCG-64 has a period of
-  :math:`2^{128}`. See the `PCG author's page`_ for more details about
-  this class of PRNG.
 * ThreeFry and Philox - counter-based generators capable of being advanced an
   arbitrary number of steps or generating independent streams. See the
   `Random123`_ page for more details about this class of PRNG.
 
 .. _`dSFMT authors' page`: http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/
 .. _`xorshift, xoroshiro and xoshiro authors' page`:  http://xoroshiro.di.unimi.it/
-.. _`PCG author's page`: http://www.pcg-random.org/
 .. _`Random123`: https://www.deshawresearch.com/resources_random123.html
 
 Random Generator

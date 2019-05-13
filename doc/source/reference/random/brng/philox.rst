@@ -25,13 +25,6 @@ Parallel generation
    ~Philox.advance
    ~Philox.jump
 
-Random Generator
-================
-.. autosummary::
-   :toctree: generated/
-
-   ~Philox.generator
-
 Extending
 =========
 .. autosummary::

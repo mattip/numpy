@@ -24,13 +24,6 @@ Parallel generation
 
    ~MT19937.jump
 
-Random Generator
-================
-.. autosummary::
-   :toctree: generated/
-
-   ~MT19937.generator
-
 Extending
 =========
 .. autosummary::

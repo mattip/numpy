@@ -20,7 +20,6 @@ Stable RNGs
 
    DSFMT <dsfmt>
    MT19937 <mt19937>
-   PCG64 <pcg64>
    Philox <philox>
    ThreeFry <threefry>
    XoroShiro128+ <xoroshiro128>
@@ -38,5 +37,4 @@ permanent.
 .. toctree::
    :maxdepth: 1
 
-   PCG32 <pcg32>
    ThreeFry32 <threefry32>

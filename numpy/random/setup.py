@@ -75,7 +75,6 @@ def configuration(parent_package='',top_path=None):
         sys.argv.remove('--no-sse2')
 
     DEBUG = False
-    PCG_EMULATED_MATH = False
     EXTRA_LINK_ARGS = []
     EXTRA_LIBRARIES = ['m'] if os.name != 'nt' else []
     EXTRA_COMPILE_ARGS = [] if os.name == 'nt' else [
@@ -87,18 +86,6 @@ def configuration(parent_package='',top_path=None):
             EXTRA_COMPILE_ARGS += ["-Zi", "/Od"]
         if sys.version_info < (3, 0):
             EXTRA_INCLUDE_DIRS += [join(MOD_DIR, 'src', 'common')]
-
-    PCG64_DEFS = []
-    # TODO: remove the unconditional forced emulation, move code from pcg64.pyx
-    # to an #ifdef
-    if 1 or sys.maxsize < 2 ** 32 or os.name == 'nt':
-        # Force emulated mode here
-        PCG_EMULATED_MATH = True
-        PCG64_DEFS += [('PCG_FORCE_EMULATED_128BIT_MATH', '1')]
-    
-    if struct.calcsize('P') < 8:
-        PCG_EMULATED_MATH = True
-    defs.append(('PCG_EMULATED_MATH', int(PCG_EMULATED_MATH)))
 
     DSFMT_DEFS = [('DSFMT_MEXP', '19937')]
     if USE_SSE2:
@@ -150,13 +137,8 @@ def configuration(parent_package='',top_path=None):
     for gen in ['philox', 'threefry', 'threefry32',
                 'xoroshiro128', 'xorshift1024', 'xoshiro256starstar',
                 'xoshiro512starstar',
-                'pcg64', 'pcg32',
                ]:
         # gen.pyx, src/gen/gen.c
-        if gen == 'pcg64':
-            _defs = defs + PCG64_DEFS
-        else:
-            _defs = defs
         config.add_extension(gen,
                         sources=['{0}.c'.format(gen), 'src/{0}/{0}.c'.format(gen)],
                         include_dirs=['.', 'src', join('src', gen)],
@@ -164,7 +146,7 @@ def configuration(parent_package='',top_path=None):
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,
                         depends=['%s.pyx' % gen],
-                        define_macros=_defs,
+                        define_macros=defs,
                         )
     for gen in ['common']:
         # gen.pyx

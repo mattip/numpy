@@ -50,9 +50,8 @@ cdef class Xorshift1024:
     :math:`2^{512}`, which allows multiple non-overlapping sequences to be
     generated.
 
-    ``Xorshift1024`` exposes no user-facing API except ``generator``,
-    ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Xorshift1024`` exposes no user-facing API except ``state``, ``cffi`` and
+    ``ctypes``. Designed for use in a ``RandomGenerator`` object.
 
     **Compatibility Guarantee**
 
@@ -112,12 +111,6 @@ cdef class Xorshift1024:
     >>> rg.standard_normal()
     0.123  # random
 
-    Identical method using only Xoroshiro128
-
-    >>> rg = Xorshift1024(1234).generator
-    >>> rg.standard_normal()
-    0.123  # random
-
     References
     ----------
     .. [1] "xorshift*/xorshift+ generators and the PRNG shootout",
@@ -135,7 +128,6 @@ cdef class Xorshift1024:
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
-    cdef object _generator
     cdef public object lock
 
     def __init__(self, seed=None):
@@ -152,7 +144,6 @@ cdef class Xorshift1024:
 
         self._ctypes = None
         self._cffi = None
-        self._generator = None
 
         cdef const char *name = "BasicRNG"
         self.capsule = PyCapsule_New(<void *>self._brng, name, NULL)
@@ -352,18 +343,3 @@ cdef class Xorshift1024:
             return self._cffi
         self._cffi = prepare_cffi(self._brng)
         return self._cffi
-
-    @property
-    def generator(self):
-        """
-        Return a RandomGenerator object
-
-        Returns
-        -------
-        gen : numpy.random.RandomGenerator
-            Random generator used this instance as the core PRNG
-        """
-        if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
-        return self._generator

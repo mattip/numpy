@@ -1,8 +1,6 @@
 from .generator import RandomGenerator
 from .dsfmt import DSFMT
 from .mt19937 import MT19937
-from .pcg32 import PCG32
-from .pcg64 import PCG64
 from .philox import Philox
 from .threefry import ThreeFry
 from .threefry32 import ThreeFry32
@@ -14,8 +12,6 @@ from .mtrand import RandomState
 
 BasicRNGS = {'MT19937': MT19937,
              'DSFMT': DSFMT,
-             'PCG32': PCG32,
-             'PCG64': PCG64,
              'Philox': Philox,
              'ThreeFry': ThreeFry,
              'ThreeFry32': ThreeFry32,

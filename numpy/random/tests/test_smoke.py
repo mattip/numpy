@@ -9,7 +9,7 @@ import pytest
 from numpy.testing import (assert_almost_equal, assert_equal, assert_,
     assert_array_equal, suppress_warnings)
 from numpy.random import (RandomGenerator, MT19937, DSFMT, ThreeFry32, ThreeFry,
-    PCG32, PCG64, Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar,
+    Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar,
     Xoshiro512StarStar, entropy)
 
 
@@ -352,33 +352,6 @@ class RNG(object):
     def test_negative_binomial(self):
         vals = self.rg.negative_binomial(10, 0.2, 10)
         assert_(len(vals) == 10)
-
-    def test_rand(self):
-        state = self.rg.brng.state
-        vals = self.rg.rand(10, 10, 10)
-        self.rg.brng.state = state
-        assert_((vals == self.rg.random_sample((10, 10, 10))).all())
-        assert_(vals.shape == (10, 10, 10))
-        vals = self.rg.rand(10, 10, 10, dtype=np.float32)
-        assert_(vals.shape == (10, 10, 10))
-
-    def test_randn(self):
-        state = self.rg.brng.state
-        vals = self.rg.randn(10, 10, 10)
-        self.rg.brng.state = state
-        assert_equal(vals, self.rg.standard_normal((10, 10, 10)))
-        assert_equal(vals.shape, (10, 10, 10))
-
-        state = self.rg.brng.state
-        vals = self.rg.randn(10, 10, 10)
-        self.rg.brng.state = state
-        assert_equal(vals, self.rg.standard_normal((10, 10, 10)))
-
-        state = self.rg.brng.state
-        self.rg.randn(10, 10, 10)
-        self.rg.brng.state = state
-        vals = self.rg.randn(10, 10, 10, dtype=np.float32)
-        assert_(vals.shape == (10, 10, 10))
 
     def test_noncentral_chisquare(self):
         vals = self.rg.noncentral_chisquare(10, 2, 10)
@@ -811,43 +784,6 @@ class TestMT19937(RNG):
         assert_((state[2] == state2['state']['pos']))
 
 
-class TestPCG64(RNG):
-    @classmethod
-    def setup_class(cls):
-        cls.brng = PCG64
-        cls.advance = 2 ** 96 + 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1
-        cls.seed = [2 ** 96 + 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1,
-                    2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.brng(*cls.seed))
-        cls.initial_state = cls.rg.brng.state
-        cls.seed_vector_bits = None
-        cls._extra_setup()
-
-    def test_seed_array_error(self):
-        # GH #82 for error type changes
-        if self.seed_vector_bits == 32:
-            out_of_bounds = 2 ** 32
-        else:
-            out_of_bounds = 2 ** 64
-
-        seed = -1
-        with pytest.raises(ValueError):
-            self.rg.brng.seed(seed)
-
-        error_type = ValueError if self.seed_vector_bits else TypeError
-        seed = np.array([-1], dtype=np.int32)
-        with pytest.raises(error_type):
-            self.rg.brng.seed(seed)
-
-        seed = np.array([1, 2, 3, -5], dtype=np.int32)
-        with pytest.raises(error_type):
-            self.rg.brng.seed(seed)
-
-        seed = np.array([1, 2, 3, out_of_bounds])
-        with pytest.raises(error_type):
-            self.rg.brng.seed(seed)
-
-
 class TestPhilox(RNG):
     @classmethod
     def setup_class(cls):
@@ -962,16 +898,3 @@ class TestEntropy(object):
         time.sleep(0.1)
         e2 = entropy.random_entropy(source='fallback')
         assert_((e1 != e2))
-
-
-class TestPCG32(TestPCG64):
-    @classmethod
-    def setup_class(cls):
-        cls.brng = PCG32
-        cls.advance = 2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1
-        cls.seed = [2 ** 48 + 2 ** 21 + 2 ** 16 + 2 ** 5 + 1,
-                    2 ** 21 + 2 ** 16 + 2 ** 5 + 1]
-        cls.rg = RandomGenerator(cls.brng(*cls.seed))
-        cls.initial_state = cls.rg.brng.state
-        cls.seed_vector_bits = None
-        cls._extra_setup()

@@ -89,8 +89,8 @@ cdef class Philox:
     the sequence in increments of :math:`2^{128}`. These features allow
     multiple non-overlapping sequences to be generated.
 
-    ``Philox`` exposes no user-facing API except ``generator``,
-    ``state``, ``cffi`` and ``ctypes``. Designed for use in a
+    ``Philox`` exposes no user-facing API except ``state``, ``cffi`` and
+    ``ctypes``. Designed for use in a
     ``RandomGenerator`` object.
 
     **Compatibility Guarantee**
@@ -149,12 +149,6 @@ cdef class Philox:
     >>> rg.standard_normal()
     0.123  # random
 
-    Identical method using only Philox
-
-    >>> rg = Philox(1234).generator
-    >>> rg.standard_normal()
-    0.123  # random
-
     References
     ----------
     .. [1] John K. Salmon, Mark A. Moraes, Ron O. Dror, and David E. Shaw,
@@ -167,7 +161,6 @@ cdef class Philox:
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
-    cdef object _generator
     cdef public object lock
 
     def __init__(self, seed=None, counter=None, key=None):
@@ -188,7 +181,6 @@ cdef class Philox:
 
         self._ctypes = None
         self._cffi = None
-        self._generator = None
 
         cdef const char *name = 'BasicRNG'
         self.capsule = PyCapsule_New(<void *> self._brng, name, NULL)
@@ -467,18 +459,3 @@ cdef class Philox:
             return self._cffi
         self._cffi = prepare_cffi(self._brng)
         return self._cffi
-
-    @property
-    def generator(self):
-        """
-        Return a RandomGenerator object
-
-        Returns
-        -------
-        gen : numpy.random.RandomGenerator
-            Random generator used this instance as the core PRNG
-        """
-        if self._generator is None:
-            from .generator import RandomGenerator
-            self._generator = RandomGenerator(self)
-        return self._generator
