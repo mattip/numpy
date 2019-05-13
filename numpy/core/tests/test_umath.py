@@ -5,6 +5,7 @@ import warnings
 import fnmatch
 import itertools
 import pytest
+from fractions import Fraction
 
 import numpy.core.umath as ncu
 from numpy.core import _umath_tests as ncu_tests
@@ -15,7 +16,6 @@ from numpy.testing import (
     assert_allclose, assert_no_warnings, suppress_warnings,
     _gen_alignment_data
     )
-
 
 def on_powerpc():
     """ True if we are running on a Power PC platform."""
@@ -649,6 +649,34 @@ class TestExp(object):
             yf = np.array(y, dtype=dt)*log2_
             assert_almost_equal(np.exp(yf), xf)
 
+class TestSpecialFloats(object):
+    def test_exp_values(self):
+        x = [np.nan,  np.nan, np.inf, 0.]
+        y = [np.nan, -np.nan, np.inf, -np.inf]
+        for dt in ['f', 'd', 'g']:
+            xf = np.array(x, dtype=dt)
+            yf = np.array(y, dtype=dt)
+            assert_equal(np.exp(yf), xf)
+
+        with np.errstate(over='raise'):
+            assert_raises(FloatingPointError, np.exp, np.float32(100.))
+            assert_raises(FloatingPointError, np.exp, np.float32(1E19))
+
+    def test_log_values(self):
+        with np.errstate(all='ignore'):
+            x = [np.nan,  np.nan, np.inf, np.nan, -np.inf, np.nan]
+            y = [np.nan, -np.nan, np.inf, -np.inf, 0., -1.0]
+            for dt in ['f', 'd', 'g']:
+                xf = np.array(x, dtype=dt)
+                yf = np.array(y, dtype=dt)
+                assert_equal(np.log(yf), xf)
+
+        with np.errstate(divide='raise'):
+            assert_raises(FloatingPointError, np.log, np.float32(0.))
+
+        with np.errstate(invalid='raise'):
+            assert_raises(FloatingPointError, np.log, np.float32(-np.inf))
+            assert_raises(FloatingPointError, np.log, np.float32(-1.0))
 
 class TestLogAddExp(_FilterInvalids):
     def test_logaddexp_values(self):
@@ -2460,6 +2488,42 @@ class TestRationalFunctions(object):
         assert_equal(np.gcd(2**100, 3**100), 1)
 
 
+class TestRoundingFunctions(object):
+
+    def test_object_direct(self):
+        """ test direct implementation of these magic methods """
+        class C:
+            def __floor__(self):
+                return 1
+            def __ceil__(self):
+                return 2
+            def __trunc__(self):
+                return 3
+
+        arr = np.array([C(), C()])
+        assert_equal(np.floor(arr), [1, 1])
+        assert_equal(np.ceil(arr),  [2, 2])
+        assert_equal(np.trunc(arr), [3, 3])
+
+    def test_object_indirect(self):
+        """ test implementations via __float__ """
+        class C:
+            def __float__(self):
+                return -2.5
+
+        arr = np.array([C(), C()])
+        assert_equal(np.floor(arr), [-3, -3])
+        assert_equal(np.ceil(arr),  [-2, -2])
+        with pytest.raises(TypeError):
+            np.trunc(arr)  # consistent with math.trunc
+
+    def test_fraction(self):
+        f = Fraction(-4, 3)
+        assert_equal(np.floor(f), -2)
+        assert_equal(np.ceil(f), -1)
+        assert_equal(np.trunc(f), -1)
+
+
 class TestComplexFunctions(object):
     funcs = [np.arcsin,  np.arccos,  np.arctan, np.arcsinh, np.arccosh,
              np.arctanh, np.sin,     np.cos,    np.tan,     np.exp,
@@ -2924,3 +2988,14 @@ def test_signaling_nan_exceptions():
     with assert_no_warnings():
         a = np.ndarray(shape=(), dtype='float32', buffer=b'\x00\xe0\xbf\xff')
         np.isnan(a)
+
+@pytest.mark.parametrize("arr", [
+    np.arange(2),
+    np.matrix([0, 1]),
+    np.matrix([[0, 1], [2, 5]]),
+    ])
+def test_outer_subclass_preserve(arr):
+    # for gh-8661
+    class foo(np.ndarray): pass
+    actual = np.multiply.outer(arr.view(foo), arr.view(foo))
+    assert actual.__class__.__name__ == 'foo'

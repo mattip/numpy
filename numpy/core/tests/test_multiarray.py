@@ -36,7 +36,7 @@ from numpy.testing import (
     assert_, assert_raises, assert_warns, assert_equal, assert_almost_equal,
     assert_array_equal, assert_raises_regex, assert_array_almost_equal,
     assert_allclose, IS_PYPY, HAS_REFCOUNT, assert_array_less, runstring,
-    temppath, suppress_warnings
+    temppath, suppress_warnings, break_cycles,
     )
 from numpy.core.tests._locales import CommaDecimalPointLocale
 
@@ -131,6 +131,7 @@ class TestFlags(object):
         assert_(vals.flags.writeable)
 
     @pytest.mark.skipif(sys.version_info[0] < 3, reason="Python 2 always copies")
+    @pytest.mark.skipif(IS_PYPY, reason="PyPy always copies")
     def test_writeable_pickle(self):
         import pickle
         # Small arrays will be copied without setting base.
@@ -1615,16 +1616,31 @@ class TestMethods(object):
         # of sorted items must be greater than ~50 to check the actual
         # algorithm because quick and merge sort fall over to insertion
         # sort for small arrays.
-        a = np.arange(101)
-        b = a[::-1].copy()
-        for kind in self.sort_kinds:
-            msg = "scalar sort, kind=%s" % kind
-            c = a.copy()
-            c.sort(kind=kind)
-            assert_equal(c, a, msg)
-            c = b.copy()
-            c.sort(kind=kind)
-            assert_equal(c, a, msg)
+        # Test unsigned dtypes and nonnegative numbers
+        for dtype in [np.uint8, np.uint16, np.uint32, np.uint64, np.float16, np.float32, np.float64, np.longdouble]:
+            a = np.arange(101, dtype=dtype)
+            b = a[::-1].copy()
+            for kind in self.sort_kinds:
+                msg = "scalar sort, kind=%s, dtype=%s" % (kind, dtype)
+                c = a.copy()
+                c.sort(kind=kind)
+                assert_equal(c, a, msg)
+                c = b.copy()
+                c.sort(kind=kind)
+                assert_equal(c, a, msg)
+
+        # Test signed dtypes and negative numbers as well
+        for dtype in [np.int8, np.int16, np.int32, np.int64, np.float16, np.float32, np.float64, np.longdouble]:
+            a = np.arange(-50, 51, dtype=dtype)
+            b = a[::-1].copy()
+            for kind in self.sort_kinds:
+                msg = "scalar sort, kind=%s, dtype=%s" % (kind, dtype)
+                c = a.copy()
+                c.sort(kind=kind)
+                assert_equal(c, a, msg)
+                c = b.copy()
+                c.sort(kind=kind)
+                assert_equal(c, a, msg)
 
         # test complex sorts. These use the same code as the scalars
         # but the compare function differs.
@@ -1880,12 +1896,14 @@ class TestMethods(object):
         # of sorted items must be greater than ~50 to check the actual
         # algorithm because quick and merge sort fall over to insertion
         # sort for small arrays.
-        a = np.arange(101)
-        b = a[::-1].copy()
-        for kind in self.sort_kinds:
-            msg = "scalar argsort, kind=%s" % kind
-            assert_equal(a.copy().argsort(kind=kind), a, msg)
-            assert_equal(b.copy().argsort(kind=kind), b, msg)
+
+        for dtype in [np.int32, np.uint32, np.float32]:
+            a = np.arange(101, dtype=dtype)
+            b = a[::-1].copy()
+            for kind in self.sort_kinds:
+                msg = "scalar argsort, kind=%s, dtype=%s" % (kind, dtype)
+                assert_equal(a.copy().argsort(kind=kind), a, msg)
+                assert_equal(b.copy().argsort(kind=kind), b, msg)
 
         # test complex argsorts. These use the same code as the scalars
         # but the compare function differs.
@@ -3783,7 +3801,7 @@ class TestPickling(object):
                         a, pickle.loads(pickle.dumps(a, protocol=proto)),
                         err_msg="%r" % a)
             del a, DATA, carray
-            gc.collect()
+            break_cycles()
             # check for reference leaks (gh-12793)
             for ref in refs:
                 assert ref() is None
@@ -7180,7 +7198,7 @@ class TestMemEventHook(object):
         # needs to be larger then limit of small memory cacher in ctors.c
         a = np.zeros(1000)
         del a
-        gc.collect()
+        break_cycles()
         _multiarray_tests.test_pydatamem_seteventhook_end()
 
 class TestMapIter(object):
@@ -7752,12 +7770,12 @@ class TestCTypes(object):
 
         # `ctypes_ptr` should hold onto `arr`
         del arr
-        gc.collect()
+        break_cycles()
         assert_(arr_ref() is not None, "ctypes pointer did not hold onto a reference")
 
         # but when the `ctypes_ptr` object dies, so should `arr`
         del ctypes_ptr
-        gc.collect()
+        break_cycles()
         assert_(arr_ref() is None, "unknowable whether ctypes pointer holds a reference")
 
 
@@ -7939,15 +7957,15 @@ class TestArrayFinalize(object):
         assert_(isinstance(obj_subarray, RaisesInFinalize))
 
         # reference should still be held by obj_arr
-        gc.collect()
+        break_cycles()
         assert_(obj_ref() is not None, "object should not already be dead")
 
         del obj_arr
-        gc.collect()
+        break_cycles()
         assert_(obj_ref() is not None, "obj_arr should not hold the last reference")
 
         del obj_subarray
-        gc.collect()
+        break_cycles()
         assert_(obj_ref() is None, "no references should remain")
 
 

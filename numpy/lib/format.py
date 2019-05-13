@@ -149,7 +149,7 @@ data HEADER_LEN."
 Notes
 -----
 The ``.npy`` format, including motivation for creating it and a comparison of
-alternatives, is described in the `"npy-format" NEP 
+alternatives, is described in the `"npy-format" NEP
 <https://www.numpy.org/neps/nep-0001-npy-format.html>`_, however details have
 evolved with time and this document is more current.
 
@@ -261,15 +261,19 @@ def dtype_to_descr(dtype):
 def descr_to_dtype(descr):
     '''
     descr may be stored as dtype.descr, which is a list of
-    (name, format, [shape]) tuples. Offsets are not explicitly saved, rather
-    empty fields with name,format == '', '|Vn' are added as padding.
+    (name, format, [shape]) tuples where format may be a str or a tuple.
+    Offsets are not explicitly saved, rather empty fields with
+    name, format == '', '|Vn' are added as padding.
 
     This function reverses the process, eliminating the empty padding fields.
     '''
-    if isinstance(descr, (str, dict)):
+    if isinstance(descr, str):
         # No padding removal needed
         return numpy.dtype(descr)
-
+    elif isinstance(descr, tuple):
+        # subtype, will always have a shape descr[1]
+        dt = descr_to_dtype(descr[0])
+        return numpy.dtype((dt, descr[1]))
     fields = []
     offset = 0
     for field in descr:
@@ -644,7 +648,7 @@ def write_array(fp, array, version=None, allow_pickle=True, pickle_kwargs=None):
                 fp.write(chunk.tobytes('C'))
 
 
-def read_array(fp, allow_pickle=True, pickle_kwargs=None):
+def read_array(fp, allow_pickle=False, pickle_kwargs=None):
     """
     Read an array from an NPY file.
 
@@ -654,7 +658,11 @@ def read_array(fp, allow_pickle=True, pickle_kwargs=None):
         If this is not a real file object, then this may take extra memory
         and time.
     allow_pickle : bool, optional
-        Whether to allow reading pickled data. Default: True
+        Whether to allow writing pickled data. Default: False
+
+        .. versionchanged:: 1.16.3
+            Made default False in response to CVE-2019-6446.
+
     pickle_kwargs : dict
         Additional keyword arguments to pass to pickle.load. These are only
         useful when loading object arrays saved on Python 2 when using
