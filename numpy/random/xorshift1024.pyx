@@ -51,7 +51,7 @@ cdef class Xorshift1024:
     generated.
 
     ``Xorshift1024`` exposes no user-facing API except ``state``, ``cffi`` and
-    ``ctypes``. Designed for use in a ``RandomGenerator`` object.
+    ``ctypes``. Designed for use in a ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -82,8 +82,8 @@ cdef class Xorshift1024:
     in each worker process. All generators should be initialized with the same
     seed to ensure that the segments come from the same sequence.
 
-    >>> from numpy.random import RandomGenerator, Xorshift1024
-    >>> rg = [RandomGenerator(Xorshift1024(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, Xorshift1024
+    >>> rg = [Generator(Xorshift1024(1234)) for _ in range(10)]
     # Advance each Xorshift1024 instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
@@ -106,8 +106,8 @@ cdef class Xorshift1024:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, Xorshift1024
-    >>> rg = RandomGenerator(Xorshift1024(1234))
+    >>> from numpy.random import Generator, Xorshift1024
+    >>> rg = Generator(Xorshift1024(1234))
     >>> rg.standard_normal()
     0.123  # random
 

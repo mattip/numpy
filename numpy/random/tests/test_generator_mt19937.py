@@ -9,9 +9,9 @@ from numpy.testing import (
     assert_warns, assert_no_warnings, assert_array_equal,
     assert_array_almost_equal, suppress_warnings)
 
-from numpy.random import RandomGenerator, MT19937
+from numpy.random import Generator, MT19937
 
-random = RandomGenerator(MT19937())
+random = Generator(MT19937())
 
 
 @pytest.fixture(scope='module', params=[True, False])
@@ -21,19 +21,19 @@ def closed(request):
 
 class TestSeed(object):
     def test_scalar(self):
-        s = RandomGenerator(MT19937(0))
+        s = Generator(MT19937(0))
         assert_equal(s.integers(1000), 684)
-        s = RandomGenerator(MT19937(4294967295))
+        s = Generator(MT19937(4294967295))
         assert_equal(s.integers(1000), 419)
 
     def test_array(self):
-        s = RandomGenerator(MT19937(range(10)))
+        s = Generator(MT19937(range(10)))
         assert_equal(s.integers(1000), 468)
-        s = RandomGenerator(MT19937(np.arange(10)))
+        s = Generator(MT19937(np.arange(10)))
         assert_equal(s.integers(1000), 468)
-        s = RandomGenerator(MT19937([0]))
+        s = Generator(MT19937([0]))
         assert_equal(s.integers(1000), 973)
-        s = RandomGenerator(MT19937([4294967295]))
+        s = Generator(MT19937([4294967295]))
         assert_equal(s.integers(1000), 265)
 
     def test_invalid_scalar(self):
@@ -50,7 +50,7 @@ class TestSeed(object):
         assert_raises(ValueError, MT19937, [1, -2, 4294967296])
 
     def test_noninstantized_brng(self):
-        assert_raises(ValueError, RandomGenerator, MT19937)
+        assert_raises(ValueError, Generator, MT19937)
 
 
 class TestBinomial(object):
@@ -107,7 +107,7 @@ class TestMultinomial(object):
 class TestSetState(object):
     def setup(self):
         self.seed = 1234567890
-        self.rg = RandomGenerator(MT19937(self.seed))
+        self.rg = Generator(MT19937(self.seed))
         self.bit_generator = self.rg.bit_generator
         self.state = self.bit_generator.state
         self.legacy_state = (self.state['bit_generator'],
@@ -1918,14 +1918,14 @@ class TestThread(object):
         out2 = np.empty((len(self.seeds),) + sz)
 
         # threaded generation
-        t = [Thread(target=function, args=(RandomGenerator(MT19937(s)), o))
+        t = [Thread(target=function, args=(Generator(MT19937(s)), o))
              for s, o in zip(self.seeds, out1)]
         [x.start() for x in t]
         [x.join() for x in t]
 
         # the same serial
         for s, o in zip(self.seeds, out2):
-            function(RandomGenerator(MT19937(s)), o)
+            function(Generator(MT19937(s)), o)
 
         # these platforms change x87 fpu precision mode in threads
         if np.intp().dtype.itemsize == 4 and sys.platform == "win32":

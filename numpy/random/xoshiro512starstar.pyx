@@ -63,7 +63,7 @@ cdef class Xoshiro512StarStar:
     which allows multiple non-overlapping sequences to be generated.
 
     ``Xoshiro512StarStar`` exposes no user-facing API except ``state``,
-    ``cffi`` and ``ctypes``. Designed for use in a ``RandomGenerator`` object.
+    ``cffi`` and ``ctypes``. Designed for use in a ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -82,8 +82,8 @@ cdef class Xoshiro512StarStar:
     in each worker process. All generators should be initialized with the same
     seed to ensure that the segments come from the same sequence.
 
-    >>> from numpy.random import RandomGenerator, Xoshiro512StarStar
-    >>> rg = [RandomGenerator(Xoshiro512StarStar(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, Xoshiro512StarStar
+    >>> rg = [Generator(Xoshiro512StarStar(1234)) for _ in range(10)]
     # Advance each Xoshiro512StarStar instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
@@ -107,8 +107,8 @@ cdef class Xoshiro512StarStar:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, Xoshiro512StarStar
-    >>> rg = RandomGenerator(Xoshiro512StarStar(1234))
+    >>> from numpy.random import Generator, Xoshiro512StarStar
+    >>> rg = Generator(Xoshiro512StarStar(1234))
     >>> rg.standard_normal()
     0.123  # random
 

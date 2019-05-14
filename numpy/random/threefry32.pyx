@@ -87,7 +87,7 @@ cdef class ThreeFry32:
     multiple non-overlapping sequences to be generated.
 
     ``ThreeFry32`` exposes no user-facing API except ``state``, ``cffi`` and
-    ``ctypes``. Designed for use in a ``RandomGenerator`` object.
+    ``ctypes``. Designed for use in a ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -108,8 +108,8 @@ cdef class ThreeFry32:
     in parallel applications by using a sequence of distinct keys where each
     instance uses different key.
 
-    >>> from numpy.random import RandomGenerator, ThreeFry32
-    >>> rg = [RandomGenerator(ThreeFry32(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, ThreeFry32
+    >>> rg = [Generator(ThreeFry32(1234)) for _ in range(10)]
     # Advance each ThreeFry32 instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
@@ -117,7 +117,7 @@ cdef class ThreeFry32:
     Using distinct keys produces independent streams
 
     >>> key = 2**65 + 2**33 + 2**17 + 2**9
-    >>> rg = [RandomGenerator(ThreeFry32(key=key+i)) for i in range(10)]
+    >>> rg = [Generator(ThreeFry32(key=key+i)) for i in range(10)]
 
     **State and Seeding**
 
@@ -141,8 +141,8 @@ cdef class ThreeFry32:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, ThreeFry32
-    >>> rg = RandomGenerator(ThreeFry32(1234))
+    >>> from numpy.random import Generator, ThreeFry32
+    >>> rg = Generator(ThreeFry32(1234))
     >>> rg.standard_normal()
     0.123  # random
 

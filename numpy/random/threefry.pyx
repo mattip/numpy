@@ -86,7 +86,7 @@ cdef class ThreeFry:
 
     ``ThreeFry`` exposes no user-facing API except
     ``state``, ``cffi`` and ``ctypes``. Designed for use in a
-    ``RandomGenerator`` object.
+    ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -107,8 +107,8 @@ cdef class ThreeFry:
     in parallel applications by using a sequence of distinct keys where each
     instance uses different key.
 
-    >>> from numpy.random import RandomGenerator, ThreeFry
-    >>> rg = [RandomGenerator(ThreeFry(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, ThreeFry
+    >>> rg = [Generator(ThreeFry(1234)) for _ in range(10)]
     # Advance each ThreeFry instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
@@ -116,7 +116,7 @@ cdef class ThreeFry:
     Using distinct keys produces independent streams
 
     >>> key = 2**196 + 2**132 + 2**65 + 2**33 + 2**17 + 2**9
-    >>> rg = [RandomGenerator(ThreeFry(key=key+i)) for i in range(10)]
+    >>> rg = [Generator(ThreeFry(key=key+i)) for i in range(10)]
 
     **State and Seeding**
 
@@ -139,8 +139,8 @@ cdef class ThreeFry:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, ThreeFry
-    >>> rg = RandomGenerator(ThreeFry(1234))
+    >>> from numpy.random import Generator, ThreeFry
+    >>> rg = Generator(ThreeFry(1234))
     >>> rg.standard_normal()
     0.123  # random
 

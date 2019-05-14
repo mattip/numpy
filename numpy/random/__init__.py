@@ -3,7 +3,7 @@
 Random Number Generation
 ========================
 
-Instantiate a RandomNumberGenerator (RNG) and wrap it in a RandomGenerator
+Instantiate a BitGenerator and wrap it in a Generator
 which will convert the uniform stream to a number of distributions.
 
 ==================== =========================================================
@@ -87,7 +87,7 @@ set_state            Set state of generator.
 ==================== =========================================================
 
 ==================== =========================================================
-Random Number Streams that work with RandomGenerator
+BitGenerator Streams that work with Generator
 ==============================================================================
 MT19937
 DSFMT
@@ -156,7 +156,7 @@ __all__ = [
 from . import mtrand
 from .mtrand import *
 from .dsfmt import DSFMT
-from .generator import RandomGenerator
+from .generator import Generator
 from .mt19937 import MT19937
 from .philox import Philox
 from .threefry import ThreeFry
@@ -167,7 +167,7 @@ from .xoshiro256starstar import Xoshiro256StarStar
 from .xoshiro512starstar import Xoshiro512StarStar
 from .mtrand import RandomState
 
-__all__ += ['RandomGenerator', 'DSFMT', 'MT19937', 'Philox',
+__all__ += ['Generator', 'DSFMT', 'MT19937', 'Philox',
            'ThreeFry', 'ThreeFry32', 'Xoroshiro128', 'Xorshift1024',
            'Xoshiro256StarStar', 'Xoshiro512StarStar', 'RandomState']
 

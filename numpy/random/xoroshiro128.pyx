@@ -64,7 +64,7 @@ cdef class Xoroshiro128:
     generated.
 
     ``Xoroshiro128`` exposes no user-facing API except ``state``, ``cffi`` and
-    ``ctypes``. Designed for use in a ``RandomGenerator`` object.
+    ``ctypes``. Designed for use in a ``Generator`` object.
 
     **Compatibility Guarantee**
 
@@ -83,8 +83,8 @@ cdef class Xoroshiro128:
     in each worker process. All generators should be initialized with the same
     seed to ensure that the segments come from the same sequence.
 
-    >>> from numpy.random import RandomGenerator, Xoroshiro128
-    >>> rg = [RandomGenerator(Xoroshiro128(1234)) for _ in range(10)]
+    >>> from numpy.random import Generator, Xoroshiro128
+    >>> rg = [Generator(Xoroshiro128(1234)) for _ in range(10)]
     # Advance each Xoroshiro128 instance by i jumps
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
@@ -107,8 +107,8 @@ cdef class Xoroshiro128:
 
     Examples
     --------
-    >>> from numpy.random import RandomGenerator, Xoroshiro128
-    >>> rg = RandomGenerator(Xoroshiro128(1234))
+    >>> from numpy.random import Generator, Xoroshiro128
+    >>> rg = Generator(Xoroshiro128(1234))
     >>> rg.standard_normal()
     0.123  # random
 

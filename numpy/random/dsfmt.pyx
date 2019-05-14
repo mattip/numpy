@@ -88,7 +88,7 @@ cdef class DSFMT:
     -----
     ``DSFMT`` directly provides generators for doubles, and unsigned 32 and 64-
     bit integers [1]_ . These are not directly available and must be consumed
-    via a ``RandomGenerator`` object.
+    via a ``Generator`` object.
 
     The Python stdlib module "random" also contains a Mersenne Twister
     pseudo-random number generator.
@@ -103,9 +103,9 @@ cdef class DSFMT:
     segments come from the same sequence.
 
     >>> from numpy.random.entropy import random_entropy
-    >>> from numpy.random import RandomGenerator, DSFMT
+    >>> from numpy.random import Generator, DSFMT
     >>> seed = random_entropy()
-    >>> rs = [RandomGenerator(DSFMT(seed)) for _ in range(10)]
+    >>> rs = [Generator(DSFMT(seed)) for _ in range(10)]
     # Advance each DSFMT instance by i jumps
     >>> for i in range(10):
     ...     rs[i].bit_generator.jump()

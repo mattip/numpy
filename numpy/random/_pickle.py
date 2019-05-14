@@ -1,4 +1,4 @@
-from .generator import RandomGenerator
+from .generator import Generator
 from .dsfmt import DSFMT
 from .mt19937 import MT19937
 from .philox import Philox
@@ -24,7 +24,7 @@ BitGeneratorS = {'MT19937': MT19937,
 
 def __generator_ctor(bit_generator_name='mt19937'):
     """
-    Pickling helper function that returns a RandomGenerator object
+    Pickling helper function that returns a Generator object
 
     Parameters
     ----------
@@ -33,15 +33,15 @@ def __generator_ctor(bit_generator_name='mt19937'):
 
     Returns
     -------
-    rg: RandomGenerator
-        RandomGenerator using the named core BitGenerator
+    rg: Generator
+        Generator using the named core BitGenerator
     """
     if bit_generator_name in BitGeneratorS:
         bit_generator = BitGeneratorS[bit_generator_name]
     else:
         raise ValueError(str(bit_generator_name) + ' is not a known BitGenerator module.')
 
-    return RandomGenerator(bit_generator())
+    return Generator(bit_generator())
 
 
 def __bit_generator_ctor(bit_generator_name='mt19937'):

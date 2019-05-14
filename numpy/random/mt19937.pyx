@@ -63,7 +63,7 @@ cdef class MT19937:
     -----
     ``MT19937`` directly provides generators for doubles, and unsigned 32 and 64-
     bit integers [1]_ . These are not directly available and must be consumed
-    via a ``RandomGenerator`` object.
+    via a ``Generator`` object.
 
     The Python stdlib module "random" also contains a Mersenne Twister
     pseudo-random number generator.
@@ -99,9 +99,9 @@ cdef class MT19937:
     segments come from the same sequence.
 
     >>> from numpy.random.entropy import random_entropy
-    >>> from numpy.random import RandomGenerator, MT19937
+    >>> from numpy.random import Generator, MT19937
     >>> seed = random_entropy()
-    >>> rs = [RandomGenerator(MT19937(seed)) for _ in range(10)]
+    >>> rs = [Generator(MT19937(seed)) for _ in range(10)]
     # Advance each MT19937 instance by i jumps
     >>> for i in range(10):
     ...     rs[i].bit_generator.jump(i)

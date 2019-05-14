@@ -1,12 +1,12 @@
 .. _bit_generator:
 
-Basic Random Number Generators
-------------------------------
+Bit Generators
+--------------
 
 .. currentmodule:: numpy.random
 
-The random values produced by :class:`~RandomGenerator` 
-are produced by a basic RNG.  These basic RNGs do not directly provide
+The random values produced by :class:`~Generator` 
+orignate in a BitGenerator.  The BitGenerators do not directly provide
 random numbers and only contains methods used for seeding, getting or
 setting the state, jumping or advancing the state, and for accessing 
 low-level wrappers for consumption by code that can efficiently 
@@ -31,8 +31,7 @@ Stable RNGs
 Experimental RNGs
 =================
 
-These RNGs are currently included for testing but are may not be
-permanent.
+These BitGenerators are currently included but are may not be permanent.
 
 .. toctree::
    :maxdepth: 1
