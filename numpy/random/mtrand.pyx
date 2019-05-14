@@ -64,7 +64,7 @@ cdef class RandomState:
     of probability distributions to choose from.
 
     """
-    cdef public object _basicrng
+    cdef public object _bitgen_obj
     cdef bitgen_t *_bitgen
     cdef aug_bitgen_t *_aug_state
     cdef binomial_t *_binomial
@@ -77,14 +77,14 @@ cdef class RandomState:
         elif not hasattr(bitgen, 'capsule'):
             bitgen = _MT19937(bitgen)
 
-        self._basicrng = bitgen
+        self._bitgen_obj = bitgen
         capsule = bitgen.capsule
         cdef const char *name = "BitGenerator"
         if not PyCapsule_IsValid(capsule, name):
             raise ValueError("Invalid bitgen. The bitgen must be instantized.")
         self._bitgen = <bitgen_t *> PyCapsule_GetPointer(capsule, name)
         self._aug_state = <aug_bitgen_t *>malloc(sizeof(aug_bitgen_t))
-        self._aug_state.basicrng = self._bitgen
+        self._aug_state.bitgen = self._bitgen
         self._binomial = <binomial_t *>malloc(sizeof(binomial_t))
         self._reset_gauss()
         self.lock = bitgen.lock
@@ -100,7 +100,7 @@ cdef class RandomState:
 
     def __str__(self):
         _str = self.__class__.__name__
-        _str += '(' + self._basicrng.__class__.__name__ + ')'
+        _str += '(' + self._bitgen_obj.__class__.__name__ + ')'
         return _str
 
     # Pickling support:
@@ -123,17 +123,17 @@ cdef class RandomState:
         """
         seed(self, *args, **kwargs)
 
-        Reseed the basic RNG.
+        Reseed the BitGenerator.
 
-        Parameters depend on the basic RNG used.
+        Parameters depend on the BitGenerator used.
 
         Notes
         -----
-        Arguments are directly passed to the basic RNG. This is a convenience
+        Arguments are directly passed to the BitGenerator. This is a convenience
         function.
 
-        The best method to access seed is to directly use a basic RNG instance.
-        This example demonstrates this best practice.
+        The best method to access seed is to directly use a BitGenerator
+        instance. This example demonstrates this best practice.
 
         >>> from numpy.random import MT19937
         >>> from numpy.random import RandomState
@@ -146,7 +146,7 @@ cdef class RandomState:
         >>> rs = RandomState(MT19937())
         >>> rs.seed(987654321)
         """
-        self._basicrng.seed(*args, **kwargs)
+        self._bitgen_obj.seed(*args, **kwargs)
         self._reset_gauss()
 
     def get_state(self, legacy=True):
@@ -168,7 +168,7 @@ cdef class RandomState:
             4. an integer ``has_gauss``.
             5. a float ``cached_gaussian``.
 
-            If `legacy` is False, or the basic RNG is not NT19937, then
+            If `legacy` is False, or the BitGenerator is not NT19937, then
             state is returned as a dictionary.
 
         legacy : bool
@@ -186,7 +186,7 @@ cdef class RandomState:
         the user should know exactly what he/she is doing.
 
         """
-        st = self._basicrng.state
+        st = self._bitgen_obj.state
         if st['bit_generator'] != 'MT19937' and legacy:
             warnings.warn('get_state and legacy can only be used with the '
                           'MT19937 basic RNG. To silence this warning, '
@@ -269,7 +269,7 @@ cdef class RandomState:
 
         self._aug_state.gauss = st.get('gauss', 0.0)
         self._aug_state.has_gauss = st.get('has_gauss', 0)
-        self._basicrng.state = st
+        self._bitgen_obj.state = st
 
     def random_sample(self, size=None):
         """

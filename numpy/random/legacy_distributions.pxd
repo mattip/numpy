@@ -10,7 +10,7 @@ from .distributions cimport bitgen_t
 cdef extern from "distributions-boxmuller.h":
 
     struct aug_bitgen:
-        bitgen_t *basicrng
+        bitgen_t *bitgen
         int has_gauss
         double gauss
 

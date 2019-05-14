@@ -24,7 +24,7 @@ cdef class RandomGenerator:
     """
     RandomGenerator(bitgen=None)
 
-    Container for the Basic Random Number Generators.
+    Container for the Bit Generators.
 
     ``RandomGenerator`` exposes a number of methods for generating random
     numbers drawn from a variety of probability distributions. In addition to the

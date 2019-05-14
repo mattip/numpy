@@ -233,8 +233,8 @@ cdef object _rand_{{nptype}}(object low, object high, object size,
         single value is returned.
     closed : bool
         If True then sample from [low, high].  If False, sample [low, high)
-    state : basic random state
-        State to use in the core random number generators
+    state : bit generator state
+        State to use in the core bit generators
     lock : threading.Lock
         Lock to prevent multiple using a single generator simultaneously
 

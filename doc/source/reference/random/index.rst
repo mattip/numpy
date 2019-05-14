@@ -67,23 +67,23 @@ Introduction
 ------------
 RandomGen takes a different approach to producing random numbers from the
 :class:`numpy.random.RandomState` object.  Random number generation is
-separated into two components, a basic RNG and a random generator.
+separated into two components, a bit generator and a random generator.
 
-The basic RNG has a limited set of responsibilities. It manages the
-underlying RNG state and provides functions to produce random doubles and
-random unsigned 32- and 64-bit values. The basic random generator also handles
-all seeding since this varies when using alternative basic RNGs.
+The bit generator has a limited set of responsibilities. It manages state
+and provides functions to produce random doubles and random unsigned 32- and
+64-bit values. The bit generator also handles all seeding which varies with
+different bit generators.
 
 The `random generator <~RandomGenerator>` takes the
-basic RNG-provided functions and transforms them into more useful
+bit generator-provided stream and transforms them into more useful
 distributions, e.g., simulated normal random values. This structure allows
-alternative basic RNGs to be used without code duplication.
+alternative bit generators to be used with little code duplication.
 
 The ``RandomGenerator`` is the user-facing object
 that is nearly identical to :class:`~.RandomState`. The canonical
-method to initialize a generator passes a basic RNG -- `~mt19937.MT19937`, the
-underlying RNG in NumPy  -- as the sole argument. Note that the basic RNG must
-be instantized.
+method to initialize a generator passes a `~mt19937.MT19937` bit generator, the
+underlying bit generator in Python -- as the sole argument. Note that the bit
+generator must be instantiated.
 
 .. code-block:: python
 
@@ -91,19 +91,11 @@ be instantized.
   rg = RandomGenerator(MT19937())
   rg.random_sample()
 
-Seed information is directly passed to the basic RNG.
+Seed information is directly passed to the bit generator.
 
 .. code-block:: python
 
   rg = RandomGenerator(MT19937(12345))
-  rg.random_sample()
-
-A shorthand method is also available which uses the `~mt19937.MT19937.
-generator` property from a basic RNG to access an embedded random generator.
-
-.. code-block:: python
-
-  rg = MT19937(12345).generator
   rg.random_sample()
 
 What's New or Different
@@ -128,15 +120,15 @@ What's New or Different
 * `~entropy.random_entropy` provides access to the system
   source of randomness that is used in cryptographic applications (e.g.,
   ``/dev/urandom`` on Unix).
-* All basic random generators functions can produce doubles, uint64s and
-  uint32s via CTypes (`~xoroshiro128.Xoroshiro128.ctypes`)
-  and CFFI (:meth:`~xoroshiro128.Xoroshiro128.cffi`).
-  This allows these basic RNGs to be used in numba.
-* The basic random number generators can be used in downstream projects via
+* All bit generators can produce doubles, uint64s and uint32s via CTypes
+  (`~xoroshiro128.Xoroshiro128.ctypes`) and CFFI
+  (:meth:`~xoroshiro128.Xoroshiro128.cffi`). This allows the bit generators to
+  be used in numba.
+* The bit generators can be used in downstream projects via
   :ref:`Cython <randomgen_cython>`.
 
 See :ref:`new-or-different` for a complete list of improvements and
-differences.
+differences from the traditional ``Randomstate``.
 
 Parallel Generation
 ~~~~~~~~~~~~~~~~~~~
@@ -149,13 +141,12 @@ one of two ways:
 
 Supported Generators
 --------------------
-The main innovation is the inclusion of a number of alternative pseudo-random number
-generators, 'in addition' to the standard PRNG in NumPy.  The included PRNGs are:
+The included bit generators are:
 
-* MT19937 - The standard NumPy generator.  Produces identical results to NumPy
+* MT19937 - The standard Python generator.  Produces identical results to Python
   using the same seed/state. Adds a
   `~mt19937.MT19937.jump` function that advances the
-  generator as-if ``2**128`` draws have been made.  See `numpy.random`.
+  generator as-if ``2**128`` draws have been made.
 * dSFMT - SSE2 enabled versions of the MT19937 generator.  Theoretically
   the same, but with a different state and so it is not possible to produce a
   sequence identical to MT19937. Supports ``jump`` and so can
@@ -164,23 +155,23 @@ generators, 'in addition' to the standard PRNG in NumPy.  The included PRNGs are
   and statistical quality. Like the XorShift generators, it can be jumped
   to produce multiple streams in parallel applications. See
   `~xoroshiro128.Xoroshiro128.jump` for details.
-  More information about this PRNG is available at the
+  More information about this bit generator is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * XorShift1024*φ - Fast fast generator based on the XSadd
   generator. Supports ``jump`` and so can be used in
   parallel applications. See the documentation for
   `~xorshift1024.Xorshift1024.jump` for details. More
-  information about these PRNGs is available at the
+  information about these bit generators is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * Xorshiro256** and Xorshiro512** - The most recently introduced XOR,
   shift, and rotate generator. Supports ``jump`` and so can be used in
   parallel applications. See the documentation for
   `~xoshiro256starstar.Xoshirt256StarStar.jump` for
-  details. More information about these PRNGs is available at the
+  details. More information about these bit generators is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * ThreeFry and Philox - counter-based generators capable of being advanced an
   arbitrary number of steps or generating independent streams. See the
-  `Random123`_ page for more details about this class of PRNG.
+  `Random123`_ page for more details about this class of bit generators.
 
 .. _`dSFMT authors' page`: http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/
 .. _`xorshift, xoroshiro and xoshiro authors' page`:  http://xoroshiro.di.unimi.it/
@@ -194,13 +185,13 @@ Random Generator
    generator
    legacy mtrand <legacy>
 
-Basic Random Number Generators
-------------------------------
+Bit Generators
+--------------
 
 .. toctree::
    :maxdepth: 1
 
-   Basic Random Number Generators <brng/index>
+   Bit Generators <brng/index>
 
 Features
 --------

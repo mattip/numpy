@@ -5,7 +5,7 @@
 #include "../distributions/distributions.h"
 
 typedef struct aug_bitgen {
-  bitgen_t *basicrng;
+  bitgen_t *bitgen;
   int has_gauss;
   double gauss;
 } aug_bitgen_t;

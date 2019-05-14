@@ -46,17 +46,17 @@ def __generator_ctor(bit_generator_name='mt19937'):
 
 def __bit_generator_ctor(bit_generator_name='mt19937'):
     """
-    Pickling helper function that returns a basic RNG object
+    Pickling helper function that returns a bit generator object
 
     Parameters
     ----------
     bit_generator_name: str
-        String containing the name of the Basic RNG
+        String containing the name of the BitGenerator
 
     Returns
     -------
     bit_generator: BitGenerator
-        Basic RNG instance
+        BitGenerator instance
     """
     if bit_generator_name in BitGeneratorS:
         bit_generator = BitGeneratorS[bit_generator_name]

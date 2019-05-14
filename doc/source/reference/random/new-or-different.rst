@@ -52,11 +52,11 @@ And in more detail:
   `~.RandomGenerator.standard_exponential` or
   `~.RandomGenerator.standard_gamma`.
 * The Box-Muller used to produce NumPy's normals is no longer available.
-* All basic random generators functions to produce doubles, uint64s and
+* All bit generators can produce doubles, uint64s and
   uint32s via CTypes (`~.xoroshiro128.Xoroshiro128.
   ctypes`) and CFFI (`~.xoroshiro128.Xoroshiro128.cffi`).
-  This allows these basic RNGs to be used in numba.
-* The basic random number generators can be used in downstream projects via
+  This allows these bit generators to be used in numba.
+* The bit generators can be used in downstream projects via
   Cython.
 
 
@@ -112,6 +112,4 @@ And in more detail:
   existing = np.zeros(4)
   rg.random_sample(out=existing[:2])
   print(existing)
-
-..   * For changes since the previous release, see the :ref:`change-log`
 
