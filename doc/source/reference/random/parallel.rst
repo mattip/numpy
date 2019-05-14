@@ -124,17 +124,17 @@ generator 2 ** 127 steps to set a sequence of random number generators.
 .. code-block:: python
 
    from numpy.random import ThreeFry
-   brng = ThreeFry()
-   brng_copy = ThreeFry()
-   brng_copy.state = brng.state
+   bit_generator = ThreeFry()
+   bit_generator_copy = ThreeFry()
+   bit_generator_copy.state = bit_generator.state
 
    advance = 2**127
-   brngs = [brng]
+   bit_generators = [bit_generator]
    for _ in range(9):
-       brng_copy.advance(advance)
-       brng = ThreeFry()
-       brng.state = brng_copy.state
-       brngs.append(brng)
+       bit_generator_copy.advance(advance)
+       bit_generator = ThreeFry()
+       bit_generator.state = bit_generator_copy.state
+       bit_generators.append(bit_generator)
 
 .. end block
 

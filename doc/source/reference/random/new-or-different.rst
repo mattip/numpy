@@ -23,8 +23,9 @@ Feature             Older Equivalent    Notes
 `RandomGenerator`   `RandomState`       ``RandomGenerator`` requires a stream
                                         source, called a RandomNumberGenerator
                                         (RNG). A number of different basic
-                                        `RNGs <brng>`_ exist.  ``RandomState``
-                                        uses only the Box- Muller method.
+                                        `RNGs <bit_generator>`_ exist.
+                                        ``RandomState`` uses only the Box-
+                                        Muller method.
 ------------------- ------------------- -------------
 ``np.random.gen.``  ``np.random.``      Access the next values in an already-
 ``random_sample()`` ``random_sample()`` instaniated RNG, convert them to
@@ -90,9 +91,9 @@ And in more detail:
 
 .. ipython:: python
 
-  rg.brng.seed(0)
+  rg.bit_generator.seed(0)
   rg.random_sample(3, dtype='d')
-  rg.brng.seed(0)
+  rg.bit_generator.seed(0)
   rg.random_sample(3, dtype='f')
 
 * Optional ``out`` argument that allows existing arrays to be filled for
@@ -114,11 +115,3 @@ And in more detail:
 
 ..   * For changes since the previous release, see the :ref:`change-log`
 
-* Support for Lemire’s method of generating uniform integers on an
-  arbitrary interval by setting ``use_masked=True`` in
-  (`~.RandomGenerator.randint`).
-
-.. ipython:: python
-
-  %timeit rg.randint(0, 1535, use_masked=False)
-  %timeit numpy.random.randint(0, 1535)

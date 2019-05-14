@@ -30,7 +30,7 @@ type_info = (('uint32', 'uint32', 'uint64', 'NPY_UINT64', 0, 0, 0, '0X100000000U
 {{for  nptype, utype, nptype_up, npctype, remaining, bitshift, lb, ub in type_info}}
 {{ py: otype = nptype + '_' if nptype == 'bool' else nptype }}
 cdef object _rand_{{nptype}}_broadcast(np.ndarray low, np.ndarray high, object size,
-                                       bint closed, brng_t *state, object lock):
+                                       bint closed, bitgen_t *state, object lock):
     """
     Array path for smaller integer types
 
@@ -105,7 +105,7 @@ big_type_info = (('uint64', 'uint64', 'NPY_UINT64', '0x0ULL', '0xFFFFFFFFFFFFFFF
 {{for  nptype, utype, npctype, lb, ub in big_type_info}}
 {{ py: otype = nptype}}
 cdef object _rand_{{nptype}}_broadcast(object low, object high, object size,
-                                       bint closed, brng_t *state, object lock):
+                                       bint closed, bitgen_t *state, object lock):
     """
     Array path for 64-bit integer types
 
@@ -207,7 +207,7 @@ type_info = (('uint64', 'uint64', '0x0ULL', '0xFFFFFFFFFFFFFFFFULL'),
 {{for  nptype, utype, lb, ub in type_info}}
 {{ py: otype = nptype + '_' if nptype == 'bool' else nptype }}
 cdef object _rand_{{nptype}}(object low, object high, object size,
-                             bint closed, brng_t *state, object lock):
+                             bint closed, bitgen_t *state, object lock):
     """
     _rand_{{nptype}}(low, high, size, *state, lock)
 

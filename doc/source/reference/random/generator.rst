@@ -20,7 +20,7 @@ Accessing the RNG
 .. autosummary::
    :toctree: generated/
 
-   ~RandomGenerator.brng
+   ~RandomGenerator.bit_generator
 
 Simple random data
 ==================

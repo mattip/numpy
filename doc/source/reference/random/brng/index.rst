@@ -1,4 +1,4 @@
-.. _brng:
+.. _bit_generator:
 
 Basic Random Number Generators
 ------------------------------

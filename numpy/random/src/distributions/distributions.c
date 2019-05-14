@@ -7,23 +7,23 @@
 #endif
 
 /* Random generators for external use */
-float random_float(brng_t *brng_state) {
+float random_float(bitgen_t *brng_state) {
   return next_float(brng_state);
 }
 
-double random_double(brng_t *brng_state) {
+double random_double(bitgen_t *brng_state) {
   return next_double(brng_state);
 }
 
-static NPY_INLINE double next_standard_exponential(brng_t *brng_state) {
+static NPY_INLINE double next_standard_exponential(bitgen_t *brng_state) {
   return -log(1.0 - next_double(brng_state));
 }
 
-double random_standard_exponential(brng_t *brng_state) {
+double random_standard_exponential(bitgen_t *brng_state) {
   return next_standard_exponential(brng_state);
 }
 
-void random_standard_exponential_fill(brng_t *brng_state, npy_intp cnt,
+void random_standard_exponential_fill(bitgen_t *brng_state, npy_intp cnt,
                                       double *out) {
   npy_intp i;
   for (i = 0; i < cnt; i++) {
@@ -31,18 +31,18 @@ void random_standard_exponential_fill(brng_t *brng_state, npy_intp cnt,
   }
 }
 
-float random_standard_exponential_f(brng_t *brng_state) {
+float random_standard_exponential_f(bitgen_t *brng_state) {
   return -logf(1.0f - next_float(brng_state));
 }
 
-void random_double_fill(brng_t *brng_state, npy_intp cnt, double *out) {
+void random_double_fill(bitgen_t *brng_state, npy_intp cnt, double *out) {
   npy_intp i;
   for (i = 0; i < cnt; i++) {
     out[i] = next_double(brng_state);
   }
 }
 #if 0
-double random_gauss(brng_t *brng_state) {
+double random_gauss(bitgen_t *brng_state) {
   if (brng_state->has_gauss) {
     const double temp = brng_state->gauss;
     brng_state->has_gauss = false;
@@ -66,7 +66,7 @@ double random_gauss(brng_t *brng_state) {
   }
 }
 
-float random_gauss_f(brng_t *brng_state) {
+float random_gauss_f(bitgen_t *brng_state) {
   if (brng_state->has_gauss_f) {
     const float temp = brng_state->gauss_f;
     brng_state->has_gauss_f = false;
@@ -91,9 +91,9 @@ float random_gauss_f(brng_t *brng_state) {
 }
 #endif
 
-static NPY_INLINE double standard_exponential_zig(brng_t *brng_state);
+static NPY_INLINE double standard_exponential_zig(bitgen_t *brng_state);
 
-static double standard_exponential_zig_unlikely(brng_t *brng_state, uint8_t idx,
+static double standard_exponential_zig_unlikely(bitgen_t *brng_state, uint8_t idx,
                                                 double x) {
   if (idx == 0) {
     return ziggurat_exp_r - log(next_double(brng_state));
@@ -106,7 +106,7 @@ static double standard_exponential_zig_unlikely(brng_t *brng_state, uint8_t idx,
   }
 }
 
-static NPY_INLINE double standard_exponential_zig(brng_t *brng_state) {
+static NPY_INLINE double standard_exponential_zig(bitgen_t *brng_state) {
   uint64_t ri;
   uint8_t idx;
   double x;
@@ -121,11 +121,11 @@ static NPY_INLINE double standard_exponential_zig(brng_t *brng_state) {
   return standard_exponential_zig_unlikely(brng_state, idx, x);
 }
 
-double random_standard_exponential_zig(brng_t *brng_state) {
+double random_standard_exponential_zig(bitgen_t *brng_state) {
   return standard_exponential_zig(brng_state);
 }
 
-void random_standard_exponential_zig_fill(brng_t *brng_state, npy_intp cnt,
+void random_standard_exponential_zig_fill(bitgen_t *brng_state, npy_intp cnt,
                                           double *out) {
   npy_intp i;
   for (i = 0; i < cnt; i++) {
@@ -133,9 +133,9 @@ void random_standard_exponential_zig_fill(brng_t *brng_state, npy_intp cnt,
   }
 }
 
-static NPY_INLINE float standard_exponential_zig_f(brng_t *brng_state);
+static NPY_INLINE float standard_exponential_zig_f(bitgen_t *brng_state);
 
-static float standard_exponential_zig_unlikely_f(brng_t *brng_state,
+static float standard_exponential_zig_unlikely_f(bitgen_t *brng_state,
                                                  uint8_t idx, float x) {
   if (idx == 0) {
     return ziggurat_exp_r_f - logf(next_float(brng_state));
@@ -148,7 +148,7 @@ static float standard_exponential_zig_unlikely_f(brng_t *brng_state,
   }
 }
 
-static NPY_INLINE float standard_exponential_zig_f(brng_t *brng_state) {
+static NPY_INLINE float standard_exponential_zig_f(bitgen_t *brng_state) {
   uint32_t ri;
   uint8_t idx;
   float x;
@@ -163,11 +163,11 @@ static NPY_INLINE float standard_exponential_zig_f(brng_t *brng_state) {
   return standard_exponential_zig_unlikely_f(brng_state, idx, x);
 }
 
-float random_standard_exponential_zig_f(brng_t *brng_state) {
+float random_standard_exponential_zig_f(bitgen_t *brng_state) {
   return standard_exponential_zig_f(brng_state);
 }
 
-static NPY_INLINE double next_gauss_zig(brng_t *brng_state) {
+static NPY_INLINE double next_gauss_zig(bitgen_t *brng_state) {
   uint64_t r;
   int sign;
   int64_t rabs;
@@ -201,18 +201,18 @@ static NPY_INLINE double next_gauss_zig(brng_t *brng_state) {
   }
 }
 
-double random_gauss_zig(brng_t *brng_state) {
+double random_gauss_zig(bitgen_t *brng_state) {
   return next_gauss_zig(brng_state);
 }
 
-void random_gauss_zig_fill(brng_t *brng_state, npy_intp cnt, double *out) {
+void random_gauss_zig_fill(bitgen_t *brng_state, npy_intp cnt, double *out) {
   npy_intp i;
   for (i = 0; i < cnt; i++) {
     out[i] = next_gauss_zig(brng_state);
   }
 }
 
-float random_gauss_zig_f(brng_t *brng_state) {
+float random_gauss_zig_f(bitgen_t *brng_state) {
   uint32_t r;
   int sign;
   int32_t rabs;
@@ -246,7 +246,7 @@ float random_gauss_zig_f(brng_t *brng_state) {
 }
 
 /*
-static NPY_INLINE double standard_gamma(brng_t *brng_state, double shape) {
+static NPY_INLINE double standard_gamma(bitgen_t *brng_state, double shape) {
   double b, c;
   double U, V, X, Y;
 
@@ -288,7 +288,7 @@ static NPY_INLINE double standard_gamma(brng_t *brng_state, double shape) {
   }
 }
 
-static NPY_INLINE float standard_gamma_float(brng_t *brng_state, float shape) {
+static NPY_INLINE float standard_gamma_float(bitgen_t *brng_state, float shape) {
   float b, c;
   float U, V, X, Y;
 
@@ -331,16 +331,16 @@ static NPY_INLINE float standard_gamma_float(brng_t *brng_state, float shape) {
 }
 
 
-double random_standard_gamma(brng_t *brng_state, double shape) {
+double random_standard_gamma(bitgen_t *brng_state, double shape) {
   return standard_gamma(brng_state, shape);
 }
 
-float random_standard_gamma_f(brng_t *brng_state, float shape) {
+float random_standard_gamma_f(bitgen_t *brng_state, float shape) {
   return standard_gamma_float(brng_state, shape);
 }
 */
 
-static NPY_INLINE double standard_gamma_zig(brng_t *brng_state, double shape) {
+static NPY_INLINE double standard_gamma_zig(bitgen_t *brng_state, double shape) {
   double b, c;
   double U, V, X, Y;
 
@@ -384,7 +384,7 @@ static NPY_INLINE double standard_gamma_zig(brng_t *brng_state, double shape) {
   }
 }
 
-static NPY_INLINE float standard_gamma_zig_f(brng_t *brng_state, float shape) {
+static NPY_INLINE float standard_gamma_zig_f(bitgen_t *brng_state, float shape) {
   float b, c;
   float U, V, X, Y;
 
@@ -428,23 +428,23 @@ static NPY_INLINE float standard_gamma_zig_f(brng_t *brng_state, float shape) {
   }
 }
 
-double random_standard_gamma_zig(brng_t *brng_state, double shape) {
+double random_standard_gamma_zig(bitgen_t *brng_state, double shape) {
   return standard_gamma_zig(brng_state, shape);
 }
 
-float random_standard_gamma_zig_f(brng_t *brng_state, float shape) {
+float random_standard_gamma_zig_f(bitgen_t *brng_state, float shape) {
   return standard_gamma_zig_f(brng_state, shape);
 }
 
-int64_t random_positive_int64(brng_t *brng_state) {
+int64_t random_positive_int64(bitgen_t *brng_state) {
   return next_uint64(brng_state) >> 1;
 }
 
-int32_t random_positive_int32(brng_t *brng_state) {
+int32_t random_positive_int32(bitgen_t *brng_state) {
   return next_uint32(brng_state) >> 1;
 }
 
-int64_t random_positive_int(brng_t *brng_state) {
+int64_t random_positive_int(bitgen_t *brng_state) {
 #if ULONG_MAX <= 0xffffffffUL
   return (int64_t)(next_uint32(brng_state) >> 1);
 #else
@@ -452,7 +452,7 @@ int64_t random_positive_int(brng_t *brng_state) {
 #endif
 }
 
-uint64_t random_uint(brng_t *brng_state) {
+uint64_t random_uint(bitgen_t *brng_state) {
 #if ULONG_MAX <= 0xffffffffUL
   return next_uint32(brng_state);
 #else
@@ -500,32 +500,32 @@ static double loggam(double x) {
 }
 
 /*
-double random_normal(brng_t *brng_state, double loc, double scale) {
+double random_normal(bitgen_t *brng_state, double loc, double scale) {
   return loc + scale * random_gauss(brng_state);
 }
 */
 
-double random_normal_zig(brng_t *brng_state, double loc, double scale) {
+double random_normal_zig(bitgen_t *brng_state, double loc, double scale) {
   return loc + scale * random_gauss_zig(brng_state);
 }
 
-double random_exponential(brng_t *brng_state, double scale) {
+double random_exponential(bitgen_t *brng_state, double scale) {
   return scale * standard_exponential_zig(brng_state);
 }
 
-double random_uniform(brng_t *brng_state, double lower, double range) {
+double random_uniform(bitgen_t *brng_state, double lower, double range) {
   return lower + range * next_double(brng_state);
 }
 
-double random_gamma(brng_t *brng_state, double shape, double scale) {
+double random_gamma(bitgen_t *brng_state, double shape, double scale) {
   return scale * random_standard_gamma_zig(brng_state, shape);
 }
 
-float random_gamma_float(brng_t *brng_state, float shape, float scale) {
+float random_gamma_float(bitgen_t *brng_state, float shape, float scale) {
   return scale * random_standard_gamma_zig_f(brng_state, shape);
 }
 
-double random_beta(brng_t *brng_state, double a, double b) {
+double random_beta(bitgen_t *brng_state, double a, double b) {
   double Ga, Gb;
 
   if ((a <= 1.0) && (b <= 1.0)) {
@@ -559,35 +559,35 @@ double random_beta(brng_t *brng_state, double a, double b) {
   }
 }
 
-double random_chisquare(brng_t *brng_state, double df) {
+double random_chisquare(bitgen_t *brng_state, double df) {
   return 2.0 * random_standard_gamma_zig(brng_state, df / 2.0);
 }
 
-double random_f(brng_t *brng_state, double dfnum, double dfden) {
+double random_f(bitgen_t *brng_state, double dfnum, double dfden) {
   return ((random_chisquare(brng_state, dfnum) * dfden) /
           (random_chisquare(brng_state, dfden) * dfnum));
 }
 
-double random_standard_cauchy(brng_t *brng_state) {
+double random_standard_cauchy(bitgen_t *brng_state) {
   return random_gauss_zig(brng_state) / random_gauss_zig(brng_state);
 }
 
-double random_pareto(brng_t *brng_state, double a) {
+double random_pareto(bitgen_t *brng_state, double a) {
   return exp(standard_exponential_zig(brng_state) / a) - 1;
 }
 
-double random_weibull(brng_t *brng_state, double a) {
+double random_weibull(bitgen_t *brng_state, double a) {
   if (a == 0.0) {
     return 0.0;
   }
   return pow(standard_exponential_zig(brng_state), 1. / a);
 }
 
-double random_power(brng_t *brng_state, double a) {
+double random_power(bitgen_t *brng_state, double a) {
   return pow(1 - exp(-standard_exponential_zig(brng_state)), 1. / a);
 }
 
-double random_laplace(brng_t *brng_state, double loc, double scale) {
+double random_laplace(bitgen_t *brng_state, double loc, double scale) {
   double U;
 
   U = next_double(brng_state);
@@ -599,29 +599,29 @@ double random_laplace(brng_t *brng_state, double loc, double scale) {
   return U;
 }
 
-double random_gumbel(brng_t *brng_state, double loc, double scale) {
+double random_gumbel(bitgen_t *brng_state, double loc, double scale) {
   double U;
 
   U = 1.0 - next_double(brng_state);
   return loc - scale * log(-log(U));
 }
 
-double random_logistic(brng_t *brng_state, double loc, double scale) {
+double random_logistic(bitgen_t *brng_state, double loc, double scale) {
   double U;
 
   U = next_double(brng_state);
   return loc + scale * log(U / (1.0 - U));
 }
 
-double random_lognormal(brng_t *brng_state, double mean, double sigma) {
+double random_lognormal(bitgen_t *brng_state, double mean, double sigma) {
   return exp(random_normal_zig(brng_state, mean, sigma));
 }
 
-double random_rayleigh(brng_t *brng_state, double mode) {
+double random_rayleigh(bitgen_t *brng_state, double mode) {
   return mode * sqrt(-2.0 * log(1.0 - next_double(brng_state)));
 }
 
-double random_standard_t(brng_t *brng_state, double df) {
+double random_standard_t(bitgen_t *brng_state, double df) {
   double num, denom;
 
   num = random_gauss_zig(brng_state);
@@ -629,7 +629,7 @@ double random_standard_t(brng_t *brng_state, double df) {
   return sqrt(df / 2) * num / sqrt(denom);
 }
 
-static int64_t random_poisson_mult(brng_t *brng_state, double lam) {
+static int64_t random_poisson_mult(bitgen_t *brng_state, double lam) {
   int64_t X;
   double prod, U, enlam;
 
@@ -654,7 +654,7 @@ static int64_t random_poisson_mult(brng_t *brng_state, double lam) {
  */
 #define LS2PI 0.91893853320467267
 #define TWELFTH 0.083333333333333333333333
-static int64_t random_poisson_ptrs(brng_t *brng_state, double lam) {
+static int64_t random_poisson_ptrs(bitgen_t *brng_state, double lam) {
   int64_t k;
   double U, V, slam, loglam, a, b, invalpha, vr, us;
 
@@ -683,7 +683,7 @@ static int64_t random_poisson_ptrs(brng_t *brng_state, double lam) {
   }
 }
 
-int64_t random_poisson(brng_t *brng_state, double lam) {
+int64_t random_poisson(bitgen_t *brng_state, double lam) {
   if (lam >= 10) {
     return random_poisson_ptrs(brng_state, lam);
   } else if (lam == 0) {
@@ -693,12 +693,12 @@ int64_t random_poisson(brng_t *brng_state, double lam) {
   }
 }
 
-int64_t random_negative_binomial(brng_t *brng_state, double n, double p) {
+int64_t random_negative_binomial(bitgen_t *brng_state, double n, double p) {
   double Y = random_gamma(brng_state, n, (1 - p) / p);
   return random_poisson(brng_state, Y);
 }
 
-int64_t random_binomial_btpe(brng_t *brng_state, int64_t n, double p,
+int64_t random_binomial_btpe(bitgen_t *brng_state, int64_t n, double p,
                              binomial_t *binomial) {
   double r, q, fm, p1, xm, xl, xr, c, laml, lamr, p2, p3, p4;
   double a, u, v, s, F, rho, t, A, nrq, x1, x2, f1, f2, z, z2, w, w2, x;
@@ -838,7 +838,7 @@ Step60:
   return y;
 }
 
-int64_t random_binomial_inversion(brng_t *brng_state, int64_t n, double p,
+int64_t random_binomial_inversion(bitgen_t *brng_state, int64_t n, double p,
                                   binomial_t *binomial) {
   double q, qn, np, px, U;
   int64_t X, bound;
@@ -875,7 +875,7 @@ int64_t random_binomial_inversion(brng_t *brng_state, int64_t n, double p,
   return X;
 }
 
-int64_t random_binomial(brng_t *brng_state, double p, int64_t n,
+int64_t random_binomial(bitgen_t *brng_state, double p, int64_t n,
                         binomial_t *binomial) {
   double q;
 
@@ -898,7 +898,7 @@ int64_t random_binomial(brng_t *brng_state, double p, int64_t n,
   }
 }
 
-double random_noncentral_chisquare(brng_t *brng_state, double df, double nonc) {
+double random_noncentral_chisquare(bitgen_t *brng_state, double df, double nonc) {
   if (npy_isnan(nonc)){
     return NPY_NAN;
   }
@@ -915,13 +915,13 @@ double random_noncentral_chisquare(brng_t *brng_state, double df, double nonc) {
   }
 }
 
-double random_noncentral_f(brng_t *brng_state, double dfnum, double dfden,
+double random_noncentral_f(bitgen_t *brng_state, double dfnum, double dfden,
                            double nonc) {
   double t = random_noncentral_chisquare(brng_state, dfnum, nonc) * dfden;
   return t / (random_chisquare(brng_state, dfden) * dfnum);
 }
 
-double random_wald(brng_t *brng_state, double mean, double scale) {
+double random_wald(bitgen_t *brng_state, double mean, double scale) {
   double U, X, Y;
   double mu_2l;
 
@@ -937,7 +937,7 @@ double random_wald(brng_t *brng_state, double mean, double scale) {
   }
 }
 
-double random_vonmises(brng_t *brng_state, double mu, double kappa) {
+double random_vonmises(bitgen_t *brng_state, double mu, double kappa) {
   double s;
   double U, V, W, Y, Z;
   double result, mod;
@@ -990,7 +990,7 @@ double random_vonmises(brng_t *brng_state, double mu, double kappa) {
   }
 }
 
-int64_t random_logseries(brng_t *brng_state, double p) {
+int64_t random_logseries(bitgen_t *brng_state, double p) {
   double q, r, U, V;
   int64_t result;
 
@@ -1018,7 +1018,7 @@ int64_t random_logseries(brng_t *brng_state, double p) {
   }
 }
 
-int64_t random_geometric_search(brng_t *brng_state, double p) {
+int64_t random_geometric_search(bitgen_t *brng_state, double p) {
   double U;
   int64_t X;
   double sum, prod, q;
@@ -1035,11 +1035,11 @@ int64_t random_geometric_search(brng_t *brng_state, double p) {
   return X;
 }
 
-int64_t random_geometric_inversion(brng_t *brng_state, double p) {
+int64_t random_geometric_inversion(bitgen_t *brng_state, double p) {
   return (int64_t)ceil(log(1.0 - next_double(brng_state)) / log(1.0 - p));
 }
 
-int64_t random_geometric(brng_t *brng_state, double p) {
+int64_t random_geometric(bitgen_t *brng_state, double p) {
   if (p >= 0.333333333333333333333333) {
     return random_geometric_search(brng_state, p);
   } else {
@@ -1047,7 +1047,7 @@ int64_t random_geometric(brng_t *brng_state, double p) {
   }
 }
 
-int64_t random_zipf(brng_t *brng_state, double a) {
+int64_t random_zipf(bitgen_t *brng_state, double a) {
   double am1, b;
 
   am1 = a - 1.0;
@@ -1075,7 +1075,7 @@ int64_t random_zipf(brng_t *brng_state, double a) {
   }
 }
 
-double random_triangular(brng_t *brng_state, double left, double mode,
+double random_triangular(bitgen_t *brng_state, double left, double mode,
                          double right) {
   double base, leftbase, ratio, leftprod, rightprod;
   double U;
@@ -1094,7 +1094,7 @@ double random_triangular(brng_t *brng_state, double left, double mode,
   }
 }
 
-int64_t random_hypergeometric_hyp(brng_t *brng_state, int64_t good, int64_t bad,
+int64_t random_hypergeometric_hyp(bitgen_t *brng_state, int64_t good, int64_t bad,
                                   int64_t sample) {
   int64_t d1, k, z;
   double d2, u, y;
@@ -1121,7 +1121,7 @@ int64_t random_hypergeometric_hyp(brng_t *brng_state, int64_t good, int64_t bad,
 /* D2 = 3 - 2*sqrt(3/e) */
 #define D1 1.7155277699214135
 #define D2 0.8989161620588988
-int64_t random_hypergeometric_hrua(brng_t *brng_state, int64_t good,
+int64_t random_hypergeometric_hrua(bitgen_t *brng_state, int64_t good,
                                    int64_t bad, int64_t sample) {
   int64_t mingoodbad, maxgoodbad, popsize, m, d9;
   double d4, d5, d6, d7, d8, d10, d11;
@@ -1181,7 +1181,7 @@ int64_t random_hypergeometric_hrua(brng_t *brng_state, int64_t good,
 #undef D1
 #undef D2
 
-int64_t random_hypergeometric(brng_t *brng_state, int64_t good, int64_t bad,
+int64_t random_hypergeometric(bitgen_t *brng_state, int64_t good, int64_t bad,
                               int64_t sample) {
   if (sample > 10) {
     return random_hypergeometric_hrua(brng_state, good, bad, sample);
@@ -1192,7 +1192,7 @@ int64_t random_hypergeometric(brng_t *brng_state, int64_t good, int64_t bad,
   }
 }
 
-uint64_t random_interval(brng_t *brng_state, uint64_t max) {
+uint64_t random_interval(bitgen_t *brng_state, uint64_t max) {
   uint64_t mask, value;
   if (max == 0) {
     return 0;
@@ -1231,7 +1231,7 @@ static NPY_INLINE uint64_t gen_mask(uint64_t max) {
 }
 
 /* Generate 16 bit random numbers using a 32 bit buffer. */
-static NPY_INLINE uint16_t buffered_uint16(brng_t *brng_state, int *bcnt,
+static NPY_INLINE uint16_t buffered_uint16(bitgen_t *brng_state, int *bcnt,
                                            uint32_t *buf) {
   if (!(bcnt[0])) {
     buf[0] = next_uint32(brng_state);
@@ -1245,7 +1245,7 @@ static NPY_INLINE uint16_t buffered_uint16(brng_t *brng_state, int *bcnt,
 }
 
 /* Generate 8 bit random numbers using a 32 bit buffer. */
-static NPY_INLINE uint8_t buffered_uint8(brng_t *brng_state, int *bcnt,
+static NPY_INLINE uint8_t buffered_uint8(bitgen_t *brng_state, int *bcnt,
                                          uint32_t *buf) {
   if (!(bcnt[0])) {
     buf[0] = next_uint32(brng_state);
@@ -1259,7 +1259,7 @@ static NPY_INLINE uint8_t buffered_uint8(brng_t *brng_state, int *bcnt,
 }
 
 /* Static `masked rejection` function called by random_bounded_uint64(...) */
-static NPY_INLINE uint64_t bounded_masked_uint64(brng_t *brng_state,
+static NPY_INLINE uint64_t bounded_masked_uint64(bitgen_t *brng_state,
                                                  uint64_t rng, uint64_t mask) {
   uint64_t val;
 
@@ -1272,7 +1272,7 @@ static NPY_INLINE uint64_t bounded_masked_uint64(brng_t *brng_state,
 /* Static `masked rejection` function called by
  * random_buffered_bounded_uint32(...) */
 static NPY_INLINE uint32_t buffered_bounded_masked_uint32(
-    brng_t *brng_state, uint32_t rng, uint32_t mask, int *bcnt, uint32_t *buf) {
+    bitgen_t *brng_state, uint32_t rng, uint32_t mask, int *bcnt, uint32_t *buf) {
   /*
    * The buffer and buffer count are not used here but are included to allow
    * this function to be templated with the similar uint8 and uint16
@@ -1290,7 +1290,7 @@ static NPY_INLINE uint32_t buffered_bounded_masked_uint32(
 /* Static `masked rejection` function called by
  * random_buffered_bounded_uint16(...) */
 static NPY_INLINE uint16_t buffered_bounded_masked_uint16(
-    brng_t *brng_state, uint16_t rng, uint16_t mask, int *bcnt, uint32_t *buf) {
+    bitgen_t *brng_state, uint16_t rng, uint16_t mask, int *bcnt, uint32_t *buf) {
   uint16_t val;
 
   while ((val = (buffered_uint16(brng_state, bcnt, buf) & mask)) > rng)
@@ -1301,7 +1301,7 @@ static NPY_INLINE uint16_t buffered_bounded_masked_uint16(
 
 /* Static `masked rejection` function called by
  * random_buffered_bounded_uint8(...) */
-static NPY_INLINE uint8_t buffered_bounded_masked_uint8(brng_t *brng_state,
+static NPY_INLINE uint8_t buffered_bounded_masked_uint8(bitgen_t *brng_state,
                                                         uint8_t rng,
                                                         uint8_t mask, int *bcnt,
                                                         uint32_t *buf) {
@@ -1317,7 +1317,7 @@ static NPY_INLINE uint8_t buffered_bounded_masked_uint8(brng_t *brng_state,
  * Returns a single random npy_uint64 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-uint64_t random_bounded_uint64(brng_t *brng_state, uint64_t off, uint64_t rng,
+uint64_t random_bounded_uint64(bitgen_t *brng_state, uint64_t off, uint64_t rng,
                                uint64_t mask) {
   if (rng == 0) {
     return off;
@@ -1337,7 +1337,7 @@ uint64_t random_bounded_uint64(brng_t *brng_state, uint64_t off, uint64_t rng,
  * Returns a single random npy_uint64 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-uint32_t random_buffered_bounded_uint32(brng_t *brng_state, uint32_t off,
+uint32_t random_buffered_bounded_uint32(bitgen_t *brng_state, uint32_t off,
                                         uint32_t rng, uint32_t mask,
                                         int *bcnt, uint32_t *buf) {
   /*
@@ -1359,7 +1359,7 @@ uint32_t random_buffered_bounded_uint32(brng_t *brng_state, uint32_t off,
  * Returns a single random npy_uint16 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-uint16_t random_buffered_bounded_uint16(brng_t *brng_state, uint16_t off,
+uint16_t random_buffered_bounded_uint16(bitgen_t *brng_state, uint16_t off,
                                         uint16_t rng, uint16_t mask,
                                         int *bcnt, uint32_t *buf) {
   if (rng == 0) {
@@ -1377,7 +1377,7 @@ uint16_t random_buffered_bounded_uint16(brng_t *brng_state, uint16_t off,
  * Returns a single random npy_uint8 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-uint8_t random_buffered_bounded_uint8(brng_t *brng_state, uint8_t off,
+uint8_t random_buffered_bounded_uint8(bitgen_t *brng_state, uint8_t off,
                                       uint8_t rng, uint8_t mask,
                                       int *bcnt, uint32_t *buf) {
   if (rng == 0) {
@@ -1391,7 +1391,7 @@ uint8_t random_buffered_bounded_uint8(brng_t *brng_state, uint8_t off,
   }
 }
 
-static NPY_INLINE npy_bool buffered_bounded_bool(brng_t *brng_state,
+static NPY_INLINE npy_bool buffered_bounded_bool(bitgen_t *brng_state,
                                                  npy_bool off, npy_bool rng,
                                                  npy_bool mask, int *bcnt,
                                                  uint32_t *buf) {
@@ -1407,7 +1407,7 @@ static NPY_INLINE npy_bool buffered_bounded_bool(brng_t *brng_state,
   return (buf[0] & 0x00000001UL) != 0;
 }
 
-npy_bool random_buffered_bounded_bool(brng_t *brng_state, npy_bool off,
+npy_bool random_buffered_bounded_bool(bitgen_t *brng_state, npy_bool off,
                                       npy_bool rng, npy_bool mask,
                                       int *bcnt, uint32_t *buf) {
   return buffered_bounded_bool(brng_state, off, rng, mask, bcnt, buf);
@@ -1417,7 +1417,7 @@ npy_bool random_buffered_bounded_bool(brng_t *brng_state, npy_bool off,
  * Fills an array with cnt random npy_uint64 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-void random_bounded_uint64_fill(brng_t *brng_state, uint64_t off, uint64_t rng,
+void random_bounded_uint64_fill(bitgen_t *brng_state, uint64_t off, uint64_t rng,
                                 npy_intp cnt, uint64_t *out) {
   npy_intp i;
 
@@ -1456,7 +1456,7 @@ void random_bounded_uint64_fill(brng_t *brng_state, uint64_t off, uint64_t rng,
  * Fills an array with cnt random npy_uint32 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-void random_bounded_uint32_fill(brng_t *brng_state, uint32_t off, uint32_t rng,
+void random_bounded_uint32_fill(bitgen_t *brng_state, uint32_t off, uint32_t rng,
                                 npy_intp cnt, uint32_t *out) {
   npy_intp i;
   uint32_t buf = 0;
@@ -1486,7 +1486,7 @@ void random_bounded_uint32_fill(brng_t *brng_state, uint32_t off, uint32_t rng,
  * Fills an array with cnt random npy_uint16 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-void random_bounded_uint16_fill(brng_t *brng_state, uint16_t off, uint16_t rng,
+void random_bounded_uint16_fill(bitgen_t *brng_state, uint16_t off, uint16_t rng,
                                 npy_intp cnt, uint16_t *out) {
   npy_intp i;
   uint32_t buf = 0;
@@ -1516,7 +1516,7 @@ void random_bounded_uint16_fill(brng_t *brng_state, uint16_t off, uint16_t rng,
  * Fills an array with cnt random npy_uint8 between off and off + rng
  * inclusive. The numbers wrap if rng is sufficiently large.
  */
-void random_bounded_uint8_fill(brng_t *brng_state, uint8_t off, uint8_t rng,
+void random_bounded_uint8_fill(bitgen_t *brng_state, uint8_t off, uint8_t rng,
                                npy_intp cnt, uint8_t *out) {
   npy_intp i;
   uint32_t buf = 0;
@@ -1546,7 +1546,7 @@ void random_bounded_uint8_fill(brng_t *brng_state, uint8_t off, uint8_t rng,
  * Fills an array with cnt random npy_bool between off and off + rng
  * inclusive.
  */
-void random_bounded_bool_fill(brng_t *brng_state, npy_bool off, npy_bool rng,
+void random_bounded_bool_fill(bitgen_t *brng_state, npy_bool off, npy_bool rng,
                               npy_intp cnt, npy_bool *out) {
   npy_bool mask = 0;
   npy_intp i;
@@ -1558,7 +1558,7 @@ void random_bounded_bool_fill(brng_t *brng_state, npy_bool off, npy_bool rng,
   }
 }
 
-void random_multinomial(brng_t *brng_state, int64_t n, int64_t *mnix,
+void random_multinomial(bitgen_t *brng_state, int64_t n, int64_t *mnix,
                         double *pix, npy_intp d, binomial_t *binomial) {
   double remaining_p = 1.0;
   npy_intp j;

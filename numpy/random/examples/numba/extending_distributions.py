@@ -39,22 +39,22 @@ double random_gauss_zig(void *brng_state);
 """)
 x = Xoroshiro128()
 xffi = x.cffi
-brng = xffi.brng
+bit_generator = xffi.bit_generator
 
 random_gauss_zig = lib.random_gauss_zig
 
 
-def normals(n, brng):
+def normals(n, bit_generator):
     out = np.empty(n)
     for i in range(n):
-        out[i] = random_gauss_zig(brng)
+        out[i] = random_gauss_zig(bit_generator)
     return out
 
 
 normalsj = nb.jit(normals, nopython=True)
 
 # Numba requires a memory address for void *
-# Can also get address from x.ctypes.brng.value
-brng_address = int(ffi.cast('uintptr_t', brng))
+# Can also get address from x.ctypes.bit_generator.value
+brng_address = int(ffi.cast('uintptr_t', bit_generator))
 
 norm = normalsj(1000, brng_address)

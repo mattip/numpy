@@ -123,7 +123,7 @@ class Bounded(Benchmark):
     u32 = np.uint32
     u64 = np.uint64
     param_names = ['rng', 'dt_max']
-    params = [['DSFMT', 'PCG64', 'PCG32', 'MT19937', 'Xoroshiro128',
+    params = [['DSFMT', 'MT19937', 'Xoroshiro128',
                'Xorshift1024', 'Xoshiro256StarStar', 'Xoshiro512StarStar',
                'Philox', 'ThreeFry', 'ThreeFry32', 'numpy'],
               [[u8,    95],
