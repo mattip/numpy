@@ -17,27 +17,31 @@ What's New or Different
 Quick comparison of legacy `mtrand <legacy>`_ to the new `generator
 <RandomGenerator>`
 
-=================== =================== =============
-Feature             Older Equivalent    Notes
-------------------- ------------------- -------------
-`RandomGenerator`   `RandomState`       ``RandomGenerator`` requires a stream
-                                        source, called a RandomNumberGenerator
-                                        (RNG). A number of different basic
-                                        `RNGs <bit_generator>`_ exist.
-                                        ``RandomState`` uses only the Box-
-                                        Muller method.
-------------------- ------------------- -------------
-``np.random.gen.``  ``np.random.``      Access the next values in an already-
-``random_sample()`` ``random_sample()`` instaniated RNG, convert them to
-                                        ``float64`` in the interval ``[0.0.,``
-                                        `` 1.0)`` In addition to the ``size``
-                                        kwarg, now supports ``dtype='d'`` or
-                                        ``dtype='f'``, and an ``out`` kwarg to
-                                        fill a user-supplied array.
+====================== ==================== =============
+Feature                Older Equivalent     Notes
+---------------------- -------------------- -------------
+`RandomGenerator`      `RandomState`        ``RandomGenerator`` requires a stream
+                                            source, called a RandomNumberGenerator
+                                            (RNG). A number of different basic
+                                            `RNGs <bit_generator>`_ exist.
+                                            ``RandomState`` uses only the Box-
+                                            Muller method.
+---------------------- -------------------- -------------
+``np.random.``         ``np.random.``       Access the next values in an already-
+``RandomGenerator().`` ``random_sample()``  instaniated RNG, convert them to
+``random_sample()``                         ``float64`` in the interval ``[0.0.,``
+                                            `` 1.0)`` In addition to the ``size``
+                                            kwarg, now supports ``dtype='d'`` or
+                                            ``dtype='f'``, and an ``out`` kwarg to
+                                            fill a user-supplied array.
 
-                                        Many other distributions are also
-                                        supported.
-=================== =================== =============
+                                            Many other distributions are also
+                                            supported.
+---------------------- -------------------- -------------
+``RandomGenerator().`` ``randint``,         Use the ``closed`` kwarg to adjust
+``integers()``         ``random_integers``  the inclusion or exclution of the
+                                            ``high`` interval endpoint
+====================== ==================== =============
 
 And in more detail:
 
@@ -51,6 +55,10 @@ And in more detail:
   `~.RandomGenerator.standard_normal`,
   `~.RandomGenerator.standard_exponential` or
   `~.RandomGenerator.standard_gamma`.
+* `~.RandomGenerator.integers` is now the canonical way to generate integer
+  random numbers from a discrete uniform distribution. The ``rand`` and
+  ``randn`` methods are only availabe through the legacy `~.RandomState`.
+  This replaces both ``randint`` and the deprecated ``random_integers``.
 * The Box-Muller used to produce NumPy's normals is no longer available.
 * All bit generators can produce doubles, uint64s and
   uint32s via CTypes (`~.xoroshiro128.Xoroshiro128.

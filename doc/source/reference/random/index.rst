@@ -126,6 +126,11 @@ What's New or Different
   be used in numba.
 * The bit generators can be used in downstream projects via
   :ref:`Cython <randomgen_cython>`.
+* `~.RandomGenerator.integers` is now the canonical way to generate integer
+  random numbers from a discrete uniform distribution. The ``rand`` and
+  ``randn`` methods are only availabe through the legacy `~.RandomState`.
+  This replaces both ``randint`` and the deprecated ``random_integers``.
+
 
 See :ref:`new-or-different` for a complete list of improvements and
 differences from the traditional ``Randomstate``.

@@ -172,7 +172,7 @@ cdef class RandomState:
             state is returned as a dictionary.
 
         legacy : bool
-            Flag indicating the return a legacy tuple state when the basic RNG
+            Flag indicating the return a legacy tuple state when the BitGenerator
             is MT19937.
 
         See Also
@@ -189,7 +189,7 @@ cdef class RandomState:
         st = self._bitgen_obj.state
         if st['bit_generator'] != 'MT19937' and legacy:
             warnings.warn('get_state and legacy can only be used with the '
-                          'MT19937 basic RNG. To silence this warning, '
+                          'MT19937 BitGenerator. To silence this warning, '
                           'set `legacy` to False.', RuntimeWarning)
             legacy = False
         st['has_gauss'] = self._aug_state.has_gauss
@@ -206,7 +206,7 @@ cdef class RandomState:
         Set the internal state of the generator from a tuple.
 
         For use if one has reason to manually (re-)set the internal state of the
-        Basic RNG used by the RandomState instance. By default, RandomState uses
+        BitGenerator used by the RandomState instance. By default, RandomState uses
         the "Mersenne Twister"[1]_ pseudo-random number generating algorithm.
 
         Parameters

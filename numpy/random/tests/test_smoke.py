@@ -90,8 +90,8 @@ def warmup(rg, n=None):
     rg.standard_normal(n)
     rg.standard_normal(n, dtype=np.float32)
     rg.standard_normal(n, dtype=np.float32)
-    rg.randint(0, 2 ** 24, n, dtype=np.uint64)
-    rg.randint(0, 2 ** 48, n, dtype=np.uint64)
+    rg.integers(0, 2 ** 24, n, dtype=np.uint64)
+    rg.integers(0, 2 ** 48, n, dtype=np.uint64)
     rg.standard_gamma(11.0, n)
     rg.standard_gamma(11.0, n, dtype=np.float32)
     rg.random_sample(n, dtype=np.float64)
@@ -222,9 +222,9 @@ class RNG(object):
 
     def test_reset_state(self):
         state = self.rg.bit_generator.state
-        int_1 = self.rg.randint(2**31)
+        int_1 = self.rg.integers(2**31)
         self.rg.bit_generator.state = state
-        int_2 = self.rg.randint(2**31)
+        int_2 = self.rg.integers(2**31)
         assert_(int_1 == int_2)
 
     def test_entropy_init(self):
@@ -251,12 +251,12 @@ class RNG(object):
 
     def test_reset_state_uint32(self):
         rg = RandomGenerator(self.bit_generator(*self.seed))
-        rg.randint(0, 2 ** 24, 120, dtype=np.uint32)
+        rg.integers(0, 2 ** 24, 120, dtype=np.uint32)
         state = rg.bit_generator.state
-        n1 = rg.randint(0, 2 ** 24, 10, dtype=np.uint32)
+        n1 = rg.integers(0, 2 ** 24, 10, dtype=np.uint32)
         rg2 = RandomGenerator(self.bit_generator())
         rg2.bit_generator.state = state
-        n2 = rg2.randint(0, 2 ** 24, 10, dtype=np.uint32)
+        n2 = rg2.integers(0, 2 ** 24, 10, dtype=np.uint32)
         assert_array_equal(n1, n2)
 
     def test_reset_state_float(self):
@@ -386,14 +386,8 @@ class RNG(object):
         vals = self.rg.power(0.2, 10)
         assert_(len(vals) == 10)
 
-    def test_randint(self):
-        vals = self.rg.randint(10, 20, 10)
-        assert_(len(vals) == 10)
-
-    def test_random_integers(self):
-        with suppress_warnings() as sup:
-            sup.record(DeprecationWarning)
-            vals = self.rg.random_integers(10, 20, 10)
+    def test_integers(self):
+        vals = self.rg.integers(10, 20, 10)
         assert_(len(vals) == 10)
 
     def test_rayleigh(self):
@@ -698,7 +692,7 @@ class RNG(object):
         with pytest.raises(ValueError):
             rg.standard_gamma(1.0, out=existing[::3])
 
-    def test_randint_broadcast(self, dtype):
+    def test_integers_broadcast(self, dtype):
         if dtype == np.bool:
             upper = 2
             lower = 0
@@ -707,44 +701,44 @@ class RNG(object):
             upper = int(info.max) + 1
             lower = info.min
         self._reset_state()
-        a = self.rg.randint(lower, [upper] * 10, dtype=dtype)
+        a = self.rg.integers(lower, [upper] * 10, dtype=dtype)
         self._reset_state()
-        b = self.rg.randint([lower] * 10, upper, dtype=dtype)
+        b = self.rg.integers([lower] * 10, upper, dtype=dtype)
         assert_equal(a, b)
         self._reset_state()
-        c = self.rg.randint(lower, upper, size=10, dtype=dtype)
+        c = self.rg.integers(lower, upper, size=10, dtype=dtype)
         assert_equal(a, c)
         self._reset_state()
-        d = self.rg.randint(np.array(
+        d = self.rg.integers(np.array(
             [lower] * 10), np.array([upper], dtype=np.object), size=10,
             dtype=dtype)
         assert_equal(a, d)
         self._reset_state()
-        e = self.rg.randint(
+        e = self.rg.integers(
             np.array([lower] * 10), np.array([upper] * 10), size=10,
             dtype=dtype)
         assert_equal(a, e)
 
         self._reset_state()
-        a = self.rg.randint(0, upper, size=10, dtype=dtype)
+        a = self.rg.integers(0, upper, size=10, dtype=dtype)
         self._reset_state()
-        b = self.rg.randint([upper] * 10, dtype=dtype)
+        b = self.rg.integers([upper] * 10, dtype=dtype)
         assert_equal(a, b)
 
-    def test_randint_numpy(self, dtype):
+    def test_integers_numpy(self, dtype):
         high = np.array([1])
         low = np.array([0])
 
-        out = self.rg.randint(low, high, dtype=dtype)
+        out = self.rg.integers(low, high, dtype=dtype)
         assert out.shape == (1,)
 
-        out = self.rg.randint(low[0], high, dtype=dtype)
+        out = self.rg.integers(low[0], high, dtype=dtype)
         assert out.shape == (1,)
 
-        out = self.rg.randint(low, high[0], dtype=dtype)
+        out = self.rg.integers(low, high[0], dtype=dtype)
         assert out.shape == (1,)
 
-    def test_randint_broadcast_errors(self, dtype):
+    def test_integers_broadcast_errors(self, dtype):
         if dtype == np.bool:
             upper = 2
             lower = 0
@@ -753,13 +747,13 @@ class RNG(object):
             upper = int(info.max) + 1
             lower = info.min
         with pytest.raises(ValueError):
-            self.rg.randint(lower, [upper + 1] * 10, dtype=dtype)
+            self.rg.integers(lower, [upper + 1] * 10, dtype=dtype)
         with pytest.raises(ValueError):
-            self.rg.randint(lower - 1, [upper] * 10, dtype=dtype)
+            self.rg.integers(lower - 1, [upper] * 10, dtype=dtype)
         with pytest.raises(ValueError):
-            self.rg.randint([lower - 1], [upper] * 10, dtype=dtype)
+            self.rg.integers([lower - 1], [upper] * 10, dtype=dtype)
         with pytest.raises(ValueError):
-            self.rg.randint([0], [0], dtype=dtype)
+            self.rg.integers([0], [0], dtype=dtype)
 
 
 class TestMT19937(RNG):

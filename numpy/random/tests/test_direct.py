@@ -464,14 +464,14 @@ class TestMT19937(Base):
         rs = RandomGenerator(self.bit_generator(*self.data1['seed']))
         bit_generator = rs.bit_generator
         state = bit_generator.state
-        desired = rs.randint(2 ** 16)
+        desired = rs.integers(2 ** 16)
         tup = (state['bit_generator'], state['state']['key'], state['state']['pos'])
         bit_generator.state = tup
-        actual = rs.randint(2 ** 16)
+        actual = rs.integers(2 ** 16)
         assert_equal(actual, desired)
         tup = tup + (0, 0.0)
         bit_generator.state = tup
-        actual = rs.randint(2 ** 16)
+        actual = rs.integers(2 ** 16)
         assert_equal(actual, desired)
 
 

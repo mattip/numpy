@@ -341,9 +341,7 @@ cdef class RandomGenerator:
 
         See Also
         --------
-        randint : Uniform sampling over a given half-open interval of integers.
-        random_integers : Uniform sampling over a given closed interval of
-                          integers.
+        integers : Uniform sampling over a given half-open interval of integers.
 
         Examples
         --------
@@ -360,27 +358,26 @@ cdef class RandomGenerator:
                 [ True,  True]]])
 
         """
-        return self.randint(0, np.iinfo(np.int).max + 1, dtype=np.int, size=size)
+        return self.integers(0, np.iinfo(np.int).max + 1, dtype=np.int, size=size)
 
-    def randint(self, low, high=None, size=None, dtype=np.int64, closed=False):
+    def integers(self, low, high=None, size=None, dtype=np.int64, closed=False):
         """
-        randint(low, high=None, size=None, dtype='int64', closed=False)
+        integers(low, high=None, size=None, dtype='int64', closed=False)
 
         Return random integers from `low` (inclusive) to `high` (exclusive), or
-        if closed=True, `low` (inclusive) to `high` (inclusive).
+        if closed=True, `low` (inclusive) to `high` (inclusive). Replaces
+        randint (with closed=False) and random_integers (with closed=True)
 
         Return random integers from the "discrete uniform" distribution of
-        the specified dtype in the "half-open" interval [`low`, `high`). If
-        `high` is None (the default), then results are from [0, `low`). If
-        `closed` is True, then samples from the closed interval [`low`, `high`]
-        or [0, `low`] if `high` is None.
-
+        the specified dtype. If `high` is None (the default), then results are
+        from 0 to `low`.
+        
         Parameters
         ----------
         low : int or array-like of ints
             Lowest (signed) integers to be drawn from the distribution (unless
-            ``high=None``, in which case this parameter is one above the
-            *highest* such integer).
+            ``high=None``, in which case this parameter is 0 and this value is
+            used for `high`).
         high : int or array-like of ints, optional
             If provided, one above the largest (signed) integer to be drawn
             from the distribution (see above for behavior if ``high=None``).
@@ -397,9 +394,10 @@ cdef class RandomGenerator:
 
             .. versionadded:: 1.11.0
 
-        closed : bool
+        closed : bool, optional
             If true, sample from the interval [low, high] instead of the
             default [low, high)
+            Defaults to False
 
         Returns
         -------
@@ -413,38 +411,32 @@ cdef class RandomGenerator:
         cannot be represented as a standard integer type. The high array (or
         low if high is None) must have object dtype, e.g., array([2**64]).
 
-        See Also
-        --------
-        random_integers : similar to `randint`, only for the closed interval
-                          [`low`, `high`], where 1 is the lowest value if
-                          `high` is omitted.
-
         Examples
         --------
-        >>> np.random.RandomGenerator().randint(2, size=10)
+        >>> np.random.RandomGenerator().integers(2, size=10)
         array([1, 0, 0, 0, 1, 1, 0, 0, 1, 0])  # random
-        >>> np.random.RandomGenerator().randint(1, size=10)
+        >>> np.random.RandomGenerator().integers(1, size=10)
         array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
         Generate a 2 x 4 array of ints between 0 and 4, inclusive:
 
-        >>> np.random.RandomGenerator().randint(5, size=(2, 4))
+        >>> np.random.RandomGenerator().integers(5, size=(2, 4))
         array([[4, 0, 2, 1],
                [3, 2, 2, 0]])  # random
 
         Generate a 1 x 3 array with 3 different upper bounds
 
-        >>> np.random.RandomGenerator().randint(1, [3, 5, 10])
+        >>> np.random.RandomGenerator().integers(1, [3, 5, 10])
         array([2, 2, 9])  # random
 
         Generate a 1 by 3 array with 3 different lower bounds
 
-        >>> np.random.RandomGenerator().randint([1, 5, 7], 10)
+        >>> np.random.RandomGenerator().integers([1, 5, 7], 10)
         array([9, 8, 7])  # random
 
         Generate a 2 by 4 array using broadcasting with dtype of uint8
 
-        >>> np.random.RandomGenerator().randint([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
+        >>> np.random.RandomGenerator().integers([1, 3, 5, 7], [[10], [20]], dtype=np.uint8)
         array([[ 8,  6,  9,  7],
                [ 1, 16,  9, 12]], dtype=uint8)  # random
 
@@ -460,7 +452,7 @@ cdef class RandomGenerator:
 
         key = np.dtype(dtype).name
         if key not in _randint_types:
-            raise TypeError('Unsupported dtype "%s" for randint' % key)
+            raise TypeError('Unsupported dtype "%s" for integers' % key)
 
         if key == 'int32':
             ret = _rand_int32(low, high, size, closed, self._bitgen, self.lock)
@@ -509,7 +501,8 @@ cdef class RandomGenerator:
 
         """
         cdef Py_ssize_t n_uint32 = ((length - 1) // 4 + 1)
-        return self.randint(0, 4294967296, size=n_uint32, dtype=np.uint32).tobytes()[:length]
+        return self.integers(0, 4294967296, size=n_uint32,
+                             dtype=np.uint32).tobytes()[:length]
 
     @cython.wraparound(True)
     def choice(self, a, size=None, replace=True, p=None, axis=0):
@@ -555,7 +548,7 @@ cdef class RandomGenerator:
 
         See Also
         --------
-        randint, shuffle, permutation
+        integers, shuffle, permutation
 
         Examples
         --------
@@ -563,7 +556,7 @@ cdef class RandomGenerator:
 
         >>> np.random.RandomGenerator().choice(5, 3)
         array([0, 3, 4]) # random
-        >>> #This is equivalent to np.random.RandomGenerator().randint(0,5,3)
+        >>> #This is equivalent to np.random.RandomGenerator().integers(0,5,3)
 
         Generate a non-uniform random sample from np.arange(5) of size 3:
 
@@ -653,7 +646,7 @@ cdef class RandomGenerator:
                 idx = cdf.searchsorted(uniform_samples, side='right')
                 idx = np.array(idx, copy=False, dtype=np.int64)  # searchsorted returns a scalar
             else:
-                idx = self.randint(0, pop_size, size=shape, dtype=np.int64)
+                idx = self.integers(0, pop_size, size=shape, dtype=np.int64)
         else:
             if size > pop_size:
                 raise ValueError("Cannot take a larger sample than "
@@ -772,9 +765,7 @@ cdef class RandomGenerator:
 
         See Also
         --------
-        randint : Discrete uniform distribution, yielding integers.
-        random_integers : Discrete uniform distribution over the closed
-                          interval ``[low, high]``.
+        integers : Discrete uniform distribution, yielding integers.
         random_sample : Floats uniformly distributed over ``[0, 1)``.
         random : Alias for `random_sample`.
 
@@ -848,101 +839,6 @@ cdef class RandomGenerator:
                     arange, '', CONS_NONE,
                     0.0, '', CONS_NONE,
                     None)
-
-    def random_integers(self, low, high=None, size=None):
-        """
-        random_integers(low, high=None, size=None)
-
-        Random integers of type np.int between `low` and `high`, inclusive.
-
-        Return random integers of type np.int from the "discrete uniform"
-        distribution in the closed interval [`low`, `high`].  If `high` is
-        None (the default), then results are from [1, `low`]. The np.int
-        type translates to the C long integer type and its precision
-        is platform dependent.
-
-        This function has been deprecated. Use randint instead.
-
-        .. deprecated:: 1.11.0
-
-        Parameters
-        ----------
-        low : int
-            Lowest (signed) integer to be drawn from the distribution (unless
-            ``high=None``, in which case this parameter is the *highest* such
-            integer).
-        high : int, optional
-            If provided, the largest (signed) integer to be drawn from the
-            distribution (see above for behavior if ``high=None``).
-        size : int or tuple of ints, optional
-            Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
-            ``m * n * k`` samples are drawn.  Default is None, in which case a
-            single value is returned.
-
-        Returns
-        -------
-        out : int or ndarray of ints
-            `size`-shaped array of random integers from the appropriate
-            distribution, or a single such random int if `size` not provided.
-
-        See Also
-        --------
-        randint : Similar to `random_integers`, only for the half-open
-            interval [`low`, `high`), and 0 is the lowest value if `high` is
-            omitted.
-
-        Notes
-        -----
-        To sample from N evenly spaced floating-point numbers between a and b,
-        use::
-
-          a + (b - a) * (np.random.RandomGenerator().random_integers(N) - 1) / (N - 1.)
-
-        Examples
-        --------
-        >>> np.random.RandomGenerator().random_integers(5)
-        4 # random
-        >>> type(np.random.RandomGenerator().random_integers(5))
-        <class 'numpy.int64'>
-        >>> np.random.RandomGenerator().random_integers(5, size=(3,2))
-        array([[5, 4], # random
-               [3, 3],
-               [4, 5]])
-
-        Choose five random numbers from the set of five evenly-spaced
-        numbers between 0 and 2.5, inclusive (*i.e.*, from the set
-        :math:`{0, 5/8, 10/8, 15/8, 20/8}`):
-
-        >>> 2.5 * (np.random.RandomGenerator().random_integers(5, size=(5,)) - 1) / 4.
-        array([ 0.625,  1.25 ,  0.625,  0.625,  2.5  ]) # random
-
-        Roll two six sided dice 1000 times and sum the results:
-
-        >>> d1 = np.random.RandomGenerator().random_integers(1, 6, 1000)
-        >>> d2 = np.random.RandomGenerator().random_integers(1, 6, 1000)
-        >>> dsums = d1 + d2
-
-        Display results as a histogram:
-
-        >>> import matplotlib.pyplot as plt
-        >>> count, bins, ignored = plt.hist(dsums, 11, density=True)
-        >>> plt.show()
-
-        """
-        if high is None:
-            warnings.warn(("This function is deprecated. Please call "
-                           "randint(1, {low} + 1) instead".format(low=low)),
-                          DeprecationWarning)
-            high = low
-            low = 1
-
-        else:
-            warnings.warn(("This function is deprecated. Please call "
-                           "randint({low}, {high} + 1)"
-                           "instead".format(low=low, high=high)),
-                          DeprecationWarning)
-
-        return self.randint(low, high + 1, size=size, dtype='l')
 
     # Complicated, continuous distributions:
     def standard_normal(self, size=None, dtype=np.float64, out=None):
@@ -4030,8 +3926,7 @@ pareto = _random_generator.pareto
 permutation = _random_generator.permutation
 poisson = _random_generator.poisson
 power = _random_generator.power
-randint = _random_generator.randint
-random_integers = _random_generator.random_integers
+integers = _random_generator.integers
 random_sample = _random_generator.random_sample
 rayleigh = _random_generator.rayleigh
 shuffle = _random_generator.shuffle

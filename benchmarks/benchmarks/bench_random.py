@@ -104,15 +104,21 @@ class RNG(Benchmark):
         if brng == 'numpy':
             self.rg.random_integers(self.int32info.max, size=nom_size)
         else:
-            self.rg.random_integers(self.int32info.max, size=nom_size)
+            self.rg.integers(self.int32info.max, size=nom_size, closed=True)
 
     def time_32bit(self, brng):
         min, max = self.uint32info.min, self.uint32info.max
-        self.rg.randint(min, max + 1, nom_size, dtype=np.uint32)
+        if brng == 'numpy':
+            self.rg.randint(min, max + 1, nom_size, dtype=np.uint32)
+        else:
+            self.rg.integers(min, max + 1, nom_size, dtype=np.uint32)
 
     def time_64bit(self, brng):
         min, max = self.uint64info.min, self.uint64info.max
-        self.rg.randint(min, max + 1, nom_size, dtype=np.uint64)
+        if brng == 'numpy':
+            self.rg.randint(min, max + 1, nom_size, dtype=np.uint64)
+        else:
+            self.rg.integers(min, max + 1, nom_size, dtype=np.uint64)
 
     def time_normal_zig(self, brng):
         self.rg.standard_normal(nom_size)
@@ -161,4 +167,7 @@ class Bounded(Benchmark):
                 Upper bound for range. Lower is always 0.  Must be <= 2**bits.
             """
             dt, max = args
-            self.rg.randint(0, max + 1, nom_size, dtype=dt)
+            if brng == 'numpy':
+                self.rg.randint(0, max + 1, nom_size, dtype=dt)
+            else:
+                self.rg.integers(0, max + 1, nom_size, dtype=dt)

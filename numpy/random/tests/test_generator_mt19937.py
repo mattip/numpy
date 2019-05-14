@@ -22,19 +22,19 @@ def closed(request):
 class TestSeed(object):
     def test_scalar(self):
         s = RandomGenerator(MT19937(0))
-        assert_equal(s.randint(1000), 684)
+        assert_equal(s.integers(1000), 684)
         s = RandomGenerator(MT19937(4294967295))
-        assert_equal(s.randint(1000), 419)
+        assert_equal(s.integers(1000), 419)
 
     def test_array(self):
         s = RandomGenerator(MT19937(range(10)))
-        assert_equal(s.randint(1000), 468)
+        assert_equal(s.integers(1000), 468)
         s = RandomGenerator(MT19937(np.arange(10)))
-        assert_equal(s.randint(1000), 468)
+        assert_equal(s.integers(1000), 468)
         s = RandomGenerator(MT19937([0]))
-        assert_equal(s.randint(1000), 973)
+        assert_equal(s.integers(1000), 973)
         s = RandomGenerator(MT19937([4294967295]))
-        assert_equal(s.randint(1000), 265)
+        assert_equal(s.integers(1000), 265)
 
     def test_invalid_scalar(self):
         # seed must be an unsigned 32 bit integer
@@ -76,8 +76,8 @@ class TestMultinomial(object):
         random.multinomial(100, [0.2, 0.8, 0.0, 0.0, 0.0])
 
     def test_int_negative_interval(self):
-        assert_(-5 <= random.randint(-5, -1) < -1)
-        x = random.randint(-5, -1, 5)
+        assert_(-5 <= random.integers(-5, -1) < -1)
+        x = random.integers(-5, -1, 5)
         assert_(np.all(-5 <= x))
         assert_(np.all(x < -1))
 
@@ -144,8 +144,8 @@ class TestSetState(object):
         self.rg.negative_binomial(0.5, 0.5)
 
 
-class TestRandint(object):
-    rfunc = random.randint
+class TestIntegers(object):
+    rfunc = random.integers
 
     # valid integer/boolean types
     itype = [bool, np.int8, np.uint8, np.int16, np.uint16,
@@ -381,22 +381,22 @@ class TestRandint(object):
                 high = high - closed
                 low_a = np.array([[low]*10])
                 high_a = np.array([high] * 10)
-                assert_raises(ValueError, random.randint, low, high,
+                assert_raises(ValueError, random.integers, low, high,
                               closed=closed, dtype=dtype)
-                assert_raises(ValueError, random.randint, low_a, high,
+                assert_raises(ValueError, random.integers, low_a, high,
                               closed=closed, dtype=dtype)
-                assert_raises(ValueError, random.randint, low, high_a,
+                assert_raises(ValueError, random.integers, low, high_a,
                               closed=closed, dtype=dtype)
-                assert_raises(ValueError, random.randint, low_a, high_a,
+                assert_raises(ValueError, random.integers, low_a, high_a,
                               closed=closed, dtype=dtype)
 
                 low_o = np.array([[low]*10], dtype=np.object)
                 high_o = np.array([high] * 10, dtype=np.object)
-                assert_raises(ValueError, random.randint, low_o, high,
+                assert_raises(ValueError, random.integers, low_o, high,
                               closed=closed, dtype=dtype)
-                assert_raises(ValueError, random.randint, low, high_o,
+                assert_raises(ValueError, random.integers, low, high_o,
                               closed=closed, dtype=dtype)
-                assert_raises(ValueError, random.randint, low_o, high_o,
+                assert_raises(ValueError, random.integers, low_o, high_o,
                               closed=closed, dtype=dtype)
 
     def test_int64_uint64_corner_case(self, closed):
@@ -419,7 +419,7 @@ class TestRandint(object):
 
         # None of these function calls should
         # generate a ValueError now.
-        actual = random.randint(lbnd, ubnd, closed=closed, dtype=dt)
+        actual = random.integers(lbnd, ubnd, closed=closed, dtype=dt)
         assert_equal(actual, tgt)
 
     def test_respect_dtype_singleton(self, closed):
@@ -464,9 +464,9 @@ class TestRandint(object):
             assert sample.shape == (3, 0, 4)
             assert sample.dtype == dt
             assert self.rfunc(0, -10, 0, closed=closed, dtype=dt).shape == (0,)
-            assert_equal(random.randint(0, 0, size=(3, 0, 4)).shape, (3, 0, 4))
-            assert_equal(random.randint(0, -10, size=0).shape, (0,))
-            assert_equal(random.randint(10, 10, size=0).shape, (0,))
+            assert_equal(random.integers(0, 0, size=(3, 0, 4)).shape, (3, 0, 4))
+            assert_equal(random.integers(0, -10, size=0).shape, (0,))
+            assert_equal(random.integers(10, 10, size=0).shape, (0,))
 
 
 class TestRandomDist(object):
@@ -476,63 +476,43 @@ class TestRandomDist(object):
     def setup(self):
         self.seed = 1234567890
 
-    def test_randint(self):
+    def test_integers(self):
         random.bit_generator.seed(self.seed)
-        actual = random.randint(-99, 99, size=(3, 2))
+        actual = random.integers(-99, 99, size=(3, 2))
         desired = np.array([[31, 3],
                             [-52, 41],
                             [-48, -66]])
         assert_array_equal(actual, desired)
 
-    def test_randint_masked(self):
+    def test_integers_masked(self):
         # Test masked rejection sampling algorithm to generate array of
         # uint32 in an interval.
         random.bit_generator.seed(self.seed)
-        actual = random.randint(0, 99, size=(3, 2), dtype=np.uint32)
+        actual = random.integers(0, 99, size=(3, 2), dtype=np.uint32)
         desired = np.array([[2, 47],
                             [12, 51],
                             [33, 43]], dtype=np.uint32)
         assert_array_equal(actual, desired)
 
-    def test_random_integers(self):
+    def test_integers_closed(self):
         random.bit_generator.seed(self.seed)
-        with suppress_warnings() as sup:
-            w = sup.record(DeprecationWarning)
-            actual = random.random_integers(-99, 99, size=(3, 2))
-            assert_(len(w) == 1)
+        actual = random.integers(-99, 99, size=(3, 2), closed=True)
         desired = np.array([[31, 3],
                             [-52, 41],
                             [-48, -66]])
         assert_array_equal(actual, desired)
 
-    def test_random_integers_max_int(self):
-        # Tests whether random_integers can generate the
+    def test_integers_max_int(self):
+        # Tests whether integers with closed=True can generate the
         # maximum allowed Python int that can be converted
         # into a C long. Previous implementations of this
         # method have thrown an OverflowError when attempting
         # to generate this integer.
-        with suppress_warnings() as sup:
-            w = sup.record(DeprecationWarning)
-            actual = random.random_integers(np.iinfo('l').max,
-                                            np.iinfo('l').max)
-            assert_(len(w) == 1)
+        actual = random.integers(np.iinfo('l').max,
+                                        np.iinfo('l').max, closed=True)
 
         desired = np.iinfo('l').max
         assert_equal(actual, desired)
-
-    def test_random_integers_deprecated(self):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", DeprecationWarning)
-
-            # DeprecationWarning raised with high == None
-            assert_raises(DeprecationWarning,
-                          random.random_integers,
-                          np.iinfo('l').max)
-
-            # DeprecationWarning raised with high != None
-            assert_raises(DeprecationWarning,
-                          random.random_integers,
-                          np.iinfo('l').max, np.iinfo('l').max)
 
     def test_random_sample(self):
         random.bit_generator.seed(self.seed)
@@ -660,9 +640,9 @@ class TestRandomDist(object):
         assert_equal(random.choice(np.arange(6), s, replace=True).shape, s)
 
         # Check zero-size
-        assert_equal(random.randint(0, 0, size=(3, 0, 4)).shape, (3, 0, 4))
-        assert_equal(random.randint(0, -10, size=0).shape, (0,))
-        assert_equal(random.randint(10, 10, size=0).shape, (0,))
+        assert_equal(random.integers(0, 0, size=(3, 0, 4)).shape, (3, 0, 4))
+        assert_equal(random.integers(0, -10, size=0).shape, (0,))
+        assert_equal(random.integers(10, 10, size=0).shape, (0,))
         assert_equal(random.choice(0, size=0).shape, (0,))
         assert_equal(random.choice([], size=(0,)).shape, (0,))
         assert_equal(random.choice(['a', 'b'], size=(3, 0, 4)).shape,
@@ -2026,10 +2006,10 @@ class TestSingleEltArrayInput(object):
             out = func(self.argOne, argTwo[0])
             assert_equal(out.shape, self.tgtShape)
 
-    def test_randint(self, closed):
+    def test_integers(self, closed):
         itype = [np.bool, np.int8, np.uint8, np.int16, np.uint16,
                  np.int32, np.uint32, np.int64, np.uint64]
-        func = random.randint
+        func = random.integers
         high = np.array([1])
         low = np.array([0])
 

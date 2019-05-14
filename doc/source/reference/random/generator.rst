@@ -27,8 +27,7 @@ Simple random data
 .. autosummary::
    :toctree: generated/
 
-   ~RandomGenerator.randint
-   ~RandomGenerator.random_integers
+   ~RandomGenerator.integers
    ~RandomGenerator.random_sample
    ~RandomGenerator.choice
    ~RandomGenerator.bytes
