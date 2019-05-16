@@ -534,7 +534,7 @@ cdef class Generator:
 
         Generates a random sample from a given 1-D array
 
-                .. versionadded:: 1.7.0
+        .. versionadded:: 1.7.0
 
         Parameters
         ----------
@@ -543,8 +543,11 @@ cdef class Generator:
             If an int, the random sample is generated as if a were np.arange(a)
         size : int or tuple of ints, optional
             Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
-            ``m * n * k`` samples are drawn.  Default is None, in which case a
-            single value is returned.
+            ``m * n * k`` samples are drawn from the 1-d `a`. If `a` has more
+            than one dimension, the `size` shape will be inserted into the
+            `axis` dimension, so the output ``ndim`` will be ``a.ndim - 1 +
+            len(size)``. Default is None, in which case a single value is
+            returned.
         replace : boolean, optional
             Whether the sample is with or without replacement
         p : 1-D array-like, optional

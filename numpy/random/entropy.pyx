@@ -28,7 +28,7 @@ def seed_by_array(object seed, Py_ssize_t n):
 
     Parameters
     ----------
-    seed: array, 1d, uint64
+    seed: ndarray, 1d, uint64
         Array to use.  If seed is a scalar, promote to array.
     n : int
         Number of 64-bit unsigned integers required
@@ -106,8 +106,9 @@ def random_entropy(size=None, source='system'):
 
     Returns
     -------
-    entropy : scalar or ndarray
-        Entropy bits in 32-bit unsigned integers
+    entropy : scalar or array
+        Entropy bits in 32-bit unsigned integers. A scalar is returned if size
+        is `None`.
 
     Notes
     -----

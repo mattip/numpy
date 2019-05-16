@@ -67,7 +67,7 @@ cdef class Xoshiro512StarStar:
     or similar object that supports low-level access.
 
     See ``Xorshift1024`` for a related PRNG with a different period
-    (:math:`2^{1024} - 1`) and jump size (:math:`2^{512} - 1`).
+    (:math:`2^{1024} - 1`) and jumped size (:math:`2^{512} - 1`).
 
     **State and Seeding**
 
@@ -84,17 +84,19 @@ cdef class Xoshiro512StarStar:
     **Parallel Features**
 
     ``Xoshiro512StarStar`` can be used in parallel applications by calling the
-    method ``jump`` which advances the state as-if :math:`2^{128}` random
+    method ``jumped`` which advances the state as-if :math:`2^{128}` random
     numbers have been generated. This allows the original sequence to be split
     so that distinct segments can be used in each worker process. All
-    generators should be initialized with the same seed to ensure that the
-    segments come from the same sequence.
+    generators should be chained to ensure that the segments come from the same
+    sequence.
 
     >>> from numpy.random import Generator, Xoshiro512StarStar
-    >>> rg = [Generator(Xoshiro512StarStar(1234)) for _ in range(10)]
-    # Advance each Xoshiro512StarStar instance by i jumps
-    >>> for i in range(10):
-    ...     rg[i].bit_generator.jump(i)
+    >>> bit_generator = Xoshiro512StarStar(1234)
+    >>> rg = []
+    >>> for _ in range(10):
+    ...    rg.append(Generator(bit_generator))
+    ...    # Chain the BitGenerators
+    ...    bit_generator = bit_generator.jumped()
 
     **Compatibility Guarantee**
 
@@ -221,9 +223,9 @@ cdef class Xoshiro512StarStar:
     cdef jump_inplace(self, np.npy_intp iter):
         """
         Jump state in-place
-        
+
         Not part of public API
-        
+
         Parameters
         ----------
         iter : integer, positive

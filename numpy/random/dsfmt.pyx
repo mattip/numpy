@@ -111,19 +111,21 @@ cdef class DSFMT:
     **Parallel Features**
 
     ``DSFMT`` can be used in parallel applications by calling the method
-    ``jump`` which advances the state as-if :math:`2^{128}` random numbers
+    ``jumped`` which advances the state as-if :math:`2^{128}` random numbers
     have been generated [2]_. This allows the original sequence to be split
     so that distinct segments can be used in each worker process. All
-    generators should be initialized with the same seed to ensure that
-    the segments come from the same sequence.
+    generators should be chained to ensure that the segments come from the same
+    sequence.
 
     >>> from numpy.random.entropy import random_entropy
     >>> from numpy.random import Generator, DSFMT
     >>> seed = random_entropy()
-    >>> rs = [Generator(DSFMT(seed)) for _ in range(10)]
-    # Advance each DSFMT instance by i jumps
-    >>> for i in range(10):
-    ...     rs[i].bit_generator.jump()
+    >>> bit_generator = DSFMT(seed)
+    >>> rg = []
+    >>> for _ in range(10):
+    ...    rg.append(Generator(bit_generator))
+    ...    # Chain the BitGenerators
+    ...    bit_generator = bit_generator.jumped()
 
     **Compatibility Guarantee**
 
@@ -269,9 +271,9 @@ cdef class DSFMT:
     cdef jump_inplace(self, iter):
         """
         Jump state in-place
-        
+
         Not part of public API
-        
+
         Parameters
         ----------
         iter : integer, positive

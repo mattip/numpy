@@ -111,23 +111,24 @@ cdef class Philox:
 
     **Parallel Features**
 
-    ``Philox`` can be used in parallel applications by calling the ``jump``
+    ``Philox`` can be used in parallel applications by calling the ``jumped``
     method  to advances the state as-if :math:`2^{128}` random numbers have
     been generated. Alternatively, ``advance`` can be used to advance the
-    counter for any positive step in [0, 2**256). When using ``jump``, all
-    generators should be initialized with the same seed to ensure that the
-    segments come from the same sequence.
+    counter for any positive step in [0, 2**256). When using ``jumped``, all
+    generators should be chained to ensure that the segments come from the same
+    sequence.
 
     >>> from numpy.random import Generator, Philox
-    >>> rg = [Generator(Philox(1234)) for _ in range(10)]
-    # Advance each Philox instance by i jumps
-    >>> for i in range(10):
-    ...     rg[i].bit_generator.jump(i)
+    >>> bit_generator = Philox(1234)
+    >>> rg = []
+    >>> for _ in range(10):
+    ...    rg.append(Generator(bit_generator))
+    ...    bit_generator = bit_generator.jumped()
 
     Alternatively, ``Philox`` can be used in parallel applications by using
     a sequence of distinct keys where each instance uses different key.
 
-    >>> key = 2**196 + 2**132 + 2**65 + 2**33 + 2**17 + 2**9
+    >>> key = 2**96 + 2**33 + 2**17 + 2**9
     >>> rg = [Generator(Philox(key=key+i)) for i in range(10)]
 
     **Compatibility Guarantee**
@@ -335,9 +336,9 @@ cdef class Philox:
     cdef jump_inplace(self, np.npy_intp iter):
         """
         Jump state in-place
-        
+
         Not part of public API
-        
+
         Parameters
         ----------
         iter : integer, positive

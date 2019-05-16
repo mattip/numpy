@@ -114,18 +114,20 @@ cdef class ThreeFry32:
 
     **Parallel Features**
 
-    ``ThreeFry32`` can be used in parallel applications by calling the ``jump``
-    method  to advances the state as-if :math:`2^{64}` random numbers have
-    been generated. Alternatively, ``advance`` can be used to advance the
-    counter for any positive step in [0, 2**128). When using ``jump``, all
-    generators should be initialized with the same seed to ensure that the
-    segments come from the same sequence.
+    ``ThreeFry32`` can be used in parallel applications by calling the
+    ``jumped`` method  to advances the state as-if :math:`2^{64}` random
+    numbers have been generated. Alternatively, ``advance`` can be used to
+    advance the counter for any positive step in [0, 2**128). When using
+    ``jumped``, all generators should be chained to ensure that the segments
+    come from the same sequence.
 
     >>> from numpy.random import Generator, ThreeFry32
-    >>> rg = [Generator(ThreeFry32(1234)) for _ in range(10)]
-    # Advance each ThreeFry32 instance by i jumps
-    >>> for i in range(10):
-    ...     rg[i].bit_generator.jump(i)
+    >>> bit_generator = ThreeFry32(1234)
+    >>> rg = []
+    >>> for _ in range(10):
+    ...    rg.append(Generator(bit_generator))
+    ...    # Chain the BitGenerators
+    ...    bit_generator = bit_generator.jumped()
 
     Alternatively, ``ThreeFry32`` can be used in parallel applications by using
     a sequence of distinct keys where each instance uses different key.
@@ -328,9 +330,9 @@ cdef class ThreeFry32:
     cdef jump_inplace(self, np.npy_intp iter):
         """
         Jump state in-place
-        
+
         Not part of public API
-        
+
         Parameters
         ----------
         iter : integer, positive
