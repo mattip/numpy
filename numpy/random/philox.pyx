@@ -1,4 +1,3 @@
-from libc.stdlib cimport malloc, free
 from cpython.pycapsule cimport PyCapsule_New
 
 try:
@@ -11,7 +10,6 @@ import numpy as np
 from .common cimport *
 from .distributions cimport bitgen_t
 from .entropy import random_entropy, seed_by_array
-
 
 np.import_array()
 
@@ -89,28 +87,36 @@ cdef class Philox:
     the sequence in increments of :math:`2^{128}`. These features allow
     multiple non-overlapping sequences to be generated.
 
-    ``Philox`` exposes no user-facing API except ``state``, ``cffi`` and
-    ``ctypes``. Designed for use in a
-    ``Generator`` object.
+    ``Philox`` provides a capsule containing function pointers that produce
+    doubles, and unsigned 32 and 64- bit integers. These are not
+    directly consumable in Python and must be consumed by a ``Generator``
+    or similar object that supports low-level access.
 
-    **Compatibility Guarantee**
+    See ``ThreeFry`` for a closely related PRNG.
 
-    ``Philox`` guarantees that a fixed seed will always produce the
-    same results.
+    **State and Seeding**
 
-    See ``Philox`` for a closely related PRNG implementation.
+    The ``Philox`` state vector consists of a 2 256-bit values encoded as
+    4-element uint64 arrays. One is a counter which is incremented by 1 for
+    every 4 64-bit randoms produced.  The second is a key which determined
+    the sequence produced.  Using different keys produces independent
+    sequences.
+
+    ``Philox`` is seeded using either a single 64-bit unsigned integer
+    or a vector of 64-bit unsigned integers.  In either case, the seed is
+    used as an input for a second random number generator,
+    SplitMix64, and the output of this PRNG function is used as the initial state.
+    Using a single 64-bit value for the seed can only initialize a small range of
+    the possible initial state values.
 
     **Parallel Features**
 
-    ``Philox`` can be used in parallel applications by
-    calling the method ``jump`` which advances the state as-if
-    :math:`2^{128}` random numbers have been generated. Alternatively,
-    ``advance`` can be used to advance the counter for an abritrary number of
-    positive steps in [0, 2**256). When using ``jump``, all generators should
-    be initialized with the same seed to ensure that the segments come from
-    the same sequence. Alternatively, ``Philox`` can be used
-    in parallel applications by using a sequence of distinct keys where each
-    instance uses different key.
+    ``Philox`` can be used in parallel applications by calling the ``jump``
+    method  to advances the state as-if :math:`2^{128}` random numbers have
+    been generated. Alternatively, ``advance`` can be used to advance the
+    counter for any positive step in [0, 2**256). When using ``jump``, all
+    generators should be initialized with the same seed to ensure that the
+    segments come from the same sequence.
 
     >>> from numpy.random import Generator, Philox
     >>> rg = [Generator(Philox(1234)) for _ in range(10)]
@@ -118,29 +124,16 @@ cdef class Philox:
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
 
-    Using distinct keys produces independent streams
+    Alternatively, ``Philox`` can be used in parallel applications by using
+    a sequence of distinct keys where each instance uses different key.
 
-    >>> key = 2**96 + 2**32 + 2**65 + 2**33 + 2**17 + 2**9
+    >>> key = 2**196 + 2**132 + 2**65 + 2**33 + 2**17 + 2**9
     >>> rg = [Generator(Philox(key=key+i)) for i in range(10)]
 
-    **State and Seeding**
+    **Compatibility Guarantee**
 
-    The ``Philox`` state vector consists of a 256-bit counter encoded as a
-    4-element uint64 array and a 128-bit key encoded as a 2-element uint64
-    array. The counter is incremented by 1 for every 4 64-bit randoms
-    produced.  The key determines the sequence produced.  Using different
-    keys produces independent sequences.
-
-    ``Philox`` is seeded using either a single 64-bit unsigned integer
-    or a vector of 64-bit unsigned integers.  In either case, the input seed is
-    used as an input (or inputs) for another simple random number generator,
-    Splitmix64, and the output of this PRNG function is used as the initial state.
-    Using a single 64-bit value for the seed can only initialize a small range of
-    the possible initial state values.  When using an array, the SplitMix64 state
-    for producing the ith component of the initial state is XORd with the ith
-    value of the seed array until the seed array is exhausted. When using an array
-    the initial state for the SplitMix64 state is 0 so that using a single element
-    array and using the same value as a scalar will produce the same initial state.
+    ``Philox`` makes a guarantee that a fixed seed and will always produce
+    the same random integer stream.
 
     Examples
     --------
@@ -156,24 +149,22 @@ cdef class Philox:
            the International Conference for High Performance Computing,
            Networking, Storage and Analysis (SC11), New York, NY: ACM, 2011.
     """
-    cdef philox_state *rng_state
-    cdef bitgen_t *_bitgen
+    cdef philox_state rng_state
+    cdef philox4x64_key_t philox_key
+    cdef philox4x64_ctr_t philox_ctr
+    cdef bitgen_t _bitgen
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
     cdef public object lock
 
     def __init__(self, seed=None, counter=None, key=None):
-        self.rng_state = <philox_state *> malloc(sizeof(philox_state))
-        self.rng_state.ctr = <philox4x64_ctr_t *> malloc(
-            sizeof(philox4x64_ctr_t))
-        self.rng_state.key = <philox4x64_key_t *> malloc(
-            sizeof(philox4x64_key_t))
-        self._bitgen = <bitgen_t *> malloc(sizeof(bitgen_t))
+        self.rng_state.ctr = &self.philox_ctr
+        self.rng_state.key = &self.philox_key
         self.seed(seed, counter, key)
         self.lock = Lock()
 
-        self._bitgen.state = <void *> self.rng_state
+        self._bitgen.state = <void *>&self.rng_state
         self._bitgen.next_uint64 = &philox_uint64
         self._bitgen.next_uint32 = &philox_uint32
         self._bitgen.next_double = &philox_double
@@ -183,7 +174,7 @@ cdef class Philox:
         self._cffi = None
 
         cdef const char *name = 'BitGenerator'
-        self.capsule = PyCapsule_New(<void *> self._bitgen, name, NULL)
+        self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
 
     # Pickling support:
     def __getstate__(self):
@@ -194,17 +185,7 @@ cdef class Philox:
 
     def __reduce__(self):
         from ._pickle import __bit_generator_ctor
-        return (__bit_generator_ctor,
-                (self.state['bit_generator'],),
-                self.state)
-
-    def __dealloc__(self):
-        if self.rng_state:
-            free(self.rng_state.ctr)
-            free(self.rng_state.key)
-            free(self.rng_state)
-        if self._bitgen:
-            free(self._bitgen)
+        return __bit_generator_ctor, (self.state['bit_generator'],), self.state
 
     cdef _reset_state_variables(self):
         self.rng_state.has_uint32 = 0
@@ -242,10 +223,10 @@ cdef class Philox:
 
         See the class docstring for the number of bits returned.
         """
-        return random_raw(self._bitgen, self.lock, size, output)
+        return random_raw(&self._bitgen, self.lock, size, output)
 
     def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        return benchmark(self._bitgen, self.lock, cnt, method)
+        return benchmark(&self._bitgen, self.lock, cnt, method)
 
     def seed(self, seed=None, counter=None, key=None):
         """
@@ -351,28 +332,45 @@ cdef class Philox:
         self.rng_state.uinteger = value['uinteger']
         self.rng_state.buffer_pos = value['buffer_pos']
 
-    def jump(self, np.npy_intp iter=1):
+    cdef jump_inplace(self, np.npy_intp iter):
         """
-        jump(iter=1)
-
-        Jumps the state as-if 2**128 random numbers have been generated.
-
+        Jump state in-place
+        
+        Not part of public API
+        
         Parameters
         ----------
         iter : integer, positive
             Number of times to jump the state of the rng.
+        """
+        self.advance(iter * 2 ** 128)
+
+    def jumped(self, np.npy_intp iter=1):
+        """
+        jumped(iter=1)
+
+        Returns a new bit generator with the state jumped
+
+        The state of the returned big generator is jumped as-if
+        2**(128 * iter) random numbers have been generated.
+
+        Parameters
+        ----------
+        iter : integer, positive
+            Number of times to jump the state of the bit generator returned
 
         Returns
         -------
-        self : Philox
-            PRNG jumped iter times
-
-        Notes
-        -----
-        Jumping the rng state resets any pre-computed random numbers. This is
-        required to ensure exact reproducibility.
+        bit_generator : Xoroshiro128
+            New instance of generator jumped iter times
         """
-        return self.advance(iter * 2 ** 128)
+        cdef Philox bit_generator
+
+        bit_generator = self.__class__()
+        bit_generator.state = self.state
+        bit_generator.jump_inplace(iter)
+
+        return bit_generator
 
     def advance(self, delta):
         """
@@ -412,7 +410,7 @@ cdef class Philox:
         """
         cdef np.ndarray delta_a
         delta_a = int_to_array(delta, 'step', 256, 64)
-        philox_advance(<uint64_t *> delta_a.data, self.rng_state)
+        philox_advance(<uint64_t *> delta_a.data, &self.rng_state)
         self._reset_state_variables()
         return self
 
@@ -434,7 +432,7 @@ cdef class Philox:
             * bitgen - pointer to the BitGenerator struct
         """
         if self._ctypes is None:
-            self._ctypes = prepare_ctypes(self._bitgen)
+            self._ctypes = prepare_ctypes(&self._bitgen)
 
         return self._ctypes
 
@@ -457,5 +455,5 @@ cdef class Philox:
         """
         if self._cffi is not None:
             return self._cffi
-        self._cffi = prepare_cffi(self._bitgen)
+        self._cffi = prepare_cffi(&self._bitgen)
         return self._cffi

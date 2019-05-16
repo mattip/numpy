@@ -23,7 +23,7 @@ Parallel generation
    :toctree: generated/
 
    ~ThreeFry.advance
-   ~ThreeFry.jump
+   ~ThreeFry.jumped
 
 Extending
 =========

@@ -3,32 +3,34 @@
 import operator
 import warnings
 
+import numpy as np
+
+from .bounded_integers import _integers_types
+from .xoroshiro128 import Xoroshiro128
+
 from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
 from cpython cimport (Py_INCREF, PyFloat_AsDouble)
 from libc cimport string
-from libc.stdlib cimport malloc, free
-cimport numpy as np
-import numpy as np
+
 cimport cython
+cimport numpy as np
 
 from .bounded_integers cimport *
-from .bounded_integers import _randint_types
 from .common cimport *
 from .distributions cimport *
-from .xoshiro256starstar import Xoshiro256StarStar
 
 np.import_array()
 
 
 cdef class Generator:
     """
-    Generator(bitgen=None)
+    Generator(bit_generator=None)
 
-    Container for the Bit Generators.
+    Container for the BitGenerators.
 
     ``Generator`` exposes a number of methods for generating random
-    numbers drawn from a variety of probability distributions. In addition to the
-    distribution-specific arguments, each method takes a keyword argument
+    numbers drawn from a variety of probability distributions. In addition to
+    the distribution-specific arguments, each method takes a keyword argument
     `size` that defaults to ``None``. If `size` is ``None``, then a single
     value is generated and returned. If `size` is an integer, then a 1-D
     array filled with generated values is returned. If `size` is a tuple,
@@ -36,16 +38,14 @@ cdef class Generator:
 
     **No Compatibility Guarantee**
 
-    ``Generator`` is evolving and so it isn't possible to provide a
-    compatibility guarantee like NumPy does. In particular, better algorithms
-    have already been added. This will change once ``Generator``
-    stabilizes.
+    ``Generator`` does not provide a version compatibility guarantee. In
+    particular, as better algorithms evolve the bit stream may change.
 
     Parameters
     ----------
     bit_generator : BitGenerator, optional
-        Bit Generator to use as the core generator. If none is provided, uses
-        Xoshiro256StarStar.
+        BitGenerator to use as the core generator. If none is provided, uses
+        Xoroshiro128.
 
     Notes
     -----
@@ -69,28 +69,24 @@ cdef class Generator:
     >>> rg = Generator(MT19937())
 
     """
-    cdef public object bit_generator
-    cdef bitgen_t *_bitgen
-    cdef binomial_t *_binomial
+    cdef public object _bit_generator
+    cdef bitgen_t _bitgen
+    cdef binomial_t _binomial
     cdef object lock
     poisson_lam_max = POISSON_LAM_MAX
 
     def __init__(self, bit_generator=None):
         if bit_generator is None:
-            bit_generator = Xoshiro256StarStar()
-        self.bit_generator = bit_generator
+            bit_generator = Xoroshiro128()
+        self._bit_generator = bit_generator
 
         capsule = bit_generator.capsule
         cdef const char *name = "BitGenerator"
         if not PyCapsule_IsValid(capsule, name):
-            raise ValueError("Invalid bitgen. The bitgen must be instantized.")
-        self._bitgen = <bitgen_t *> PyCapsule_GetPointer(capsule, name)
-        self._binomial = <binomial_t *>malloc(sizeof(binomial_t))
+            raise ValueError("Invalid bit generator'. The bit generator must "
+                             "be instantiated.")
+        self._bitgen = (<bitgen_t *> PyCapsule_GetPointer(capsule, name))[0]
         self.lock = bit_generator.lock
-
-    def __dealloc__(self):
-        if self._binomial:
-            free(self._binomial)
 
     def __repr__(self):
         return self.__str__() + ' at 0x{:X}'.format(id(self))
@@ -111,17 +107,37 @@ cdef class Generator:
         from ._pickle import __generator_ctor
         return __generator_ctor, (self.bit_generator.state['bit_generator'],), self.bit_generator.state
 
-    def random_sample(self, size=None, dtype=np.float64, out=None):
+    @property
+    def bit_generator(self):
         """
-        random_sample(size=None, dtype='d', out=None)
+        Gets the bit generator instance used by the generator
+
+        Returns
+        -------
+        bit_generator : BitGenerator
+            The bit generator instance used by the generator
+        """
+        return self._bit_generator
+
+    def random_sample(self, *args, **kwargs):
+        """
+        Deprecated, renamed to ``random``
+        """
+        warnings.warn("Renamed to random", RuntimeWarning)
+        self.random(*args, **kwargs)
+
+
+    def random(self, size=None, dtype=np.float64, out=None):
+        """
+        random(size=None, dtype='d', out=None)
 
         Return random floats in the half-open interval [0.0, 1.0).
 
         Results are from the "continuous uniform" distribution over the
         stated interval.  To sample :math:`Unif[a, b), b > a` multiply
-        the output of `random_sample` by `(b-a)` and add `a`::
+        the output of `random` by `(b-a)` and add `a`::
 
-          (b - a) * random_sample() + a
+          (b - a) * random() + a
 
         Parameters
         ----------
@@ -146,16 +162,16 @@ cdef class Generator:
 
         Examples
         --------
-        >>> np.random.Generator().random_sample()
+        >>> np.random.Generator().random()
         0.47108547995356098 # random
-        >>> type(np.random.Generator().random_sample())
+        >>> type(np.random.Generator().random())
         <class 'float'>
-        >>> np.random.Generator().random_sample((5,))
+        >>> np.random.Generator().random((5,))
         array([ 0.30220482,  0.86820401,  0.1654503 ,  0.11659149,  0.54323428]) # random
 
         Three-by-two array of random numbers from [-5, 0):
 
-        >>> 5 * np.random.Generator().random_sample((3, 2)) - 5
+        >>> 5 * np.random.Generator().random((3, 2)) - 5
         array([[-3.99149989, -0.52338984], # random
                [-2.99091858, -0.79479508],
                [-1.23204345, -1.75224494]])
@@ -164,11 +180,11 @@ cdef class Generator:
         cdef double temp
         key = np.dtype(dtype).name
         if key == 'float64':
-            return double_fill(&random_double_fill, self._bitgen, size, self.lock, out)
+            return double_fill(&random_double_fill, &self._bitgen, size, self.lock, out)
         elif key == 'float32':
-            return float_fill(&random_float, self._bitgen, size, self.lock, out)
+            return float_fill(&random_float, &self._bitgen, size, self.lock, out)
         else:
-            raise TypeError('Unsupported dtype "%s" for random_sample' % key)
+            raise TypeError('Unsupported dtype "%s" for random' % key)
 
     def beta(self, a, b, size=None):
         """
@@ -208,7 +224,7 @@ cdef class Generator:
             Drawn samples from the parameterized beta distribution.
 
         """
-        return cont(&random_beta, self._bitgen, size, self.lock, 2,
+        return cont(&random_beta, &self._bitgen, size, self.lock, 2,
                     a, 'a', CONS_POSITIVE,
                     b, 'b', CONS_POSITIVE,
                     0.0, '', CONS_NONE, None)
@@ -259,7 +275,7 @@ cdef class Generator:
                https://en.wikipedia.org/wiki/Exponential_distribution
 
         """
-        return cont(&random_exponential, self._bitgen, size, self.lock, 1,
+        return cont(&random_exponential, &self._bitgen, size, self.lock, 1,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE,
@@ -307,14 +323,14 @@ cdef class Generator:
         key = np.dtype(dtype).name
         if key == 'float64':
             if method == u'zig':
-                return double_fill(&random_standard_exponential_zig_fill, self._bitgen, size, self.lock, out)
+                return double_fill(&random_standard_exponential_zig_fill, &self._bitgen, size, self.lock, out)
             else:
-                return double_fill(&random_standard_exponential_fill, self._bitgen, size, self.lock, out)
+                return double_fill(&random_standard_exponential_fill, &self._bitgen, size, self.lock, out)
         elif key == 'float32':
             if method == u'zig':
-                return float_fill(&random_standard_exponential_zig_f, self._bitgen, size, self.lock, out)
+                return float_fill(&random_standard_exponential_zig_f, &self._bitgen, size, self.lock, out)
             else:
-                return float_fill(&random_standard_exponential_f, self._bitgen, size, self.lock, out)
+                return float_fill(&random_standard_exponential_f, &self._bitgen, size, self.lock, out)
         else:
             raise TypeError('Unsupported dtype "%s" for standard_exponential'
                             % key)
@@ -371,7 +387,7 @@ cdef class Generator:
         Return random integers from the "discrete uniform" distribution of
         the specified dtype. If `high` is None (the default), then results are
         from 0 to `low`.
-        
+
         Parameters
         ----------
         low : int or array-like of ints
@@ -451,27 +467,27 @@ cdef class Generator:
             low = 0
 
         key = np.dtype(dtype).name
-        if key not in _randint_types:
+        if key not in _integers_types:
             raise TypeError('Unsupported dtype "%s" for integers' % key)
 
         if key == 'int32':
-            ret = _rand_int32(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_int32(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'int64':
-            ret = _rand_int64(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_int64(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'int16':
-            ret = _rand_int16(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_int16(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'int8':
-            ret = _rand_int8(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_int8(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'uint64':
-            ret = _rand_uint64(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_uint64(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'uint32':
-            ret = _rand_uint32(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_uint32(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'uint16':
-            ret = _rand_uint16(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_uint16(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'uint8':
-            ret = _rand_uint8(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_uint8(low, high, size, closed, &self._bitgen, self.lock)
         elif key == 'bool':
-            ret = _rand_bool(low, high, size, closed, self._bitgen, self.lock)
+            ret = _rand_bool(low, high, size, closed, &self._bitgen, self.lock)
 
         if size is None and dtype in (np.bool, np.int, np.long):
             if np.array(ret).shape == ():
@@ -503,6 +519,13 @@ cdef class Generator:
         cdef Py_ssize_t n_uint32 = ((length - 1) // 4 + 1)
         return self.integers(0, 4294967296, size=n_uint32,
                              dtype=np.uint32).tobytes()[:length]
+
+    def randint(self, low, high=None, size=None, dtype=np.int64, closed=False):
+        """
+        Deprecated, renamed to ``integers``
+        """
+        warnings.warn("Renamed to integers", RuntimeWarning)
+        self.integers(low, high, size, dtype, closed)
 
     @cython.wraparound(True)
     def choice(self, a, size=None, replace=True, p=None, axis=0):
@@ -642,7 +665,7 @@ cdef class Generator:
             if p is not None:
                 cdf = p.cumsum()
                 cdf /= cdf[-1]
-                uniform_samples = self.random_sample(shape)
+                uniform_samples = self.random(shape)
                 idx = cdf.searchsorted(uniform_samples, side='right')
                 idx = np.array(idx, copy=False, dtype=np.int64)  # searchsorted returns a scalar
             else:
@@ -662,7 +685,7 @@ cdef class Generator:
                 found = np.zeros(shape, dtype=np.int64)
                 flat_found = found.ravel()
                 while n_uniq < size:
-                    x = self.random_sample((size - n_uniq,))
+                    x = self.random((size - n_uniq,))
                     if n_uniq > 0:
                         p[flat_found[0:n_uniq]] = 0
                     cdf = np.cumsum(p)
@@ -697,7 +720,7 @@ cdef class Generator:
                     # Sample indices with one pass to avoid reacquiring the lock
                     with self.lock:
                         for j in range(pop_size_i - size_i, pop_size_i):
-                            idx_data[loc] = random_interval(self._bitgen, j)
+                            idx_data[loc] = random_interval(&self._bitgen, j)
                             loc += 1
                     loc = 0
                     while len(idx_set) < size_i:
@@ -766,8 +789,8 @@ cdef class Generator:
         See Also
         --------
         integers : Discrete uniform distribution, yielding integers.
-        random_sample : Floats uniformly distributed over ``[0, 1)``.
-        random : Alias for `random_sample`.
+        random : Floats uniformly distributed over ``[0, 1)``.
+        random : Alias for `random`.
 
         Notes
         -----
@@ -820,7 +843,7 @@ cdef class Generator:
             if not np.isfinite(range):
                 raise OverflowError('Range exceeds valid bounds')
 
-            return cont(&random_uniform, self._bitgen, size, self.lock, 2,
+            return cont(&random_uniform, &self._bitgen, size, self.lock, 2,
                         _low, '', CONS_NONE,
                         range, '', CONS_NONE,
                         0.0, '', CONS_NONE,
@@ -834,7 +857,7 @@ cdef class Generator:
         arange = <np.ndarray>np.PyArray_EnsureArray(temp)
         if not np.all(np.isfinite(arange)):
             raise OverflowError('Range exceeds valid bounds')
-        return cont(&random_uniform, self._bitgen, size, self.lock, 2,
+        return cont(&random_uniform, &self._bitgen, size, self.lock, 2,
                     alow, '', CONS_NONE,
                     arange, '', CONS_NONE,
                     0.0, '', CONS_NONE,
@@ -905,9 +928,9 @@ cdef class Generator:
         """
         key = np.dtype(dtype).name
         if key == 'float64':
-            return double_fill(&random_gauss_zig_fill, self._bitgen, size, self.lock, out)
+            return double_fill(&random_gauss_zig_fill, &self._bitgen, size, self.lock, out)
         elif key == 'float32':
-            return float_fill(&random_gauss_zig_f, self._bitgen, size, self.lock, out)
+            return float_fill(&random_gauss_zig_f, &self._bitgen, size, self.lock, out)
 
         else:
             raise TypeError('Unsupported dtype "%s" for standard_normal' % key)
@@ -1008,7 +1031,7 @@ cdef class Generator:
                [ 0.39924804,  4.68456316,  4.99394529,  4.84057254]])  # random
 
         """
-        return cont(&random_normal_zig, self._bitgen, size, self.lock, 2,
+        return cont(&random_normal_zig, &self._bitgen, size, self.lock, 2,
                     loc, '', CONS_NONE,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE,
@@ -1094,13 +1117,13 @@ cdef class Generator:
         cdef void *func
         key = np.dtype(dtype).name
         if key == 'float64':
-            return cont(&random_standard_gamma_zig, self._bitgen, size, self.lock, 1,
+            return cont(&random_standard_gamma_zig, &self._bitgen, size, self.lock, 1,
                         shape, 'shape', CONS_NON_NEGATIVE,
                         0.0, '', CONS_NONE,
                         0.0, '', CONS_NONE,
                         out)
         if key == 'float32':
-            return cont_f(&random_standard_gamma_zig_f, self._bitgen, size, self.lock,
+            return cont_f(&random_standard_gamma_zig_f, &self._bitgen, size, self.lock,
                           shape, 'shape', CONS_NON_NEGATIVE,
                           out)
         else:
@@ -1179,7 +1202,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_gamma, self._bitgen, size, self.lock, 2,
+        return cont(&random_gamma, &self._bitgen, size, self.lock, 2,
                     shape, 'shape', CONS_NON_NEGATIVE,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -1267,7 +1290,7 @@ cdef class Generator:
         level.
 
         """
-        return cont(&random_f, self._bitgen, size, self.lock, 2,
+        return cont(&random_f, &self._bitgen, size, self.lock, 2,
                     dfnum, 'dfnum', CONS_POSITIVE,
                     dfden, 'dfden', CONS_POSITIVE,
                     0.0, '', CONS_NONE, None)
@@ -1344,7 +1367,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_noncentral_f, self._bitgen, size, self.lock, 3,
+        return cont(&random_noncentral_f, &self._bitgen, size, self.lock, 3,
                     dfnum, 'dfnum', CONS_POSITIVE,
                     dfden, 'dfden', CONS_POSITIVE,
                     nonc, 'nonc', CONS_NON_NEGATIVE, None)
@@ -1412,7 +1435,7 @@ cdef class Generator:
         array([ 1.89920014,  9.00867716,  3.13710533,  5.62318272]) # random
 
         """
-        return cont(&random_chisquare, self._bitgen, size, self.lock, 1,
+        return cont(&random_chisquare, &self._bitgen, size, self.lock, 1,
                     df, 'df', CONS_POSITIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE, None)
@@ -1491,7 +1514,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_noncentral_chisquare, self._bitgen, size, self.lock, 2,
+        return cont(&random_noncentral_chisquare, &self._bitgen, size, self.lock, 2,
                     df, 'df', CONS_POSITIVE,
                     nonc, 'nonc', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -1558,7 +1581,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_standard_cauchy, self._bitgen, size, self.lock, 0,
+        return cont(&random_standard_cauchy, &self._bitgen, size, self.lock, 0,
                     0.0, '', CONS_NONE, 0.0, '', CONS_NONE, 0.0, '', CONS_NONE, None)
 
     def standard_t(self, df, size=None):
@@ -1649,7 +1672,7 @@ cdef class Generator:
         probability of about 99% of being true.
 
         """
-        return cont(&random_standard_t, self._bitgen, size, self.lock, 1,
+        return cont(&random_standard_t, &self._bitgen, size, self.lock, 1,
                     df, 'df', CONS_POSITIVE,
                     0, '', CONS_NONE,
                     0, '', CONS_NONE,
@@ -1733,7 +1756,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_vonmises, self._bitgen, size, self.lock, 2,
+        return cont(&random_vonmises, &self._bitgen, size, self.lock, 2,
                     mu, 'mu', CONS_NONE,
                     kappa, 'kappa', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -1831,7 +1854,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_pareto, self._bitgen, size, self.lock, 1,
+        return cont(&random_pareto, &self._bitgen, size, self.lock, 1,
                     a, 'a', CONS_POSITIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE, None)
@@ -1929,7 +1952,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_weibull, self._bitgen, size, self.lock, 1,
+        return cont(&random_weibull, &self._bitgen, size, self.lock, 1,
                     a, 'a', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE, None)
@@ -2029,7 +2052,7 @@ cdef class Generator:
         >>> plt.title('inverse of stats.pareto(5)')
 
         """
-        return cont(&random_power, self._bitgen, size, self.lock, 1,
+        return cont(&random_power, &self._bitgen, size, self.lock, 1,
                     a, 'a', CONS_POSITIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE, None)
@@ -2114,7 +2137,7 @@ cdef class Generator:
         >>> plt.plot(x,g)
 
         """
-        return cont(&random_laplace, self._bitgen, size, self.lock, 2,
+        return cont(&random_laplace, &self._bitgen, size, self.lock, 2,
                     loc, 'loc', CONS_NONE,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -2232,7 +2255,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_gumbel, self._bitgen, size, self.lock, 2,
+        return cont(&random_gumbel, &self._bitgen, size, self.lock, 2,
                     loc, 'loc', CONS_NONE,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -2312,7 +2335,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_logistic, self._bitgen, size, self.lock, 2,
+        return cont(&random_logistic, &self._bitgen, size, self.lock, 2,
                     loc, 'loc', CONS_NONE,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -2422,7 +2445,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_lognormal, self._bitgen, size, self.lock, 2,
+        return cont(&random_lognormal, &self._bitgen, size, self.lock, 2,
                     mean, 'mean', CONS_NONE,
                     sigma, 'sigma', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE, None)
@@ -2490,7 +2513,7 @@ cdef class Generator:
         0.087300000000000003 # random
 
         """
-        return cont(&random_rayleigh, self._bitgen, size, self.lock, 1,
+        return cont(&random_rayleigh, &self._bitgen, size, self.lock, 1,
                     scale, 'scale', CONS_NON_NEGATIVE,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE, None)
@@ -2558,7 +2581,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return cont(&random_wald, self._bitgen, size, self.lock, 2,
+        return cont(&random_wald, &self._bitgen, size, self.lock, 2,
                     mean, 'mean', CONS_POSITIVE,
                     scale, 'scale', CONS_POSITIVE,
                     0.0, '', CONS_NONE, None)
@@ -2645,7 +2668,7 @@ cdef class Generator:
                 raise ValueError("mode > right")
             if fleft == fright:
                 raise ValueError("left == right")
-            return cont(&random_triangular, self._bitgen, size, self.lock, 3,
+            return cont(&random_triangular, &self._bitgen, size, self.lock, 3,
                         fleft, '', CONS_NONE,
                         fmode, '', CONS_NONE,
                         fright, '', CONS_NONE, None)
@@ -2657,7 +2680,7 @@ cdef class Generator:
         if np.any(np.equal(oleft, oright)):
             raise ValueError("left == right")
 
-        return cont_broadcast_3(&random_triangular, self._bitgen, size, self.lock,
+        return cont_broadcast_3(&random_triangular, &self._bitgen, size, self.lock,
                             oleft, '', CONS_NONE,
                             omode, '', CONS_NONE,
                             oright, '', CONS_NONE)
@@ -2780,7 +2803,7 @@ cdef class Generator:
                 for i in range(cnt):
                     _dp = (<double*>np.PyArray_MultiIter_DATA(it, 1))[0]
                     _in = (<int64_t*>np.PyArray_MultiIter_DATA(it, 2))[0]
-                    (<int64_t*>np.PyArray_MultiIter_DATA(it, 0))[0] = random_binomial(self._bitgen, _dp, _in, self._binomial)
+                    (<int64_t*>np.PyArray_MultiIter_DATA(it, 0))[0] = random_binomial(&self._bitgen, _dp, _in, &self._binomial)
 
                     np.PyArray_MultiIter_NEXT(it)
 
@@ -2793,7 +2816,7 @@ cdef class Generator:
 
         if size is None:
             with self.lock:
-                return random_binomial(self._bitgen, _dp, _in, self._binomial)
+                return random_binomial(&self._bitgen, _dp, _in, &self._binomial)
 
         randoms = <np.ndarray>np.empty(size, np.int64)
         cnt = np.PyArray_SIZE(randoms)
@@ -2801,8 +2824,8 @@ cdef class Generator:
 
         with self.lock, nogil:
             for i in range(cnt):
-                randoms_data[i] = random_binomial(self._bitgen, _dp, _in,
-                                                  self._binomial)
+                randoms_data[i] = random_binomial(&self._bitgen, _dp, _in,
+                                                  &self._binomial)
 
         return randoms
 
@@ -2877,7 +2900,7 @@ cdef class Generator:
         ...    print(i, "wells drilled, probability of one success =", probability)
 
         """
-        return disc(&random_negative_binomial, self._bitgen, size, self.lock, 2, 0,
+        return disc(&random_negative_binomial, &self._bitgen, size, self.lock, 2, 0,
                     n, 'n', CONS_POSITIVE_NOT_NAN,
                     p, 'p', CONS_BOUNDED_0_1,
                     0.0, '', CONS_NONE)
@@ -2948,7 +2971,7 @@ cdef class Generator:
         >>> s = np.random.Generator().poisson(lam=(100., 500.), size=(100, 2))
 
         """
-        return disc(&random_poisson, self._bitgen, size, self.lock, 1, 0,
+        return disc(&random_poisson, &self._bitgen, size, self.lock, 1, 0,
                     lam, 'lam', CONS_POISSON,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE)
@@ -3028,7 +3051,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return disc(&random_zipf, self._bitgen, size, self.lock, 1, 0,
+        return disc(&random_zipf, &self._bitgen, size, self.lock, 1, 0,
                     a, 'a', CONS_GT_1,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE)
@@ -3079,7 +3102,7 @@ cdef class Generator:
         0.34889999999999999 #random
 
         """
-        return disc(&random_geometric, self._bitgen, size, self.lock, 1, 0,
+        return disc(&random_geometric, &self._bitgen, size, self.lock, 1, 0,
                     p, 'p', CONS_BOUNDED_GT_0_1,
                     0.0, '', CONS_NONE,
                     0.0, '', CONS_NONE)
@@ -3191,14 +3214,14 @@ cdef class Generator:
 
             if lngood + lnbad < lnsample:
                 raise ValueError("ngood + nbad < nsample")
-            return disc(&random_hypergeometric, self._bitgen, size, self.lock, 0, 3,
+            return disc(&random_hypergeometric, &self._bitgen, size, self.lock, 0, 3,
                         lngood, 'ngood', CONS_NON_NEGATIVE,
                         lnbad, 'nbad', CONS_NON_NEGATIVE,
                         lnsample, 'nsample', CONS_NON_NEGATIVE)
 
         if np.any(np.less(np.add(ongood, onbad), onsample)):
             raise ValueError("ngood + nbad < nsample")
-        return discrete_broadcast_iii(&random_hypergeometric, self._bitgen, size, self.lock,
+        return discrete_broadcast_iii(&random_hypergeometric, &self._bitgen, size, self.lock,
                                       ongood, 'ngood', CONS_NON_NEGATIVE,
                                       onbad, 'nbad', CONS_NON_NEGATIVE,
                                       onsample, 'nsample', CONS_NON_NEGATIVE)
@@ -3278,7 +3301,7 @@ cdef class Generator:
         >>> plt.show()
 
         """
-        return disc(&random_logseries, self._bitgen, size, self.lock, 1, 0,
+        return disc(&random_logseries, &self._bitgen, size, self.lock, 1, 0,
                  p, 'p', CONS_BOUNDED_0_1,
                  0.0, '', CONS_NONE,
                  0.0, '', CONS_NONE)
@@ -3569,7 +3592,7 @@ cdef class Generator:
             with self.lock, nogil:
                 for i in range(sz):
                     ni = (<int64_t*>np.PyArray_MultiIter_DATA(it, 0))[0]
-                    random_multinomial(self._bitgen, ni, &mnix[offset], pix, d, self._binomial)
+                    random_multinomial(&self._bitgen, ni, &mnix[offset], pix, d, &self._binomial)
                     offset += d
                     np.PyArray_MultiIter_NEXT(it)
             return multin
@@ -3591,7 +3614,7 @@ cdef class Generator:
         offset = 0
         with self.lock, nogil:
             for i in range(sz // d):
-                random_multinomial(self._bitgen, ni, &mnix[offset], pix, d, self._binomial)
+                random_multinomial(&self._bitgen, ni, &mnix[offset], pix, d, &self._binomial)
                 offset += d
 
         return multin
@@ -3723,7 +3746,7 @@ cdef class Generator:
             while i < totsize:
                 acc = 0.0
                 for j in range(k):
-                    val_data[i+j] = random_standard_gamma_zig(self._bitgen,
+                    val_data[i+j] = random_standard_gamma_zig(&self._bitgen,
                                                               alpha_data[j])
                     acc = acc + val_data[i + j]
                 invacc = 1/acc
@@ -3800,7 +3823,7 @@ cdef class Generator:
             buf = np.empty_like(x[0, ...])
             with self.lock:
                 for i in reversed(range(1, n)):
-                    j = random_interval(self._bitgen, i)
+                    j = random_interval(&self._bitgen, i)
                     if i == j:
                         # i == j is not needed and memcpy is undefined.
                         continue
@@ -3811,7 +3834,7 @@ cdef class Generator:
             # Untyped path.
             with self.lock:
                 for i in reversed(range(1, n)):
-                    j = random_interval(self._bitgen, i)
+                    j = random_interval(&self._bitgen, i)
                     x[i], x[j] = x[j], x[i]
 
     cdef inline _shuffle_raw(self, np.npy_intp n, np.npy_intp first,
@@ -3821,13 +3844,13 @@ cdef class Generator:
         Parameters
         ----------
         n
-            Number of elements in data 
+            Number of elements in data
         first
-            First observation to shuffle.  Shuffles n-1, 
+            First observation to shuffle.  Shuffles n-1,
             n-2, ..., first, so that when first=1 the entire
-            array is shuffled 
+            array is shuffled
         itemsize
-            Size in bytes of item 
+            Size in bytes of item
         stride
             Array stride
         data
@@ -3837,7 +3860,7 @@ cdef class Generator:
         """
         cdef np.npy_intp i, j
         for i in reversed(range(first, n)):
-            j = random_interval(self._bitgen, i)
+            j = random_interval(&self._bitgen, i)
             string.memcpy(buf, data + j * stride, itemsize)
             string.memcpy(data + j * stride, data + i * stride, itemsize)
             string.memcpy(data + i * stride, buf, itemsize)
@@ -3912,6 +3935,7 @@ gamma = _random_generator.gamma
 geometric = _random_generator.geometric
 gumbel = _random_generator.gumbel
 hypergeometric = _random_generator.hypergeometric
+integers = _random_generator.integers
 laplace = _random_generator.laplace
 logistic = _random_generator.logistic
 lognormal = _random_generator.lognormal
@@ -3926,8 +3950,7 @@ pareto = _random_generator.pareto
 permutation = _random_generator.permutation
 poisson = _random_generator.poisson
 power = _random_generator.power
-integers = _random_generator.integers
-random_sample = _random_generator.random_sample
+random = _random_generator.random
 rayleigh = _random_generator.rayleigh
 shuffle = _random_generator.shuffle
 standard_cauchy = _random_generator.standard_cauchy
@@ -3942,3 +3965,4 @@ vonmises = _random_generator.vonmises
 wald = _random_generator.wald
 weibull = _random_generator.weibull
 zipf = _random_generator.zipf
+

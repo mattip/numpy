@@ -88,14 +88,14 @@ generator must be instantiated.
 
   from numpy.random import Generator, MT19937
   rg = Generator(MT19937())
-  rg.random_sample()
+  rg.random()
 
 Seed information is directly passed to the bit generator.
 
 .. code-block:: python
 
   rg = Generator(MT19937(12345))
-  rg.random_sample()
+  rg.random()
 
 What's New or Different
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -149,28 +149,28 @@ The included bit generators are:
 
 * MT19937 - The standard Python generator.  Produces identical results to Python
   using the same seed/state. Adds a
-  `~mt19937.MT19937.jump` function that advances the
-  generator as-if ``2**128`` draws have been made.
+  `~mt19937.MT19937.jumped` function that returns a new generator with state
+  as-if ``2**128`` draws have been made.
 * dSFMT - SSE2 enabled versions of the MT19937 generator.  Theoretically
   the same, but with a different state and so it is not possible to produce a
-  sequence identical to MT19937. Supports ``jump`` and so can
+  sequence identical to MT19937. Supports ``jumped`` and so can
   be used in parallel applications. See the `dSFMT authors' page`_.
 * XoroShiro128+ - Improved version of XorShift128+ with better performance
   and statistical quality. Like the XorShift generators, it can be jumped
   to produce multiple streams in parallel applications. See
-  `~xoroshiro128.Xoroshiro128.jump` for details.
+  `~xoroshiro128.Xoroshiro128.jumped` for details.
   More information about this bit generator is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * XorShift1024*φ - Fast fast generator based on the XSadd
-  generator. Supports ``jump`` and so can be used in
+  generator. Supports ``jumped`` and so can be used in
   parallel applications. See the documentation for
-  `~xorshift1024.Xorshift1024.jump` for details. More
+  `~xorshift1024.Xorshift1024.jumpd` for details. More
   information about these bit generators is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * Xorshiro256** and Xorshiro512** - The most recently introduced XOR,
-  shift, and rotate generator. Supports ``jump`` and so can be used in
+  shift, and rotate generator. Supports ``jumped`` and so can be used in
   parallel applications. See the documentation for
-  `~xoshiro256starstar.Xoshirt256StarStar.jump` for
+  `~xoshiro256starstar.Xoshirt256StarStar.jumped` for
   details. More information about these bit generators is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * ThreeFry and Philox - counter-based generators capable of being advanced an

@@ -28,7 +28,7 @@ Simple random data
    :toctree: generated/
 
    ~Generator.integers
-   ~Generator.random_sample
+   ~Generator.random
    ~Generator.choice
    ~Generator.bytes
 

@@ -94,8 +94,8 @@ def warmup(rg, n=None):
     rg.integers(0, 2 ** 48, n, dtype=np.uint64)
     rg.standard_gamma(11.0, n)
     rg.standard_gamma(11.0, n, dtype=np.float32)
-    rg.random_sample(n, dtype=np.float64)
-    rg.random_sample(n, dtype=np.float32)
+    rg.random(n, dtype=np.float64)
+    rg.random(n, dtype=np.float32)
 
 
 class RNG(object):
@@ -140,17 +140,19 @@ class RNG(object):
 
     def test_jump(self):
         state = self.rg.bit_generator.state
-        if hasattr(self.rg.bit_generator, 'jump'):
-            self.rg.bit_generator.jump()
-            jumped_state = self.rg.bit_generator.state
+        if hasattr(self.rg.bit_generator, 'jumped'):
+            bit_gen2 = self.rg.bit_generator.jumped()
+            jumped_state = bit_gen2.state
             assert_(not comp_state(state, jumped_state))
-            self.rg.random_sample(2 * 3 * 5 * 7 * 11 * 13 * 17)
+            self.rg.random(2 * 3 * 5 * 7 * 11 * 13 * 17)
             self.rg.bit_generator.state = state
-            self.rg.bit_generator.jump()
-            rejumped_state = self.rg.bit_generator.state
+            bit_gen3 = self.rg.bit_generator.jumped()
+            rejumped_state = bit_gen3.state
             assert_(comp_state(jumped_state, rejumped_state))
         else:
             brng_name = self.rg.bit_generator.__class__.__name__
+            if name not in ('',):
+                raise AttributeError('no "jumped" in %s' % brng_name)
             pytest.skip('Jump is not supported by {0}'.format(brng_name))
 
     def test_uniform(self):
@@ -174,9 +176,9 @@ class RNG(object):
         assert_((r > -1).all())
         assert_((r <= 0).all())
 
-    def test_random_sample(self):
-        assert_(len(self.rg.random_sample(10)) == 10)
-        params_0(self.rg.random_sample)
+    def test_random(self):
+        assert_(len(self.rg.random(10)) == 10)
+        params_0(self.rg.random)
 
     def test_standard_normal_zig(self):
         assert_(len(self.rg.standard_normal(10)) == 10)
@@ -235,8 +237,8 @@ class RNG(object):
     def test_seed(self):
         rg = Generator(self.bit_generator(*self.seed))
         rg2 = Generator(self.bit_generator(*self.seed))
-        rg.random_sample()
-        rg2.random_sample()
+        rg.random()
+        rg2.random()
         assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
 
     def test_reset_state_gauss(self):
@@ -261,12 +263,12 @@ class RNG(object):
 
     def test_reset_state_float(self):
         rg = Generator(self.bit_generator(*self.seed))
-        rg.random_sample(dtype='float32')
+        rg.random(dtype='float32')
         state = rg.bit_generator.state
-        n1 = rg.random_sample(size=10, dtype='float32')
+        n1 = rg.random(size=10, dtype='float32')
         rg2 = Generator(self.bit_generator())
         rg2.bit_generator.state = state
-        n2 = rg2.random_sample(size=10, dtype='float32')
+        n2 = rg2.random(size=10, dtype='float32')
         assert_((n1 == n2).all())
 
     def test_shuffle(self):
@@ -526,11 +528,11 @@ class RNG(object):
         rg = Generator(self.bit_generator(12345))
         warmup(rg)
         state = rg.bit_generator.state
-        r1 = rg.random_sample(11, dtype=np.float32)
+        r1 = rg.random(11, dtype=np.float32)
         rg2 = Generator(self.bit_generator())
         warmup(rg2)
         rg2.bit_generator.state = state
-        r2 = rg2.random_sample(11, dtype=np.float32)
+        r2 = rg2.random(11, dtype=np.float32)
         assert_array_equal(r1, r2)
         assert_equal(r1.dtype, np.float32)
         assert_(comp_state(rg.bit_generator.state, rg2.bit_generator.state))
@@ -602,16 +604,16 @@ class RNG(object):
         size = (31, 7, 97)
         existing = np.empty(size)
         rg.bit_generator.state = state
-        rg.random_sample(out=existing)
+        rg.random(out=existing)
         rg.bit_generator.state = state
-        direct = rg.random_sample(size=size)
+        direct = rg.random(size=size)
         assert_equal(direct, existing)
 
         existing = np.empty(size, dtype=np.float32)
         rg.bit_generator.state = state
-        rg.random_sample(out=existing, dtype=np.float32)
+        rg.random(out=existing, dtype=np.float32)
         rg.bit_generator.state = state
-        direct = rg.random_sample(size=size, dtype=np.float32)
+        direct = rg.random(size=size, dtype=np.float32)
         assert_equal(direct, existing)
 
     def test_output_filling_exponential(self):

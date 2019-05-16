@@ -22,7 +22,7 @@ Parallel generation
 .. autosummary::
    :toctree: generated/
 
-   ~Xoshiro512StarStar.jump
+   ~Xoshiro512StarStar.jumped
 
 Extending
 =========

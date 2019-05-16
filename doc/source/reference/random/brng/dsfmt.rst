@@ -23,7 +23,7 @@ Parallel generation
 .. autosummary::
    :toctree: generated/
 
-   ~DSFMT.jump
+   ~DSFMT.jumped
 
 Extending
 =========

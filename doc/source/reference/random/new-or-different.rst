@@ -17,31 +17,30 @@ What's New or Different
 Quick comparison of legacy `mtrand <legacy>`_ to the new `generator
 <Generator>`
 
-====================== ==================== =============
-Feature                Older Equivalent     Notes
----------------------- -------------------- -------------
-`Generator`            `RandomState`        ``Generator`` requires a stream
-                                            source, called a `BitGenerator
-                                            <bit_generator>`_ A number of these
-                                            are provided.  ``RandomState`` uses
-                                            only the Box- Muller method.
----------------------- -------------------- -------------
-``np.random.``         ``np.random.``       Access the next values in an already-
-``Generator().``       ``random_sample()``  instaniated BitGenerator, convert
-                                            them to ``float64`` in the interval
-                                            ``[0.0.,`` `` 1.0)`` In addition to
-                                            the ``size`` kwarg, now supports
-                                            ``dtype='d'`` or ``dtype='f'``, and
-                                            an ``out`` kwarg to fill a user-
-                                            supplied array.
+================== ==================== =============
+Feature            Older Equivalent     Notes
+------------------ -------------------- -------------
+`Generator`        `RandomState`        ``Generator`` requires a stream
+                                        source, called a `BitGenerator
+                                        <bit_generator>`_ A number of these
+                                        are provided.  ``RandomState`` uses
+                                        only the Box- Muller method.
+------------------ -------------------- -------------
+``np.random.``     ``np.random.``       Access the values in a BitGenerator,
+``Generator().``   ``random_sample()``  convert them to ``float64`` in the
+``random()``                            interval ``[0.0.,`` `` 1.0)``.
+                                        In addition to the ``size`` kwarg, now
+                                        supports ``dtype='d'`` or ``dtype='f'``,
+                                        and an ``out`` kwarg to fill a user-
+                                        supplied array.
 
-                                            Many other distributions are also
-                                            supported.
----------------------- -------------------- -------------
-``Generator().``       ``randint``,         Use the ``closed`` kwarg to adjust
-``integers()``         ``random_integers``  the inclusion or exclution of the
-                                            ``high`` interval endpoint
-====================== ==================== =============
+                                        Many other distributions are also
+                                        supported.
+------------------ -------------------- -------------
+``Generator().``   ``randint``,         Use the ``closed`` kwarg to adjust
+``integers()``     ``random_integers``  the inclusion or exclution of the
+                                        ``high`` interval endpoint
+================== ==================== =============
 
 And in more detail:
 
@@ -89,22 +88,22 @@ And in more detail:
   to produce either single or double prevision uniform random variables for
   select distributions
 
-  * Uniforms (`~.Generator.random_sample` and `~.Generator.rand`)
-  * Normals (`~.Generator.standard_normal` and `~.Generator.randn`)
+  * Uniforms (`~.Generator.random` and `~.Generator.integers`)
+  * Normals (`~.Generator.standard_normal`)
   * Standard Gammas (`~.Generator.standard_gamma`)
   * Standard Exponentials (`~.Generator.standard_exponential`)
 
 .. ipython:: python
 
   rg.bit_generator.seed(0)
-  rg.random_sample(3, dtype='d')
+  rg.random(3, dtype='d')
   rg.bit_generator.seed(0)
-  rg.random_sample(3, dtype='f')
+  rg.random(3, dtype='f')
 
 * Optional ``out`` argument that allows existing arrays to be filled for
   select distributions
 
-  * Uniforms (`~.Generator.random_sample`)
+  * Uniforms (`~.Generator.random`)
   * Normals (`~.Generator.standard_normal`)
   * Standard Gammas (`~.Generator.standard_gamma`)
   * Standard Exponentials (`~.Generator.standard_exponential`)
@@ -115,6 +114,6 @@ And in more detail:
 .. ipython:: python
 
   existing = np.zeros(4)
-  rg.random_sample(out=existing[:2])
+  rg.random(out=existing[:2])
   print(existing)
 

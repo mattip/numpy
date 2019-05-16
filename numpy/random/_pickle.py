@@ -1,6 +1,4 @@
-from .generator import Generator
-from .dsfmt import DSFMT
-from .mt19937 import MT19937
+from .mtrand import RandomState
 from .philox import Philox
 from .threefry import ThreeFry
 from .threefry32 import ThreeFry32
@@ -8,7 +6,10 @@ from .xoroshiro128 import Xoroshiro128
 from .xorshift1024 import Xorshift1024
 from .xoshiro256starstar import Xoshiro256StarStar
 from .xoshiro512starstar import Xoshiro512StarStar
-from .mtrand import RandomState
+
+from .dsfmt import DSFMT
+from .generator import Generator
+from .mt19937 import MT19937
 
 BitGeneratorS = {'MT19937': MT19937,
              'DSFMT': DSFMT,

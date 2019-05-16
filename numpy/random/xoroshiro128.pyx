@@ -3,7 +3,7 @@ try:
 except ImportError:
     from dummy_threading import Lock
 
-from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy
 from cpython.pycapsule cimport PyCapsule_New
 
 import numpy as np
@@ -47,41 +47,49 @@ cdef class Xoroshiro128:
     ----------
     seed : {None, int, array_like}, optional
         Random seed initializing the pseudo-random number generator.
-        Can be an integer in [0, 2**64-1], array of integers in
-        [0, 2**64-1] or ``None`` (the default). If `seed` is ``None``,
-        then ``Xoroshiro128`` will try to read data from
-        ``/dev/urandom`` (or the Windows analog) if available.  If
-        unavailable, a 64-bit hash of the time and process ID is used.
+        Can be an integer in [0, 2**64-1], array of integers in [0, 2**64-1]
+        or ``None`` (the default). If `seed` is ``None``, then  data is read
+        from ``/dev/urandom`` (or the Windows analog) if available.  If
+        unavailable, a hash of the time and process ID is used.
 
     Notes
     -----
-    xoroshiro128+ is the successor to xorshift128+ written by David Blackman and
-    Sebastiano Vigna.  It is a 64-bit PRNG that uses a carefully handcrafted
-    shift/rotate-based linear transformation.  This change both improves speed and
-    statistical quality of the PRNG [1]_. xoroshiro128+ has a period of
-    :math:`2^{128} - 1` and supports jumping the sequence in increments of
-    :math:`2^{64}`, which allows  multiple non-overlapping sequences to be
-    generated.
+    xoroshiro128+ is the successor to xorshift128+ written by David Blackman
+    and Sebastiano Vigna.  It is a 64-bit PRNG that uses a carefully
+    handcrafted shift/rotate-based linear transformation.  This change both
+    improves speed and statistical quality of the PRNG [1]_. xoroshiro128+ has
+    a period of :math:`2^{128} - 1` and supports jumping the sequence in
+    increments of :math:`2^{64}`, which allows  multiple non-overlapping
+    sequences to be generated.
 
-    ``Xoroshiro128`` exposes no user-facing API except ``state``, ``cffi`` and
-    ``ctypes``. Designed for use in a ``Generator`` object.
+    ``Xoroshiro128`` provides a capsule containing function pointers that produce
+    doubles, and unsigned 32 and 64- bit integers. These are not
+    directly consumable in Python and must be consumed by a ``Generator``
+    or similar object that supports low-level access.
 
-    **Compatibility Guarantee**
-
-    ``Xoroshiro128`` guarantees that a fixed seed will always produce the
-    same results.
-
-    See ``Xorshift1024`` for an related PRNG implementation with a larger
+    See ``Xorshift1024`` for a related PRNG with a larger
     period  (:math:`2^{1024} - 1`) and jump size (:math:`2^{512} - 1`).
+
+    **State and Seeding**
+
+    The ``Xoroshiro128`` state vector consists of a 2-element array of 64-bit
+    unsigned integers.
+
+    ``Xoroshiro128`` is seeded using either a single 64-bit unsigned integer
+    or a vector of 64-bit unsigned integers.  In either case, the seed is
+    used as an input for another simple random number generator,
+    SplitMix64, and the output of this PRNG function is used as the initial state.
+    Using a single 64-bit value for the seed can only initialize a small range of
+    the possible initial state values.
 
     **Parallel Features**
 
-    ``Xoroshiro128`` can be used in parallel applications by
-    calling the method ``jump`` which advances the state as-if
-    :math:`2^{64}` random numbers have been generated. This
-    allow the original sequence to be split so that distinct segments can be used
-    in each worker process. All generators should be initialized with the same
-    seed to ensure that the segments come from the same sequence.
+    ``Xoroshiro128`` can be used in parallel applications by calling the method
+    ``jump`` which advances the state as-if :math:`2^{64}` random numbers
+    have been generated. This allows the original sequence to be split
+    so that distinct segments can be used in each worker process. All
+    generators should be initialized with the same seed to ensure that
+    the segments come from the same sequence.
 
     >>> from numpy.random import Generator, Xoroshiro128
     >>> rg = [Generator(Xoroshiro128(1234)) for _ in range(10)]
@@ -89,21 +97,10 @@ cdef class Xoroshiro128:
     >>> for i in range(10):
     ...     rg[i].bit_generator.jump(i)
 
-    **State and Seeding**
+    **Compatibility Guarantee**
 
-    The ``Xoroshiro128`` state vector consists of a 2 element array
-    of 64-bit unsigned integers.
-
-    ``Xoroshiro128`` is seeded using either a single 64-bit unsigned integer
-    or a vector of 64-bit unsigned integers.  In either case, the input seed is
-    used as an input (or inputs) for another simple random number generator,
-    Splitmix64, and the output of this PRNG function is used as the initial state.
-    Using a single 64-bit value for the seed can only initialize a small range of
-    the possible initial state values.  When using an array, the SplitMix64 state
-    for producing the ith component of the initial state is XORd with the ith
-    value of the seed array until the seed array is exhausted. When using an array
-    the initial state for the SplitMix64 state is 0 so that using a single element
-    array and using the same value as a scalar will produce the same initial state.
+    ``Xoroshiro128`` makes a guarantee that a fixed seed will always
+    produce the same random integer stream.
 
     Examples
     --------
@@ -117,20 +114,18 @@ cdef class Xoroshiro128:
     .. [1] "xoroshiro+ / xorshift* / xorshift+ generators and the PRNG shootout",
            http://xorshift.di.unimi.it/
     """
-    cdef xoroshiro128_state *rng_state
-    cdef bitgen_t *_bitgen
+    cdef xoroshiro128_state rng_state
+    cdef bitgen_t _bitgen
     cdef public object capsule
     cdef object _ctypes
     cdef object _cffi
     cdef public object lock
 
     def __init__(self, seed=None):
-        self.rng_state = <xoroshiro128_state *>malloc(sizeof(xoroshiro128_state))
-        self._bitgen = <bitgen_t *>malloc(sizeof(bitgen_t))
         self.seed(seed)
         self.lock = Lock()
 
-        self._bitgen.state = <void *>self.rng_state
+        self._bitgen.state = <void *>&self.rng_state
         self._bitgen.next_uint64 = &xoroshiro128_uint64
         self._bitgen.next_uint32 = &xoroshiro128_uint32
         self._bitgen.next_double = &xoroshiro128_double
@@ -140,7 +135,7 @@ cdef class Xoroshiro128:
         self._cffi = None
 
         cdef const char *name = "BitGenerator"
-        self.capsule = PyCapsule_New(<void *>self._bitgen, name, NULL)
+        self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
 
     # Pickling support:
     def __getstate__(self):
@@ -151,15 +146,7 @@ cdef class Xoroshiro128:
 
     def __reduce__(self):
         from ._pickle import __bit_generator_ctor
-        return (__bit_generator_ctor,
-                (self.state['bit_generator'],),
-                self.state)
-
-    def __dealloc__(self):
-        if self.rng_state:
-            free(self.rng_state)
-        if self._bitgen:
-            free(self._bitgen)
+        return __bit_generator_ctor, (self.state['bit_generator'],), self.state
 
     cdef _reset_state_variables(self):
         self.rng_state.has_uint32 = 0
@@ -194,10 +181,10 @@ cdef class Xoroshiro128:
 
         See the class docstring for the number of bits returned.
         """
-        return random_raw(self._bitgen, self.lock, size, output)
+        return random_raw(&self._bitgen, self.lock, size, output)
 
     def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        return benchmark(self._bitgen, self.lock, cnt, method)
+        return benchmark(&self._bitgen, self.lock, cnt, method)
 
     def seed(self, seed=None):
         """
@@ -232,32 +219,48 @@ cdef class Xoroshiro128:
         self.rng_state.s[1] = <uint64_t>int(state[1])
         self._reset_state_variables()
 
-    def jump(self, np.npy_intp iter=1):
+    cdef jump_inplace(self, np.npy_intp iter):
         """
-        jump(iter=1)
-
-        Jumps the state as-if 2**64 random numbers have been generated.
-
+        Jump state in-place
+        
+        Not part of public API
+        
         Parameters
         ----------
         iter : integer, positive
             Number of times to jump the state of the rng.
-
-        Returns
-        -------
-        self : Xoroshiro128
-            PRNG jumped iter times
-
-        Notes
-        -----
-        Jumping the rng state resets any pre-computed random numbers. This is required
-        to ensure exact reproducibility.
         """
         cdef np.npy_intp i
         for i in range(iter):
-            xoroshiro128_jump(self.rng_state)
+            xoroshiro128_jump(&self.rng_state)
         self._reset_state_variables()
-        return self
+
+    def jumped(self, np.npy_intp iter=1):
+        """
+        jumped(iter=1)
+
+        Returns a new bit generator with the state jumped
+
+        The state of the returned big generator is jumped as-if
+        2**(64 * iter) random numbers have been generated.
+
+        Parameters
+        ----------
+        iter : integer, positive
+            Number of times to jump the state of the bit generator returned
+
+        Returns
+        -------
+        bit_generator : Xoroshiro128
+            New instance of generator jumped iter times
+        """
+        cdef Xoroshiro128 bit_generator
+
+        bit_generator = self.__class__()
+        bit_generator.state = self.state
+        bit_generator.jump_inplace(iter)
+
+        return bit_generator
 
     @property
     def state(self):
@@ -306,11 +309,11 @@ cdef class Xoroshiro128:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the BitGenerator struct
+            * bitgen - pointer to the bit generator struct
         """
 
         if self._ctypes is None:
-            self._ctypes = prepare_ctypes(self._bitgen)
+            self._ctypes = prepare_ctypes(&self._bitgen)
 
         return self._ctypes
 
@@ -329,9 +332,9 @@ cdef class Xoroshiro128:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the BitGenerator struct
+            * bitgen - pointer to the bit generator struct
         """
         if self._cffi is not None:
             return self._cffi
-        self._cffi = prepare_cffi(self._bitgen)
+        self._cffi = prepare_cffi(&self._bitgen)
         return self._cffi

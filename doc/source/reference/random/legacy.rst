@@ -28,8 +28,8 @@ when accessing the state so that these extra values are saved.
    rs.standard_normal()
    lg.standard_normal()
 
-   rs.random_sample()
-   lg.random_sample()
+   rs.random()
+   lg.random()
 
    rs.standard_exponential()
    lg.standard_exponential()

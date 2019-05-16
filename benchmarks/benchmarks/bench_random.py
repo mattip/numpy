@@ -70,8 +70,8 @@ class Randint_dtype(Benchmark):
 class Permutation(Benchmark):
     def setup(self):
         self.n = 10000
-        self.a_1d = np.random.random_sample(self.n)
-        self.a_2d = np.random.random_sample((self.n, 2))
+        self.a_1d = np.random.random(self.n)
+        self.a_2d = np.random.random((self.n, 2))
     
     def time_permutation_1d(self):
         np.random.permutation(self.a_1d)
@@ -95,7 +95,7 @@ class RNG(Benchmark):
             self.rg = np.random.RandomState()
         else:
             self.rg = Generator(getattr(np.random, brng)())
-        self.rg.random_sample()
+        self.rg.random()
         self.int32info = np.iinfo(np.int32)
         self.uint32info = np.iinfo(np.uint32)
         self.uint64info = np.iinfo(np.uint64)
@@ -153,7 +153,7 @@ class Bounded(Benchmark):
             self.rg = np.random.RandomState()
         else:
             self.rg = Generator(getattr(np.random, brng)())
-        self.rg.random_sample()
+        self.rg.random()
 
     def time_bounded(self, brng, args):
             """

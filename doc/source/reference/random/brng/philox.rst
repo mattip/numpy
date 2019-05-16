@@ -23,7 +23,7 @@ Parallel generation
    :toctree: generated/
 
    ~Philox.advance
-   ~Philox.jump
+   ~Philox.jumped
 
 Extending
 =========

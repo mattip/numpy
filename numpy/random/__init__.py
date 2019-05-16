@@ -4,34 +4,40 @@ Random Number Generation
 ========================
 
 Instantiate a BitGenerator and wrap it in a Generator
-which will convert the uniform stream to a number of distributions.
+which will convert the uniform stream to a number of distributions. The "bare"
+functions are kept for legacy code, they should be called with the newer API
+via ``np.random.Generator().function`` instead
 
 ==================== =========================================================
 Utility functions
-==============================================================================
-random_sample        Uniformly distributed floats over ``[0, 1)``.
-random               Alias for `random_sample`.
+-------------------- ---------------------------------------------------------
+random               Uniformly distributed floats over ``[0, 1)``
+integers             Uniformly distributed integers, replaces ``randint``
 bytes                Uniformly distributed random bytes.
-random_integers      Uniformly distributed integers in a given range.
 permutation          Randomly permute a sequence / generate a random sequence.
 shuffle              Randomly permute a sequence in place.
 seed                 Seed the random number generator.
 choice               Random sample from 1-D array.
-
 ==================== =========================================================
 
 ==================== =========================================================
-Compatibility functions
-==============================================================================
+Compatibility
+functions - removed
+in the new API
+-------------------- ---------------------------------------------------------
 rand                 Uniformly distributed values.
 randn                Normally distributed values.
 ranf                 Uniformly distributed floating point numbers.
-randint              Uniformly distributed integers in a given range.
+random_integers      Uniformly distributed integers in a given range.
+                     (deprecated, use ``integers(..., closed=True)`` instead)
+random_sample        Alias for `random_sample`
+randint              Uniformly distributed integers in a given range
 ==================== =========================================================
 
 ==================== =========================================================
-Univariate distributions
-==============================================================================
+Univariate
+distributions
+-------------------- ---------------------------------------------------------
 beta                 Beta distribution over ``[0, 1]``.
 binomial             Binomial distribution.
 chisquare            :math:`\\chi^2` distribution.
@@ -61,17 +67,19 @@ weibull              Weibull distribution.
 zipf                 Zipf's distribution over ranked data.
 ==================== =========================================================
 
-==================== =========================================================
-Multivariate distributions
-==============================================================================
+==================== ==========================================================
+Multivariate
+distributions
+-------------------- ----------------------------------------------------------
 dirichlet            Multivariate generalization of Beta distribution.
 multinomial          Multivariate generalization of the binomial distribution.
 multivariate_normal  Multivariate generalization of the normal distribution.
-==================== =========================================================
+==================== ==========================================================
 
 ==================== =========================================================
-Standard distributions
-==============================================================================
+Standard
+distributions
+-------------------- ---------------------------------------------------------
 standard_cauchy      Standard Cauchy-Lorentz distribution.
 standard_exponential Standard exponential distribution.
 standard_gamma       Standard Gamma distribution.
@@ -81,14 +89,14 @@ standard_t           Standard Student's t-distribution.
 
 ==================== =========================================================
 Internal functions
-==============================================================================
+-------------------- ---------------------------------------------------------
 get_state            Get tuple representing internal state of generator.
 set_state            Set state of generator.
 ==================== =========================================================
 
-==================== =========================================================
+============================================= ===
 BitGenerator Streams that work with Generator
-==============================================================================
+--------------------------------------------- ---
 MT19937
 DSFMT
 Philox
@@ -98,7 +106,7 @@ Xoroshiro128
 Xoroshift1024
 Xoshiro256StarStar
 Xoshiro512StarStar
-==================== =========================================================
+============================================= ===
 
 """
 from __future__ import division, absolute_import, print_function

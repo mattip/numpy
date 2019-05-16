@@ -158,7 +158,7 @@ class TestAgainstNumPy(object):
         self._set_common_state()
         self._is_state_common()
         v1 = self.nprs.random_sample(10)
-        v2 = self.rg.random_sample(10)
+        v2 = self.rg.random(10)
 
         assert_array_equal(v1, v2)
 

@@ -1,6 +1,6 @@
 import operator
-from libc.stdlib cimport malloc, free
 from cpython.pycapsule cimport PyCapsule_New
+from libc.string cimport memcpy
 
 try:
     from threading import Lock
@@ -76,31 +76,46 @@ cdef class DSFMT:
     Parameters
     ----------
     seed : {None, int, array_like}, optional
-        Random seed initializing the pseudo-random number generator.
-        Can be an integer in [0, 2**32-1], array of integers in
-        [0, 2**32-1] or ``None`` (the default). If `seed` is ``None``,
-        then ``DSFMT`` will try to read entropy from ``/dev/urandom``
-        (or the Windows analog) if available to produce a 32-bit
-        seed. If unavailable, a 32-bit hash of the time and process
-        ID is used.
+        Random seed used to initialize the pseudo-random number generator.  Can
+        be any integer between 0 and 2**32 - 1 inclusive, an array (or other
+        sequence) of unsigned 32-bit integers, or ``None`` (the default).  If
+        `seed` is ``None``, a 32-bit unsigned integer is read from
+        ``/dev/urandom`` (or the Windows analog) if available. If unavailable,
+        a 32-bit hash of the time and process ID is used.
 
     Notes
     -----
-    ``DSFMT`` directly provides generators for doubles, and unsigned 32 and 64-
-    bit integers [1]_ . These are not directly available and must be consumed
-    via a ``Generator`` object.
+    ``DSFMT`` provides a capsule containing function pointers that produce
+    doubles, and unsigned 32 and 64- bit integers [1]_ . These are not
+    directly consumable in Python and must be consumed by a ``Generator``
+    or similar object that supports low-level access.
 
     The Python stdlib module "random" also contains a Mersenne Twister
     pseudo-random number generator.
+
+    **State and Seeding**
+
+    The ``DSFMT`` state vector consists of a 384 element array of 64-bit
+    unsigned integers plus a single integer value between 0 and 382
+    indicating the current position within the main array. The implementation
+    used here augments this with a 382 element array of doubles which are used
+    to efficiently access the random numbers produced by the dSFMT generator.
+
+    ``DSFMT`` is seeded using either a single 32-bit unsigned integer or a
+    vector of 32-bit unsigned integers. In either case, the input seed is used
+    as an input (or inputs) for a hashing function, and the output of the
+    hashing function is used as the initial state. Using a single 32-bit value
+    for the seed can only initialize a small range of the possible initial
+    state values.
 
     **Parallel Features**
 
     ``DSFMT`` can be used in parallel applications by calling the method
     ``jump`` which advances the state as-if :math:`2^{128}` random numbers
     have been generated [2]_. This allows the original sequence to be split
-    so that distinct segments can be used in each worker process.  All
-    generators should be initialized with the same seed to ensure that the
-    segments come from the same sequence.
+    so that distinct segments can be used in each worker process. All
+    generators should be initialized with the same seed to ensure that
+    the segments come from the same sequence.
 
     >>> from numpy.random.entropy import random_entropy
     >>> from numpy.random import Generator, DSFMT
@@ -110,25 +125,10 @@ cdef class DSFMT:
     >>> for i in range(10):
     ...     rs[i].bit_generator.jump()
 
-    **State and Seeding**
-
-    The ``DSFMT`` state vector consists of a 384 element array of
-    64-bit unsigned integers plus a single integer value between 0 and 382
-    indicating  the current position within the main array. The implementation
-    used here augments this with a 382 element array of doubles which are used
-    to efficiently access the random numbers produced by the dSFMT generator.
-
-    ``DSFMT`` is seeded using either a single 32-bit unsigned integer
-    or a vector of 32-bit unsigned integers.  In either case, the input seed is
-    used as an input (or inputs) for a hashing function, and the output of the
-    hashing function is used as the initial state. Using a single 32-bit value
-    for the seed can only initialize a small range of the possible initial
-    state values.
-
     **Compatibility Guarantee**
 
-    ``DSFMT`` does makes a guarantee that a fixed seed and will always
-    produce the same results.
+    ``DSFMT`` makes a guarantee that a fixed seed and will always produce
+    the same random integer stream.
 
     References
     ----------
@@ -139,29 +139,27 @@ cdef class DSFMT:
            Jump Ahead Algorithm for Linear Recurrences in a Polynomial Space",
            Sequences and Their Applications - SETA, 290--298, 2008.
     """
-    cdef dsfmt_state *rng_state
-    cdef bitgen_t *_bitgen
+    cdef dsfmt_state rng_state
+    cdef bitgen_t _bitgen
     cdef public object capsule
-    cdef public object _cffi
-    cdef public object _ctypes
+    cdef object _cffi
+    cdef object _ctypes
     cdef public object lock
 
     def __init__(self, seed=None):
-        self.rng_state = <dsfmt_state *>malloc(sizeof(dsfmt_state))
         self.rng_state.state = <dsfmt_t *>PyArray_malloc_aligned(sizeof(dsfmt_t))
         self.rng_state.buffered_uniforms = <double *>PyArray_calloc_aligned(DSFMT_N64, sizeof(double))
         self.rng_state.buffer_loc = DSFMT_N64
-        self._bitgen = <bitgen_t *>malloc(sizeof(bitgen_t))
         self.seed(seed)
         self.lock = Lock()
 
-        self._bitgen.state = <void *>self.rng_state
+        self._bitgen.state = <void *>&self.rng_state
         self._bitgen.next_uint64 = &dsfmt_uint64
         self._bitgen.next_uint32 = &dsfmt_uint32
         self._bitgen.next_double = &dsfmt_double
         self._bitgen.next_raw = &dsfmt_raw
         cdef const char *name = "BitGenerator"
-        self.capsule = PyCapsule_New(<void *>self._bitgen, name, NULL)
+        self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
 
         self._cffi = None
         self._ctypes = None
@@ -175,17 +173,13 @@ cdef class DSFMT:
 
     def __reduce__(self):
         from ._pickle import __bit_generator_ctor
-        return (__bit_generator_ctor,
-                (self.state['bit_generator'],),
-                self.state)
+        return __bit_generator_ctor, (self.state['bit_generator'],), self.state
 
     def __dealloc__(self):
-        if self.rng_state:
+        if self.rng_state.state:
             PyArray_free_aligned(self.rng_state.state)
+        if self.rng_state.buffered_uniforms:
             PyArray_free_aligned(self.rng_state.buffered_uniforms)
-            free(self.rng_state)
-        if self._bitgen:
-            free(self._bitgen)
 
     cdef _reset_state_variables(self):
         self.rng_state.buffer_loc = DSFMT_N64
@@ -219,10 +213,10 @@ cdef class DSFMT:
 
         See the class docstring for the number of bits returned.
         """
-        return random_raw(self._bitgen, self.lock, size, output)
+        return random_raw(&self._bitgen, self.lock, size, output)
 
     def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        return benchmark(self._bitgen, self.lock, cnt, method)
+        return benchmark(&self._bitgen, self.lock, cnt, method)
 
     def seed(self, seed=None):
         """
@@ -272,28 +266,49 @@ cdef class DSFMT:
         # Clear the buffer
         self._reset_state_variables()
 
-    def jump(self, np.npy_intp iter=1):
+    cdef jump_inplace(self, iter):
         """
-        jump(iter=1)
+        Jump state in-place
+        
+        Not part of public API
+        
+        Parameters
+        ----------
+        iter : integer, positive
+            Number of times to jump the state of the rng.
+        """
+        cdef np.npy_intp i
+        for i in range(iter):
+            dsfmt_jump(&self.rng_state)
+        # Clear the buffer
+        self._reset_state_variables()
 
-        Jumps the state as-if 2**128 random numbers have been generated.
+    def jumped(self, np.npy_intp iter=1):
+        """
+        jumped(iter=1)
+
+        Returns a new bit generator with the state jumped
+
+        The state of the returned big generator is jumped as-if
+        2**(128 * iter) random numbers have been generated.
 
         Parameters
         ----------
         iter : integer, positive
-            Number of times to jump the state of the bitgen.
+            Number of times to jump the state of the bit generator returned
 
         Returns
         -------
-        self : DSFMT
-            PRNG jumped iter times
+        bit_generator : DSFMT
+            New instance of generator jumped iter times
         """
-        cdef np.npy_intp i
-        for i in range(iter):
-            dsfmt_jump(self.rng_state)
-        # Clear the buffer
-        self._reset_state_variables()
-        return self
+        cdef DSFMT bit_generator
+
+        bit_generator = self.__class__()
+        bit_generator.state = self.state
+        bit_generator.jump_inplace(iter)
+
+        return bit_generator
 
     @property
     def state(self):
@@ -360,10 +375,10 @@ cdef class DSFMT:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the BitGenerator struct
+            * bitgen - pointer to the bit generator struct
         """
         if self._ctypes is None:
-            self._ctypes = prepare_ctypes(self._bitgen)
+            self._ctypes = prepare_ctypes(&self._bitgen)
 
         return self._ctypes
 
@@ -382,9 +397,9 @@ cdef class DSFMT:
             * next_uint64 - function pointer to produce 64 bit integers
             * next_uint32 - function pointer to produce 32 bit integers
             * next_double - function pointer to produce doubles
-            * bitgen - pointer to the BitGenerator struct
+            * bitgen - pointer to the bit generator struct
         """
         if self._cffi is not None:
             return self._cffi
-        self._cffi = prepare_cffi(self._bitgen)
+        self._cffi = prepare_cffi(&self._bitgen)
         return self._cffi
