@@ -4,10 +4,10 @@ from timeit import repeat
 import numpy as np
 import pandas as pd
 
-from randomgen import MT19937, DSFMT, ThreeFry, PCG64, Xoroshiro128, \
+from randomgen import MT19937, DSFMT, ThreeFry, Xoroshiro128, \
     Xorshift1024, Philox, Xoshiro256StarStar, Xoshiro512StarStar
 
-PRNGS = [DSFMT, MT19937, Philox, PCG64, ThreeFry, Xoroshiro128, Xorshift1024,
+PRNGS = [DSFMT, MT19937, Philox, ThreeFry, Xoroshiro128, Xorshift1024,
          Xoshiro256StarStar, Xoshiro512StarStar]
 
 funcs = {'32-bit Unsigned Ints': 'random_uintegers(size=1000000,bits=32)',

@@ -35,7 +35,7 @@ else:
     raise RuntimeError('Required DLL/so file was not found.')
 
 ffi.cdef("""
-double random_gauss_zig(void *brng_state);
+double random_gauss_zig(void *bitgen_state);
 """)
 x = Xoroshiro128()
 xffi = x.cffi

@@ -65,7 +65,7 @@ cdef class RandomState:
     pseudo-random number generator with a number of methods that are similar
     to the ones available in `RandomState`. `RandomState`, besides being
     NumPy-aware, has the advantage that it provides a much larger number
-    of probability distributions to choose from. 
+    of probability distributions to choose from.
 
     See Also
     --------
@@ -597,24 +597,31 @@ cdef class RandomState:
         if key not in _integers_types:
             raise TypeError('Unsupported dtype "%s" for randint' % key)
 
+        # Implementation detail: the use a masked method to generate
+        # bounded uniform integers. Lemire's method is preferrable since it is
+        # faster. randomgen allows a choice, we will always use the slower but
+        # backward compatible one.
+        cdef bint _masked = True
+        cdef bint _endpoint = False
+
         if key == 'int32':
-            ret = _rand_int32(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_int32(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'int64':
-            ret = _rand_int64(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_int64(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'int16':
-            ret = _rand_int16(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_int16(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'int8':
-            ret = _rand_int8(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_int8(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'uint64':
-            ret = _rand_uint64(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_uint64(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'uint32':
-            ret = _rand_uint32(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_uint32(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'uint16':
-            ret = _rand_uint16(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_uint16(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'uint8':
-            ret = _rand_uint8(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_uint8(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
         elif key == 'bool':
-            ret = _rand_bool(low, high, size, False, &self._bitgen, self.lock)
+            ret = _rand_bool(low, high, size, _masked, _endpoint, &self._bitgen, self.lock)
 
         if size is None and dtype in (np.bool, np.int, np.long):
             if np.array(ret).shape == ():

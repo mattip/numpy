@@ -99,7 +99,6 @@ def configuration(parent_package='',top_path=None):
 
     config.add_extension('entropy',
                         sources=['entropy.c', 'src/entropy/entropy.c'],
-                        include_dirs=[join('randomgen', 'src', 'entropy')],
                         libraries=EXTRA_LIBRARIES,
                         extra_compile_args=EXTRA_COMPILE_ARGS,
                         extra_link_args=EXTRA_LINK_ARGS,

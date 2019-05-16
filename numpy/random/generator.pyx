@@ -376,13 +376,13 @@ cdef class Generator:
         """
         return self.integers(0, np.iinfo(np.int).max + 1, dtype=np.int, size=size)
 
-    def integers(self, low, high=None, size=None, dtype=np.int64, closed=False):
+    def integers(self, low, high=None, size=None, dtype=np.int64, endpoint=False):
         """
-        integers(low, high=None, size=None, dtype='int64', closed=False)
+        integers(low, high=None, size=None, dtype='int64', endpoint=False)
 
         Return random integers from `low` (inclusive) to `high` (exclusive), or
-        if closed=True, `low` (inclusive) to `high` (inclusive). Replaces
-        randint (with closed=False) and random_integers (with closed=True)
+        if endpoint=True, `low` (inclusive) to `high` (inclusive). Replaces
+        randint (with endpoint=False) and random_integers (with endpoint=True)
 
         Return random integers from the "discrete uniform" distribution of
         the specified dtype. If `high` is None (the default), then results are
@@ -410,7 +410,7 @@ cdef class Generator:
 
             .. versionadded:: 1.11.0
 
-        closed : bool, optional
+        endpoint : bool, optional
             If true, sample from the interval [low, high] instead of the
             default [low, high)
             Defaults to False
@@ -470,24 +470,29 @@ cdef class Generator:
         if key not in _integers_types:
             raise TypeError('Unsupported dtype "%s" for integers' % key)
 
+        # Implementation detail: the old API used a masked method to generate
+        # bounded uniform integers. Lemire's method is preferrable since it is
+        # faster. randomgen allows a choice, we will always use the faster one.
+        cdef bint _masked = True
+
         if key == 'int32':
-            ret = _rand_int32(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_int32(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'int64':
-            ret = _rand_int64(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_int64(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'int16':
-            ret = _rand_int16(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_int16(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'int8':
-            ret = _rand_int8(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_int8(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'uint64':
-            ret = _rand_uint64(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_uint64(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'uint32':
-            ret = _rand_uint32(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_uint32(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'uint16':
-            ret = _rand_uint16(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_uint16(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'uint8':
-            ret = _rand_uint8(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_uint8(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
         elif key == 'bool':
-            ret = _rand_bool(low, high, size, closed, &self._bitgen, self.lock)
+            ret = _rand_bool(low, high, size, _masked, endpoint, &self._bitgen, self.lock)
 
         if size is None and dtype in (np.bool, np.int, np.long):
             if np.array(ret).shape == ():
@@ -520,12 +525,12 @@ cdef class Generator:
         return self.integers(0, 4294967296, size=n_uint32,
                              dtype=np.uint32).tobytes()[:length]
 
-    def randint(self, low, high=None, size=None, dtype=np.int64, closed=False):
+    def randint(self, low, high=None, size=None, dtype=np.int64, endpoint=False):
         """
         Deprecated, renamed to ``integers``
         """
         warnings.warn("Renamed to integers", RuntimeWarning)
-        self.integers(low, high, size, dtype, closed)
+        self.integers(low, high, size, dtype, endpoint)
 
     @cython.wraparound(True)
     def choice(self, a, size=None, replace=True, p=None, axis=0):

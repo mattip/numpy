@@ -37,7 +37,7 @@ Feature            Older Equivalent     Notes
                                         Many other distributions are also
                                         supported.
 ------------------ -------------------- -------------
-``Generator().``   ``randint``,         Use the ``closed`` kwarg to adjust
+``Generator().``   ``randint``,         Use the ``endpoint`` kwarg to adjust
 ``integers()``     ``random_integers``  the inclusion or exclution of the
                                         ``high`` interval endpoint
 ================== ==================== =============

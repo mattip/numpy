@@ -72,12 +72,12 @@ class Permutation(Benchmark):
         self.n = 10000
         self.a_1d = np.random.random(self.n)
         self.a_2d = np.random.random((self.n, 2))
-    
+
     def time_permutation_1d(self):
         np.random.permutation(self.a_1d)
 
     def time_permutation_2d(self):
-        np.random.permutation(self.a_2d)        
+        np.random.permutation(self.a_2d)
 
     def time_permutation_int(self):
         np.random.permutation(self.n)
@@ -99,12 +99,12 @@ class RNG(Benchmark):
         self.int32info = np.iinfo(np.int32)
         self.uint32info = np.iinfo(np.uint32)
         self.uint64info = np.iinfo(np.uint64)
-    
+
     def time_raw(self, brng):
         if brng == 'numpy':
             self.rg.random_integers(self.int32info.max, size=nom_size)
         else:
-            self.rg.integers(self.int32info.max, size=nom_size, closed=True)
+            self.rg.integers(self.int32info.max, size=nom_size, endpoint=True)
 
     def time_32bit(self, brng):
         min, max = self.uint32info.min, self.uint32info.max
