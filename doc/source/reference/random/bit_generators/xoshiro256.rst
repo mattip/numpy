@@ -1,11 +1,11 @@
 Xoshiro256**
 ------------
 
-.. module:: numpy.random.xoshiro256starstar
+.. module:: numpy.random.xoshiro256
 
-.. currentmodule:: numpy.random.xoshiro256starstar
+.. currentmodule:: numpy.random.xoshiro256
 
-.. autoclass:: Xoshiro256StarStar
+.. autoclass:: Xoshiro256
 	:exclude-members:
 
 Seeding and State
@@ -14,22 +14,22 @@ Seeding and State
 .. autosummary::
    :toctree: generated/
 
-   ~Xoshiro256StarStar.seed
-   ~Xoshiro256StarStar.state
+   ~Xoshiro256.seed
+   ~Xoshiro256.state
 
 Parallel generation
 ===================
 .. autosummary::
    :toctree: generated/
 
-   ~Xoshiro256StarStar.jumped
+   ~Xoshiro256.jumped
 
 Extending
 =========
 .. autosummary::
    :toctree: generated/
 
-   ~Xoshiro256StarStar.cffi
-   ~Xoshiro256StarStar.ctypes
+   ~Xoshiro256.cffi
+   ~Xoshiro256.ctypes
 
 

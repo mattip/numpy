@@ -87,7 +87,7 @@ nom_size = 100000
 class RNG(Benchmark):
     param_names = ['rng']
     params = ['DSFMT', 'MT19937', 'Xoroshiro128',
-              'Xorshift1024', 'Xoshiro256StarStar', 'Xoshiro512StarStar',
+              'Xorshift1024', 'Xoshiro256', 'Xoshiro512',
               'Philox', 'ThreeFry', 'ThreeFry32', 'numpy']
 
     def setup(self, brng):
@@ -130,7 +130,7 @@ class Bounded(Benchmark):
     u64 = np.uint64
     param_names = ['rng', 'dt_max']
     params = [['DSFMT', 'MT19937', 'Xoroshiro128',
-               'Xorshift1024', 'Xoshiro256StarStar', 'Xoshiro512StarStar',
+               'Xorshift1024', 'Xoshiro256', 'Xoshiro512',
                'Philox', 'ThreeFry', 'ThreeFry32', 'numpy'],
               [[u8,    95],
                [u8,    64],  # Worst case for legacy

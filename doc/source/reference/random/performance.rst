@@ -10,7 +10,7 @@ Recommendation
 The recommended generator for single use is
 :class:`~xoroshiro128.Xoroshiro128`.  The recommended generator
 for use in large-scale parallel applications is
-:class:`~.xoshiro256starstar.Xoshiro256StarStar`
+:class:`~.xoshiro256.Xoshiro256`
 where the `jumped` method is used to advance the state. For very large scale
 applications -- requiring 1,000+ independent streams,
 :class:`~.philox.Philox` is the best choice.

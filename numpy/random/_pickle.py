@@ -4,8 +4,8 @@ from .threefry import ThreeFry
 from .threefry32 import ThreeFry32
 from .xoroshiro128 import Xoroshiro128
 from .xorshift1024 import Xorshift1024
-from .xoshiro256starstar import Xoshiro256StarStar
-from .xoshiro512starstar import Xoshiro512StarStar
+from .xoshiro256 import Xoshiro256
+from .xoshiro512 import Xoshiro512
 
 from .dsfmt import DSFMT
 from .generator import Generator
@@ -18,8 +18,8 @@ BitGenerators = {'MT19937': MT19937,
              'ThreeFry32': ThreeFry32,
              'Xorshift1024': Xorshift1024,
              'Xoroshiro128': Xoroshiro128,
-             'Xoshiro256StarStar': Xoshiro256StarStar,
-             'Xoshiro512StarStar': Xoshiro512StarStar,
+             'Xoshiro256': Xoshiro256,
+             'Xoshiro512': Xoshiro512,
              }
 
 
