@@ -1246,6 +1246,119 @@ uint64_t random_interval(bitgen_t *bitgen_state, uint64_t max) {
   return value;
 }
 
+/* Bounded generators */
+static NPY_INLINE uint64_t gen_mask(uint64_t max) {
+  uint64_t mask = max;
+  mask |= mask >> 1;
+  mask |= mask >> 2;
+  mask |= mask >> 4;
+  mask |= mask >> 8;
+  mask |= mask >> 16;
+  mask |= mask >> 32;
+  return mask;
+}
+
+/* Generate 16 bit random numbers using a 32 bit buffer. */
+static NPY_INLINE uint16_t buffered_uint16(bitgen_t *bitgen_state, int *bcnt,
+                                           uint32_t *buf) {
+  if (!(bcnt[0])) {
+    buf[0] = next_uint32(bitgen_state);
+    bcnt[0] = 1;
+  } else {
+    buf[0] >>= 16;
+    bcnt[0] -= 1;
+  }
+
+  return (uint16_t)buf[0];
+}
+
+/* Generate 8 bit random numbers using a 32 bit buffer. */
+static NPY_INLINE uint8_t buffered_uint8(bitgen_t *bitgen_state, int *bcnt,
+                                         uint32_t *buf) {
+  if (!(bcnt[0])) {
+    buf[0] = next_uint32(bitgen_state);
+    bcnt[0] = 3;
+  } else {
+    buf[0] >>= 8;
+    bcnt[0] -= 1;
+  }
+
+  return (uint8_t)buf[0];
+}
+
+/* Static `masked rejection` function called by random_bounded_uint64(...) */
+static NPY_INLINE uint64_t bounded_masked_uint64(bitgen_t *bitgen_state,
+                                                 uint64_t rng, uint64_t mask) {
+  uint64_t val;
+
+  while ((val = (next_uint64(bitgen_state) & mask)) > rng)
+    ;
+
+  return val;
+}
+
+/* Static `masked rejection` function called by
+ * random_buffered_bounded_uint32(...) */
+static NPY_INLINE uint32_t
+buffered_bounded_masked_uint32(bitgen_t *bitgen_state, uint32_t rng,
+                               uint32_t mask, int *bcnt, uint32_t *buf) {
+  /*
+   * The buffer and buffer count are not used here but are included to allow
+   * this function to be templated with the similar uint8 and uint16
+   * functions
+   */
+
+  uint32_t val;
+
+  while ((val = (next_uint32(bitgen_state) & mask)) > rng)
+    ;
+
+  return val;
+}
+
+/* Static `masked rejection` function called by
+ * random_buffered_bounded_uint16(...) */
+static NPY_INLINE uint16_t
+buffered_bounded_masked_uint16(bitgen_t *bitgen_state, uint16_t rng,
+                               uint16_t mask, int *bcnt, uint32_t *buf) {
+  uint16_t val;
+
+  while ((val = (buffered_uint16(bitgen_state, bcnt, buf) & mask)) > rng)
+    ;
+
+  return val;
+}
+
+/* Static `masked rejection` function called by
+ * random_buffered_bounded_uint8(...) */
+static NPY_INLINE uint8_t buffered_bounded_masked_uint8(bitgen_t *bitgen_state,
+                                                        uint8_t rng,
+                                                        uint8_t mask, int *bcnt,
+                                                        uint32_t *buf) {
+  uint8_t val;
+
+  while ((val = (buffered_uint8(bitgen_state, bcnt, buf) & mask)) > rng)
+    ;
+
+  return val;
+}
+
+static NPY_INLINE npy_bool buffered_bounded_bool(bitgen_t *bitgen_state,
+                                                 npy_bool off, npy_bool rng,
+                                                 npy_bool mask, int *bcnt,
+                                                 uint32_t *buf) {
+  if (rng == 0)
+    return off;
+  if (!(bcnt[0])) {
+    buf[0] = next_uint32(bitgen_state);
+    bcnt[0] = 31;
+  } else {
+    buf[0] >>= 1;
+    bcnt[0] -= 1;
+  }
+  return (buf[0] & 0x00000001UL) != 0;
+}
+
 /* Static `Lemire rejection` function called by random_bounded_uint64(...) */
 static NPY_INLINE uint64_t bounded_lemire_uint64(bitgen_t *bitgen_state,
                                                  uint64_t rng) {
@@ -1336,8 +1449,8 @@ static NPY_INLINE uint64_t bounded_lemire_uint64(bitgen_t *bitgen_state,
 
 /* Static `Lemire rejection` function called by
  * random_buffered_bounded_uint32(...) */
-                                                          int *bcnt,
-                                                          uint32_t *buf) {
+static NPY_INLINE uint32_t buffered_bounded_lemire_uint32(
+    bitgen_t *bitgen_state, uint32_t rng, int *bcnt, uint32_t *buf) {
   /*
    * Uses Lemire's algorithm - https://arxiv.org/abs/1805.10941
    *
