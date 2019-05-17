@@ -19,10 +19,10 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
    a 64-bit seed, we suggest to seed a splitmix64 generator and use its
    output to fill s. */
 
-extern INLINE uint64_t
+extern NPY_INLINE uint64_t
 xoshiro512starstar_next64(xoshiro512starstar_state *state);
 
-extern INLINE uint32_t
+extern NPY_INLINE uint32_t
 xoshiro512starstar_next32(xoshiro512starstar_state *state);
 
 /* This is the jump function for the generator. It is equivalent

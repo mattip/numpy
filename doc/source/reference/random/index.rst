@@ -195,7 +195,7 @@ Bit Generators
 .. toctree::
    :maxdepth: 1
 
-   Bit Generators <brng/index>
+   Bit Generators <bit_generators/index>
 
 Features
 --------
