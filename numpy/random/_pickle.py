@@ -11,7 +11,7 @@ from .dsfmt import DSFMT
 from .generator import Generator
 from .mt19937 import MT19937
 
-BitGeneratorS = {'MT19937': MT19937,
+BitGenerators = {'MT19937': MT19937,
              'DSFMT': DSFMT,
              'Philox': Philox,
              'ThreeFry': ThreeFry,
@@ -37,8 +37,8 @@ def __generator_ctor(bit_generator_name='mt19937'):
     rg: Generator
         Generator using the named core BitGenerator
     """
-    if bit_generator_name in BitGeneratorS:
-        bit_generator = BitGeneratorS[bit_generator_name]
+    if bit_generator_name in BitGenerators:
+        bit_generator = BitGenerators[bit_generator_name]
     else:
         raise ValueError(str(bit_generator_name) + ' is not a known BitGenerator module.')
 
@@ -59,8 +59,8 @@ def __bit_generator_ctor(bit_generator_name='mt19937'):
     bit_generator: BitGenerator
         BitGenerator instance
     """
-    if bit_generator_name in BitGeneratorS:
-        bit_generator = BitGeneratorS[bit_generator_name]
+    if bit_generator_name in BitGenerators:
+        bit_generator = BitGenerators[bit_generator_name]
     else:
         raise ValueError(str(bit_generator_name) + ' is not a known BitGenerator module.')
 
@@ -81,8 +81,8 @@ def __randomstate_ctor(bit_generator_name='mt19937'):
     rs: RandomState
         Legacy RandomState using the named core BitGenerator
     """
-    if bit_generator_name in BitGeneratorS:
-        bit_generator = BitGeneratorS[bit_generator_name]
+    if bit_generator_name in BitGenerators:
+        bit_generator = BitGenerators[bit_generator_name]
     else:
         raise ValueError(str(bit_generator_name) + ' is not a known BitGenerator module.')
 
