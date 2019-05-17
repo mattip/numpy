@@ -80,7 +80,7 @@ removing bounds checks and wrap around, providing array alignment information
     from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
     from numpy.random.common cimport *
     from numpy.random.distributions cimport random_gauss_zig
-    from numpy.random.xoroshiro128 import Xoroshiro128
+    from numpy.random import Xoroshiro128
 
 
    @cython.boundscheck(False)
@@ -93,18 +93,14 @@ removing bounds checks and wrap around, providing array alignment information
 
        x = Xoroshiro128()
        capsule = x.capsule
-       # Optional check that the capsule if from a Basic RNG
        if not PyCapsule_IsValid(capsule, capsule_name):
            raise ValueError("Invalid pointer to anon_func_state")
-       # Cast the pointer
        rng = <bitgen_t *> PyCapsule_GetPointer(capsule, capsule_name)
        random_values = np.empty(n)
        for i in range(n):
-           # Call the function
            random_values[i] = random_gauss_zig(rng)
        randoms = np.asarray(random_values)
        return randoms
-
 
 The BitGenerator can also be directly accessed using the members of the basic
 RNG structure.

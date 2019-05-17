@@ -1,6 +1,6 @@
 #cython: language_level=3
 
-from libc.stdint cimport uint64_t
+from libc.stdint cimport int64_t
 
 import numpy as np
 cimport numpy as np

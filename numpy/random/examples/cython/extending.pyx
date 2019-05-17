@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 #cython: language_level=3
+
 from libc.stdint cimport uint32_t
 from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
 
@@ -6,8 +8,8 @@ import numpy as np
 cimport numpy as np
 cimport cython
 
-from numpy.random.randomgen.common cimport bitgen_t
-from numpy.random.randomgen import Xoroshiro128
+from numpy.random.common cimport bitgen_t
+from numpy.random import Xoroshiro128
 
 np.import_array()
 
