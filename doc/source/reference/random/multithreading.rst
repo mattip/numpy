@@ -16,7 +16,7 @@ are reproducible in the sense that the same seed will produce the same outputs.
 
 .. code-block:: ipython
 
-    from numpy.random import Xorshift1024
+    from numpy.random import Generator, Xorshift1024
     import multiprocessing
     import concurrent.futures
     import numpy as np
@@ -88,7 +88,7 @@ The single threaded call directly uses the PRNG.
 .. code-block:: ipython
 
     In [5]: values = np.empty(10000000)
-        ...: rg = Xorshift1024().generator
+        ...: rg = Generator(Xorshift1024())
         ...: %timeit rg.standard_normal(out=values)
 
     99.6 ms ± 222 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
@@ -99,7 +99,7 @@ that does not use an existing array due to array creation overhead.
 
 .. code-block:: ipython
 
-    In [6]: rg = Xorshift1024().generator
+    In [6]: rg = Generator(Xorshift1024())
         ...: %timeit rg.standard_normal(10000000)
 
     125 ms ± 309 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
