@@ -1,11 +1,13 @@
+#!/usr/bin/env python
 #cython: language_level=3
+
 import numpy as np
 cimport numpy as np
 cimport cython
 from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
-from numpy.random.randomgen.common cimport *
-from numpy.random.randomgen.distributions cimport random_gauss_zig
-from numpy.random.randomgen import Xoroshiro128
+from numpy.random.common cimport *
+from numpy.random.distributions cimport random_gauss_zig
+from numpy.random import Xoroshiro128
 
 
 @cython.boundscheck(False)
