@@ -18,9 +18,9 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
    a 64-bit seed, we suggest to seed a splitmix64 generator and use its
    output to fill s. */
 
-extern INLINE uint64_t xoshiro256starstar_next64(xoshiro256starstar_state *state);
+extern NPY_INLINE uint64_t xoshiro256starstar_next64(xoshiro256starstar_state *state);
 
-extern INLINE uint32_t xoshiro256starstar_next32(xoshiro256starstar_state *state);
+extern NPY_INLINE uint32_t xoshiro256starstar_next32(xoshiro256starstar_state *state);
 
 /* This is the jump function for the generator. It is equivalent
    to 2^128 calls to next(); it can be used to generate 2^128

@@ -1,18 +1,8 @@
 #ifndef _RANDOMDGEN__XOSHIRO256STARSTAR_H_
 #define _RANDOMDGEN__XOSHIRO256STARSTAR_H_
 
-#ifdef _WIN32
-#if _MSC_VER == 1500
-#include "../common/inttypes.h"
-#define INLINE __forceinline
-#else
 #include <inttypes.h>
-#define INLINE __inline __forceinline
-#endif
-#else
-#include <inttypes.h>
-#define INLINE inline
-#endif
+#include "numpy/npy_common.h"
 
 typedef struct s_xoshiro256starstar_state {
   uint64_t s[4];
@@ -20,11 +10,11 @@ typedef struct s_xoshiro256starstar_state {
   uint32_t uinteger;
 } xoshiro256starstar_state;
 
-static INLINE uint64_t rotl(const uint64_t x, int k) {
+static NPY_INLINE uint64_t rotl(const uint64_t x, int k) {
   return (x << k) | (x >> (64 - k));
 }
 
-static INLINE uint64_t xoshiro256starstar_next(uint64_t *s) {
+static NPY_INLINE uint64_t xoshiro256starstar_next(uint64_t *s) {
   const uint64_t result_starstar = rotl(s[1] * 5, 7) * 9;
   const uint64_t t = s[1] << 17;
 
@@ -40,12 +30,12 @@ static INLINE uint64_t xoshiro256starstar_next(uint64_t *s) {
   return result_starstar;
 }
 
-static INLINE uint64_t
+static NPY_INLINE uint64_t
 xoshiro256starstar_next64(xoshiro256starstar_state *state) {
   return xoshiro256starstar_next(&state->s[0]);
 }
 
-static INLINE uint32_t
+static NPY_INLINE uint32_t
 xoshiro256starstar_next32(xoshiro256starstar_state *state) {
   uint64_t next;
   if (state->has_uint32) {
