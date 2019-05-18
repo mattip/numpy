@@ -9,8 +9,8 @@ import pytest
 from numpy.testing import (assert_almost_equal, assert_equal, assert_,
     assert_array_equal, suppress_warnings)
 from numpy.random import (Generator, MT19937, DSFMT, ThreeFry32, ThreeFry,
-    Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar,
-    Xoshiro512StarStar, entropy)
+    Philox, Xoroshiro128, Xorshift1024, Xoshiro256,
+    Xoshiro512, entropy)
 
 
 @pytest.fixture(scope='module',
@@ -102,7 +102,7 @@ class RNG(object):
     @classmethod
     def setup_class(cls):
         # Overridden in test classes. Place holder to silence IDE noise
-        cls.bit_generator = Xoshiro256StarStar
+        cls.bit_generator = Xoshiro256
         cls.advance = None
         cls.seed = [12345]
         cls.rg = Generator(cls.bit_generator(*cls.seed))
@@ -816,10 +816,10 @@ class TestXoroshiro128(RNG):
         cls._extra_setup()
 
 
-class TestXoshiro256StarStar(RNG):
+class TestXoshiro256(RNG):
     @classmethod
     def setup_class(cls):
-        cls.bit_generator = Xoshiro256StarStar
+        cls.bit_generator = Xoshiro256
         cls.advance = None
         cls.seed = [12345]
         cls.rg = Generator(cls.bit_generator(*cls.seed))
@@ -828,10 +828,10 @@ class TestXoshiro256StarStar(RNG):
         cls._extra_setup()
 
 
-class TestXoshiro512StarStar(RNG):
+class TestXoshiro512(RNG):
     @classmethod
     def setup_class(cls):
-        cls.bit_generator = Xoshiro512StarStar
+        cls.bit_generator = Xoshiro512
         cls.advance = None
         cls.seed = [12345]
         cls.rg = Generator(cls.bit_generator(*cls.seed))

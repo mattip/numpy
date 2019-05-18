@@ -8,8 +8,8 @@ from numpy.testing import assert_equal, assert_allclose, assert_array_equal, \
 import pytest
 
 from numpy.random import Generator, MT19937, DSFMT, ThreeFry32, ThreeFry, \
-    Philox, Xoroshiro128, Xorshift1024, Xoshiro256StarStar, \
-    Xoshiro512StarStar, RandomState
+    Philox, Xoroshiro128, Xorshift1024, Xoshiro256, \
+    Xoshiro512, RandomState
 from numpy.random.common import interface
 
 try:
@@ -326,31 +326,31 @@ class TestXoroshiro128(Base):
         cls.invalid_seed_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
 
 
-class TestXoshiro256StarStar(Base):
+class TestXoshiro256(Base):
     @classmethod
     def setup_class(cls):
-        cls.bit_generator = Xoshiro256StarStar
+        cls.bit_generator = Xoshiro256
         cls.bits = 64
         cls.dtype = np.uint64
         cls.data1 = cls._read_csv(
-            join(pwd, './data/xoshiro256starstar-testset-1.csv'))
+            join(pwd, './data/xoshiro256-testset-1.csv'))
         cls.data2 = cls._read_csv(
-            join(pwd, './data/xoshiro256starstar-testset-2.csv'))
+            join(pwd, './data/xoshiro256-testset-2.csv'))
         cls.seed_error_type = TypeError
         cls.invalid_seed_types = [('apple',), (2 + 3j,), (3.1,)]
         cls.invalid_seed_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
 
 
-class TestXoshiro512StarStar(Base):
+class TestXoshiro512(Base):
     @classmethod
     def setup_class(cls):
-        cls.bit_generator = Xoshiro512StarStar
+        cls.bit_generator = Xoshiro512
         cls.bits = 64
         cls.dtype = np.uint64
         cls.data1 = cls._read_csv(
-            join(pwd, './data/xoshiro512starstar-testset-1.csv'))
+            join(pwd, './data/xoshiro512-testset-1.csv'))
         cls.data2 = cls._read_csv(
-            join(pwd, './data/xoshiro512starstar-testset-2.csv'))
+            join(pwd, './data/xoshiro512-testset-2.csv'))
         cls.seed_error_type = TypeError
         cls.invalid_seed_types = [('apple',), (2 + 3j,), (3.1,)]
         cls.invalid_seed_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]

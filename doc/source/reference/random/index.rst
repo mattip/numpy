@@ -170,7 +170,7 @@ The included bit generators are:
 * Xorshiro256** and Xorshiro512** - The most recently introduced XOR,
   shift, and rotate generator. Supports ``jumped`` and so can be used in
   parallel applications. See the documentation for
-  `~xoshiro256starstar.Xoshirt256StarStar.jumped` for
+  `~xoshiro256.Xoshirt256.jumped` for
   details. More information about these bit generators is available at the
   `xorshift, xoroshiro and xoshiro authors' page`_.
 * ThreeFry and Philox - counter-based generators capable of being advanced an

@@ -134,8 +134,8 @@ def configuration(parent_package='',top_path=None):
                         define_macros=defs,
                         )
     for gen in ['philox', 'threefry', 'threefry32',
-                'xoroshiro128', 'xorshift1024', 'xoshiro256starstar',
-                'xoshiro512starstar',
+                'xoroshiro128', 'xorshift1024', 'xoshiro256',
+                'xoshiro512',
                ]:
         # gen.pyx, src/gen/gen.c
         config.add_extension(gen,
