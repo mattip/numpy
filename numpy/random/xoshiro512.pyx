@@ -13,6 +13,8 @@ from .common cimport *
 from .distributions cimport bitgen_t
 from .entropy import random_entropy, seed_by_array
 
+__all__ = ['Xoshiro512']
+
 np.import_array()
 
 cdef extern from "src/xoshiro512/xoshiro512.h":
@@ -52,6 +54,14 @@ cdef class Xoshiro512:
         from ``/dev/urandom`` (or the Windows analog) if available.  If
         unavailable, a hash of the time and process ID is used.
 
+    Attributes
+    ----------
+    lock: threading.Lock
+        Lock instance that is shared so that the same bit git generator can
+        be used in multiple Generators without corrupting the state. Code that
+        generates values from a bit generator should hold the bit generator's
+        lock.
+
     Notes
     -----
     xoshiro512** is written by David Blackman and Sebastiano Vigna.
@@ -66,8 +76,8 @@ cdef class Xoshiro512:
     directly consumable in Python and must be consumed by a ``Generator``
     or similar object that supports low-level access.
 
-    See ``Xorshift1024`` for a related PRNG with a different period
-    (:math:`2^{1024} - 1`) and jumped size (:math:`2^{512} - 1`).
+    See ``Xorshift256`` for a related PRNG with a different period
+    (:math:`2^{256} - 1`) and jumped size (:math:`2^{128} - 1`).
 
     **State and Seeding**
 
@@ -252,7 +262,7 @@ cdef class Xoshiro512:
 
         Returns
         -------
-        bit_generator : Xoroshiro128
+        bit_generator : Xoshiro512
             New instance of generator jumped iter times
         """
         cdef Xoshiro512 bit_generator
