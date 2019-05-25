@@ -99,6 +99,8 @@ BitGenerator Streams that work with Generator
 --------------------------------------------- ---
 MT19937
 DSFMT
+PCG32
+PCG64
 Philox
 ThreeFry
 Xoshiro256
@@ -163,18 +165,21 @@ from .mtrand import *
 from .dsfmt import DSFMT
 from .generator import Generator
 from .mt19937 import MT19937
+from .pcg32 import PCG32
+from .pcg64 import PCG64
 from .philox import Philox
 from .threefry import ThreeFry
 from .xoshiro256 import Xoshiro256
 from .xoshiro512 import Xoshiro512
 from .mtrand import RandomState
 
-__all__ += ['Generator', 'DSFMT', 'MT19937', 'Philox',
-           'ThreeFry', 'Xoshiro256', 'Xoshiro512', 'RandomState']
+__all__ += ['Generator', 'DSFMT', 'MT19937', 'Philox', 'PCG64', 'PCG32',
+            'ThreeFry', 'Xoshiro256', 'Xoshiro512', 'RandomState']
 
 # Some aliases:
 ranf = random = sample = random_sample
 __all__.extend(['ranf', 'random', 'sample'])
+
 
 def __RandomState_ctor():
     """Return a RandomState instance.
@@ -190,6 +195,7 @@ def __RandomState_ctor():
 
     """
     return RandomState(seed=0)
+
 
 from numpy._pytesttester import PytestTester
 test = PytestTester(__name__)
