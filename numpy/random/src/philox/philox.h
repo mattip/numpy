@@ -26,7 +26,7 @@ _philox4x64bumpkey(struct r123array2x64 key) {
 }
 
 /* Prefer uint128 if available: GCC, clang, ICC */
-#if __SIZEOF_INT128__
+#ifdef __SIZEOF_INT128__
 static NPY_INLINE uint64_t mulhilo64(uint64_t a, uint64_t b, uint64_t *hip) {
   __uint128_t product = ((__uint128_t)a) * ((__uint128_t)b);
   *hip = product >> 64;
@@ -35,7 +35,7 @@ static NPY_INLINE uint64_t mulhilo64(uint64_t a, uint64_t b, uint64_t *hip) {
 #else
 #ifdef _WIN32
 #include <intrin.h>
-#if _WIN64 && _M_AMD64
+#ifdef _WIN64 && _M_AMD64
 #pragma intrinsic(_umul128)
 #else
 #pragma intrinsic(__emulu)
