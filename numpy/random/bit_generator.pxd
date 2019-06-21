@@ -1,5 +1,5 @@
 
-from .distributions cimport bitgen_t
+from .common cimport bitgen_t
 cimport numpy as np
 
 cdef class BitGenerator():
