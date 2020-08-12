@@ -151,7 +151,6 @@ PUBLIC_MODULES = ['numpy.' + s for s in [
     "doc.constants",
     "doc.creation",
     "doc.dispatch",
-    "doc.glossary",
     "doc.indexing",
     "doc.internals",
     "doc.misc",
