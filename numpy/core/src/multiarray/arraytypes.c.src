@@ -3080,7 +3080,6 @@ VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
         }
         /* Set the fields needed by compare or copyswap */
         dummy_struct.descr = new;
-        dummy_struct.mem_handler = PyArray_HANDLER(ap);
 
         swap = PyArray_ISBYTESWAPPED(dummy);
         nip1 = ip1 + offset;
