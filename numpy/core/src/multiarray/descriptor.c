@@ -21,6 +21,7 @@
 #include "assert.h"
 #include "npy_buffer.h"
 #include "dtypemeta.h"
+#include "hashdescr.h"
 
 /*
  * offset:    A starting offset.
@@ -1570,6 +1571,51 @@ _convert_from_any(PyObject *obj, int align)
         PyErr_Format(PyExc_TypeError, "Cannot interpret '%R' as a data type", obj);
         return NULL;
     }
+}
+
+// HPY TODO: once HPyArray_DescrFromType is in API, no need to include:
+#include "arraytypes.h"
+
+static HPy
+_hpy_convert_from_any(HPyContext *ctx, HPy obj, int align)
+{
+    /* default */
+    // HPY TODO: different default than for numpy arg parsing
+    if (HPy_IsNull(obj)) {
+        return HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
+    }
+    else {
+        printf("DEBUG: warning entering CPython API in _hpy_convert_from_any\n");
+        PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+        PyObject *py_result = (PyObject *) _convert_from_any(py_obj, align);
+        HPy result = HPy_FromPyObject(ctx, py_result);
+        Py_DecRef(py_obj);
+        Py_DecRef(py_result);
+        return result;
+    }
+}
+
+// HPY TODO: NUMPY_API
+/*
+ * Get typenum from an object -- None goes to NPY_DEFAULT_TYPE
+ * This function takes a Python object representing a type and converts it
+ * to a the correct PyArray_Descr * structure to describe the type.
+ *
+ * Many objects can be used to represent a data-type which in NumPy is
+ * quite a flexible concept.
+ *
+ * This is the central code that converts Python objects to
+ * Type-descriptor objects that are used throughout numpy.
+ *
+ * Returns a new reference in *at, but the returned should not be
+ * modified as it may be one of the canonical immutable objects or
+ * a reference to the input obj.
+ */
+NPY_NO_EXPORT int
+HPyArray_DescrConverter(HPyContext *ctx, HPy obj, HPy *at)
+{
+    *at = _hpy_convert_from_any(ctx, obj, 0);
+    return HPy_IsNull(*at) ? NPY_FAIL : NPY_SUCCEED;
 }
 
 
@@ -3602,9 +3648,39 @@ NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull = {
         .tp_members = arraydescr_members,
         .tp_getset = arraydescr_getsets,
         .tp_new = arraydescr_new,
+        .tp_hash = PyArray_DescrHash,
     },},
+    // HPY TODO: set these in the ctor of the meta class...
     .type_num = -1,
     .flags = NPY_DT_ABSTRACT,
     .singleton = NULL,
     .scalar_type = NULL,
+};
+
+static PyType_Slot PyArrayDescr_TypeFull_legacy_slots[] = {
+    {Py_tp_dealloc, arraydescr_dealloc},
+    {Py_tp_repr, arraydescr_repr},
+    {Py_tp_str, (reprfunc)arraydescr_str},
+    {Py_tp_richcompare, (richcmpfunc)arraydescr_richcompare},
+    {Py_tp_methods, arraydescr_methods},
+    {Py_tp_members, arraydescr_members},
+    {Py_tp_getset, arraydescr_getsets},
+    {Py_tp_new, arraydescr_new},
+    {Py_tp_hash, PyArray_DescrHash},
+    {Py_nb_bool, descr_nonzero},
+    // sequence
+    {Py_sq_length, descr_length},
+    {Py_sq_repeat, descr_repeat},
+    // mapping
+    {Py_mp_length, descr_length},
+    {Py_mp_subscript, descr_subscript},
+    {0, 0},
+};
+
+NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec = {
+    .name = "numpy.dtype",
+    .basicsize = sizeof(PyArray_Descr),
+    .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
+    .legacy_slots = PyArrayDescr_TypeFull_legacy_slots,
+    .legacy = true,
 };

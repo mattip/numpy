@@ -2144,31 +2144,19 @@ array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOO",
             (const char*[]) {"shape", "dtype", "order", "like", NULL},
             &h_shape, &h_typecode, &h_order, &h_like)) {
-        goto fail;
+        goto cleanup;
     }
 
-    // HPY TODO: typecode is still PyObject, HPyArray_Zeros still steals the reference, we still have to decref otherwise
-    PyArray_Descr *typecode = NULL;
     PyArray_Dims shape = {NULL, 0};
     NPY_ORDER order = NPY_CORDER;
     npy_bool is_f_order = NPY_FALSE;
     HPy ret = HPy_NULL;
+    HPy type_descr;
 
-    if (HPyArray_IntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED) {
-        goto fail;
-    }
-
-    if (!HPy_IsNull(h_typecode)) {
-        // HPY TODO: needs PyArray_Descr porting
-        PyObject* py_typecode = HPy_AsPyObject(ctx, h_typecode);
-        int result = PyArray_DescrConverter(py_typecode, &typecode);
-        Py_DECREF(py_typecode);
-        if (result != NPY_SUCCEED) {
-            goto fail;
-        }
-    }
-    if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
-        goto fail;
+    if (HPyArray_IntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED ||
+        HPyArray_DescrConverter(ctx, h_typecode, &type_descr) != NPY_SUCCEED ||
+        HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        goto cleanup;
     }
 
     if (!HPy_IsNull(h_like)) {
@@ -2193,17 +2181,15 @@ array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         default:
             HPyErr_SetString(ctx, ctx->h_ValueError,
                             "only 'C' or 'F' order is permitted");
-            goto fail;
+            goto cleanup;
     }
 
-    ret = HPyArray_Zeros(ctx, shape.len, shape.ptr, typecode, (int) is_f_order);
+    ret = HPyArray_Zeros(ctx, shape.len, shape.ptr, type_descr, (int) is_f_order);
 
+cleanup:
     npy_free_cache_dim_obj(shape);
-    return ret;
-
-fail:
-    Py_XDECREF(typecode);
-    npy_free_cache_dim_obj(shape);
+    HPy_Close(ctx, type_descr);
+    HPyTracker_Close(ctx, ht);
     return ret;
 }
 
@@ -4740,7 +4726,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Create the module and add the functions */
     HPy h_mod = HPyModule_Create(ctx, &moduledef);
     m = HPy_AsPyObject(ctx, h_mod);
-    HPy_Close(ctx, h_mod); // HPY TODO: not used for anything else for now...
     if (!m) {
         return HPy_NULL;
     }
@@ -4781,11 +4766,24 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    PyArrayDescr_Type.tp_hash = PyArray_DescrHash;
+    /*PyArrayDescr_Type.tp_hash = PyArray_DescrHash;
     Py_SET_TYPE(&PyArrayDescr_Type, &PyArrayDTypeMeta_Type);
     if (PyType_Ready(&PyArrayDescr_Type) < 0) {
         goto err;
+    }*/
+
+    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
+    HPyType_SpecParam dtype_params[] = {
+        { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },
+        { 0 }
+    };
+    HPy h_PyArrayDescr_Type = HPyType_FromSpec(ctx, &PyArrayDescr_TypeFull_spec, dtype_params);
+    if (HPy_IsNull(h_PyArrayDescr_Type)) {
+        goto err;
     }
+    PyArrayDescr_Type = *((PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type));
+    HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
+    HPy_Close(ctx, h_PyArrayDescr_Type);
 
     initialize_casting_tables();
     initialize_numeric_types();
@@ -4954,7 +4952,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (set_typeinfo(d) != 0) {
+    if (set_typeinfo(ctx, d) != 0) {
         goto err;
     }
     if (PyType_Ready(&PyArrayMethod_Type) < 0) {
@@ -4963,7 +4961,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (PyType_Ready(&PyBoundArrayMethod_Type) < 0) {
         goto err;
     }
-    if (initialize_and_map_pytypes_to_dtypes() < 0) {
+    if (initialize_and_map_pytypes_to_dtypes(ctx) < 0) {
         goto err;
     }
 
@@ -5011,13 +5009,16 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyDict_SetItemString(d, "_HPY_CONTEXT", s);
     Py_DECREF(s);
 
-    return HPy_FromPyObject(ctx, m);
+    // HPY TODO: this is a temporary solution to mimic the static types and global state:
+    init_hpy_global_state(ctx);
+    return h_mod;
 
  err:
-    if (!PyErr_Occurred()) {
-        PyErr_SetString(PyExc_RuntimeError,
+    if (!HPyErr_Occurred(ctx)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                         "cannot load multiarray module.");
     }
+    HPy_Close(ctx, h_mod);
     Py_DECREF(m);
     return HPy_NULL;
 }

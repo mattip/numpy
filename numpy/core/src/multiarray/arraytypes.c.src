@@ -4402,6 +4402,82 @@ static PyArray_Descr *_builtin_descrs[] = {
     &HALF_Descr
 };
 
+
+// HPY TODO: HACK, HACK, HACK: storing handles into globals
+// This array is filled in the module init
+static HPy _hpy_builtin_descrs[] = {
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+    HPy_NULL,
+};
+
+// HPY TODO: temporary hack, should be heap types in module state
+void init_hpy_global_state(HPyContext *ctx) {
+    for (size_t i = 0; i < NPY_NTYPES; ++i) {
+        _hpy_builtin_descrs[i] = HPy_FromPyObject(ctx, (PyObject *) _builtin_descrs[i]);
+    }
+}
+
+/*
+ * Get the PyArray_Descr structure for a type.
+ */
+// HPY TODO: make it a NUMPY_API
+NPY_NO_EXPORT HPy
+HPyArray_DescrFromType(HPyContext *ctx, int type)
+{
+    HPy ret = HPy_NULL;
+
+    if (type < 0) {
+        /*
+         * It's not valid for type to be less than 0.
+         * If that happens, then no other branch of
+         * this if/else chain should be followed.
+         * This is effectively a no-op that ensures
+         * the default error is raised.
+         */
+        ret = HPy_NULL;
+    }
+    else if (type < NPY_NTYPES) {
+        ret = _hpy_builtin_descrs[type];
+    }
+    else if (type == NPY_NOTYPE) {
+        /*
+         * This needs to not raise an error so
+         * that PyArray_DescrFromType(NPY_NOTYPE)
+         * works for backwards-compatible C-API
+         */
+        return HPy_NULL;
+    }
+    else {
+        // Ignoring refcount/handle close issues here, since it is a temporary thing:
+        printf("DEBUG: warning entering CPython API in HPyArray_DescrFromType\n");
+        ret = HPy_FromPyObject(ctx, (PyObject *) PyArray_DescrFromType(type));
+    }
+
+    return ret;
+}
+
 /*NUMPY_API
  * Get the PyArray_Descr structure for a type.
  */
@@ -4489,7 +4565,7 @@ PyArray_DescrFromType(int type)
  * and is used to initialize internal dtype tables.
  */
 NPY_NO_EXPORT int
-set_typeinfo(PyObject *dict)
+set_typeinfo(HPyContext *ctx, PyObject *dict)
 {
     PyObject *infodict, *s;
     int i;
@@ -4503,7 +4579,7 @@ set_typeinfo(PyObject *dict)
      * (NPY_HALF is the largest builtin one.)
      */
     for (i = 0; i <= NPY_HALF; i++) {
-        if (dtypemeta_wrap_legacy_descriptor(_builtin_descrs[i]) < 0) {
+        if (dtypemeta_wrap_legacy_descriptor(ctx, _builtin_descrs[i]) < 0) {
             return -1;
         }
     }

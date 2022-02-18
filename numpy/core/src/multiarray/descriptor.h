@@ -30,4 +30,9 @@ arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind);
 
 extern NPY_NO_EXPORT char const *_datetime_strings[];
 
+extern NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec;
+
+NPY_NO_EXPORT int
+HPyArray_DescrConverter(HPyContext *ctx, HPy obj, HPy *at);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_ */

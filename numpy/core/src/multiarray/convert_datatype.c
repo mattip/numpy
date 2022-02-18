@@ -1697,14 +1697,14 @@ PyArray_ResultType(
          * our remaining sanity.
          */
         if (PyArray_ISFLOAT(arrs[i])) {
-            all_DTypes[i_all] = &PyArray_PyFloatAbstractDType;
+            all_DTypes[i_all] = PyArray_PyFloatAbstractDType;
         }
         else if (PyArray_ISCOMPLEX(arrs[i])) {
-            all_DTypes[i_all] = &PyArray_PyComplexAbstractDType;
+            all_DTypes[i_all] = PyArray_PyComplexAbstractDType;
         }
         else {
             /* N.B.: Could even be an object dtype here for large ints */
-            all_DTypes[i_all] = &PyArray_PyIntAbstractDType;
+            all_DTypes[i_all] = PyArray_PyIntAbstractDType;
         }
         Py_INCREF(all_DTypes[i_all]);
         /*

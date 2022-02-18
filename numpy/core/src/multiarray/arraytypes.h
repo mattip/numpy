@@ -4,7 +4,7 @@
 #include "common.h"
 
 NPY_NO_EXPORT int
-set_typeinfo(PyObject *dict);
+set_typeinfo(HPyContext *ctx, PyObject *dict);
 
 /* needed for blasfuncs */
 NPY_NO_EXPORT void
@@ -27,5 +27,10 @@ small_correlate(const char * d_, npy_intp dstride,
                 const char * k_, npy_intp kstride,
                 npy_intp nk, enum NPY_TYPES ktype,
                 char * out_, npy_intp ostride);
+
+void init_hpy_global_state(HPyContext *ctx);
+
+NPY_NO_EXPORT HPy
+HPyArray_DescrFromType(HPyContext *ctx, int type);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYTYPES_H_ */

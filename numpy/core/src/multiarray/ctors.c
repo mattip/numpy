@@ -32,6 +32,7 @@
 
 #include "get_attr_string.h"
 #include "array_coercion.h"
+#include "arraytypes.h"
 
 /*
  * Reading from a file or a string.
@@ -2989,36 +2990,40 @@ NPY_NO_EXPORT PyObject *
 PyArray_Zeros(int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
 {
     HPyContext *ctx = npy_get_context();
-    HPy_AsPyObject(ctx, HPyArray_Zeros(ctx, nd, dims, type, is_f_order));
+    HPy h_type = HPy_FromPyObject(ctx, (PyObject *) type);
+    PyObject *result = HPy_AsPyObject(ctx, HPyArray_Zeros(ctx, nd, dims, h_type, is_f_order));
+    HPy_Close(ctx, h_type);
+    return result;
 }
 
 /*NUMPY_API
  * Zeros
  *
- * For now, type should be a PyObject.
- * accepts NULL type
+ * accepts HPy_NULL type
  */
 NPY_NO_EXPORT HPy
-HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
+HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, HPy type, int is_f_order)
 {
     HPy ret;
 
-    if (!type) {
-        type = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
+    if (HPy_IsNull(type)) {
+        type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
-
+    
+    PyArray_Descr *type_descr = (PyArray_Descr*) HPy_AsPyObject(ctx, type);
     ret = HPyArray_NewFromDescr_int(
-            ctx, HPy_FromPyObject(ctx, (PyObject *)&PyArray_Type), type,
+            ctx, HPy_FromPyObject(ctx, (PyObject *)&PyArray_Type), type_descr,
             nd, dims, NULL, NULL,
             is_f_order, HPy_NULL, HPy_NULL,
             1, 0);
 
     if (HPy_IsNull(ret)) {
+        // HPY TODO: note that HPyArray_NewFromDescr_int still steals 'type_descr' on error
         return HPy_NULL;
     }
 
     /* handle objects */
-    if (PyDataType_REFCHK(type)) {
+    if (PyDataType_REFCHK(type_descr)) {
         PyObject *py_ret = HPy_AsPyObject(ctx, ret);
         int result = _zerofill((PyArrayObject*) py_ret);
         Py_DECREF(py_ret);
