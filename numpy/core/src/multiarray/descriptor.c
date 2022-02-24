@@ -1929,11 +1929,6 @@ static PyMemberDef arraydescr_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
-void print_adhoc_debug_info() {
-    for (size_t i = 0; i < 8; ++i)
-        printf("&arraydescr_members[%d] = %p, arraydescr_members[_]->offset = %ld\n", (int) i, &arraydescr_members[i], arraydescr_members[i].offset);
-}
-
 static PyObject *
 arraydescr_subdescr_get(PyArray_Descr *self, void *NPY_UNUSED(ignored))
 {

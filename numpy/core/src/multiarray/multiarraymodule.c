@@ -4790,15 +4790,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     pyarry_descr_data->scalar_type = NULL;
 
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
-
-    // Sanity check TBR:
-    PyMemberDef member = {"type", T_OBJECT, offsetof(PyArray_DTypeMeta, scalar_type), READONLY, NULL};
-    PyMember_GetOne((char *) _PyArrayDescr_Type_p, &member);
-    print_adhoc_debug_info();
-
-    printf("DEBUG: setting _PyArrayDescr_Type_p = %p\n", _PyArrayDescr_Type_p);
-    printf("DEBUG: offsetof(PyArray_Descr, typeobj) = %p\n", (void*) offsetof(PyArray_Descr, typeobj));
-
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_PyArrayDescr_Type);
 

@@ -663,13 +663,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
 
     /* Finally, replace the current class of the descr */
-    printf("DEBUG: setting type(%p) = %p, type(kind=%c) = %s\n", descr, dtype_class, descr->kind, ((PyTypeObject *)dtype_class)->tp_name);
-    PyMemberDef member = {"type", T_OBJECT, offsetof(PyArray_DTypeMeta, scalar_type), READONLY, NULL};
-    printf("DEBUG: trying the type member of %p, result: %p, type=%p\n", descr, PyMember_GetOne((char *) descr, &member), descr->ob_base.ob_type);
-    printf("DEBUG: members: name=%s, offset=%ld\n", descr->ob_base.ob_type->tp_members[0].name, descr->ob_base.ob_type->tp_members[0].offset);
     Py_SET_TYPE(descr, (PyTypeObject *)dtype_class);
-    printf("DEBUG: trying the type member of %p, result: %p, type=%p\n", descr, PyMember_GetOne((char *) descr, &member), descr->ob_base.ob_type);
-    printf("DEBUG: members: name=%s, offset=%ld\n", descr->ob_base.ob_type->tp_members[0].name, descr->ob_base.ob_type->tp_members[0].offset);
     result = 0;
 
 cleanup:
@@ -678,122 +672,6 @@ cleanup:
     HPy_Close(ctx, h_new_dtype_type);
     Py_DecRef(dtype_class);
     return result;
-
-    // PyArray_DTypeMeta *dtype_class = PyMem_Malloc(sizeof(PyArray_DTypeMeta));
-    // if (dtype_class == NULL) {
-    //     PyMem_Free(tp_name);
-    //     PyMem_Free(dt_slots);
-    //     return -1;
-    // }
-
-    // /*
-    //  * Initialize the struct fields identically to static code by copying
-    //  * a prototype instances for everything except our own fields which
-    //  * vary between the DTypes.
-    //  * In particular any Object initialization must be strictly copied from
-    //  * the untouched prototype to avoid complexities (e.g. with PyPy).
-    //  * Any Type slots need to be fixed before PyType_Ready, although most
-    //  * will be inherited automatically there.
-    //  */
-    // static PyArray_DTypeMeta prototype = {
-    //     {{
-    //         PyVarObject_HEAD_INIT(&PyArrayDTypeMeta_Type, 0)
-    //         .tp_name = NULL,  /* set below */
-    //         .tp_basicsize = sizeof(PyArray_Descr),
-    //         .tp_flags = Py_TPFLAGS_DEFAULT,
-    //         .tp_base = &PyArrayDescr_Type, // HPY TODO: PROBABLY ISSUE HERE?? THIS IS NOT HEAP TYPE in HPY... SEE COMMENT IN https://github.com/hpyproject/numpy-hpy/commit/1809a0fded50a877b20e1d4b2e2a6583dc3158d7
-    //         .tp_new = (newfunc)legacy_dtype_default_new,
-    //     },},
-    //     .flags = NPY_DT_LEGACY,
-    //     /* Further fields are not common between DTypes */
-    // };
-    // memcpy(dtype_class, &prototype, sizeof(PyArray_DTypeMeta));
-    // /* Fix name of the Type*/
-    // ((PyTypeObject *)dtype_class)->tp_name = tp_name;
-    // dtype_class->dt_slots = dt_slots;
-
-    // /* Let python finish the initialization (probably unnecessary) */
-    // // MRO of dtype_class is computed to: (<numpy._DTypeMeta at remote 0x555555b7d610>, <numpy._DTypeMeta at remote 0x555555bd6610>, <type at remote 0x55555597b800>)
-    // // is that correct???
-    // if (PyType_Ready((PyTypeObject *)dtype_class) < 0) {
-    //     Py_DECREF(dtype_class);
-    //     return -1;
-    // }
-    // dt_slots->castingimpls = PyDict_New();
-    // if (dt_slots->castingimpls == NULL) {
-    //     Py_DECREF(dtype_class);
-    //     return -1;
-    // }
-
-    // /*
-    //  * Fill DTypeMeta information that varies between DTypes, any variable
-    //  * type information would need to be set before PyType_Ready().
-    //  */
-    // dtype_class->singleton = descr;
-    // Py_INCREF(descr->typeobj);
-    // dtype_class->scalar_type = descr->typeobj;
-    // dtype_class->type_num = descr->type_num;
-    // dt_slots->f = *(descr->f);
-
-    // /* Set default functions (correct for most dtypes, override below) */
-    // dt_slots->default_descr = nonparametric_default_descr;
-    // dt_slots->discover_descr_from_pyobject = (
-    //         nonparametric_discover_descr_from_pyobject);
-    // dt_slots->is_known_scalar_type = python_builtins_are_known_scalar_types;
-    // dt_slots->common_dtype = default_builtin_common_dtype;
-    // dt_slots->common_instance = NULL;
-
-    // if (PyTypeNum_ISSIGNED(dtype_class->type_num)) {
-    //     /* Convert our scalars (raise on too large unsigned and NaN, etc.) */
-    //     dt_slots->is_known_scalar_type = signed_integers_is_known_scalar_types;
-    // }
-
-    // if (PyTypeNum_ISUSERDEF(descr->type_num)) {
-    //     dt_slots->common_dtype = legacy_userdtype_common_dtype_function;
-    // }
-    // else if (descr->type_num == NPY_OBJECT) {
-    //     dt_slots->common_dtype = object_common_dtype;
-    // }
-    // else if (PyTypeNum_ISDATETIME(descr->type_num)) {
-    //     /* Datetimes are flexible, but were not considered previously */
-    //     dtype_class->flags |= NPY_DT_PARAMETRIC;
-    //     dt_slots->default_descr = datetime_and_timedelta_default_descr;
-    //     dt_slots->discover_descr_from_pyobject = (
-    //             discover_datetime_and_timedelta_from_pyobject);
-    //     dt_slots->common_dtype = datetime_common_dtype;
-    //     dt_slots->common_instance = datetime_type_promotion;
-    //     if (descr->type_num == NPY_DATETIME) {
-    //         dt_slots->is_known_scalar_type = datetime_known_scalar_types;
-    //     }
-    // }
-    // else if (PyTypeNum_ISFLEXIBLE(descr->type_num)) {
-    //     dtype_class->flags |= NPY_DT_PARAMETRIC;
-    //     if (descr->type_num == NPY_VOID) {
-    //         dt_slots->default_descr = void_default_descr;
-    //         dt_slots->discover_descr_from_pyobject = (
-    //                 void_discover_descr_from_pyobject);
-    //         dt_slots->common_instance = void_common_instance;
-    //     }
-    //     else {
-    //         dt_slots->default_descr = string_and_unicode_default_descr;
-    //         dt_slots->is_known_scalar_type = string_known_scalar_types;
-    //         dt_slots->discover_descr_from_pyobject = (
-    //                 string_discover_descr_from_pyobject);
-    //         dt_slots->common_dtype = string_unicode_common_dtype;
-    //         dt_slots->common_instance = string_unicode_common_instance;
-    //     }
-    // }
-
-    // if (_PyArray_MapPyTypeToDType(dtype_class, descr->typeobj,
-    //         PyTypeNum_ISUSERDEF(dtype_class->type_num)) < 0) {
-    //     Py_DECREF(dtype_class);
-    //     return -1;
-    // }
-
-    // /* Finally, replace the current class of the descr */
-    // Py_SET_TYPE(descr, (PyTypeObject *)dtype_class);
-
-    // return 0;
 }
 
 
