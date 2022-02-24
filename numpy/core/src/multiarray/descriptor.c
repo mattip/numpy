@@ -1929,6 +1929,11 @@ static PyMemberDef arraydescr_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
+void print_adhoc_debug_info() {
+    for (size_t i = 0; i < 8; ++i)
+        printf("&arraydescr_members[%d] = %p, arraydescr_members[_]->offset = %ld\n", (int) i, &arraydescr_members[i], arraydescr_members[i].offset);
+}
+
 static PyObject *
 arraydescr_subdescr_get(PyArray_Descr *self, void *NPY_UNUSED(ignored))
 {
@@ -3625,6 +3630,13 @@ static PyMappingMethods descr_as_mapping = {
 
 /****************** End of Mapping Protocol ******************************/
 
+
+// HPY TODO: global variable supplementing the PyArray_Descr static type
+// and global C variable at the same time. We cannot use non-pointer
+// PyArray_Descr once "dtype" class (PyArray_Descr) was converted to heap type.
+// The access macro PyArray_Descr was changed to return this pointer refererenced
+// to avoid having to change all the uses
+NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
 
 /*
  * NOTE: Since this is a MetaClass, the name has Full appended here, the

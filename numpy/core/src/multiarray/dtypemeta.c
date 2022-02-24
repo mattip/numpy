@@ -33,14 +33,6 @@ dtypemeta_dealloc(PyArray_DTypeMeta *self) {
 }
 
 static PyObject *
-dtypemeta_alloc(PyTypeObject *NPY_UNUSED(type), Py_ssize_t NPY_UNUSED(items))
-{
-    PyErr_SetString(PyExc_TypeError,
-            "DTypes can only be created using the NumPy API.");
-    return NULL;
-}
-
-static PyObject *
 dtypemeta_new(PyTypeObject *NPY_UNUSED(type),
         PyObject *NPY_UNUSED(args), PyObject *NPY_UNUSED(kwds))
 {
@@ -467,6 +459,17 @@ object_common_dtype(
     return cls;
 }
 
+static PyType_Slot new_dtype_legacy_slots[] = {
+    {Py_tp_new, legacy_dtype_default_new},
+    { 0 },
+};
+static HPyType_Spec New_PyArrayDescr_spec_prototype = {
+    .basicsize = sizeof(PyArray_Descr),
+    .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
+    .legacy_slots = new_dtype_legacy_slots,
+    .legacy = true,
+};
+
 
 /**
  * This function takes a PyArray_Descr and replaces its base class with
@@ -562,16 +565,10 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
     memset(dt_slots, '\0', sizeof(NPY_DType_Slots));
 
-    PyType_Slot legacy_slots[] = {
-        {Py_tp_new, legacy_dtype_default_new}
-    };
-    HPyType_Spec New_PyArrayDescr_spec = {
-        .name = tp_name,
-        .basicsize = sizeof(PyArray_Descr),
-        .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
-        .legacy_slots = legacy_slots,
-        .legacy = true,
-    };
+    // We memcpy from static prototype so that whole HPyType_Spec is initialized
+    HPyType_Spec New_PyArrayDescr_spec;
+    memcpy(&New_PyArrayDescr_spec, &New_PyArrayDescr_spec_prototype, sizeof(New_PyArrayDescr_spec));
+    New_PyArrayDescr_spec.name = tp_name;
 
     HPy h_PyArrayDescr_Type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayDescr_Type);
     HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
@@ -607,6 +604,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     new_dtype_data->scalar_type = descr->typeobj;
     new_dtype_data->type_num = descr->type_num;
     new_dtype_data->dt_slots = dt_slots;
+    new_dtype_data->flags = NPY_DT_LEGACY;
     dt_slots->f = *(descr->f);
 
     /* Set default functions (correct for most dtypes, override below) */
@@ -666,7 +664,12 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
 
     /* Finally, replace the current class of the descr */
     printf("DEBUG: setting type(%p) = %p, type(kind=%c) = %s\n", descr, dtype_class, descr->kind, ((PyTypeObject *)dtype_class)->tp_name);
+    PyMemberDef member = {"type", T_OBJECT, offsetof(PyArray_DTypeMeta, scalar_type), READONLY, NULL};
+    printf("DEBUG: trying the type member of %p, result: %p, type=%p\n", descr, PyMember_GetOne((char *) descr, &member), descr->ob_base.ob_type);
+    printf("DEBUG: members: name=%s, offset=%ld\n", descr->ob_base.ob_type->tp_members[0].name, descr->ob_base.ob_type->tp_members[0].offset);
     Py_SET_TYPE(descr, (PyTypeObject *)dtype_class);
+    printf("DEBUG: trying the type member of %p, result: %p, type=%p\n", descr, PyMember_GetOne((char *) descr, &member), descr->ob_base.ob_type);
+    printf("DEBUG: members: name=%s, offset=%ld\n", descr->ob_base.ob_type->tp_members[0].name, descr->ob_base.ob_type->tp_members[0].offset);
     result = 0;
 
 cleanup:
@@ -819,7 +822,6 @@ static PyMemberDef dtypemeta_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
-
 NPY_NO_EXPORT PyTypeObject PyArrayDTypeMeta_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "numpy._DTypeMeta",
@@ -831,7 +833,6 @@ NPY_NO_EXPORT PyTypeObject PyArrayDTypeMeta_Type = {
     .tp_getset = dtypemeta_getset,
     .tp_members = dtypemeta_members,
     .tp_base = NULL,  /* set to PyType_Type at import time */
-    .tp_alloc = dtypemeta_alloc,
     .tp_init = (initproc)dtypemeta_init,
     .tp_new = dtypemeta_new,
     .tp_is_gc = dtypemeta_is_gc,

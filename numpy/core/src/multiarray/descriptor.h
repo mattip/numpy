@@ -35,4 +35,9 @@ extern NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec;
 NPY_NO_EXPORT int
 HPyArray_DescrConverter(HPyContext *ctx, HPy obj, HPy *at);
 
+NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull;
+NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
+
+void print_adhoc_debug_info();
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_ */

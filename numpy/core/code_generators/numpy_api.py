@@ -33,7 +33,8 @@ multiarray_types_api = {
     'PyArray_Type':                     (2, None, '&PyArray_Type'),
     # Internally, PyArrayDescr_Type is a PyArray_DTypeMeta,
     # the following also defines PyArrayDescr_TypeFull (Full appended)
-    'PyArrayDescr_Type':                (3, "PyArray_DTypeMeta"),
+    #'PyArrayDescr_Type':                (3, "PyArray_DTypeMeta"),
+    'PyArrayDescr_Type':                (3, None, "&PyArrayDescr_Type"),
     'PyArrayFlags_Type':                (4,),
     'PyArrayIter_Type':                 (5,),
     'PyArrayMultiIter_Type':            (6,),
