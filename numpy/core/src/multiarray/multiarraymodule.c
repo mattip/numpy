@@ -4767,13 +4767,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    /*PyArrayDescr_Type.tp_hash = PyArray_DescrHash;
-    Py_SET_TYPE(&PyArrayDescr_Type, &PyArrayDTypeMeta_Type);
-    if (PyType_Ready(&PyArrayDescr_Type) < 0) {
-        goto err;
-    }*/
-
-
     HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
     HPyType_SpecParam dtype_params[] = {
         { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },

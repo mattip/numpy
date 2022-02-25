@@ -3473,10 +3473,6 @@ descr_nonzero(PyObject *NPY_UNUSED(self))
     return 1;
 }
 
-static PyNumberMethods descr_as_number = {
-    .nb_bool = (inquiry)descr_nonzero,
-};
-
 /*************************************************************************
  ****************   Implement Mapping Protocol ***************************
  *************************************************************************/
@@ -3697,25 +3693,6 @@ descr_subscript(PyArray_Descr *self, PyObject *op)
     }
 }
 
-static PySequenceMethods descr_as_sequence = {
-    (lenfunc) descr_length,                  /* sq_length */
-    (binaryfunc) NULL,                       /* sq_concat */
-    (ssizeargfunc) descr_repeat,             /* sq_repeat */
-    (ssizeargfunc) NULL,                     /* sq_item */
-    (ssizessizeargfunc) NULL,                /* sq_slice */
-    (ssizeobjargproc) NULL,                  /* sq_ass_item */
-    (ssizessizeobjargproc) NULL,             /* sq_ass_slice */
-    (objobjproc) NULL,                       /* sq_contains */
-    (binaryfunc) NULL,                       /* sq_inplace_concat */
-    (ssizeargfunc) NULL,                     /* sq_inplace_repeat */
-};
-
-static PyMappingMethods descr_as_mapping = {
-    descr_length,                                /* mp_length*/
-    (binaryfunc)descr_subscript,                 /* mp_subscript*/
-    (objobjargproc)NULL,                         /* mp_ass_subscript*/
-};
-
 /****************** End of Mapping Protocol ******************************/
 
 
@@ -3725,37 +3702,6 @@ static PyMappingMethods descr_as_mapping = {
 // The access macro PyArray_Descr was changed to return this pointer refererenced
 // to avoid having to change all the uses
 NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
-
-/*
- * NOTE: Since this is a MetaClass, the name has Full appended here, the
- *       correct name of the type is PyArrayDescr_Type.
- */
-NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull = {
-    {{
-        /* NULL represents `type`, this is set to DTypeMeta at import time */
-        PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "numpy.dtype",
-        .tp_basicsize = sizeof(PyArray_Descr),
-        .tp_dealloc = (destructor)arraydescr_dealloc,
-        .tp_repr = (reprfunc)arraydescr_repr,
-        .tp_as_number = &descr_as_number,
-        .tp_as_sequence = &descr_as_sequence,
-        .tp_as_mapping = &descr_as_mapping,
-        .tp_str = (reprfunc)arraydescr_str,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-        .tp_richcompare = (richcmpfunc)arraydescr_richcompare,
-        .tp_methods = arraydescr_methods,
-        .tp_members = arraydescr_members,
-        .tp_getset = arraydescr_getsets,
-        .tp_new = arraydescr_new,
-        .tp_hash = PyArray_DescrHash,
-    },},
-    // HPY TODO: set these in the ctor of the meta class...
-    .type_num = -1,
-    .flags = NPY_DT_ABSTRACT,
-    .singleton = NULL,
-    .scalar_type = NULL,
-};
 
 static PyType_Slot PyArrayDescr_TypeFull_legacy_slots[] = {
     {Py_tp_dealloc, arraydescr_dealloc},
