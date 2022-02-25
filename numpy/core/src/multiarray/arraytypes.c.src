@@ -4472,7 +4472,7 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
     }
     else {
         // Ignoring refcount/handle close issues here, since it is a temporary thing:
-        printf("DEBUG: warning entering CPython API in HPyArray_DescrFromType\n");
+        capi_warn("HPyArray_DescrFromType");
         ret = HPy_FromPyObject(ctx, (PyObject *) PyArray_DescrFromType(type));
     }
 

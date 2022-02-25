@@ -109,6 +109,7 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
 
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
+NPY_NO_EXPORT HPy HPyArrayDescr_Type;
 
 /* Only here for API compatibility */
 NPY_NO_EXPORT PyTypeObject PyBigArray_Type;
@@ -4789,7 +4790,10 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     pyarry_descr_data->singleton = NULL;
     pyarry_descr_data->scalar_type = NULL;
 
+    // HPY TODO: storing the dtype to globals to support legacy code, and HPy code w/o module state
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
+    HPyArrayDescr_Type = HPy_Dup(ctx, h_PyArrayDescr_Type);
+
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_PyArrayDescr_Type);
 

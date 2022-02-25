@@ -1577,15 +1577,108 @@ _convert_from_any(PyObject *obj, int align)
 #include "arraytypes.h"
 
 static HPy
+_hpy_convert_from_type(HPyContext *ctx, HPy typ) {
+    // TODO: create instead global handles for those:
+    HPy h_PyGenericArrType_Type = HPy_FromPyObject(ctx, (PyObject*) &PyGenericArrType_Type);
+
+    if (HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type)) {
+        capi_warn("_hpy_convert_from_type -> PyArray_DescrFromTypeObject");
+        // HPY TODO: convert the path PyArray_DescrFromTypeObject -> _typenum_fromtypeobj
+        // This requires conversion of scalartypes.c.src
+        PyObject *pyobj = HPy_AsPyObject(ctx, typ);
+        PyArray_Descr *pyres = PyArray_DescrFromTypeObject(pyobj);
+        HPy hres = HPy_FromPyObject(ctx, (PyObject*) pyres);
+        Py_DECREF(pyobj);
+        Py_DECREF(pyres);
+        return hres;
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_LongType)) {
+        return HPyArray_DescrFromType(ctx, NPY_LONG);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_FloatType)) {
+        return HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_ComplexType)) {
+        return HPyArray_DescrFromType(ctx, NPY_CDOUBLE);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_BoolType)) {
+        return HPyArray_DescrFromType(ctx, NPY_BOOL);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_BytesType)) {
+        /*
+         * TODO: This should be deprecated, and have special handling for
+         *       dtype=bytes/"S" in coercion: It should not rely on "S0".
+         */
+        return HPyArray_DescrFromType(ctx, NPY_STRING);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_UnicodeType)) {
+        /*
+         * TODO: This should be deprecated, and have special handling for
+         *       dtype=str/"U" in coercion: It should not rely on "U0".
+         */
+        return HPyArray_DescrFromType(ctx, NPY_UNICODE);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_MemoryViewType)) {
+        return HPyArray_DescrFromType(ctx, NPY_VOID);
+    }
+    else if (HPy_Is(ctx, typ, ctx->h_BaseObjectType)) {
+        return HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    }
+    else {
+        capi_warn("_hpy_convert_from_type -> _try_convert_from_dtype_attr");
+        PyTypeObject *py_obj = (PyTypeObject*) HPy_AsPyObject(ctx, typ);
+        PyObject *ret = (PyObject*) _try_convert_from_dtype_attr((PyObject*) py_obj);
+        
+        if ((PyObject *)ret != Py_NotImplemented) {
+            HPy h_ret = HPy_FromPyObject(ctx, ret);
+            Py_DECREF(py_obj);
+            Py_DECREF(ret);
+            return h_ret;
+        }
+        Py_DECREF(ret);
+
+        /*
+         * Note: this comes after _try_convert_from_dtype_attr because the ctypes
+         * type might override the dtype if numpy does not otherwise
+         * support it.
+         */
+        ret = (PyObject*) _try_convert_from_ctypes_type(py_obj);
+        if ((PyObject *)ret != Py_NotImplemented) {
+            HPy h_ret = HPy_FromPyObject(ctx, ret);
+            Py_DECREF(py_obj);
+            Py_DECREF(ret);
+            return h_ret;
+        }
+        Py_DECREF(py_obj);
+        Py_DECREF(ret);
+
+        /*
+         * All other classes are treated as object. This can be convenient
+         * to convey an intention of using it for a specific python type
+         * and possibly allow converting to a new type-specific dtype in the future. It may make sense to
+         * only allow this only within `dtype=...` keyword argument context
+         * in the future.
+         */
+        return HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    }
+}
+
+static HPy
 _hpy_convert_from_any(HPyContext *ctx, HPy obj, int align)
 {
     /* default */
-    // HPY TODO: different default than for numpy arg parsing
-    if (HPy_IsNull(obj)) {
+    // HPY TODO: different default (HPy_NULL) than for numpy arg parsing (None)
+    if (HPy_IsNull(obj) || HPy_Is(ctx, obj, ctx->h_None)) {
         return HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
+    else if (HPyArray_DescrCheck(ctx, obj)) {
+        return HPy_Dup(ctx, obj);
+    }
+    else if (HPy_TypeCheck(ctx, obj, ctx->h_TypeType)) {
+        return _hpy_convert_from_type(ctx, obj);
+    }
     else {
-        printf("DEBUG: warning entering CPython API in _hpy_convert_from_any\n");
+        capi_warn("_hpy_convert_from_any");
         PyObject *py_obj = HPy_AsPyObject(ctx, obj);
         PyObject *py_result = (PyObject *) _convert_from_any(py_obj, align);
         HPy result = HPy_FromPyObject(ctx, py_result);

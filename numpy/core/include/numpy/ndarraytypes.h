@@ -20,6 +20,10 @@ npy_get_context(void)
     assert(numpy_global_ctx != NULL);
     return numpy_global_ctx;
 }
+static NPY_INLINE
+void capi_warn(const char *where) {
+        printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
+}
 
 #ifdef __cplusplus
 }
