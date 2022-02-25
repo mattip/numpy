@@ -226,7 +226,7 @@ npy_discover_dtype_from_pytype(PyTypeObject *pytype)
     if (DType == Py_None) {
         return (PyArray_DTypeMeta *)Py_None;
     }
-    assert(PyObject_TypeCheck(DType, (PyTypeObject *)&PyArrayDTypeMeta_Type));
+    assert(PyObject_TypeCheck(DType, PyArrayDTypeMeta_Type));
     return (PyArray_DTypeMeta *)DType;
 }
 
@@ -1208,7 +1208,7 @@ PyArray_DiscoverDTypeAndShape(
     /* Validate input of requested descriptor and DType */
     if (fixed_DType != NULL) {
         assert(PyObject_TypeCheck(
-                (PyObject *)fixed_DType, (PyTypeObject *)&PyArrayDTypeMeta_Type));
+                (PyObject *)fixed_DType, PyArrayDTypeMeta_Type));
     }
 
     if (requested_descr != NULL) {
@@ -1469,13 +1469,13 @@ PyArray_ExtractDTypeAndDescriptor(PyObject *dtype,
     *out_descr = NULL;
 
     if (dtype != NULL) {
-        if (PyObject_TypeCheck(dtype, (PyTypeObject *)&PyArrayDTypeMeta_Type)) {
+        if (PyObject_TypeCheck(dtype, PyArrayDTypeMeta_Type)) {
             assert(dtype != (PyObject * )&PyArrayDescr_Type);  /* not np.dtype */
             *out_DType = (PyArray_DTypeMeta *)dtype;
             Py_INCREF(*out_DType);
         }
         else if (PyObject_TypeCheck((PyObject *)Py_TYPE(dtype),
-                    (PyTypeObject *)&PyArrayDTypeMeta_Type)) {
+                    PyArrayDTypeMeta_Type)) {
             *out_DType = NPY_DTYPE(dtype);
             Py_INCREF(*out_DType);
             if (!descr_is_legacy_parametric_instance((PyArray_Descr *)dtype)) {

@@ -113,7 +113,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
 {
     int result = -1;
     HPy h_PyArrayDescr_Type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayDescr_Type);
-    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
+    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) PyArrayDTypeMeta_Type);
     HPyType_SpecParam abstract_dtype_params[] = {
         {HPyType_SpecParam_Base, h_PyArrayDescr_Type},
         { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },

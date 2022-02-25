@@ -2447,7 +2447,7 @@ arraydescr_new(PyTypeObject *subtype,
                 PyObject *args, PyObject *kwds)
 {
     if (subtype != &PyArrayDescr_Type) {
-        if (Py_TYPE(subtype) == &PyArrayDTypeMeta_Type &&
+        if (Py_TYPE(subtype) == PyArrayDTypeMeta_Type &&
                 (NPY_DT_SLOTS((PyArray_DTypeMeta *)subtype)) != NULL &&
                 !NPY_DT_is_legacy((PyArray_DTypeMeta *)subtype) &&
                 subtype->tp_new != PyArrayDescr_Type.tp_new) {

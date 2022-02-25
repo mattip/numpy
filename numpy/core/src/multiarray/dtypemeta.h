@@ -122,4 +122,6 @@ python_builtins_are_known_scalar_types(
 NPY_NO_EXPORT int
 dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *dtypem);
 
+NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec;
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DTYPEMETA_H_ */

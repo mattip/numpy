@@ -124,7 +124,7 @@ int
 PyArrayInitDTypeMeta_FromSpec(
         PyArray_DTypeMeta *DType, PyArrayDTypeMeta_Spec *spec)
 {
-    if (!PyObject_TypeCheck(DType, &PyArrayDTypeMeta_Type)) {
+    if (!PyObject_TypeCheck(DType, PyArrayDTypeMeta_Type)) {
         PyErr_SetString(PyExc_RuntimeError,
                 "Passed in DType must be a valid (initialized) DTypeMeta "
                 "instance!");
@@ -387,7 +387,7 @@ _get_experimental_dtype_api(PyObject *NPY_UNUSED(mod), PyObject *arg)
     static void *experimental_api_table[42] = {
             &PyUFunc_AddLoopFromSpec,
             &PyUFunc_AddPromoter,
-            &PyArrayDTypeMeta_Type,
+            NULL,
             &PyArrayInitDTypeMeta_FromSpec,
             &PyArray_CommonDType,
             &PyArray_PromoteDTypeSequence,
@@ -398,6 +398,7 @@ _get_experimental_dtype_api(PyObject *NPY_UNUSED(mod), PyObject *arg)
             /* NumPy's builtin DTypes (starting at offset 10 going to 41) */
     };
     if (experimental_api_table[10] == NULL) {
+        experimental_api_table[2] = PyArrayDTypeMeta_Type;
         experimental_api_table[10] = PyArray_DTypeFromTypeNum(NPY_BOOL);
         /* Integers */
         experimental_api_table[11] = PyArray_DTypeFromTypeNum(NPY_BYTE);

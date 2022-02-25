@@ -4762,12 +4762,15 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    PyArrayDTypeMeta_Type.tp_base = &PyType_Type;
-    if (PyType_Ready(&PyArrayDTypeMeta_Type) < 0) {
+    HPyType_SpecParam dtypemeta_params[] = {
+        { HPyType_SpecParam_Base, ctx->h_TypeType },
+        { 0 }
+    };
+    HPy h_PyArrayDTypeMeta_Type = HPyType_FromSpec(ctx, &PyArrayDTypeMeta_Type_spec, dtypemeta_params);
+    if (HPy_IsNull(h_PyArrayDTypeMeta_Type)) {
         goto err;
     }
 
-    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
     HPyType_SpecParam dtype_params[] = {
         { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },
         { 0 }
@@ -4783,12 +4786,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     pyarry_descr_data->singleton = NULL;
     pyarry_descr_data->scalar_type = NULL;
 
-    // HPY TODO: storing the dtype to globals to support legacy code, and HPy code w/o module state
+    // HPY TODO: storing the types to globals to support legacy code, and HPy code w/o module state
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
+    PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
     HPyArrayDescr_Type = HPy_Dup(ctx, h_PyArrayDescr_Type);
 
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_PyArrayDescr_Type);
+    HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
 
     initialize_casting_tables();
     initialize_numeric_types();

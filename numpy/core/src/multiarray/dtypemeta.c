@@ -70,10 +70,9 @@ dtypemeta_is_gc(PyObject *dtype_class)
     return PyType_Type.tp_is_gc(dtype_class);
 }
 
-
-static int
-dtypemeta_traverse(PyArray_DTypeMeta *type, visitproc visit, void *arg)
-{
+HPyDef_SLOT(DTypeMeta_traverse, DTypeMeta_traverse_impl, HPy_tp_traverse)
+static int DTypeMeta_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg) {
+    // HPY TODO: implement
     /*
      * We have to traverse the base class (if it is a HeapType).
      * PyType_Type will handle this logic for us.
@@ -571,7 +570,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     New_PyArrayDescr_spec.name = tp_name;
 
     HPy h_PyArrayDescr_Type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayDescr_Type);
-    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) &PyArrayDTypeMeta_Type);
+    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) PyArrayDTypeMeta_Type);
     HPy h_new_dtype_type = HPy_NULL;
     PyObject *dtype_class = NULL; // to pass to legacy helpers
     int result = -1;
@@ -700,19 +699,30 @@ static PyMemberDef dtypemeta_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
-NPY_NO_EXPORT PyTypeObject PyArrayDTypeMeta_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy._DTypeMeta",
-    .tp_basicsize = sizeof(PyArray_DTypeMeta),
-    .tp_dealloc = (destructor)dtypemeta_dealloc,
+// HPY TODO: global set in module init:
+NPY_NO_EXPORT PyTypeObject *PyArrayDTypeMeta_Type;
+
+NPY_NO_EXPORT PyType_Slot PyArrayDTypeMeta_Type_legacy_slots[] = {
+    {Py_tp_getset, dtypemeta_getset},
+    {Py_tp_members, dtypemeta_members},
+    {Py_tp_init, dtypemeta_init},
+    {Py_tp_new, dtypemeta_new},
+    {0, 0},
+};
+
+NPY_NO_EXPORT HPyDef *PyArrayDTypeMeta_Type_slots[] = {
+    &DTypeMeta_traverse,
+    0,
+};
+
+NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec = {
+    .name = "numpy._DTypeMeta",
+    .basicsize = sizeof(PyArray_DTypeMeta),
     /* Types are garbage collected (see dtypemeta_is_gc documentation) */
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)",
-    .tp_getset = dtypemeta_getset,
-    .tp_members = dtypemeta_members,
-    .tp_base = NULL,  /* set to PyType_Type at import time */
-    .tp_init = (initproc)dtypemeta_init,
-    .tp_new = dtypemeta_new,
-    .tp_is_gc = dtypemeta_is_gc,
-    .tp_traverse = (traverseproc)dtypemeta_traverse,
+    .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
+    .doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)",
+    .legacy = true,
+    .defines = PyArrayDTypeMeta_Type_slots,
+    .legacy_slots = &PyArrayDTypeMeta_Type_legacy_slots,
+    // HPY TODO: .tp_traverse = (traverseproc)dtypemeta_traverse,
 };
