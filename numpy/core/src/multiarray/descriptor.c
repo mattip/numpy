@@ -1977,7 +1977,6 @@ arraydescr_dealloc(PyArray_Descr *self)
         fprintf(stderr, "*** Reference count error detected: "
                 "an attempt was made to deallocate the dtype %d (%c) ***\n",
                 self->type_num, self->type);
-        assert(0);
         Py_INCREF(self);
         Py_INCREF(self);
         return;
