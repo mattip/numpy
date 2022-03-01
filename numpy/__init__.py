@@ -148,7 +148,6 @@ else:
     from . import linalg
     from . import fft
     from . import polynomial
-    from . import random
     from . import ctypeslib
     from . import ma
     from . import matrixlib as _mat
@@ -228,7 +227,7 @@ else:
     __all__.extend(core.__all__)
     __all__.extend(_mat.__all__)
     __all__.extend(lib.__all__)
-    __all__.extend(['linalg', 'fft', 'random', 'ctypeslib', 'ma'])
+    __all__.extend(['linalg', 'fft', 'ctypeslib', 'ma'])
 
     # Remove one of the two occurrences of `issubdtype`, which is exposed as
     # both `numpy.core.issubdtype` and `numpy.lib.issubdtype`.
