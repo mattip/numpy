@@ -42,6 +42,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "arraytypes.h"
 #include "npy_buffer.h"
 #include "arrayobject.h"
+#include "iterators.h"
 #include "hashdescr.h"
 #include "descriptor.h"
 #include "dragon4.h"
@@ -4814,13 +4815,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    PyArrayIter_Type.tp_iter = PyObject_SelfIter;
     NpyIter_Type.tp_iter = PyObject_SelfIter;
     PyArrayMultiIter_Type.tp_iter = PyObject_SelfIter;
     PyArrayMultiIter_Type.tp_free = PyArray_free;
-    if (PyType_Ready(&PyArrayIter_Type) < 0) {
+    HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
+    _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
     if (PyType_Ready(&PyArrayMapIter_Type) < 0) {
         goto err;
     }

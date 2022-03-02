@@ -957,12 +957,6 @@ iter_ass_subscript(PyArrayIterObject *self, PyObject *ind, PyObject *val)
 }
 
 
-static PyMappingMethods iter_as_mapping = {
-    (lenfunc)iter_length,                   /*mp_length*/
-    (binaryfunc)iter_subscript,             /*mp_subscript*/
-    (objobjargproc)iter_ass_subscript,      /*mp_ass_subscript*/
-};
-
 
 /* Two options:
  *  1) underlying array is contiguous
@@ -1108,19 +1102,30 @@ static PyGetSetDef iter_getsets[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-NPY_NO_EXPORT PyTypeObject PyArrayIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.flatiter",
-    .tp_basicsize = sizeof(PyArrayIterObject),
-    .tp_dealloc = (destructor)arrayiter_dealloc,
-    .tp_as_mapping = &iter_as_mapping,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_richcompare = (richcmpfunc)iter_richcompare,
-    .tp_iternext = (iternextfunc)arrayiter_next,
-    .tp_methods = iter_methods,
-    .tp_members = iter_members,
-    .tp_getset = iter_getsets,
+static PyType_Slot iter_slots[] = {
+        {Py_tp_dealloc, arrayiter_dealloc},
+        {Py_mp_length, iter_length},
+        {Py_mp_subscript, iter_subscript},
+        {Py_mp_ass_subscript, iter_ass_subscript},
+        {Py_tp_richcompare, iter_richcompare},
+        {Py_tp_iternext, arrayiter_next},
+        {Py_tp_methods, iter_methods},
+        {Py_tp_members, iter_members},
+        {Py_tp_getset, iter_getsets},
+        {Py_tp_iter, PyObject_SelfIter},
+        {0, NULL}
+
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayIter_Type_Spec = {
+    .name = "numpy.flatiter",
+    .basicsize = sizeof(PyArrayIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = iter_slots
+};
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayIter_Type_p;
 
 /** END of Array Iterator **/
 

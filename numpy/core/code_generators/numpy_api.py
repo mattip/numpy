@@ -36,7 +36,7 @@ multiarray_types_api = {
     #'PyArrayDescr_Type':                (3, "PyArray_DTypeMeta"),
     'PyArrayDescr_Type':                (3, None, "&PyArrayDescr_Type"),
     'PyArrayFlags_Type':                (4,),
-    'PyArrayIter_Type':                 (5,),
+    'PyArrayIter_Type':                 (5, None, "_PyArrayIter_Type_p"),
     'PyArrayMultiIter_Type':            (6,),
     'PyBoolArrType_Type':               (8,),
     'PyGenericArrType_Type':            (10,),
