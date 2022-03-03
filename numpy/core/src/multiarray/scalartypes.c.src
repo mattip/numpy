@@ -4237,8 +4237,6 @@ initialize_numeric_types(void)
     PyStringArrType_Type.tp_itemsize = sizeof(char);
     PyVoidArrType_Type.tp_dealloc = (destructor) void_dealloc;
 
-    PyArrayMapIter_Type.tp_iter = PyObject_SelfIter;
-
     /*
      * Give types different names when they are the same size (gh-9799).
      * `np.intX` always refers to the first int of that size in the sequence

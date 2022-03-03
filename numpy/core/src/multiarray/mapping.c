@@ -3379,6 +3379,12 @@ arraymapiter_dealloc(PyArrayMapIterObject *mit)
     PyArray_free(mit);
 }
 
+static PyType_Slot arraymapiter_slots[] = {
+        {Py_tp_dealloc, arraymapiter_dealloc},
+        {Py_tp_iter, PyObject_SelfIter},
+        {0, NULL}
+};
+
 /*
  * The mapiter object must be created new each time.  It does not work
  * to bind to a new array, and continue.
@@ -3390,10 +3396,12 @@ arraymapiter_dealloc(PyArrayMapIterObject *mit)
  * removed. This is not very useful anyway, since mapiter is equivalent
  * to a[indexobj].flat but the latter gets to use slice syntax.
  */
-NPY_NO_EXPORT PyTypeObject PyArrayMapIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.mapiter",
-    .tp_basicsize = sizeof(PyArrayMapIterObject),
-    .tp_dealloc = (destructor)arraymapiter_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec = {
+    .name = "numpy.mapiter",
+    .basicsize = sizeof(PyArrayMapIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = arraymapiter_slots
 };
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayMapIter_Type_p;
