@@ -1818,10 +1818,18 @@ static void neighiter_dealloc(PyArrayNeighborhoodIterObject* iter)
     PyArray_free((PyArrayObject*)iter);
 }
 
-NPY_NO_EXPORT PyTypeObject PyArrayNeighborhoodIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.neigh_internal_iter",
-    .tp_basicsize = sizeof(PyArrayNeighborhoodIterObject),
-    .tp_dealloc = (destructor)neighiter_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+static PyType_Slot neighiter_slots[] = {
+        {Py_tp_new, HPyType_GenericNew},
+        {Py_tp_dealloc, neighiter_dealloc},
+        {0, NULL}
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayNeighborhoodIter_Type_Spec = {
+    .name = "numpy.neigh_internal_iter",
+    .basicsize = sizeof(PyArrayNeighborhoodIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = neighiter_slots,
+};
+
+NPY_NO_EXPORT PyTypeObject *PyArrayNeighborhoodIter_Type;

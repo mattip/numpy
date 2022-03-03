@@ -4829,13 +4829,17 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
     _PyArrayMapIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
+
     if (PyType_Ready(&PyArrayMultiIter_Type) < 0) {
         goto err;
     }
-    PyArrayNeighborhoodIter_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&PyArrayNeighborhoodIter_Type) < 0) {
+
+    HPy h_neighborhoodIterType = HPyType_FromSpec(ctx, &PyArrayNeighborhoodIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_neighborhoodIterType)) {
         goto err;
     }
+    PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
+
     if (PyType_Ready(&NpyIter_Type) < 0) {
         goto err;
     }
