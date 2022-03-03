@@ -4817,22 +4817,23 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
 
     NpyIter_Type.tp_iter = PyObject_SelfIter;
-    PyArrayMultiIter_Type.tp_iter = PyObject_SelfIter;
-    PyArrayMultiIter_Type.tp_free = PyArray_free;
     HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
     _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
+
     HPy h_arrayMapIterType = HPyType_FromSpec(ctx, &PyArrayMapIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
     _PyArrayMapIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
 
-    if (PyType_Ready(&PyArrayMultiIter_Type) < 0) {
+    HPy h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayMultiIter_type)) {
         goto err;
     }
+    _PyArrayMultiIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMultiIter_type);
 
     HPy h_neighborhoodIterType = HPyType_FromSpec(ctx, &PyArrayNeighborhoodIter_Type_Spec, NULL);
     if (HPy_IsNull(h_neighborhoodIterType)) {

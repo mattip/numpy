@@ -1535,18 +1535,27 @@ static PyMethodDef arraymultiter_methods[] = {
     {NULL, NULL, 0, NULL},      /* sentinel */
 };
 
-NPY_NO_EXPORT PyTypeObject PyArrayMultiIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.broadcast",
-    .tp_basicsize = sizeof(PyArrayMultiIterObject),
-    .tp_dealloc = (destructor)arraymultiter_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_iternext = (iternextfunc)arraymultiter_next,
-    .tp_methods = arraymultiter_methods,
-    .tp_members = arraymultiter_members,
-    .tp_getset = arraymultiter_getsetlist,
-    .tp_new = arraymultiter_new,
+static PyType_Slot arraymultiter_slots[] = {
+        {Py_tp_new, arraymultiter_new},
+        {Py_tp_dealloc, arraymultiter_dealloc},
+        {Py_tp_iternext, arraymultiter_next},
+        {Py_tp_getset, arraymultiter_getsetlist},
+        {Py_tp_members, arraymultiter_members},
+        {Py_tp_methods, arraymultiter_methods},
+        {Py_tp_iter, PyObject_SelfIter},
+        {Py_tp_free, PyArray_free},
+        {0, NULL}
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayMultiIter_Type_Spec = {
+    .name = "numpy.broadcast",
+    .basicsize = sizeof(PyArrayMultiIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = arraymultiter_slots,
+};
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayMultiIter_Type_p;
 
 /*========================= Neighborhood iterator ======================*/
 
