@@ -20,6 +20,43 @@
 static void
 _UpdateContiguousFlags(PyArrayObject *ap);
 
+/* TODO(fa): will become part of Numpy's HPy API */
+static HPy
+HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
+{
+    HPy flagobj;
+    PyArrayFlagsObject *data;
+    int flags;
+    HPy array_type = HPy_FromPyObject(ctx, (PyObject *) &PyArray_Type);
+    if (HPy_IsNull(obj)) {
+        flags = NPY_ARRAY_C_CONTIGUOUS |
+                NPY_ARRAY_OWNDATA |
+                NPY_ARRAY_F_CONTIGUOUS |
+                NPY_ARRAY_ALIGNED;
+    }
+    else {
+        if (!HPy_TypeCheck(ctx, obj, array_type)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "Need a NumPy array to create a flags object");
+            return HPy_NULL;
+        }
+
+        flags = PyArray_FLAGS((PyArrayObject *)HPy_AsStructLegacy(ctx, obj));
+    }
+    flagobj = HPy_New(ctx, flags_type, &data);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(flagobj)) {
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(obj)) {
+        data->arr = HPyField_NULL;
+    } else {
+        HPyField_Store(ctx, flagobj, &(data->arr), obj);
+    }
+    data->flags = flags;
+    return flagobj;
+}
+
 /*NUMPY_API
  *
  * Get New ArrayFlagsObject
@@ -27,33 +64,22 @@ _UpdateContiguousFlags(PyArrayObject *ap);
 NPY_NO_EXPORT PyObject *
 PyArray_NewFlagsObject(PyObject *obj)
 {
-    PyObject *flagobj;
-    int flags;
-
-    if (obj == NULL) {
-        flags = NPY_ARRAY_C_CONTIGUOUS |
-                NPY_ARRAY_OWNDATA |
-                NPY_ARRAY_F_CONTIGUOUS |
-                NPY_ARRAY_ALIGNED;
-    }
-    else {
-        if (!PyArray_Check(obj)) {
-            PyErr_SetString(PyExc_ValueError,
-                    "Need a NumPy array to create a flags object");
-            return NULL;
-        }
-
-        flags = PyArray_FLAGS((PyArrayObject *)obj);
-    }
-    flagobj = PyArrayFlags_Type.tp_alloc(&PyArrayFlags_Type, 0);
-    if (flagobj == NULL) {
-        return NULL;
-    }
-    Py_XINCREF(obj);
-    ((PyArrayFlagsObject *)flagobj)->arr = obj;
-    ((PyArrayFlagsObject *)flagobj)->flags = flags;
-    return flagobj;
+    /* TODO(fa): SUPER HACK ALERT */
+    HPyContext *ctx = npy_get_context();
+    HPy h_res;
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_flags_type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayFlags_Type);
+    PyObject *res;
+    h_res = HPyArray_NewFlagsObject(ctx, h_flags_type, h_obj);
+    HPy_Close(ctx, h_flags_type);
+    HPy_Close(ctx, h_obj);
+    
+    res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    
+    return res;
 }
+
 
 /*NUMPY_API
  * Update Several Flags at once.
@@ -190,20 +216,14 @@ _UpdateContiguousFlags(PyArrayObject *ap)
     return;
 }
 
-static void
-arrayflags_dealloc(PyArrayFlagsObject *self)
-{
-    Py_XDECREF(self->arr);
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
 
 #define _define_get(UPPER, lower) \
-    static PyObject * \
-    arrayflags_ ## lower ## _get( \
-            PyArrayFlagsObject *self, void *NPY_UNUSED(ignored)) \
+    static HPy \
+    arrayflags_ ## lower ## _get_impl( \
+            HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored)) \
     { \
-        return PyBool_FromLong((self->flags & (UPPER)) == (UPPER)); \
+        PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self); \
+        return HPyBool_FromLong(ctx, (data->flags & (UPPER)) == (UPPER)); \
     }
 
 static char *msg = "future versions will not create a writeable "
@@ -211,195 +231,273 @@ static char *msg = "future versions will not create a writeable "
     "avoid this warning.";
 
 #define _define_get_warn(UPPER, lower) \
-    static PyObject * \
-    arrayflags_ ## lower ## _get( \
-            PyArrayFlagsObject *self, void *NPY_UNUSED(ignored)) \
+    static HPy \
+    arrayflags_ ## lower ## _get_impl( \
+            HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored)) \
     { \
-        if (self->flags & NPY_ARRAY_WARN_ON_WRITE) { \
-            if (PyErr_Warn(PyExc_FutureWarning, msg) < 0) {\
-                return NULL; \
+        PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self); \
+        if (data->flags & NPY_ARRAY_WARN_ON_WRITE) { \
+            if (HPyErr_WarnEx(ctx, ctx->h_FutureWarning, msg, 1) < 0) {\
+                return HPy_NULL; \
             } \
-        }\
-        return PyBool_FromLong((self->flags & (UPPER)) == (UPPER)); \
+        } \
+        return HPyBool_FromLong(ctx, (data->flags & (UPPER)) == (UPPER)); \
     }
 
 
+HPyDef_GET(arrayflags_contiguous_get, "contiguous", arrayflags_contiguous_get_impl)
 _define_get(NPY_ARRAY_C_CONTIGUOUS, contiguous)
+
+HPyDef_GET(arrayflags_fortran_get, "fortran", arrayflags_fortran_get_impl)
 _define_get(NPY_ARRAY_F_CONTIGUOUS, fortran)
-_define_get(NPY_ARRAY_WRITEBACKIFCOPY, writebackifcopy)
+
+HPyDef_GET(arrayflags_owndata_get, "owndata", arrayflags_owndata_get_impl)
 _define_get(NPY_ARRAY_OWNDATA, owndata)
-_define_get(NPY_ARRAY_ALIGNED, aligned)
+
+HPyDef_GET(arrayflags_writeable_no_warn_get, "_writeable_no_warn", arrayflags_writeable_no_warn_get_impl)
 _define_get(NPY_ARRAY_WRITEABLE, writeable_no_warn)
-_define_get_warn(NPY_ARRAY_WRITEABLE, writeable)
+
+HPyDef_GET(arrayflags_behaved_get, "behaved", arrayflags_behaved_get_impl)
 _define_get_warn(NPY_ARRAY_ALIGNED|
             NPY_ARRAY_WRITEABLE, behaved)
+
+HPyDef_GET(arrayflags_carray_get, "carray", arrayflags_carray_get_impl)
 _define_get_warn(NPY_ARRAY_ALIGNED|
             NPY_ARRAY_WRITEABLE|
             NPY_ARRAY_C_CONTIGUOUS, carray)
 
-static PyObject *
-arrayflags_forc_get(PyArrayFlagsObject *self, void *NPY_UNUSED(ignored))
-{
-    PyObject *item;
+HPyDef arrayflags_c_contiguous_get = {
+        .kind = HPyDef_Kind_GetSet,
+        .getset = {
+            .name = "c_contiguous",
+            .getter_impl = (HPyCFunction)arrayflags_contiguous_get_impl,
+            .getter_cpy_trampoline = (cpy_getter)arrayflags_contiguous_get_get_trampoline,
+        }
+};
 
-    if (((self->flags & NPY_ARRAY_F_CONTIGUOUS) == NPY_ARRAY_F_CONTIGUOUS) ||
-        ((self->flags & NPY_ARRAY_C_CONTIGUOUS) == NPY_ARRAY_C_CONTIGUOUS)) {
-        item = Py_True;
+HPyDef arrayflags_f_contiguous_get = {
+        .kind = HPyDef_Kind_GetSet,
+        .getset = {
+            .name = "f_contiguous",
+            .getter_impl = (HPyCFunction)arrayflags_fortran_get_impl,
+            .getter_cpy_trampoline = (cpy_getter)arrayflags_fortran_get_get_trampoline,
+        }
+};
+
+HPyDef_GET(arrayflags_forc_get, "forc", arrayflags_forc_get_impl)
+static HPy
+arrayflags_forc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+{
+    PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
+    HPy item;
+
+    if (((data->flags & NPY_ARRAY_F_CONTIGUOUS) == NPY_ARRAY_F_CONTIGUOUS) ||
+        ((data->flags & NPY_ARRAY_C_CONTIGUOUS) == NPY_ARRAY_C_CONTIGUOUS)) {
+        item = ctx->h_True;
     }
     else {
-        item = Py_False;
+        item = ctx->h_False;
     }
-    Py_INCREF(item);
-    return item;
+    return HPy_Dup(ctx, item);
 }
 
-static PyObject *
-arrayflags_fnc_get(PyArrayFlagsObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(arrayflags_fnc_get, "fnc", arrayflags_fnc_get_impl)
+static HPy
+arrayflags_fnc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    PyObject *item;
+    PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
+    HPy item;
 
-    if (((self->flags & NPY_ARRAY_F_CONTIGUOUS) == NPY_ARRAY_F_CONTIGUOUS) &&
-        !((self->flags & NPY_ARRAY_C_CONTIGUOUS) == NPY_ARRAY_C_CONTIGUOUS)) {
-        item = Py_True;
+    if (((data->flags & NPY_ARRAY_F_CONTIGUOUS) == NPY_ARRAY_F_CONTIGUOUS) &&
+        !((data->flags & NPY_ARRAY_C_CONTIGUOUS) == NPY_ARRAY_C_CONTIGUOUS)) {
+        item = ctx->h_True;
     }
     else {
-        item = Py_False;
+        item = ctx->h_False;
     }
-    Py_INCREF(item);
-    return item;
+    return HPy_Dup(ctx, item);
 }
 
-static PyObject *
-arrayflags_farray_get(PyArrayFlagsObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(arrayflags_farray_get, "farray", arrayflags_farray_get_impl)
+static HPy
+arrayflags_farray_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    PyObject *item;
+    PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
+    HPy item;
 
-    if (((self->flags & (NPY_ARRAY_ALIGNED|
+    if (((data->flags & (NPY_ARRAY_ALIGNED|
                          NPY_ARRAY_WRITEABLE|
                          NPY_ARRAY_F_CONTIGUOUS)) != 0) &&
-        !((self->flags & NPY_ARRAY_C_CONTIGUOUS) != 0)) {
-        item = Py_True;
+        !((data->flags & NPY_ARRAY_C_CONTIGUOUS) != 0)) {
+        item = ctx->h_True;
     }
     else {
-        item = Py_False;
+        item = ctx->h_False;
     }
-    Py_INCREF(item);
-    return item;
+    return HPy_Dup(ctx, item);
 }
 
-static PyObject *
-arrayflags_num_get(PyArrayFlagsObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(arrayflags_num_get, "num", arrayflags_num_get_impl)
+static HPy
+arrayflags_num_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong(self->flags);
+    PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
+    return HPyLong_FromLong(ctx, data->flags);
 }
 
 /* relies on setflags order being write, align, uic */
+HPyDef_GETSET(arrayflags_writebackifcopy_getset, "writebackifcopy", arrayflags_writebackifcopy_get_impl, arrayflags_writebackifcopy_set_impl)
+_define_get(NPY_ARRAY_WRITEBACKIFCOPY, writebackifcopy)
 static int
-arrayflags_writebackifcopy_set(
-        PyArrayFlagsObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
+arrayflags_writebackifcopy_set_impl(
+        HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
-    PyObject *res;
+    HPy res;
+    HPy h_arr, h_setflags, h_args;
+    PyArrayFlagsObject *data;
 
-    if (obj == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete flags writebackifcopy attribute");
         return -1;
     }
-    if (self->arr == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+    data = PyArrayFlagsObject_AsStruct(ctx, self);
+    h_arr = HPyField_Load(ctx, self, data->arr);
+    if (HPy_IsNull(h_arr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Cannot set flags on array scalars.");
         return -1;
     }
-    res = PyObject_CallMethod(self->arr, "setflags", "OOO", Py_None, Py_None,
-                              (PyObject_IsTrue(obj) ? Py_True : Py_False));
-    if (res == NULL) {
+    h_args = HPyTuple_Pack(ctx, 3,
+                           ctx->h_None,
+                           ctx->h_None, 
+                           HPy_IsTrue(ctx, obj) ? ctx->h_True : ctx->h_False);
+    h_setflags = HPy_GetAttr_s(ctx, h_arr, "setflags");
+    res = HPy_CallTupleDict(ctx, h_setflags, h_args, HPy_NULL);
+    HPy_Close(ctx, h_setflags);
+    HPy_Close(ctx, h_args);
+    HPy_Close(ctx, h_arr);
+
+    if (HPy_IsNull(res)) {
         return -1;
     }
-    Py_DECREF(res);
+    HPy_Close(ctx, res);
     return 0;
 }
 
+HPyDef_GETSET(arrayflags_aligned_getset, "aligned", arrayflags_aligned_get_impl, arrayflags_aligned_set_impl)
+_define_get(NPY_ARRAY_ALIGNED, aligned)
 static int
-arrayflags_aligned_set(
-        PyArrayFlagsObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
+arrayflags_aligned_set_impl(
+        HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
-    PyObject *res;
+    HPy res;
+    HPy h_arr, h_setflags, h_args;
+    PyArrayFlagsObject *data;
 
-    if (obj == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete flags aligned attribute");
         return -1;
     }
-    if (self->arr == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+    data = PyArrayFlagsObject_AsStruct(ctx, self);
+    h_arr = HPyField_Load(ctx, self, data->arr);
+    if (HPy_IsNull(h_arr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Cannot set flags on array scalars.");
         return -1;
     }
-    res = PyObject_CallMethod(self->arr, "setflags", "OOO", Py_None,
-                              (PyObject_IsTrue(obj) ? Py_True : Py_False),
-                              Py_None);
-    if (res == NULL) {
+    h_args = HPyTuple_Pack(ctx, 3,
+                           ctx->h_None, 
+                           HPy_IsTrue(ctx, obj) ? ctx->h_True : ctx->h_False,
+                           ctx->h_None);
+    h_setflags = HPy_GetAttr_s(ctx, h_arr, "setflags");
+    res = HPy_CallTupleDict(ctx, h_setflags, h_args, HPy_NULL);
+    HPy_Close(ctx, h_setflags);
+    HPy_Close(ctx, h_args);
+    HPy_Close(ctx, h_arr);
+
+    if (HPy_IsNull(res)) {
         return -1;
     }
-    Py_DECREF(res);
+    HPy_Close(ctx, res);
     return 0;
 }
 
-static int
-arrayflags_writeable_set(
-        PyArrayFlagsObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
-{
-    PyObject *res;
 
-    if (obj == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+HPyDef_GETSET(arrayflags_writeable_getset, "writeable", arrayflags_writeable_get_impl, arrayflags_writeable_set_impl)
+_define_get_warn(NPY_ARRAY_WRITEABLE, writeable)
+static int
+arrayflags_writeable_set_impl(
+        HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
+{
+    HPy res;
+    HPy h_arr, h_setflags, h_args;
+    PyArrayFlagsObject *data;
+
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete flags writeable attribute");
         return -1;
     }
-    if (self->arr == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+    data = PyArrayFlagsObject_AsStruct(ctx, self);
+    h_arr = HPyField_Load(ctx, self, data->arr);
+    if (HPy_IsNull(h_arr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Cannot set flags on array scalars.");
         return -1;
     }
-    res = PyObject_CallMethod(self->arr, "setflags", "OOO",
-                              (PyObject_IsTrue(obj) ? Py_True : Py_False),
-                              Py_None, Py_None);
-    if (res == NULL) {
+    h_args = HPyTuple_Pack(ctx, 3, HPy_IsTrue(ctx, obj) ? ctx->h_True : ctx->h_False, ctx->h_None, ctx->h_None);
+    h_setflags = HPy_GetAttr_s(ctx, h_arr, "setflags");
+    res = HPy_CallTupleDict(ctx, h_setflags, h_args, HPy_NULL);
+    HPy_Close(ctx, h_setflags);
+    HPy_Close(ctx, h_args);
+    HPy_Close(ctx, h_arr);
+
+    if (HPy_IsNull(res)) {
         return -1;
     }
-    Py_DECREF(res);
+    HPy_Close(ctx, res);
     return 0;
 }
 
+HPyDef_SET(arrayflags_warn_on_write_set, "_warn_on_write", arrayflags_warn_on_write_set_impl)
 static int
-arrayflags_warn_on_write_set(
-        PyArrayFlagsObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
+arrayflags_warn_on_write_set_impl(HPyContext *ctx,
+        HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     /*
      * This code should go away in a future release, so do not mangle the
      * array_setflags function with an extra kwarg
      */
     int ret;
-    if (obj == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    HPy h_arr;
+    PyArrayFlagsObject *data;
+    PyArrayObject *array_data;
+
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete flags _warn_on_write attribute");
         return -1;
     }
-    ret = PyObject_IsTrue(obj);
+    ret = HPy_IsTrue(ctx, obj);
     if (ret > 0) {
-        if (!(PyArray_FLAGS((PyArrayObject*)self->arr) & NPY_ARRAY_WRITEABLE)) {
-            PyErr_SetString(PyExc_ValueError,
+        data = PyArrayFlagsObject_AsStruct(ctx, self);
+        h_arr = HPyField_Load(ctx, self, data->arr);
+        array_data = (PyArrayObject*)HPy_AsStructLegacy(ctx, h_arr);
+        if (!(PyArray_FLAGS(array_data) & NPY_ARRAY_WRITEABLE)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot set '_warn_on_write' flag when 'writable' is "
                         "False");
             return -1;
         }
-        PyArray_ENABLEFLAGS((PyArrayObject*)self->arr, NPY_ARRAY_WARN_ON_WRITE);
+        PyArray_ENABLEFLAGS(array_data, NPY_ARRAY_WARN_ON_WRITE);
     }
     else if (ret < 0) {
         return -1;
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot clear '_warn_on_write', set "
                         "writeable True to clear this private flag");
         return -1;
@@ -407,99 +505,32 @@ arrayflags_warn_on_write_set(
     return 0;
 }
 
-static PyGetSetDef arrayflags_getsets[] = {
-    {"contiguous",
-        (getter)arrayflags_contiguous_get,
-        NULL,
-        NULL, NULL},
-    {"c_contiguous",
-        (getter)arrayflags_contiguous_get,
-        NULL,
-        NULL, NULL},
-    {"f_contiguous",
-        (getter)arrayflags_fortran_get,
-        NULL,
-        NULL, NULL},
-    {"fortran",
-        (getter)arrayflags_fortran_get,
-        NULL,
-        NULL, NULL},
-    {"writebackifcopy",
-        (getter)arrayflags_writebackifcopy_get,
-        (setter)arrayflags_writebackifcopy_set,
-        NULL, NULL},
-    {"owndata",
-        (getter)arrayflags_owndata_get,
-        NULL,
-        NULL, NULL},
-    {"aligned",
-        (getter)arrayflags_aligned_get,
-        (setter)arrayflags_aligned_set,
-        NULL, NULL},
-    {"writeable",
-        (getter)arrayflags_writeable_get,
-        (setter)arrayflags_writeable_set,
-        NULL, NULL},
-    {"_writeable_no_warn",
-        (getter)arrayflags_writeable_no_warn_get,
-        (setter)NULL,
-        NULL, NULL},
-    {"_warn_on_write",
-        (getter)NULL,
-        (setter)arrayflags_warn_on_write_set,
-        NULL, NULL},
-    {"fnc",
-        (getter)arrayflags_fnc_get,
-        NULL,
-        NULL, NULL},
-    {"forc",
-        (getter)arrayflags_forc_get,
-        NULL,
-        NULL, NULL},
-    {"behaved",
-        (getter)arrayflags_behaved_get,
-        NULL,
-        NULL, NULL},
-    {"carray",
-        (getter)arrayflags_carray_get,
-        NULL,
-        NULL, NULL},
-    {"farray",
-        (getter)arrayflags_farray_get,
-        NULL,
-        NULL, NULL},
-    {"num",
-        (getter)arrayflags_num_get,
-        NULL,
-        NULL, NULL},
-    {NULL, NULL, NULL, NULL, NULL},
-};
-
-static PyObject *
-arrayflags_getitem(PyArrayFlagsObject *self, PyObject *ind)
+HPyDef_SLOT(arrayflags_getitem, arrayflags_getitem_impl, HPy_mp_subscript)
+static HPy
+arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
 {
     char *key = NULL;
     char buf[16];
     int n;
-    if (PyUnicode_Check(ind)) {
-        PyObject *tmp_str;
-        tmp_str = PyUnicode_AsASCIIString(ind);
-        if (tmp_str == NULL) {
-            return NULL;
+    if (HPyUnicode_Check(ctx, ind)) {
+        HPy tmp_str;
+        tmp_str = HPyUnicode_AsUTF8String(ctx, ind);
+        if (HPy_IsNull(tmp_str)) {
+            return HPy_NULL;
         }
-        key = PyBytes_AS_STRING(tmp_str);
-        n = PyBytes_GET_SIZE(tmp_str);
+        key = HPyBytes_AS_STRING(ctx, tmp_str);
+        n = HPyBytes_GET_SIZE(ctx, tmp_str);
         if (n > 16) {
-            Py_DECREF(tmp_str);
+            HPy_Close(ctx, tmp_str);
             goto fail;
         }
         memcpy(buf, key, n);
-        Py_DECREF(tmp_str);
+        HPy_Close(ctx, tmp_str);
         key = buf;
     }
-    else if (PyBytes_Check(ind)) {
-        key = PyBytes_AS_STRING(ind);
-        n = PyBytes_GET_SIZE(ind);
+    else if (HPyBytes_Check(ctx, ind)) {
+        key = HPyBytes_AS_STRING(ctx, ind);
+        n = HPyBytes_GET_SIZE(ctx, ind);
     }
     else {
         goto fail;
@@ -508,131 +539,133 @@ arrayflags_getitem(PyArrayFlagsObject *self, PyObject *ind)
     case 1:
         switch(key[0]) {
         case 'C':
-            return arrayflags_contiguous_get(self, NULL);
+            return arrayflags_contiguous_get_impl(ctx, self, NULL);
         case 'F':
-            return arrayflags_fortran_get(self, NULL);
+            return arrayflags_fortran_get_impl(ctx, self, NULL);
         case 'W':
-            return arrayflags_writeable_get(self, NULL);
+            return arrayflags_writeable_get_impl(ctx, self, NULL);
         case 'B':
-            return arrayflags_behaved_get(self, NULL);
+            return arrayflags_behaved_get_impl(ctx, self, NULL);
         case 'O':
-            return arrayflags_owndata_get(self, NULL);
+            return arrayflags_owndata_get_impl(ctx, self, NULL);
         case 'A':
-            return arrayflags_aligned_get(self, NULL);
+            return arrayflags_aligned_get_impl(ctx, self, NULL);
         case 'X':
-            return arrayflags_writebackifcopy_get(self, NULL);
+            return arrayflags_writebackifcopy_get_impl(ctx, self, NULL);
         default:
             goto fail;
         }
         break;
     case 2:
         if (strncmp(key, "CA", n) == 0) {
-            return arrayflags_carray_get(self, NULL);
+            return arrayflags_carray_get_impl(ctx, self, NULL);
         }
         if (strncmp(key, "FA", n) == 0) {
-            return arrayflags_farray_get(self, NULL);
+            return arrayflags_farray_get_impl(ctx, self, NULL);
         }
         break;
     case 3:
         if (strncmp(key, "FNC", n) == 0) {
-            return arrayflags_fnc_get(self, NULL);
+            return arrayflags_fnc_get_impl(ctx, self, NULL);
         }
         break;
     case 4:
         if (strncmp(key, "FORC", n) == 0) {
-            return arrayflags_forc_get(self, NULL);
+            return arrayflags_forc_get_impl(ctx, self, NULL);
         }
         break;
     case 6:
         if (strncmp(key, "CARRAY", n) == 0) {
-            return arrayflags_carray_get(self, NULL);
+            return arrayflags_carray_get_impl(ctx, self, NULL);
         }
         if (strncmp(key, "FARRAY", n) == 0) {
-            return arrayflags_farray_get(self, NULL);
+            return arrayflags_farray_get_impl(ctx, self, NULL);
         }
         break;
     case 7:
         if (strncmp(key,"FORTRAN",n) == 0) {
-            return arrayflags_fortran_get(self, NULL);
+            return arrayflags_fortran_get_impl(ctx, self, NULL);
         }
         if (strncmp(key,"BEHAVED",n) == 0) {
-            return arrayflags_behaved_get(self, NULL);
+            return arrayflags_behaved_get_impl(ctx, self, NULL);
         }
         if (strncmp(key,"OWNDATA",n) == 0) {
-            return arrayflags_owndata_get(self, NULL);
+            return arrayflags_owndata_get_impl(ctx, self, NULL);
         }
         if (strncmp(key,"ALIGNED",n) == 0) {
-            return arrayflags_aligned_get(self, NULL);
+            return arrayflags_aligned_get_impl(ctx, self, NULL);
         }
         break;
     case 9:
         if (strncmp(key,"WRITEABLE",n) == 0) {
-            return arrayflags_writeable_get(self, NULL);
+            return arrayflags_writeable_get_impl(ctx, self, NULL);
         }
         break;
     case 10:
         if (strncmp(key,"CONTIGUOUS",n) == 0) {
-            return arrayflags_contiguous_get(self, NULL);
+            return arrayflags_contiguous_get_impl(ctx, self, NULL);
         }
         break;
     case 12:
         if (strncmp(key, "C_CONTIGUOUS", n) == 0) {
-            return arrayflags_contiguous_get(self, NULL);
+            return arrayflags_contiguous_get_impl(ctx, self, NULL);
         }
         if (strncmp(key, "F_CONTIGUOUS", n) == 0) {
-            return arrayflags_fortran_get(self, NULL);
+            return arrayflags_fortran_get_impl(ctx, self, NULL);
         }
         break;
     case 15:
         if (strncmp(key, "WRITEBACKIFCOPY", n) == 0) {
-            return arrayflags_writebackifcopy_get(self, NULL);
+            return arrayflags_writebackifcopy_get_impl(ctx, self, NULL);
         }
         break;
     }
 
  fail:
-    PyErr_SetString(PyExc_KeyError, "Unknown flag");
-    return NULL;
+    HPyErr_SetString(ctx, ctx->h_KeyError, "Unknown flag");
+    return HPy_NULL;
 }
 
+HPyDef_SLOT(arrayflags_setitem, arrayflags_setitem_impl, HPy_mp_ass_subscript)
 static int
-arrayflags_setitem(PyArrayFlagsObject *self, PyObject *ind, PyObject *item)
+arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
 {
     char *key;
     char buf[16];
     int n;
-    if (PyUnicode_Check(ind)) {
-        PyObject *tmp_str;
-        tmp_str = PyUnicode_AsASCIIString(ind);
-        key = PyBytes_AS_STRING(tmp_str);
-        n = PyBytes_GET_SIZE(tmp_str);
+    if (HPyUnicode_Check(ctx, ind)) {
+        HPy tmp_str;
+        /* TODO(fa): should be HPyUnicode_AsASCIIString */
+        tmp_str = HPyUnicode_AsUTF8String(ctx, ind);
+        key = HPyBytes_AS_STRING(ctx, tmp_str);
+        n = HPyBytes_GET_SIZE(ctx, tmp_str);
         if (n > 16) n = 16;
         memcpy(buf, key, n);
-        Py_DECREF(tmp_str);
+        HPy_Close(ctx, tmp_str);
         key = buf;
     }
-    else if (PyBytes_Check(ind)) {
-        key = PyBytes_AS_STRING(ind);
-        n = PyBytes_GET_SIZE(ind);
+    else if (HPyBytes_Check(ctx, ind)) {
+        key = HPyBytes_AS_STRING(ctx, ind);
+        n = HPyBytes_GET_SIZE(ctx, ind);
     }
     else {
         goto fail;
     }
     if (((n==9) && (strncmp(key, "WRITEABLE", n) == 0)) ||
         ((n==1) && (strncmp(key, "W", n) == 0))) {
-        return arrayflags_writeable_set(self, item, NULL);
+        return arrayflags_writeable_set_impl(ctx, self, item, NULL);
     }
     else if (((n==7) && (strncmp(key, "ALIGNED", n) == 0)) ||
              ((n==1) && (strncmp(key, "A", n) == 0))) {
-        return arrayflags_aligned_set(self, item, NULL);
+        return arrayflags_aligned_set_impl(ctx, self, item, NULL);
     }
     else if (((n==15) && (strncmp(key, "WRITEBACKIFCOPY", n) == 0)) ||
              ((n==1) && (strncmp(key, "X", n) == 0))) {
-        return arrayflags_writebackifcopy_set(self, item, NULL);
+        return arrayflags_writebackifcopy_set_impl(ctx, self, item, NULL);
     }
 
  fail:
-    PyErr_SetString(PyExc_KeyError, "Unknown flag");
+    HPyErr_SetString(ctx, ctx->h_KeyError, "Unknown flag");
     return -1;
 }
 
@@ -647,82 +680,153 @@ _torf_(int flags, int val)
     }
 }
 
-static PyObject *
-arrayflags_print(PyArrayFlagsObject *self)
+/* TODO(fa): HPy_tp_str not yet available
+HPyDef arrayflags_str = {
+    .kind = HPyDef_Kind_Slot,
+    .slot = {
+        .slot = HPy_tp_str,
+        .impl = (HPyCFunction)arrayflags_print_impl,
+        .cpy_trampoline = (cpy_PyCFunction)arrayflags_repr_trampoline
+    }
+};
+*/
+
+HPyDef_SLOT(arrayflags_repr, arrayflags_print_impl, HPy_tp_repr)
+static HPy
+arrayflags_print_impl(HPyContext *ctx, HPy self)
 {
-    int fl = self->flags;
+    static const char *_warn_on_write_true = "  (with WARN_ON_WRITE=True)";
+    static const char fmt_str[] = 
+                        "  C_CONTIGUOUS : %s\n  F_CONTIGUOUS : %s\n"
+                        "  OWNDATA : %s\n  WRITEABLE : %s%s\n"
+                        "  ALIGNED : %s\n  WRITEBACKIFCOPY : %s\n";
+
+    PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
+    int fl = data->flags;
     const char *_warn_on_write = "";
+    HPy res;
+    int fmt_rc;
+    
+    /*
+     * Computation of buffer size: 
+     * strlen(fmt_str) + 6 * strlen("False") + sizeof(_warn_on_write_true)
+     */
+    #define BUFSIZE (sizeof(fmt_str) + 30 * sizeof(char) \
+                     + sizeof(_warn_on_write_true))
 
     if (fl & NPY_ARRAY_WARN_ON_WRITE) {
-        _warn_on_write = "  (with WARN_ON_WRITE=True)";
+        _warn_on_write = _warn_on_write_true;
     }
-    return PyUnicode_FromFormat(
-                        "  %s : %s\n  %s : %s\n"
-                        "  %s : %s\n  %s : %s%s\n"
-                        "  %s : %s\n  %s : %s\n",
-                        "C_CONTIGUOUS",    _torf_(fl, NPY_ARRAY_C_CONTIGUOUS),
-                        "F_CONTIGUOUS",    _torf_(fl, NPY_ARRAY_F_CONTIGUOUS),
-                        "OWNDATA",         _torf_(fl, NPY_ARRAY_OWNDATA),
-                        "WRITEABLE",       _torf_(fl, NPY_ARRAY_WRITEABLE),
+    char *buf = (char *) PyMem_RawMalloc(BUFSIZE);
+    if (!buf) {
+        return HPy_NULL;
+    }
+    
+    fmt_rc = snprintf(buf, BUFSIZE, fmt_str, 
+                        _torf_(fl, NPY_ARRAY_C_CONTIGUOUS),
+                        _torf_(fl, NPY_ARRAY_F_CONTIGUOUS),
+                        _torf_(fl, NPY_ARRAY_OWNDATA),
+                        _torf_(fl, NPY_ARRAY_WRITEABLE),
                         _warn_on_write,
-                        "ALIGNED",         _torf_(fl, NPY_ARRAY_ALIGNED),
-                        "WRITEBACKIFCOPY", _torf_(fl, NPY_ARRAY_WRITEBACKIFCOPY)
-    );
+                        _torf_(fl, NPY_ARRAY_ALIGNED),
+                        _torf_(fl, NPY_ARRAY_WRITEBACKIFCOPY));
+#undef BUFSIZE
+    if (fmt_rc >= 0) {
+        res = HPyUnicode_FromString(ctx, buf);
+    } else {
+        /* formatting failed */
+        res = HPy_NULL;
+    }
+    PyMem_RawFree(buf);
+    return res;
 }
 
-static PyObject*
-arrayflags_richcompare(PyObject *self, PyObject *other, int cmp_op)
+HPyDef_SLOT(arrayflags_richcompare, arrayflags_richcompare_impl, HPy_tp_richcompare)
+static HPy
+arrayflags_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp cmp_op)
 {
-    if (!PyObject_TypeCheck(other, &PyArrayFlags_Type)) {
-        Py_RETURN_NOTIMPLEMENTED;
+    PyArrayFlagsObject *self_data, *other_data;
+    HPy arrayflags_type = HPy_Type(ctx, self);
+    int tc = HPy_TypeCheck(ctx, other, arrayflags_type);
+    HPy_Close(ctx, arrayflags_type);
+
+    if (!tc) {
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
 
-    npy_bool eq = ((PyArrayFlagsObject*) self)->flags ==
-                   ((PyArrayFlagsObject*) other)->flags;
+    self_data = PyArrayFlagsObject_AsStruct(ctx, self);
+    other_data = PyArrayFlagsObject_AsStruct(ctx, other);
+    npy_bool eq = self_data->flags == other_data->flags;
 
-    if (cmp_op == Py_EQ) {
-        return PyBool_FromLong(eq);
+    if (cmp_op == HPy_EQ) {
+        return HPyBool_FromLong(ctx, eq);
     }
-    else if (cmp_op == Py_NE) {
-        return PyBool_FromLong(!eq);
+    else if (cmp_op == HPy_NE) {
+        return HPyBool_FromLong(ctx, !eq);
     }
     else {
-        Py_RETURN_NOTIMPLEMENTED;
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
 }
 
-static PyMappingMethods arrayflags_as_mapping = {
-    (lenfunc)NULL,                       /*mp_length*/
-    (binaryfunc)arrayflags_getitem,      /*mp_subscript*/
-    (objobjargproc)arrayflags_setitem,   /*mp_ass_subscript*/
-};
-
-
-static PyObject *
-arrayflags_new(PyTypeObject *NPY_UNUSED(self), PyObject *args, PyObject *NPY_UNUSED(kwds))
+HPyDef_SLOT(arrayflags_new, arrayflags_new_impl, HPy_tp_new)
+static HPy
+arrayflags_new_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy NPY_UNUSED(kw))
 {
-    PyObject *arg=NULL;
-    if (!PyArg_UnpackTuple(args, "flagsobj", 0, 1, &arg)) {
-        return NULL;
+    HPy arg = HPy_NULL;
+    HPy array_type = HPy_FromPyObject(ctx, (PyObject *) &PyArray_Type);
+    
+    if (nargs == 1) {
+        arg = args[0];
+    } else if(nargs != 0) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "expected 0 or 1 argument");
+        return HPy_NULL;
     }
-    if ((arg != NULL) && PyArray_Check(arg)) {
-        return PyArray_NewFlagsObject(arg);
+    
+    if (HPy_IsNull(arg) || !HPy_TypeCheck(ctx, arg, array_type)) {
+        arg = HPy_NULL;
     }
-    else {
-        return PyArray_NewFlagsObject(NULL);
-    }
+    HPy_Close(ctx, array_type);
+    return HPyArray_NewFlagsObject(ctx, self, arg);
 }
 
-NPY_NO_EXPORT PyTypeObject PyArrayFlags_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.core.multiarray.flagsobj",
-    .tp_basicsize = sizeof(PyArrayFlagsObject),
-    .tp_dealloc = (destructor)arrayflags_dealloc,
-    .tp_repr = (reprfunc)arrayflags_print,
-    .tp_as_mapping = &arrayflags_as_mapping,
-    .tp_str = (reprfunc)arrayflags_print,
-    .tp_flags =Py_TPFLAGS_DEFAULT,
-    .tp_richcompare = arrayflags_richcompare,
-    .tp_getset = arrayflags_getsets,
-    .tp_new = arrayflags_new,
+/*
+static PyType_Slot arrayflags_slots[] = {
+        //{Py_tp_str, arrayflags_print},
+        {0, NULL}
 };
+*/
+
+static HPyDef *arrayflags_defines[] = {
+        &arrayflags_new,
+        &arrayflags_repr,
+        &arrayflags_getitem,
+        &arrayflags_setitem,
+        &arrayflags_richcompare,
+        &arrayflags_contiguous_get,
+        &arrayflags_c_contiguous_get,
+        &arrayflags_fortran_get,
+        &arrayflags_f_contiguous_get,
+        &arrayflags_writebackifcopy_getset,
+        &arrayflags_owndata_get,
+        &arrayflags_aligned_getset,
+        &arrayflags_writeable_getset,
+        &arrayflags_writeable_no_warn_get,
+        &arrayflags_warn_on_write_set,
+        &arrayflags_fnc_get,
+        &arrayflags_forc_get,
+        &arrayflags_behaved_get,
+        &arrayflags_carray_get,
+        &arrayflags_farray_get,
+        &arrayflags_num_get,
+        NULL
+};
+
+NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec = {
+    .name = "numpy.core.multiarray.flagsobj",
+    .basicsize = sizeof(PyArrayFlagsObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .defines = arrayflags_defines,
+};
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayFlags_Type_p;

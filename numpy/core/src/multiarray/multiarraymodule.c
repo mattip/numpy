@@ -4845,9 +4845,12 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (PyType_Ready(&PyArrayFlags_Type) < 0) {
+    HPy h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayFlagsType)) {
         goto err;
     }
+    _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
+
     NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
         goto err;
