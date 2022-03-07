@@ -117,6 +117,8 @@ NPY_NO_EXPORT HPy HPyArrayDescr_Type;
 /* Only here for API compatibility */
 NPY_NO_EXPORT PyTypeObject PyBigArray_Type;
 
+extern NPY_NO_EXPORT HPyType_Spec NpyIter_Type_Spec;
+
 
 /*NUMPY_API
  * Get Priority from object
@@ -5031,7 +5033,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     // HPY: TODO comment on this
     init_scalartypes_basetypes(ctx);
 
-    NpyIter_Type.tp_iter = PyObject_SelfIter;
     HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
@@ -5056,9 +5057,11 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
 
-    if (PyType_Ready(&NpyIter_Type) < 0) {
+    HPy h_npyiter_type = HPyType_FromSpec(ctx, &NpyIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_npyiter_type)) {
         goto err;
     }
+    _NpyIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_npyiter_type);
 
     HPy h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayFlagsType)) {
