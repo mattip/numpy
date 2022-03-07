@@ -158,10 +158,10 @@ typedef struct {
    are defined in ndarrayobject.h
 */
 
-#define PyArrayScalar_False ((PyObject *)(&(_PyArrayScalar_BoolValues[0])))
-#define PyArrayScalar_True ((PyObject *)(&(_PyArrayScalar_BoolValues[1])))
+#define PyArrayScalar_False ((PyObject *)((_PyArrayScalar_BoolValues[0])))
+#define PyArrayScalar_True ((PyObject *)((_PyArrayScalar_BoolValues[1])))
 #define PyArrayScalar_FromLong(i) \
-        ((PyObject *)(&(_PyArrayScalar_BoolValues[((i)!=0)])))
+        ((PyObject *)((_PyArrayScalar_BoolValues[((i)!=0)])))
 #define PyArrayScalar_RETURN_BOOL_FROM_LONG(i)                  \
         return Py_INCREF(PyArrayScalar_FromLong(i)), \
                 PyArrayScalar_FromLong(i)

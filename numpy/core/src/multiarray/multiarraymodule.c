@@ -4508,37 +4508,62 @@ static struct PyMethodDef array_module_methods[] = {
  *  Thus, we call PyType_Ready on the standard Python Types, here.
  */
 static int
-setup_scalartypes(PyObject *NPY_UNUSED(dict))
+setup_scalartypes(HPyContext *ctx, PyObject *NPY_UNUSED(dict))
 {
-    if (PyType_Ready(&PyBool_Type) < 0) {
-        return -1;
-    }
-    if (PyType_Ready(&PyFloat_Type) < 0) {
-        return -1;
-    }
-    if (PyType_Ready(&PyComplex_Type) < 0) {
-        return -1;
-    }
-    if (PyType_Ready(&PyBytes_Type) < 0) {
-        return -1;
-    }
-    if (PyType_Ready(&PyUnicode_Type) < 0) {
-        return -1;
-    }
+    // HPY TODO: is it really necessary to do this for the builtins,
+    // do the comments above this function apply even in HPy case?
+    // if (PyType_Ready(&PyBool_Type) < 0) {
+    //     return -1;
+    // }
+    // if (PyType_Ready(&PyFloat_Type) < 0) {
+    //     return -1;
+    // }
+    // if (PyType_Ready(&PyComplex_Type) < 0) {
+    //     return -1;
+    // }
+    // if (PyType_Ready(&PyBytes_Type) < 0) {
+    //     return -1;
+    // }
+    // if (PyType_Ready(&PyUnicode_Type) < 0) {
+    //     return -1;
+    // }
+
+    // HPY TODO: is HPyTracker good fit for this?, we ignore tracker error
+    // handling for now
+    HPyTracker tracker = HPyTracker_New(ctx, 30);
+    int result = -1;
 
 #define SINGLE_INHERIT(child, parent)                                   \
-    Py##child##ArrType_Type.tp_base = &Py##parent##ArrType_Type;        \
-    if (PyType_Ready(&Py##child##ArrType_Type) < 0) {                   \
-        PyErr_Print();                                                  \
-        PyErr_Format(PyExc_SystemError,                                 \
-                     "could not initialize Py%sArrType_Type",           \
-                     #child);                                           \
-        return -1;                                                      \
-    }
+    HPyType_SpecParam child##_params[] = {                              \
+        { HPyType_SpecParam_Base, h_Py##parent##ArrType_Type },         \
+        { 0 },                                                          \
+    };                                                                  \
+    HPy h_Py##child##ArrType_Type =                                     \
+        HPyType_FromSpec(ctx, &Py##child##ArrType_Type_spec, child##_params); \
+    if (HPy_IsNull(h_Py##child##ArrType_Type)) {                        \
+        /* HPY TODO: PyErr_Print();*/                                   \
+        /* HPY TODO: PyErr_Format(PyExc_SystemError,*/                  \
+                     /*"could not initialize Py%sArrType_Type",*/       \
+                     /*#child);*/                                       \
+        char msgbuf[255];                                               \
+        snprintf(msgbuf, 255,                                           \
+            "could not initialize Py%sArrType_Type",                    \
+            #child);                                                    \
+        /*HPyErr_SetString(ctx, ctx->h_SystemError, msgbuf);*/          \
+        goto cleanup;                                                   \
+    }                                                                   \
+    HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
-    if (PyType_Ready(&PyGenericArrType_Type) < 0) {
-        return -1;
+    HPy h_PyGenericArrType_Type = HPyType_FromSpec(ctx, &PyGenericArrType_Type_spec, NULL);
+    if (HPy_IsNull(h_PyGenericArrType_Type)) {
+        goto cleanup;
     }
+    // HPY TODO: global variable + local variable to mimick the original global in the SINGLE_INHERIT&co macros
+    _PyGenericArrType_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyGenericArrType_Type);
+    HPy_Close(ctx, h_PyGenericArrType_Type);
+
     SINGLE_INHERIT(Number, Generic);
     SINGLE_INHERIT(Integer, Number);
     SINGLE_INHERIT(Inexact, Number);
@@ -4550,34 +4575,62 @@ setup_scalartypes(PyObject *NPY_UNUSED(dict))
     SINGLE_INHERIT(Character, Flexible);
 
 #define DUAL_INHERIT(child, parent1, parent2)                           \
-    Py##child##ArrType_Type.tp_base = &Py##parent2##ArrType_Type;       \
-    Py##child##ArrType_Type.tp_bases =                                  \
-        Py_BuildValue("(OO)", &Py##parent2##ArrType_Type,               \
-                      &Py##parent1##_Type);                             \
-    Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;       \
-    if (PyType_Ready(&Py##child##ArrType_Type) < 0) {                   \
-        PyErr_Print();                                                  \
-        PyErr_Format(PyExc_SystemError,                                 \
-                     "could not initialize Py%sArrType_Type",           \
-                     #child);                                           \
-        return -1;                                                      \
-    }
+    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
+        h_Py##parent2##ArrType_Type,                                    \
+        ctx->h_##parent1##Type,                                         \
+    }, 2);                                                              \
+    HPyType_SpecParam child##_params[] = {                              \
+        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { 0 },                                                          \
+    };                                                                  \
+    /* HPY TODO: Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;*/ \
+    HPy h_Py##child##ArrType_Type =                                     \
+        HPyType_FromSpec(ctx, &Py##child##ArrType_Type_spec, child##_params); \
+    if (HPy_IsNull(h_Py##child##ArrType_Type)) {                        \
+        /* HPY TODO: PyErr_Print();*/                                   \
+        /* HPY TODO: PyErr_Format(PyExc_SystemError,*/                  \
+                     /*"could not initialize Py%sArrType_Type",*/       \
+                     /*#child);*/                                       \
+        char msgbuf[255];                                               \
+        snprintf(msgbuf, 255,                                          \
+            "could not initialize Py%sArrType_Type",                    \
+            #child);                                                    \
+        HPyErr_SetString(ctx, ctx->h_SystemError, msgbuf);              \
+        goto cleanup;                                                   \
+    }                                                                   \
+    HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
 #define DUAL_INHERIT2(child, parent1, parent2)                          \
-    Py##child##ArrType_Type.tp_base = &Py##parent1##_Type;              \
-    Py##child##ArrType_Type.tp_bases =                                  \
-        Py_BuildValue("(OO)", &Py##parent1##_Type,                      \
-                      &Py##parent2##ArrType_Type);                      \
-    Py##child##ArrType_Type.tp_richcompare =                            \
-        Py##parent1##_Type.tp_richcompare;                              \
-    Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;       \
-    if (PyType_Ready(&Py##child##ArrType_Type) < 0) {                   \
-        PyErr_Print();                                                  \
-        PyErr_Format(PyExc_SystemError,                                 \
-                     "could not initialize Py%sArrType_Type",           \
-                     #child);                                           \
-        return -1;                                                      \
-    }
+    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
+        ctx->h_##parent1##Type,                                         \
+        h_Py##parent2##ArrType_Type,                                    \
+    }, 2);                                                              \
+    HPyType_SpecParam child##_params[] = {                              \
+        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { 0 },                                                          \
+    };                                                                  \
+    /* HPY TODO: Py##child##ArrType_Type.tp_richcompare = */            \
+        /*Py##parent1##_Type.tp_richcompare;*/                          \
+    /*Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;*/   \
+    HPy h_Py##child##ArrType_Type =                                     \
+        HPyType_FromSpec(ctx, &Py##child##ArrType_Type_spec, child##_params); \
+    if (HPy_IsNull(h_Py##child##ArrType_Type)) {                        \
+        /* HPY TODO: PyErr_Print();*/                                   \
+        /* HPY TODO: PyErr_Format(PyExc_SystemError,*/                  \
+                     /*"could not initialize Py%sArrType_Type",*/       \
+                     /*#child);*/                                       \
+        char msgbuf[255];                                               \
+        snprintf(msgbuf, 255,                                           \
+            "could not initialize Py%sArrType_Type",                    \
+            #child);                                                    \
+        HPyErr_SetString(ctx, ctx->h_SystemError, msgbuf);              \
+        goto cleanup;                                                   \
+    }                                                                   \
+    HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
     SINGLE_INHERIT(Bool, Generic);
     SINGLE_INHERIT(Byte, SignedInteger);
@@ -4606,14 +4659,17 @@ setup_scalartypes(PyObject *NPY_UNUSED(dict))
     DUAL_INHERIT(CDouble, Complex, ComplexFloating);
     SINGLE_INHERIT(CLongDouble, ComplexFloating);
 
-    DUAL_INHERIT2(String, String, Character);
+    DUAL_INHERIT2(String, Bytes, Character);
     DUAL_INHERIT2(Unicode, Unicode, Character);
 
     SINGLE_INHERIT(Void, Flexible);
 
     SINGLE_INHERIT(Object, Generic);
 
-    return 0;
+    result = 0;
+cleanup:
+    HPyTracker_Close(ctx, tracker);
+    return result;
 
 #undef SINGLE_INHERIT
 #undef DUAL_INHERIT
@@ -4798,11 +4854,11 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
 
     initialize_casting_tables();
-    initialize_numeric_types();
+    // initialize_numeric_types();
 
-    if (initscalarmath(m) < 0) {
-        goto err;
-    }
+    // if (initscalarmath(m) < 0) {
+    //     goto err;
+    // }
 
     HPy h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
     if (HPy_IsNull(h_array_type)) {
@@ -4812,9 +4868,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
     HPy_Close(ctx, h_array_type);
 
-    if (setup_scalartypes(d) < 0) {
+    if (setup_scalartypes(ctx, d) < 0) {
         goto err;
     }
+    // HPY: static descr objects, e.g., BOOL_Descr, have typeobj set to numpy scalar types
+    // Numpy scalar types are now heap allocated, so we must set them after their initialization
+    init_static_descrs_type_objs(ctx);
+    // HPY: TODO comment on this
+    init_scalartypes_basetypes(ctx);
 
     NpyIter_Type.tp_iter = PyObject_SelfIter;
     HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);

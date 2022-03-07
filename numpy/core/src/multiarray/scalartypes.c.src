@@ -34,6 +34,10 @@
 
 #include "binop_override.h"
 
+#define BASEFLAGS Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE
+#define HPY_BASEFLAGS HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE
+#define LEAFFLAGS  Py_TPFLAGS_DEFAULT
+
 /*
  * used for allocating a single scalar, so use the default numpy
  * memory allocators instead of the (maybe) user overrides
@@ -44,18 +48,14 @@ npy_alloc_cache_zero(size_t nmemb, size_t size);
 NPY_NO_EXPORT void
 npy_free_cache(void * p, npy_uintp sz);
 
-NPY_NO_EXPORT PyBoolScalarObject _PyArrayScalar_BoolValues[] = {
-    {PyObject_HEAD_INIT(&PyBoolArrType_Type) 0},
-    {PyObject_HEAD_INIT(&PyBoolArrType_Type) 1},
+NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[] = {
+    // HPY TODO: global state, filled in during module init...
+    // false, true
+    NULL, NULL,
 };
 
 /* TimeInteger is deleted, but still here to fill the API slot */
 NPY_NO_EXPORT PyTypeObject PyTimeIntegerArrType_Type;
-
-/*
- * Inheritance is established later when tp_bases is set (or tp_base for
- * single inheritance)
- */
 
 /**begin repeat
  * #name = number, integer, signedinteger, unsignedinteger, inexact,
@@ -63,10 +63,15 @@ NPY_NO_EXPORT PyTypeObject PyTimeIntegerArrType_Type;
  * #NAME = Number, Integer, SignedInteger, UnsignedInteger, Inexact,
  *         Floating, ComplexFloating, Flexible, Character#
  */
-NPY_NO_EXPORT PyTypeObject Py@NAME@ArrType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.@name@",
-    .tp_basicsize = sizeof(PyObject),
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+
+static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy.@name@",
+    .legacy = true,
+    .flags = HPY_BASEFLAGS,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
 /**end repeat**/
 
@@ -1023,29 +1028,6 @@ static PyObject *
 }
 
 /**end repeat**/
-
-static PyNumberMethods gentype_as_number = {
-    .nb_add = (binaryfunc)gentype_add,
-    .nb_subtract = (binaryfunc)gentype_subtract,
-    .nb_multiply = (binaryfunc)gentype_multiply,
-    .nb_remainder = (binaryfunc)gentype_remainder,
-    .nb_divmod = (binaryfunc)gentype_divmod,
-    .nb_power = (ternaryfunc)gentype_power,
-    .nb_negative = (unaryfunc)gentype_negative,
-    .nb_positive = (unaryfunc)gentype_positive,
-    .nb_absolute = (unaryfunc)gentype_absolute,
-    .nb_bool = (inquiry)gentype_nonzero_number,
-    .nb_invert = (unaryfunc)gentype_invert,
-    .nb_lshift = (binaryfunc)gentype_lshift,
-    .nb_rshift = (binaryfunc)gentype_rshift,
-    .nb_and = (binaryfunc)gentype_and,
-    .nb_xor = (binaryfunc)gentype_xor,
-    .nb_or = (binaryfunc)gentype_or,
-    .nb_int = (unaryfunc)gentype_int,
-    .nb_float = (unaryfunc)gentype_float,
-    .nb_floor_divide = (binaryfunc)gentype_floor_divide,
-    .nb_true_divide = (binaryfunc)gentype_true_divide,
-};
 
 
 static PyObject *
@@ -2561,19 +2543,23 @@ static PySequenceMethods voidtype_as_sequence = {
  * This function implements simple buffer export for user defined subclasses
  * of `np.generic`. All other scalar types override the buffer export.
  */
+HPyDef_SLOT(gentype_arrtype_getbuffer, gentype_arrtype_getbuffer_impl, HPy_bf_getbuffer)
 static int
-gentype_arrtype_getbuffer(PyObject *self, Py_buffer *view, int flags)
+gentype_arrtype_getbuffer_impl(HPyContext *ctx, HPy h_self, HPy_buffer* view, int flags)
 {
-    if ((flags & PyBUF_FORMAT) == PyBUF_FORMAT) {
-        PyErr_Format(PyExc_TypeError,
-                "NumPy scalar %R can only exported as a buffer without format.",
-                self);
-        return -1;
-    }
-    if ((flags & PyBUF_WRITEABLE) == PyBUF_WRITEABLE) {
-        PyErr_SetString(PyExc_BufferError, "scalar buffer is readonly");
-        return -1;
-    }
+    // TODO: how is it with the flags??
+    // if ((flags & PyBUF_FORMAT) == PyBUF_FORMAT) {
+    //     PyErr_Format(PyExc_TypeError,
+    //             "NumPy scalar %R can only exported as a buffer without format.",
+    //             self);
+    //     return -1;
+    // }
+    // if ((flags & PyBUF_WRITEABLE) == PyBUF_WRITEABLE) {
+    //     PyErr_SetString(PyExc_BufferError, "scalar buffer is readonly");
+    //     return -1;
+    // }
+    capi_warn("gentype_arrtype_getbuffer");
+    PyObject *self = HPy_AsPyObject(ctx, h_self);
     PyArray_Descr *descr = PyArray_DescrFromScalar(self);
     if (descr == NULL) {
         return -1;
@@ -2594,18 +2580,13 @@ gentype_arrtype_getbuffer(PyObject *self, Py_buffer *view, int flags)
     view->strides = NULL;
     view->suboffsets = NULL;
     view->readonly = 1;  /* assume general (user) scalars are readonly. */
-    Py_INCREF(self);
-    view->obj = self;
+    view->obj = HPy_Dup(ctx, h_self);
     view->buf = scalar_value(self, descr);
     Py_DECREF(descr);
+    Py_DECREF(self);
     view->format = NULL;
     return 0;
 }
-
-
-static PyBufferProcs gentype_arrtype_as_buffer = {
-    .bf_getbuffer = (getbufferproc)gentype_arrtype_getbuffer,
-};
 
 
 /**begin repeat
@@ -2776,14 +2757,57 @@ static PyBufferProcs void_arrtype_as_buffer = {
         /* No need to release the buffer */
 };
 
+// HPY TODO: global
+NPY_NO_EXPORT PyTypeObject *_PyGenericArrType_Type_p;
 
-#define BASEFLAGS Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE
-#define LEAFFLAGS  Py_TPFLAGS_DEFAULT
+static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
 
-NPY_NO_EXPORT PyTypeObject PyGenericArrType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.generic",
-    .tp_basicsize = sizeof(PyObject),
+#define GENTYPE_AS_NUMBER_SLOTS             \
+    {Py_nb_add, gentype_add},               \
+    {Py_nb_subtract, gentype_subtract},     \
+    {Py_nb_multiply, gentype_multiply},     \
+    {Py_nb_remainder, gentype_remainder},   \
+    {Py_nb_divmod, gentype_divmod},         \
+    {Py_nb_power, gentype_power},           \
+    {Py_nb_negative, gentype_negative},     \
+    {Py_nb_positive, gentype_positive},     \
+    {Py_nb_absolute, gentype_absolute},     \
+    {Py_nb_bool, gentype_nonzero_number},   \
+    {Py_nb_invert, gentype_invert},         \
+    {Py_nb_lshift, gentype_lshift},         \
+    {Py_nb_rshift, gentype_rshift},         \
+    {Py_nb_and, gentype_and},               \
+    {Py_nb_xor, gentype_xor},               \
+    {Py_nb_or, gentype_or},                 \
+    {Py_nb_int, gentype_int},               \
+    {Py_nb_float, gentype_float},           \
+    {Py_nb_floor_divide, gentype_floor_divide},\
+    {Py_nb_true_divide, gentype_true_divide}
+
+static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
+    {Py_tp_dealloc, gentype_dealloc},
+    {Py_tp_methods, gentype_methods},
+    {Py_tp_getset, gentype_getsets},
+    {Py_tp_alloc, gentype_alloc},
+    {Py_tp_free, gentype_free},
+    {Py_tp_richcompare, gentype_richcompare},
+    GENTYPE_AS_NUMBER_SLOTS,
+    // as_mapping:
+    {Py_mp_subscript, gen_arrtype_subscript},
+};
+
+static HPyDef *PyGenericArrType_Type_slots[] = {
+    &gentype_arrtype_getbuffer,
+    NULL,
+};
+
+
+HPyType_Spec PyGenericArrType_Type_spec = {
+    .name = "numpy.generic",
+    .flags = HPY_BASEFLAGS,
+    .legacy = true,
+    .defines = PyGenericArrType_Type_slots,
+    .legacy_slots = &PyGenericArrType_Type_slots_legacy,
 };
 
 
@@ -3558,18 +3582,35 @@ object_arrtype_call(PyObjectScalarObject *obj, PyObject *args, PyObject *kwds)
     return PyObject_Call(obj->obval, args, kwds);
 }
 
-NPY_NO_EXPORT PyTypeObject PyObjectArrType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.object_",
-    .tp_basicsize = sizeof(PyObjectScalarObject),
-    .tp_alloc = object_arrtype_alloc,
-    .tp_dealloc = (destructor)object_arrtype_dealloc,
-    .tp_as_sequence = &object_arrtype_as_sequence,
-    .tp_as_mapping = &object_arrtype_as_mapping,
-    .tp_call = (ternaryfunc)object_arrtype_call,
-    .tp_getattro = (getattrofunc)object_arrtype_getattro,
-    .tp_setattro = (setattrofunc)object_arrtype_setattro,
-    .tp_as_buffer = &object_arrtype_as_buffer,
+NPY_NO_EXPORT PyTypeObject *_PyObjectArrType_Type_p;
+
+static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
+    {Py_tp_alloc, object_arrtype_alloc},
+    {Py_tp_dealloc, object_arrtype_dealloc},
+    {Py_sq_length, object_arrtype_length},
+    {Py_sq_concat, object_arrtype_concat},
+    {Py_sq_repeat, object_arrtype_repeat},
+    {Py_sq_contains, object_arrtype_contains},
+    {Py_sq_inplace_concat, object_arrtype_inplace_concat},
+    {Py_sq_inplace_repeat, object_arrtype_inplace_repeat},
+    {Py_mp_length, object_arrtype_length},
+    {Py_mp_subscript, object_arrtype_subscript},
+    {Py_mp_ass_subscript, object_arrtype_ass_subscript},
+    {Py_tp_call, object_arrtype_call},
+    {Py_tp_getattro, object_arrtype_getattro},
+    {Py_tp_setattro, object_arrtype_setattro},
+    {Py_tp_new, object_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, object_arrtype_as_buffer},
+    {Py_tp_hash, object_arrtype_hash},
+    {0},
+};
+
+NPY_NO_EXPORT HPyType_Spec PyObjectArrType_Type_spec = {
+    .name = "numpy.object_",
+    .basicsize = sizeof(PyObjectScalarObject),
+    .legacy = true,
+    .legacy_slots = PyObjectArrType_Type_slots_legacy,
 };
 
 static PyObject *
@@ -3606,10 +3647,18 @@ gen_arrtype_subscript(PyObject *self, PyObject *key)
  * #NAME = Bool, String, Unicode, Void#
  * #ex = _,_,_,#
  */
-NPY_NO_EXPORT PyTypeObject Py@NAME@ArrType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy." NAME_@name@ "@ex@",
-    .tp_basicsize = sizeof(Py@NAME@ScalarObject),
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+
+// HACK HACK HACK: size 100 so that we can have a forward
+// declaration and not worry about the actual length
+static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy." NAME_@name@ "@ex@",
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .legacy = true,
+    .flags = HPY_BASEFLAGS,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
 /**end repeat**/
 
@@ -3642,20 +3691,25 @@ NPY_NO_EXPORT PyTypeObject Py@NAME@ArrType_Type = {
 #elif NPY_BITSOF_@CNAME@ == 256
 #define _THIS_SIZE "256"
 #endif
-NPY_NO_EXPORT PyTypeObject Py@NAME@ArrType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.@name@" _THIS_SIZE,
-    .tp_basicsize = sizeof(Py@NAME@ScalarObject),
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+
+static PyObject *
+@name@_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
+
+static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy.@name@" _THIS_SIZE,
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .legacy = true,
+    .flags = HPY_BASEFLAGS,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
 
 
 #undef _THIS_SIZE
 /**end repeat**/
 
-
-static PyMappingMethods gentype_as_mapping = {
-    .mp_subscript = (binaryfunc)gen_arrtype_subscript,
-};
 
 
 /**begin repeat
@@ -3679,11 +3733,14 @@ static PyMappingMethods gentype_as_mapping = {
 #define _THIS_SIZE "512"
 #endif
 
-NPY_NO_EXPORT PyTypeObject Py@NAME@ArrType_Type = {
-    PyVarObject_HEAD_INIT(0, 0)
-    .tp_name = "numpy.@name@" _THIS_SIZE,
-    .tp_basicsize = sizeof(Py@NAME@ScalarObject),
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+
+static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy.@name@" _THIS_SIZE,
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
 };
 #undef _THIS_SIZE
 
@@ -4025,19 +4082,13 @@ NPY_NO_EXPORT void
 initialize_numeric_types(void)
 {
     init_basetypes();
-    PyGenericArrType_Type.tp_dealloc = (destructor)gentype_dealloc;
-    PyGenericArrType_Type.tp_as_number = &gentype_as_number;
-    PyGenericArrType_Type.tp_as_mapping = &gentype_as_mapping;
-    PyGenericArrType_Type.tp_flags = BASEFLAGS;
-    PyGenericArrType_Type.tp_methods = gentype_methods;
-    PyGenericArrType_Type.tp_getset = gentype_getsets;
-    PyGenericArrType_Type.tp_new = NULL;
-    PyGenericArrType_Type.tp_alloc = gentype_alloc;
-    PyGenericArrType_Type.tp_free = (freefunc)gentype_free;
-    PyGenericArrType_Type.tp_richcompare = gentype_richcompare;
-    PyGenericArrType_Type.tp_as_buffer = &gentype_arrtype_as_buffer;
 
-    PyBoolArrType_Type.tp_as_number = &bool_arrtype_as_number;
+    bool hpy_todo_ignore = 4 == 5; // so that it's not a warning about dead code
+    // HPY TODO: the ignored assignment needs to be converted to a (legacy) slot/method definition
+    // We keep the assignments so that they can be easily found by "find refences" in IDEs
+    // NOTE: edit scalartypes.c.src!!!
+    if (hpy_todo_ignore)
+        PyBoolArrType_Type.tp_as_number = &bool_arrtype_as_number;
     /*
      * need to add dummy versions with filled-in nb_index
      * in-order for PyType_Ready to fill in .__index__() method
@@ -4050,9 +4101,11 @@ initialize_numeric_types(void)
      * #NAME = Byte, Short, Int, Long, LongLong, UByte, UShort,
      *         UInt, ULong, ULongLong#
      */
-    @name@_arrtype_as_number = gentype_as_number;
-    Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
-    Py@NAME@ArrType_Type.tp_as_number->nb_index = (unaryfunc)@name@_index;
+    if (hpy_todo_ignore) {
+        // HPY TODO: @name@_arrtype_as_number = gentype_as_number;
+        Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
+        Py@NAME@ArrType_Type.tp_as_number->nb_index = (unaryfunc)@name@_index;
+    }
 
     /**end repeat**/
 
@@ -4062,41 +4115,36 @@ initialize_numeric_types(void)
      *  #NAME = Half, Float, Double, LongDouble,
      *          CFloat, CDouble, CLongDouble#
      */
-    @name@_arrtype_as_number = gentype_as_number;
-    Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
+    if (hpy_todo_ignore) {
+        // HPY TODO: @name@_arrtype_as_number = gentype_as_number;
+        Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
+    }
 
     /**end repeat**/
 
-    PyBoolArrType_Type.tp_as_number->nb_index = (unaryfunc)bool_index;
+    if (hpy_todo_ignore) {
+        PyBoolArrType_Type.tp_as_number->nb_index = (unaryfunc)bool_index;
 
-    PyStringArrType_Type.tp_alloc = NULL;
-    PyStringArrType_Type.tp_free = NULL;
+        PyStringArrType_Type.tp_alloc = NULL;
+        PyStringArrType_Type.tp_free = NULL;
 
-    PyStringArrType_Type.tp_repr = stringtype_repr;
-    PyStringArrType_Type.tp_str = stringtype_str;
+        PyStringArrType_Type.tp_repr = stringtype_repr;
+        PyStringArrType_Type.tp_str = stringtype_str;
 
-    PyUnicodeArrType_Type.tp_repr = unicodetype_repr;
-    PyUnicodeArrType_Type.tp_str = unicodetype_str;
+        PyUnicodeArrType_Type.tp_repr = unicodetype_repr;
+        PyUnicodeArrType_Type.tp_str = unicodetype_str;
 
-    PyVoidArrType_Type.tp_methods = voidtype_methods;
-    PyVoidArrType_Type.tp_getset = voidtype_getsets;
-    PyVoidArrType_Type.tp_as_mapping = &voidtype_as_mapping;
-    PyVoidArrType_Type.tp_as_sequence = &voidtype_as_sequence;
-    PyVoidArrType_Type.tp_repr = voidtype_repr;
-    PyVoidArrType_Type.tp_str = voidtype_str;
+        PyVoidArrType_Type.tp_methods = voidtype_methods;
+        PyVoidArrType_Type.tp_getset = voidtype_getsets;
+        PyVoidArrType_Type.tp_as_mapping = &voidtype_as_mapping;
+        PyVoidArrType_Type.tp_as_sequence = &voidtype_as_sequence;
+        PyVoidArrType_Type.tp_repr = voidtype_repr;
+        PyVoidArrType_Type.tp_str = voidtype_str;
 
-    PyIntegerArrType_Type.tp_getset = inttype_getsets;
+        PyIntegerArrType_Type.tp_getset = inttype_getsets;
 
-    PyNumberArrType_Type.tp_methods = numbertype_methods;
-
-    /**begin repeat
-     * #NAME= Number, Integer, SignedInteger, UnsignedInteger, Inexact,
-     *        Floating, ComplexFloating, Flexible, Character#
-     */
-
-    Py@NAME@ArrType_Type.tp_flags = BASEFLAGS;
-
-    /**end repeat**/
+        PyNumberArrType_Type.tp_methods = numbertype_methods;
+    }
 
     /**begin repeat
      * #name = bool, byte, short, int, long, longlong, ubyte, ushort, uint,
@@ -4109,17 +4157,21 @@ initialize_numeric_types(void)
      *         Timedelta#
      */
 
-    Py@NAME@ArrType_Type.tp_flags = BASEFLAGS;
     Py@NAME@ArrType_Type.tp_new = @name@_arrtype_new;
-    Py@NAME@ArrType_Type.tp_richcompare = gentype_richcompare;
+    if (hpy_todo_ignore) {
+        Py@NAME@ArrType_Type.tp_richcompare = gentype_richcompare;
 
 #define _IS_@NAME@  /* inherit string buffer */
 #if !defined(_IS_String)
-    Py@NAME@ArrType_Type.tp_as_buffer = &@name@_arrtype_as_buffer;
+        Py@NAME@ArrType_Type.tp_as_buffer = &@name@_arrtype_as_buffer;
 #endif
 #undef _IS_@NAME@
+    }
 
     /**end repeat**/
+
+    if (!hpy_todo_ignore)
+        return;
 
     PyUnicodeArrType_Type.tp_dealloc = unicode_arrtype_dealloc;
 
@@ -4269,35 +4321,35 @@ initialize_numeric_types(void)
 }
 
 typedef struct {
-    PyTypeObject * type;
+    PyTypeObject *type;
     int typenum;
 } scalar_type;
 
 static scalar_type typeobjects[] = {
-    {&PyBoolArrType_Type, NPY_BOOL},
-    {&PyByteArrType_Type, NPY_BYTE},
-    {&PyUByteArrType_Type, NPY_UBYTE},
-    {&PyShortArrType_Type, NPY_SHORT},
-    {&PyUShortArrType_Type, NPY_USHORT},
-    {&PyIntArrType_Type, NPY_INT},
-    {&PyUIntArrType_Type, NPY_UINT},
-    {&PyLongArrType_Type, NPY_LONG},
-    {&PyULongArrType_Type, NPY_ULONG},
-    {&PyLongLongArrType_Type, NPY_LONGLONG},
-    {&PyULongLongArrType_Type, NPY_ULONGLONG},
-    {&PyFloatArrType_Type, NPY_FLOAT},
-    {&PyDoubleArrType_Type, NPY_DOUBLE},
-    {&PyLongDoubleArrType_Type, NPY_LONGDOUBLE},
-    {&PyCFloatArrType_Type, NPY_CFLOAT},
-    {&PyCDoubleArrType_Type, NPY_CDOUBLE},
-    {&PyCLongDoubleArrType_Type, NPY_CLONGDOUBLE},
-    {&PyObjectArrType_Type, NPY_OBJECT},
-    {&PyStringArrType_Type, NPY_STRING},
-    {&PyUnicodeArrType_Type, NPY_UNICODE},
-    {&PyVoidArrType_Type, NPY_VOID},
-    {&PyDatetimeArrType_Type, NPY_DATETIME},
-    {&PyTimedeltaArrType_Type, NPY_TIMEDELTA},
-    {&PyHalfArrType_Type, NPY_HALF}
+    {NULL, NPY_BOOL},
+    {NULL, NPY_BYTE},
+    {NULL, NPY_UBYTE},
+    {NULL, NPY_SHORT},
+    {NULL, NPY_USHORT},
+    {NULL, NPY_INT},
+    {NULL, NPY_UINT},
+    {NULL, NPY_LONG},
+    {NULL, NPY_ULONG},
+    {NULL, NPY_LONGLONG},
+    {NULL, NPY_ULONGLONG},
+    {NULL, NPY_FLOAT},
+    {NULL, NPY_DOUBLE},
+    {NULL, NPY_LONGDOUBLE},
+    {NULL, NPY_CFLOAT},
+    {NULL, NPY_CDOUBLE},
+    {NULL, NPY_CLONGDOUBLE},
+    {NULL, NPY_OBJECT},
+    {NULL, NPY_STRING},
+    {NULL, NPY_UNICODE},
+    {NULL, NPY_VOID},
+    {NULL, NPY_DATETIME},
+    {NULL, NPY_TIMEDELTA},
+    {NULL, NPY_HALF}
 };
 
 static int compare_types(const void * a_, const void * b_)
@@ -4313,11 +4365,49 @@ static int compare_types(const void * a_, const void * b_)
     return 0;
 }
 
-static void init_basetypes(void)
+static void init_basetypes(void) {
+    // NOP, HPY needs to call init_scalartypes_basetypes explicitly
+    // after the scalar types are initialized
+}
+
+NPY_NO_EXPORT void init_scalartypes_basetypes(HPyContext *ctx)
 {
+    HPy h_PyBoolArrType_Type = HPy_FromPyObject(ctx, (PyObject*) _PyBoolArrType_Type_p);
+    _PyArrayScalar_BoolValues[0] = (PyBoolScalarObject*) HPy_AsPyObject(ctx, 
+        HPyType_GenericNew(ctx, h_PyBoolArrType_Type, NULL, 0, HPy_NULL));
+    _PyArrayScalar_BoolValues[1] = (PyBoolScalarObject*) HPy_AsPyObject(ctx, 
+        HPyType_GenericNew(ctx, h_PyBoolArrType_Type, NULL, 0, HPy_NULL));
+    _PyArrayScalar_BoolValues[0]->obval = 0;
+    _PyArrayScalar_BoolValues[1]->obval = 1;
+
+    size_t i = 0;
+    typeobjects[i++].type = _PyBoolArrType_Type_p;
+    typeobjects[i++].type = _PyByteArrType_Type_p;
+    typeobjects[i++].type = _PyUByteArrType_Type_p;
+    typeobjects[i++].type = _PyShortArrType_Type_p;
+    typeobjects[i++].type = _PyUShortArrType_Type_p;
+    typeobjects[i++].type = _PyIntArrType_Type_p;
+    typeobjects[i++].type = _PyUIntArrType_Type_p;
+    typeobjects[i++].type = _PyLongArrType_Type_p;
+    typeobjects[i++].type = _PyULongArrType_Type_p;
+    typeobjects[i++].type = _PyLongLongArrType_Type_p;
+    typeobjects[i++].type = _PyULongLongArrType_Type_p;
+    typeobjects[i++].type = _PyFloatArrType_Type_p;
+    typeobjects[i++].type = _PyDoubleArrType_Type_p;
+    typeobjects[i++].type = _PyLongDoubleArrType_Type_p;
+    typeobjects[i++].type = _PyCFloatArrType_Type_p;
+    typeobjects[i++].type = _PyCDoubleArrType_Type_p;
+    typeobjects[i++].type = _PyCLongDoubleArrType_Type_p;
+    typeobjects[i++].type = _PyObjectArrType_Type_p;
+    typeobjects[i++].type = _PyStringArrType_Type_p;
+    typeobjects[i++].type = _PyUnicodeArrType_Type_p;
+    typeobjects[i++].type = _PyVoidArrType_Type_p;
+    typeobjects[i++].type = _PyDatetimeArrType_Type_p;
+    typeobjects[i++].type = _PyTimedeltaArrType_Type_p;
+    typeobjects[i++].type = _PyHalfArrType_Type_p;
     qsort(typeobjects, sizeof(typeobjects) / sizeof(typeobjects[0]),
-          sizeof(typeobjects[0]),
-          compare_types);
+           sizeof(typeobjects[0]),
+           compare_types);
 }
 
 
@@ -4338,7 +4428,6 @@ get_typeobj_idx(PyTypeObject * obj)
             imax = imid - 1;
         }
     }
-
     return -1;
 }
 
@@ -4373,3 +4462,328 @@ _typenum_fromtypeobj(PyObject *type, int user)
     }
     return typenum;
 }
+
+
+
+
+// ==============================================================
+// Legacy slot definitions generated by a script from all Py*ArrType_Type.tp_* = value
+// What is not ported: fixup of tp_name on some systems (gh-9799)
+
+// \.(\w+_\w+) = (\(\w+\))?(\w+)   ===>   {Py_$1, $2}
+
+static PyType_Slot PyBoolArrType_Type_slots_legacy[] = {
+    {Py_nb_bool, bool_arrtype_nonzero},
+    {Py_nb_and, bool_arrtype_and},
+    {Py_nb_xor, bool_arrtype_xor},
+    {Py_nb_or, bool_arrtype_or},
+    {Py_tp_new, bool_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, bool_arrtype_as_buffer},
+    {Py_tp_hash, bool_arrtype_hash},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, byte_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, byte_arrtype_as_buffer},
+    {Py_tp_hash, byte_arrtype_hash},
+    {Py_tp_methods, bytetype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, short_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, short_arrtype_as_buffer},
+    {Py_tp_hash, short_arrtype_hash},
+    {Py_tp_methods, shorttype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, int_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, int_arrtype_as_buffer},
+    {Py_tp_methods, inttype_methods},
+    {Py_tp_hash, int_arrtype_hash},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, long_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, long_arrtype_as_buffer},
+    {Py_tp_methods, longtype_methods},
+    {Py_tp_hash, long_arrtype_hash},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, longlong_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, longlong_arrtype_as_buffer},
+    {Py_tp_methods, longlongtype_methods},
+    {Py_tp_hash, longlong_arrtype_hash},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, ubyte_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, ubyte_arrtype_as_buffer},
+    {Py_tp_hash, ubyte_arrtype_hash},
+    {Py_tp_methods, ubytetype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, ushort_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, ushort_arrtype_as_buffer},
+    {Py_tp_hash, ushort_arrtype_hash},
+    {Py_tp_methods, ushorttype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, uint_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, uint_arrtype_as_buffer},
+    {Py_tp_hash, uint_arrtype_hash},
+    {Py_tp_methods, uinttype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, ulong_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, ulong_arrtype_as_buffer},
+    {Py_tp_hash, ulong_arrtype_hash},
+    {Py_tp_methods, ulongtype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, ulonglong_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, ulonglong_arrtype_as_buffer},
+    {Py_tp_hash, ulonglong_arrtype_hash},
+    {Py_tp_methods, ulonglongtype_methods},
+    {Py_tp_str, genint_type_str},
+    {Py_tp_repr, genint_type_str},
+    {0},
+};
+
+static PyType_Slot PyHalfArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, half_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, half_arrtype_as_buffer},
+    {Py_tp_hash, half_arrtype_hash},
+    {Py_tp_methods, halftype_methods},
+    {Py_tp_repr, halftype_repr},
+    {Py_tp_str, halftype_str},
+    {0},
+};
+
+static PyType_Slot PyFloatArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, float_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, float_arrtype_as_buffer},
+    {Py_tp_hash, float_arrtype_hash},
+    {Py_tp_methods, floattype_methods},
+    {Py_tp_repr, floattype_repr},
+    {Py_tp_str, floattype_str},
+    {0},
+};
+
+static PyType_Slot PyDoubleArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, double_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, double_arrtype_as_buffer},
+    {Py_tp_methods, doubletype_methods},
+    {Py_tp_repr, doubletype_repr},
+    {Py_tp_str, doubletype_str},
+    {0},
+};
+
+static PyType_Slot PyLongDoubleArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, longdouble_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, longdouble_arrtype_as_buffer},
+    {Py_tp_hash, longdouble_arrtype_hash},
+    {Py_tp_methods, longdoubletype_methods},
+
+    {Py_nb_float, longdoubletype_float},
+    {Py_nb_int, longdoubletype_long},
+
+    {Py_tp_repr, longdoubletype_repr},
+    {Py_tp_str, longdoubletype_str},
+    {0},
+};
+
+static PyType_Slot PyCFloatArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, cfloat_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, cfloat_arrtype_as_buffer},
+    {Py_tp_hash, cfloat_arrtype_hash},
+    {Py_tp_methods, cfloattype_methods},
+    {Py_tp_repr, cfloattype_repr},
+    {Py_tp_str, cfloattype_str},
+    {0},
+};
+
+static PyType_Slot PyCDoubleArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, cdouble_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, cdouble_arrtype_as_buffer},
+    {Py_tp_methods, cdoubletype_methods},
+    {0},
+};
+
+static PyType_Slot PyCLongDoubleArrType_Type_slots_legacy[] = {
+    GENTYPE_AS_NUMBER_SLOTS,
+    {Py_tp_new, clongdouble_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, clongdouble_arrtype_as_buffer},
+    {Py_tp_hash, clongdouble_arrtype_hash},
+    {Py_tp_methods, clongdoubletype_methods},
+    {Py_nb_float, clongdoubletype_float},
+    {Py_nb_int, clongdoubletype_long},
+    {Py_tp_repr, clongdoubletype_repr},
+    {Py_tp_str, clongdoubletype_str},
+    {0},
+};
+
+static PyType_Slot PyStringArrType_Type_slots_legacy[] = {
+    {Py_tp_alloc, NULL},
+    {Py_tp_free, NULL},
+    {Py_tp_repr, stringtype_repr},
+    {Py_tp_str, stringtype_str},
+    {Py_tp_new, string_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, string_arrtype_as_buffer},
+    // HPY TODO: {Py_tp_itemsize, sizeof(char)},
+    {0},
+};
+
+static PyType_Slot PyUnicodeArrType_Type_slots_legacy[] = {
+    {Py_tp_repr, unicodetype_repr},
+    {Py_tp_str, unicodetype_str},
+    {Py_tp_new, unicode_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, unicode_arrtype_as_buffer},
+    {Py_tp_dealloc, unicode_arrtype_dealloc},
+    {0},
+};
+
+static PyType_Slot PyVoidArrType_Type_slots_legacy[] = {
+    {Py_tp_methods, voidtype_methods},
+    {Py_tp_getset, voidtype_getsets},
+    // mapping:
+    {Py_mp_length, voidtype_length},
+    {Py_mp_subscript, voidtype_subscript},
+    {Py_mp_ass_subscript, voidtype_ass_subscript},
+    // sequence:
+    {Py_sq_length, voidtype_length},
+    {Py_sq_item, voidtype_item},
+    {Py_sq_ass_item, voidtype_ass_item},
+    // rest:
+    {Py_tp_repr, voidtype_repr},
+    {Py_tp_str, voidtype_str},
+    {Py_tp_new, void_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, void_arrtype_as_buffer},
+    {Py_tp_hash, void_arrtype_hash},
+    {Py_tp_dealloc, (destructor) void_dealloc},
+    {0},
+};
+
+static PyType_Slot PyIntegerArrType_Type_slots_legacy[] = {
+    {Py_tp_getset, inttype_getsets},
+    {Py_tp_methods, integertype_methods},
+    {0},
+};
+
+static PyType_Slot PyNumberArrType_Type_slots_legacy[] = {
+    {Py_tp_methods, numbertype_methods},
+    {0},
+};
+
+static PyType_Slot PyDatetimeArrType_Type_slots_legacy[] = {
+    {Py_tp_new, datetime_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, datetime_arrtype_as_buffer},
+    {Py_tp_hash, datetime_arrtype_hash},
+    {Py_tp_repr, datetimetype_repr},
+    {Py_tp_str, datetimetype_str},
+    {0},
+};
+
+static PyType_Slot PyTimedeltaArrType_Type_slots_legacy[] = {
+    {Py_tp_new, timedelta_arrtype_new},
+    {Py_tp_richcompare, gentype_richcompare},
+    // HPY TODO: {Py_tp_as_buffer, timedelta_arrtype_as_buffer},
+    {Py_tp_hash, timedelta_arrtype_hash},
+    {Py_tp_methods, timedeltatype_methods},
+    {Py_tp_repr, timedeltatype_repr},
+    {Py_tp_str, timedeltatype_str},
+    {0},
+};
+
+static PyType_Slot PyFloatingArrType_Type_slots_legacy[] = {
+    {Py_tp_methods, floatingtype_methods},
+    {0},
+};
+
+static PyType_Slot PyComplexFloatingArrType_Type_slots_legacy[] = {
+    {Py_tp_methods, complexfloatingtype_methods},
+    {0},
+};
+
+static PyType_Slot PyArrayIter_Type_slots_legacy[] = {
+    {Py_tp_iter, PyObject_SelfIter},
+    {0},
+};
+
+static PyType_Slot PyArrayMapIter_Type_slots_legacy[] = {
+    {Py_tp_iter, PyObject_SelfIter},
+    {0},
+};

@@ -4190,7 +4190,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
 static PyArray_Descr @from@_Descr = {
     PyObject_HEAD_INIT((PyTypeObject* ) (&PyArrayDescr_TypeFull))
     /* typeobj */
-    &Py@NAME@ArrType_Type,
+    NULL,
     /* kind */
     NPY_@from@LTR,
     /* type */
@@ -4340,7 +4340,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
 NPY_NO_EXPORT PyArray_Descr @from@_Descr = {
     PyObject_HEAD_INIT((PyTypeObject* ) (&PyArrayDescr_TypeFull))
     /* typeobj */
-    &Py@NAME@ArrType_Type,
+    NULL,
     /* kind */
     NPY_@kind@LTR,
     /* type */
@@ -4432,6 +4432,29 @@ static HPy _hpy_builtin_descrs[] = {
     HPy_NULL,
     HPy_NULL,
 };
+
+// HPY TODO: temporary hack, dtype (BOOL_Descr, etc.) are
+// still statically allocated PyObjects, but cannot have dynamically
+// allocated type in their static initializers...
+NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
+    /**begin repeat
+     *
+     * #from = VOID, STRING, UNICODE, BOOL,
+     *         BYTE, UBYTE, SHORT, USHORT, INT, UINT,
+     *         LONG, ULONG, LONGLONG, ULONGLONG,
+     *         HALF, FLOAT, DOUBLE, LONGDOUBLE,
+     *         CFLOAT, CDOUBLE, CLONGDOUBLE,
+     *         OBJECT, DATETIME, TIMEDELTA#
+     * #NAME = Void, String, Unicode, Bool,
+     *         Byte, UByte, Short, UShort, Int, UInt,
+     *         Long, ULong, LongLong, ULongLong,
+     *         Half, Float, Double, LongDouble,
+     *         CFloat, CDouble, CLongDouble,
+     *         Object, Datetime, Timedelta#
+     */
+    @from@_Descr.typeobj = _Py@NAME@ArrType_Type_p;
+    /**end repeat**/
+}
 
 // HPY TODO: temporary hack, should be heap types in module state
 void init_hpy_global_state(HPyContext *ctx) {

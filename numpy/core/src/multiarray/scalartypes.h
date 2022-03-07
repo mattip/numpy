@@ -31,4 +31,80 @@ _typenum_fromtypeobj(PyObject *type, int user);
 NPY_NO_EXPORT void *
 scalar_value(PyObject *scalar, PyArray_Descr *descr);
 
+NPY_NO_EXPORT void
+init_scalartypes_basetypes(HPyContext *ctx);
+
+NPY_NO_EXPORT HPyType_Spec PyGenericArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyBoolArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyNumberArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyIntegerArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PySignedIntegerArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyUnsignedIntegerArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyInexactArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyFloatingArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyComplexFloatingArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyFlexibleArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyCharacterArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyByteArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyShortArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyIntArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyLongArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyLongLongArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyUByteArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyUShortArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyUIntArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyULongArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyULongLongArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyFloatArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyDoubleArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyLongDoubleArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyCFloatArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyCDoubleArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyCLongDoubleArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyObjectArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyStringArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyUnicodeArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyVoidArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyTimeIntegerArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyDatetimeArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyTimedeltaArrType_Type_spec;
+NPY_NO_EXPORT HPyType_Spec PyHalfArrType_Type_spec;
+
+
+NPY_NO_EXPORT PyTypeObject *_PyGenericArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyBoolArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyNumberArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyIntegerArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PySignedIntegerArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyUnsignedIntegerArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyInexactArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyFloatingArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyComplexFloatingArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyFlexibleArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyCharacterArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyByteArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyShortArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyIntArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyLongArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyLongLongArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyUByteArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyUShortArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyUIntArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyULongArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyULongLongArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyFloatArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyDoubleArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyLongDoubleArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyCFloatArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyCDoubleArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyCLongDoubleArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyObjectArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyStringArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyUnicodeArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyVoidArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyTimeIntegerArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyDatetimeArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyTimedeltaArrType_Type_p;
+NPY_NO_EXPORT PyTypeObject *_PyHalfArrType_Type_p;
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SCALARTYPES_H_ */
