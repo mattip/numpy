@@ -797,9 +797,11 @@ HPyArray_AsFields(HPyContext *ctx, HPy h)
 /* Array Flags Object */
 typedef struct PyArrayFlagsObject {
         PyObject_HEAD
-        PyObject *arr;
+        HPyField arr;
         int flags;
 } PyArrayFlagsObject;
+
+HPyType_HELPERS(PyArrayFlagsObject);
 
 /* Mirrors buffer object to ptr */
 

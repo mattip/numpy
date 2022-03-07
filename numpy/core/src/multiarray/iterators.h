@@ -1,6 +1,10 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_ITERATORS_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_ITERATORS_H_
 
+extern NPY_NO_EXPORT HPyType_Spec PyArrayIter_Type_Spec;
+extern NPY_NO_EXPORT HPyType_Spec PyArrayNeighborhoodIter_Type_Spec;
+extern NPY_NO_EXPORT HPyType_Spec PyArrayMultiIter_Type_Spec;
+
 NPY_NO_EXPORT PyObject
 *iter_subscript(PyArrayIterObject *, PyObject *);
 

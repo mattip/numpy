@@ -42,6 +42,8 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "arraytypes.h"
 #include "npy_buffer.h"
 #include "arrayobject.h"
+#include "iterators.h"
+#include "mapping.h"
 #include "hashdescr.h"
 #include "descriptor.h"
 #include "dragon4.h"
@@ -4814,30 +4816,41 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    PyArrayIter_Type.tp_iter = PyObject_SelfIter;
     NpyIter_Type.tp_iter = PyObject_SelfIter;
-    PyArrayMultiIter_Type.tp_iter = PyObject_SelfIter;
-    PyArrayMultiIter_Type.tp_free = PyArray_free;
-    if (PyType_Ready(&PyArrayIter_Type) < 0) {
+    HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
-    if (PyType_Ready(&PyArrayMapIter_Type) < 0) {
+    _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
+
+    HPy h_arrayMapIterType = HPyType_FromSpec(ctx, &PyArrayMapIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
-    if (PyType_Ready(&PyArrayMultiIter_Type) < 0) {
+    PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
+
+    HPy h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayMultiIter_type)) {
         goto err;
     }
-    PyArrayNeighborhoodIter_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&PyArrayNeighborhoodIter_Type) < 0) {
+    _PyArrayMultiIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMultiIter_type);
+
+    HPy h_neighborhoodIterType = HPyType_FromSpec(ctx, &PyArrayNeighborhoodIter_Type_Spec, NULL);
+    if (HPy_IsNull(h_neighborhoodIterType)) {
         goto err;
     }
+    PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
+
     if (PyType_Ready(&NpyIter_Type) < 0) {
         goto err;
     }
 
-    if (PyType_Ready(&PyArrayFlags_Type) < 0) {
+    HPy h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
+    if (HPy_IsNull(h_arrayFlagsType)) {
         goto err;
     }
+    _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
+
     NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
         goto err;

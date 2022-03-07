@@ -70,4 +70,7 @@ PyArray_MapIterNew(npy_index_info *indices , int index_num, int index_type,
                    npy_uint32 subspace_iter_flags, npy_uint32 subspace_flags,
                    npy_uint32 extra_op_flags, PyArrayObject *extra_op,
                    PyArray_Descr *extra_op_dtype);
+
+extern NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec;
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_MAPPING_H_ */

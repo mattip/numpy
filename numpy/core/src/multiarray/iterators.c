@@ -957,12 +957,6 @@ iter_ass_subscript(PyArrayIterObject *self, PyObject *ind, PyObject *val)
 }
 
 
-static PyMappingMethods iter_as_mapping = {
-    (lenfunc)iter_length,                   /*mp_length*/
-    (binaryfunc)iter_subscript,             /*mp_subscript*/
-    (objobjargproc)iter_ass_subscript,      /*mp_ass_subscript*/
-};
-
 
 /* Two options:
  *  1) underlying array is contiguous
@@ -1108,19 +1102,30 @@ static PyGetSetDef iter_getsets[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-NPY_NO_EXPORT PyTypeObject PyArrayIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.flatiter",
-    .tp_basicsize = sizeof(PyArrayIterObject),
-    .tp_dealloc = (destructor)arrayiter_dealloc,
-    .tp_as_mapping = &iter_as_mapping,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_richcompare = (richcmpfunc)iter_richcompare,
-    .tp_iternext = (iternextfunc)arrayiter_next,
-    .tp_methods = iter_methods,
-    .tp_members = iter_members,
-    .tp_getset = iter_getsets,
+static PyType_Slot iter_slots[] = {
+        {Py_tp_dealloc, arrayiter_dealloc},
+        {Py_mp_length, iter_length},
+        {Py_mp_subscript, iter_subscript},
+        {Py_mp_ass_subscript, iter_ass_subscript},
+        {Py_tp_richcompare, iter_richcompare},
+        {Py_tp_iternext, arrayiter_next},
+        {Py_tp_methods, iter_methods},
+        {Py_tp_members, iter_members},
+        {Py_tp_getset, iter_getsets},
+        {Py_tp_iter, PyObject_SelfIter},
+        {0, NULL}
+
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayIter_Type_Spec = {
+    .name = "numpy.flatiter",
+    .basicsize = sizeof(PyArrayIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = iter_slots
+};
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayIter_Type_p;
 
 /** END of Array Iterator **/
 
@@ -1530,18 +1535,27 @@ static PyMethodDef arraymultiter_methods[] = {
     {NULL, NULL, 0, NULL},      /* sentinel */
 };
 
-NPY_NO_EXPORT PyTypeObject PyArrayMultiIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.broadcast",
-    .tp_basicsize = sizeof(PyArrayMultiIterObject),
-    .tp_dealloc = (destructor)arraymultiter_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_iternext = (iternextfunc)arraymultiter_next,
-    .tp_methods = arraymultiter_methods,
-    .tp_members = arraymultiter_members,
-    .tp_getset = arraymultiter_getsetlist,
-    .tp_new = arraymultiter_new,
+static PyType_Slot arraymultiter_slots[] = {
+        {Py_tp_new, arraymultiter_new},
+        {Py_tp_dealloc, arraymultiter_dealloc},
+        {Py_tp_iternext, arraymultiter_next},
+        {Py_tp_getset, arraymultiter_getsetlist},
+        {Py_tp_members, arraymultiter_members},
+        {Py_tp_methods, arraymultiter_methods},
+        {Py_tp_iter, PyObject_SelfIter},
+        {Py_tp_free, PyArray_free},
+        {0, NULL}
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayMultiIter_Type_Spec = {
+    .name = "numpy.broadcast",
+    .basicsize = sizeof(PyArrayMultiIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = arraymultiter_slots,
+};
+
+NPY_NO_EXPORT PyTypeObject *_PyArrayMultiIter_Type_p;
 
 /*========================= Neighborhood iterator ======================*/
 
@@ -1710,7 +1724,7 @@ PyArray_NeighborhoodIterNew(PyArrayIterObject *x, const npy_intp *bounds,
     if (ret == NULL) {
         return NULL;
     }
-    PyObject_Init((PyObject *)ret, &PyArrayNeighborhoodIter_Type);
+    PyObject_Init((PyObject *)ret, PyArrayNeighborhoodIter_Type);
 
     Py_INCREF(x->ao);  /* PyArray_RawIterBaseInit steals a reference */
     PyArray_RawIterBaseInit((PyArrayIterObject*)ret, x->ao);
@@ -1813,10 +1827,18 @@ static void neighiter_dealloc(PyArrayNeighborhoodIterObject* iter)
     PyArray_free((PyArrayObject*)iter);
 }
 
-NPY_NO_EXPORT PyTypeObject PyArrayNeighborhoodIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.neigh_internal_iter",
-    .tp_basicsize = sizeof(PyArrayNeighborhoodIterObject),
-    .tp_dealloc = (destructor)neighiter_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+static PyType_Slot neighiter_slots[] = {
+        {Py_tp_new, HPyType_GenericNew},
+        {Py_tp_dealloc, neighiter_dealloc},
+        {0, NULL}
 };
+
+NPY_NO_EXPORT HPyType_Spec PyArrayNeighborhoodIter_Type_Spec = {
+    .name = "numpy.neigh_internal_iter",
+    .basicsize = sizeof(PyArrayNeighborhoodIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = neighiter_slots,
+};
+
+NPY_NO_EXPORT PyTypeObject *PyArrayNeighborhoodIter_Type;
