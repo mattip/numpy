@@ -72,6 +72,5 @@ PyArray_MapIterNew(npy_index_info *indices , int index_num, int index_type,
                    PyArray_Descr *extra_op_dtype);
 
 extern NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec;
-extern NPY_NO_EXPORT PyTypeObject *_PyArrayMapIter_Type_p;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_MAPPING_H_ */

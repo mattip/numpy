@@ -1724,7 +1724,7 @@ PyArray_NeighborhoodIterNew(PyArrayIterObject *x, const npy_intp *bounds,
     if (ret == NULL) {
         return NULL;
     }
-    PyObject_Init((PyObject *)ret, &PyArrayNeighborhoodIter_Type);
+    PyObject_Init((PyObject *)ret, PyArrayNeighborhoodIter_Type);
 
     Py_INCREF(x->ao);  /* PyArray_RawIterBaseInit steals a reference */
     PyArray_RawIterBaseInit((PyArrayIterObject*)ret, x->ao);

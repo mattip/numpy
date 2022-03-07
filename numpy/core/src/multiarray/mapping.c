@@ -2703,7 +2703,7 @@ PyArray_MapIterNew(npy_index_info *indices , int index_num, int index_type,
     }
     /* set all attributes of mapiter to zero */
     memset(mit, 0, sizeof(PyArrayMapIterObject));
-    PyObject_Init((PyObject *)mit, &PyArrayMapIter_Type);
+    PyObject_Init((PyObject *)mit, PyArrayMapIter_Type);
 
     Py_INCREF(arr);
     mit->array = arr;
@@ -3404,4 +3404,4 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec = {
     .legacy_slots = arraymapiter_slots
 };
 
-NPY_NO_EXPORT PyTypeObject *_PyArrayMapIter_Type_p;
+NPY_NO_EXPORT PyTypeObject *PyArrayMapIter_Type;

@@ -4827,7 +4827,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
-    _PyArrayMapIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
+    PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
 
     HPy h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayMultiIter_type)) {
