@@ -1689,39 +1689,57 @@ finish:
 #undef STRIDING_OK
 
 
-static PyObject *
-array_array(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_array, "array", array_array_impl, HPyFunc_KEYWORDS)
+static HPy
+array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
-    PyObject *op;
+    HPy op = HPy_NULL;
     npy_bool subok = NPY_FALSE;
     _PyArray_CopyMode copy = NPY_COPY_ALWAYS;
     int ndmin = 0;
     PyArray_Descr *type = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPyTracker tracker;
 
-    if (len_args != 1 || (kwnames != NULL)) {
-        if (npy_parse_arguments("array", args, len_args, kwnames,
-                "object", NULL, &op,
-                "|dtype", &PyArray_DescrConverter2, &type,
-                "$copy", &PyArray_CopyConverter, &copy,
-                "$order", &PyArray_OrderConverter, &order,
-                "$subok", &PyArray_BoolConverter, &subok,
-                "$ndmin", &PyArray_PythonPyIntFromInt, &ndmin,
-                "$like", NULL, &like,
-                NULL, NULL, NULL) < 0) {
-            Py_XDECREF(type);
-            return NULL;
+    if (nargs != 1) {
+        HPy h_type_in = HPy_NULL, h_copy = HPy_NULL, h_order = HPy_NULL;
+        HPy h_subok = HPy_NULL, h_ndmin = HPy_NULL, h_like = HPy_NULL;
+        if (!HPyArg_ParseKeywords(ctx, &tracker, args, nargs, kw, "O|OOOOOO",
+            (const char*[]) {"object", "dtype", "copy", "order", "subok", "ndmin", "like", NULL},
+            &op, &h_type_in, &h_copy, &h_order, &h_subok, &h_ndmin, &h_like)) {
+            HPyTracker_Close(ctx, tracker);
+            return HPy_NULL;
         }
-        if (like != NULL) {
-            PyObject *deferred = array_implement_c_array_function_creation(
-                    "array", like, NULL, NULL, args, len_args, kwnames);
-            if (deferred != Py_NotImplemented) {
-                Py_XDECREF(type);
-                return deferred;
-            }
+
+        HPy h_type;
+        if (HPyArray_DescrConverter2(ctx, h_type_in, &h_type) == NPY_FAIL) {
+            HPyTracker_Close(ctx, tracker);
+            return HPy_NULL;
+        }
+        type = (PyArray_Descr*) HPy_AsPyObject(ctx, h_type);
+        HPy_Close(ctx, h_type);
+
+        if (!HPy_IsNull(h_copy) && HPyArray_CopyConverter(ctx, h_copy, &copy) == NPY_FAIL) {
+            HPyTracker_Close(ctx, tracker);
+            return HPy_NULL;
+        }
+        if (!HPy_IsNull(h_order)) {
+            hpy_abort_not_implemented("'order' argument in np.array");
+        }
+        if (!HPy_IsNull(h_subok)) {
+            hpy_abort_not_implemented("'subok' argument in np.array");
+        }
+        if (!HPy_IsNull(h_ndmin)) {
+            hpy_abort_not_implemented("'ndmin' argument in np.array");
+        }
+        if (!HPy_IsNull(h_like)) {
+            hpy_abort_not_implemented("'like' argument in np.array");
+            // PyObject *deferred = array_implement_c_array_function_creation(
+            //         "array", like, NULL, NULL, args, len_args, kwnames);
+            // if (deferred != Py_NotImplemented) {
+            //     Py_XDECREF(type);
+            //     return deferred;
+            // }
         }
     }
     else {
@@ -1729,10 +1747,10 @@ array_array(PyObject *NPY_UNUSED(ignored),
         op = args[0];
     }
 
-    PyObject *res = _array_fromobject_generic(
-            op, type, copy, order, subok, ndmin);
-    Py_XDECREF(type);
-    return res;
+    PyObject *py_res = _array_fromobject_generic(
+            HPy_AsPyObject(ctx, op), type, copy, order, subok, ndmin);
+    HPy_Close(ctx, op);
+    return HPy_FromPyObject(ctx, py_res);
 }
 
 static PyObject *
@@ -4298,9 +4316,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"set_typeDict",
         (PyCFunction)array_set_typeDict,
         METH_VARARGS, NULL},
-    {"array",
-        (PyCFunction)array_array,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
     {"asarray",
         (PyCFunction)array_asarray,
         METH_FASTCALL | METH_KEYWORDS, NULL},
@@ -4763,6 +4778,7 @@ intern_strings(void)
 
 static HPyDef *array_module_hpy_methods[] = {
     &array_zeros,
+    &array_array,
     NULL
 };
 

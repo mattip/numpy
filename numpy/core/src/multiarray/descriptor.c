@@ -1391,6 +1391,19 @@ PyArray_DescrNewFromType(int type_num)
     return new;
 }
 
+NPY_NO_EXPORT int
+HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at)
+{
+    // HPY TODO: the default for kwargs parsing is NULL with HPY
+    if (HPy_Is(ctx, obj, ctx->h_None) || HPy_IsNull(obj)) {
+        *at = HPy_NULL;
+        return NPY_SUCCEED;
+    }
+    else {
+        return HPyArray_DescrConverter(ctx, obj, at);
+    }
+}
+
 /*NUMPY_API
  * Get typenum from an object -- None goes to NULL
  */
@@ -1573,8 +1586,9 @@ _convert_from_any(PyObject *obj, int align)
     }
 }
 
-// HPY TODO: once HPyArray_DescrFromType is in API, no need to include:
+// HPY TODO: once the necessary helper functions are in API, no need to include:
 #include "arraytypes.h"
+#include "scalarapi.h"
 
 static HPy
 _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
@@ -1582,15 +1596,7 @@ _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
     HPy h_PyGenericArrType_Type = HPy_FromPyObject(ctx, (PyObject*) &PyGenericArrType_Type);
 
     if (HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type)) {
-        capi_warn("_hpy_convert_from_type -> PyArray_DescrFromTypeObject");
-        // HPY TODO: convert the path PyArray_DescrFromTypeObject -> _typenum_fromtypeobj
-        // This requires conversion of scalartypes.c.src
-        PyObject *pyobj = HPy_AsPyObject(ctx, typ);
-        PyArray_Descr *pyres = PyArray_DescrFromTypeObject(pyobj);
-        HPy hres = HPy_FromPyObject(ctx, (PyObject*) pyres);
-        Py_DECREF(pyobj);
-        Py_DECREF(pyres);
-        return hres;
+        return HPyArray_DescrFromTypeObject(ctx, typ);
     }
     else if (HPy_Is(ctx, typ, ctx->h_LongType)) {
         return HPyArray_DescrFromType(ctx, NPY_LONG);

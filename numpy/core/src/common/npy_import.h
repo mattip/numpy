@@ -29,4 +29,18 @@ npy_cache_import(const char *module, const char *attr, PyObject **cache)
     }
 }
 
+// HPY TODO: global cache...
+NPY_INLINE static void
+npy_hpy_cache_import(HPyContext *ctx, const char *module, const char *attr, HPy *cache)
+{
+    if (NPY_UNLIKELY(HPy_IsNull(*cache))) {
+        HPy mod = HPyImport_ImportModule(ctx, module);
+
+        if (HPy_IsNull(mod)) {
+            *cache = HPy_GetAttr_s(ctx, mod, attr);
+            HPy_Close(ctx, mod);
+        }
+    }
+}
+
 #endif  /* NUMPY_CORE_SRC_COMMON_NPY_IMPORT_H_ */

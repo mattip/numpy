@@ -267,6 +267,44 @@ PyArray_CopyConverter(PyObject *obj, _PyArray_CopyMode *copymode) {
     return NPY_SUCCEED;
 }
 
+NPY_NO_EXPORT int
+HPyArray_CopyConverter(HPyContext *ctx, HPy obj, _PyArray_CopyMode *copymode) {
+    if (HPy_Is(ctx, obj, ctx->h_None)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "NoneType copy mode not allowed.");
+        return NPY_FAIL;
+    }
+
+    int int_copymode;
+    // HPY TODO: global state
+    static HPy numpy_CopyMode = HPy_NULL;
+    npy_hpy_cache_import(ctx, "numpy", "_CopyMode", &numpy_CopyMode);
+
+    HPy obj_type = HPy_Type(ctx, obj);
+    if (!HPy_IsNull(numpy_CopyMode) && HPy_Is(ctx, obj_type, numpy_CopyMode)) {
+        HPy mode_value = HPy_GetAttr_s(ctx, obj, "value");
+        if (!HPy_IsNull(mode_value)) {
+            return NPY_FAIL;
+        }
+
+        int_copymode = (int)HPyLong_AsLong(ctx, mode_value);
+        HPy_Close(ctx, mode_value);
+        if (hpy_error_converting(ctx, int_copymode)) {
+            return NPY_FAIL;
+        }
+    }
+    else {
+        npy_bool bool_copymode;
+        if (!HPyArray_BoolConverter(ctx, obj, &bool_copymode)) {
+            return NPY_FAIL;
+        }
+        int_copymode = (int)bool_copymode;
+    }
+
+    *copymode = (_PyArray_CopyMode)int_copymode;
+    return NPY_SUCCEED;
+}
+
 /*NUMPY_API
  * Get buffer chunk from object
  *
@@ -432,6 +470,21 @@ PyArray_BoolConverter(PyObject *object, npy_bool *val)
         *val = NPY_FALSE;
     }
     if (PyErr_Occurred()) {
+        return NPY_FAIL;
+    }
+    return NPY_SUCCEED;
+}
+
+NPY_NO_EXPORT int
+HPyArray_BoolConverter(HPyContext *ctx, HPy object, npy_bool *val)
+{
+    if (HPy_IsTrue(ctx, object)) {
+        *val = NPY_TRUE;
+    }
+    else {
+        *val = NPY_FALSE;
+    }
+    if (HPyErr_Occurred(ctx)) {
         return NPY_FAIL;
     }
     return NPY_SUCCEED;

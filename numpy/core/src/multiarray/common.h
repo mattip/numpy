@@ -8,6 +8,7 @@
 #include <limits.h>
 
 #define error_converting(x)  (((x) == -1) && PyErr_Occurred())
+#define hpy_error_converting(ctx, x)  (((x) == -1) && HPyErr_Occurred(ctx))
 
 #ifdef NPY_ALLOW_THREADS
 #define NPY_BEGIN_THREADS_NDITER(iter) \

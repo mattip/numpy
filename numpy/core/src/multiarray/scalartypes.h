@@ -34,6 +34,9 @@ scalar_value(PyObject *scalar, PyArray_Descr *descr);
 NPY_NO_EXPORT void
 init_scalartypes_basetypes(HPyContext *ctx);
 
+NPY_NO_EXPORT int
+_hpy_typenum_fromtypeobj(HPy type, int user);
+
 NPY_NO_EXPORT HPyType_Spec PyGenericArrType_Type_spec;
 NPY_NO_EXPORT HPyType_Spec PyBoolArrType_Type_spec;
 NPY_NO_EXPORT HPyType_Spec PyNumberArrType_Type_spec;
