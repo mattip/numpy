@@ -2794,6 +2794,7 @@ static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS,
     // as_mapping:
     {Py_mp_subscript, gen_arrtype_subscript},
+    {0},
 };
 
 static HPyDef *PyGenericArrType_Type_slots[] = {
