@@ -419,7 +419,7 @@ def visibility_define(config):
 
 def configuration(parent_package='', top_path=None):
     from numpy.distutils.misc_util import (
-        Configuration, dot_join, exec_mod_from_location)
+        Configuration, dot_join, exec_mod_from_location, get_hpy_includes)
     from numpy.distutils.system_info import (get_info, blas_opt_info,
                                              lapack_opt_info)
 
@@ -742,7 +742,10 @@ def configuration(parent_package='', top_path=None):
             sources=npymath_sources + [get_mathlib_info],
             install_dir='lib',
             build_info={
-                'include_dirs' : [],  # empty list required for creating npy_math_internal.h
+                'include_dirs' : [
+                    # TODO: fix this properly for HPy support
+                    get_hpy_includes("")
+                ],
                 'extra_compiler_args': [gl_if_msvc],
             })
     config.add_npy_pkg_config("npymath.ini.in", "lib/npy-pkg-config",

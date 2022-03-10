@@ -2,6 +2,7 @@
 #define NUMPY_CORE_SRC_COMMON_NPY_CPU_FEATURES_H_
 
 #include <Python.h> // for PyObject
+#include "hpy.h"
 #include "numpy/numpyconfig.h" // for NPY_VISIBILITY_HIDDEN
 
 #ifdef __cplusplus
@@ -130,8 +131,8 @@ npy_cpu_have(NPY_CPU_FEATURE_##FEATURE_NAME)
  * with runtime availability.
  * same as npy_cpu_have, `npy_cpu_init` must be called first.
  */
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_features_dict(void);
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_features_dict(HPyContext *);
 /*
  * Return a new a Python list contains the minimal set of required optimizations
  * that supported by the compiler and platform according to the specified
@@ -152,8 +153,8 @@ npy_cpu_features_dict(void);
  * On s390x: []
  * On any other arch or if the optimization is disabled: []
  */
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_baseline_list(void);
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_baseline_list(HPyContext *);
 /*
  * Return a new a Python list contains the dispatched set of additional optimizations
  * that supported by the compiler and platform according to the specified
@@ -174,8 +175,8 @@ npy_cpu_baseline_list(void);
  * On s390x: ['VX', 'VXE', VXE2]
  * On any other arch or if the optimization is disabled: []
  */
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_dispatch_list(void);
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_dispatch_list(HPyContext *);
 
 #ifdef __cplusplus
 }

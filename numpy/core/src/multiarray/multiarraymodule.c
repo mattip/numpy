@@ -4780,10 +4780,11 @@ static HPyModuleDef moduledef = {
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *m, *d, *s;
+    HPy h_mod, h_d, h_s;
     PyObject *c_api;
 
     /* Create the module and add the functions */
-    HPy h_mod = HPyModule_Create(ctx, &moduledef);
+    h_mod = HPyModule_Create(ctx, &moduledef);
     m = HPy_AsPyObject(ctx, h_mod);
     if (!m) {
         return HPy_NULL;
@@ -4811,6 +4812,10 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
 
     /* Add some symbolic constants to the module */
+    h_d = HPy_GetAttr_s(ctx, h_mod, "__dict__");
+    if (HPy_IsNull(h_d)) {
+        goto err;
+    }
     d = PyModule_GetDict(m);
     if (!d) {
         goto err;
@@ -4941,45 +4946,45 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 
      * This is for backward compatibility with existing code.
      */
-    PyDict_SetItemString (d, "error", PyExc_Exception);
+    HPy_SetItem_s(ctx, h_d, "error", ctx->h_Exception);
 
-    s = PyLong_FromLong(NPY_TRACE_DOMAIN);
-    PyDict_SetItemString(d, "tracemalloc_domain", s);
-    Py_DECREF(s);
+    h_s = HPyLong_FromLong(ctx, NPY_TRACE_DOMAIN);
+    HPy_SetItem_s(ctx, h_d, "tracemalloc_domain", h_s);
+    HPy_Close(ctx, h_s);
 
-    s = PyUnicode_FromString("3.1");
-    PyDict_SetItemString(d, "__version__", s);
-    Py_DECREF(s);
+    h_s = HPyUnicode_FromString(ctx, "3.1");
+    HPy_SetItem_s(ctx, h_d, "__version__", h_s);
+    HPy_Close(ctx, h_s);
 
-    s = npy_cpu_features_dict();
-    if (s == NULL) {
+    h_s = npy_cpu_features_dict(ctx);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    if (PyDict_SetItemString(d, "__cpu_features__", s) < 0) {
-        Py_DECREF(s);
+    if (HPy_SetItem_s(ctx, h_d, "__cpu_features__", h_s) < 0) {
+        HPy_Close(ctx, h_s);
         goto err;
     }
-    Py_DECREF(s);
+    HPy_Close(ctx, h_s);
 
-    s = npy_cpu_baseline_list();
-    if (s == NULL) {
+    h_s = npy_cpu_baseline_list(ctx);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    if (PyDict_SetItemString(d, "__cpu_baseline__", s) < 0) {
-        Py_DECREF(s);
+    if (HPy_SetItem_s(ctx, h_d, "__cpu_baseline__", h_s) < 0) {
+        HPy_Close(ctx, h_s);
         goto err;
     }
-    Py_DECREF(s);
+    HPy_Close(ctx, h_s);
 
-    s = npy_cpu_dispatch_list();
-    if (s == NULL) {
+    h_s = npy_cpu_dispatch_list(ctx);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    if (PyDict_SetItemString(d, "__cpu_dispatch__", s) < 0) {
-        Py_DECREF(s);
+    if (HPy_SetItem_s(ctx, h_d, "__cpu_dispatch__", h_s) < 0) {
+        HPy_Close(ctx, h_s);
         goto err;
     }
-    Py_DECREF(s);
+    HPy_Close(ctx, h_s);
 
     s = PyCapsule_New((void *)_datetime_strings, NULL, NULL);
     if (s == NULL) {
@@ -4989,9 +4994,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     Py_DECREF(s);
 
 #define ADDCONST(NAME)                          \
-    s = PyLong_FromLong(NPY_##NAME);             \
-    PyDict_SetItemString(d, #NAME, s);          \
-    Py_DECREF(s)
+    h_s = HPyLong_FromLong(ctx, NPY_##NAME);     \
+    HPy_SetItem_s(ctx, h_d, #NAME, h_s);              \
+    HPy_Close(ctx, h_s)
 
 
     ADDCONST(ALLOW_THREADS);
@@ -5103,6 +5108,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
                         "cannot load multiarray module.");
     }
     HPy_Close(ctx, h_mod);
+    HPy_Close(ctx, h_d);
     Py_DECREF(m);
     return HPy_NULL;
 }
