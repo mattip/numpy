@@ -4946,15 +4946,15 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 
      * This is for backward compatibility with existing code.
      */
-    PyDict_SetItemString (d, "error", PyExc_Exception);
+    HPy_SetItem_s(ctx, h_d, "error", ctx->h_Exception);
 
-    s = PyLong_FromLong(NPY_TRACE_DOMAIN);
-    PyDict_SetItemString(d, "tracemalloc_domain", s);
-    Py_DECREF(s);
+    h_s = HPyLong_FromLong(ctx, NPY_TRACE_DOMAIN);
+    HPy_SetItem_s(ctx, h_d, "tracemalloc_domain", h_s);
+    HPy_Close(ctx, h_s);
 
-    s = PyUnicode_FromString("3.1");
-    PyDict_SetItemString(d, "__version__", s);
-    Py_DECREF(s);
+    h_s = HPyUnicode_FromString(ctx, "3.1");
+    HPy_SetItem_s(ctx, h_d, "__version__", h_s);
+    HPy_Close(ctx, h_s);
 
     h_s = npy_cpu_features_dict(ctx);
     if (HPy_IsNull(h_s)) {
@@ -4994,9 +4994,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     Py_DECREF(s);
 
 #define ADDCONST(NAME)                          \
-    s = PyLong_FromLong(NPY_##NAME);             \
-    PyDict_SetItemString(d, #NAME, s);          \
-    Py_DECREF(s)
+    h_s = HPyLong_FromLong(ctx, NPY_##NAME);     \
+    HPy_SetItem_s(ctx, h_d, #NAME, h_s);              \
+    HPy_Close(ctx, h_s)
 
 
     ADDCONST(ALLOW_THREADS);
