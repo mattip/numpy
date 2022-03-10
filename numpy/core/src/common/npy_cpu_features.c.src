@@ -49,11 +49,11 @@ npy_cpu_init(void)
     return 0;
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_features_dict(void)
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_features_dict(HPyContext *ctx)
 {
-    PyObject *dict = PyDict_New();
-    if (dict) {
+    HPy dict = HPyDict_New(ctx);
+    if (!HPy_IsNull(dict)) {
     /**begin repeat
      * #feature = MMX, SSE, SSE2, SSE3, SSSE3, SSE41, POPCNT, SSE42,
      *            AVX, F16C, XOP, FMA4, FMA3, AVX2, AVX512F,
@@ -65,51 +65,53 @@ npy_cpu_features_dict(void)
      *            VX, VXE, VXE2,
      *            NEON, NEON_FP16, NEON_VFPV4, ASIMD, FPHP, ASIMDHP, ASIMDDP, ASIMDFHM#
     */
-        if (PyDict_SetItemString(dict, "@feature@",
-            npy__cpu_have[NPY_CPU_FEATURE_@feature@] ? Py_True : Py_False) < 0) {
-            Py_DECREF(dict);
-            return NULL;
+        if (HPy_SetItem_s(ctx, dict, "@feature@",
+            npy__cpu_have[NPY_CPU_FEATURE_@feature@] ? ctx->h_True : ctx->h_False) < 0) {
+            HPy_Close(ctx, dict);
+            return HPy_NULL;
         }
     /**end repeat**/
     }
     return dict;
 }
 
-#define NPY__CPU_PYLIST_APPEND_CB(FEATURE, LIST) \
-    item = PyUnicode_FromString(NPY_TOSTRING(FEATURE)); \
-    if (item == NULL) { \
-        Py_DECREF(LIST); \
-        return NULL; \
+#define NPY__CPU_PYLIST_APPEND_CB(FEATURE, LIST_BUILDER) \
+    item = HPyUnicode_FromString(ctx, NPY_TOSTRING(FEATURE));     \
+    if (HPy_IsNull(item)) {                                      \
+        HPyListBuilder_Cancel(ctx, LIST_BUILDER);                \
+        return HPy_NULL; \
     } \
-    PyList_SET_ITEM(LIST, index++, item);
+    HPyListBuilder_Set(ctx, LIST_BUILDER, index++, item);
 
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_baseline_list(void)
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_baseline_list(HPyContext *ctx)
 {
 #if !defined(NPY_DISABLE_OPTIMIZATION) && NPY_WITH_CPU_BASELINE_N > 0
-    PyObject *list = PyList_New(NPY_WITH_CPU_BASELINE_N), *item;
+    HPyListBuilder listBuilder = HPyListBuilder_New(ctx, NPY_WITH_CPU_BASELINE_N);
+    HPy item;
     int index = 0;
-    if (list != NULL) {
-        NPY_WITH_CPU_BASELINE_CALL(NPY__CPU_PYLIST_APPEND_CB, list)
+    if (!HPyListBuilder_IsNull(listBuilder)) {
+        NPY_WITH_CPU_BASELINE_CALL(NPY__CPU_PYLIST_APPEND_CB, listBuilder)
     }
-    return list;
+    return HPyListBuilder_Build(ctx, listBuilder);
 #else
-    return PyList_New(0);
+    return HPyList_New(0);
 #endif
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
-npy_cpu_dispatch_list(void)
+NPY_VISIBILITY_HIDDEN HPy
+npy_cpu_dispatch_list(HPyContext *ctx)
 {
 #if !defined(NPY_DISABLE_OPTIMIZATION) && NPY_WITH_CPU_DISPATCH_N > 0
-    PyObject *list = PyList_New(NPY_WITH_CPU_DISPATCH_N), *item;
+    HPyListBuilder listBuilder = HPyListBuilder_New(ctx, NPY_WITH_CPU_DISPATCH_N);
+    HPy item;
     int index = 0;
-    if (list != NULL) {
-        NPY_WITH_CPU_DISPATCH_CALL(NPY__CPU_PYLIST_APPEND_CB, list)
+    if (!HPyListBuilder_IsNull(listBuilder)) {
+        NPY_WITH_CPU_DISPATCH_CALL(NPY__CPU_PYLIST_APPEND_CB, listBuilder)
     }
-    return list;
+    return HPyListBuilder_Build(ctx, listBuilder);
 #else
-    return PyList_New(0);
+    return HPyList_New(ctx, 0);
 #endif
 }
 
