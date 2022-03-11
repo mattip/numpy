@@ -5335,7 +5335,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     set_flaginfo(ctx, h_d);
 
     /* Create the typeinfo types */
-    if (typeinfo_init_structsequences(d) < 0) {
+    if (typeinfo_init_structsequences(ctx, h_d, d) < 0) {
         goto err;
     }
 

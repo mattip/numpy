@@ -16,8 +16,8 @@
 
 
 
-static PyTypeObject PyArray_typeinfoType;
-static PyTypeObject PyArray_typeinforangedType;
+static PyTypeObject *PyArray_typeinfoType;
+static PyTypeObject *PyArray_typeinforangedType;
 
 static PyStructSequence_Field typeinfo_fields[] = {
     {"char",      "The character used to represent the type"},
@@ -58,7 +58,7 @@ PyArray_typeinfo(
     char typechar, int typenum, int nbits, int align,
     PyTypeObject *type_obj)
 {
-    PyObject *entry = PyStructSequence_New(&PyArray_typeinfoType);
+    PyObject *entry = PyStructSequence_New(PyArray_typeinfoType);
     if (entry == NULL)
         return NULL;
     PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
@@ -80,7 +80,7 @@ PyArray_typeinforanged(
     char typechar, int typenum, int nbits, int align,
     PyObject *max, PyObject *min, PyTypeObject *type_obj)
 {
-    PyObject *entry = PyStructSequence_New(&PyArray_typeinforangedType);
+    PyObject *entry = PyStructSequence_New(PyArray_typeinforangedType);
     if (entry == NULL)
         return NULL;
     PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
@@ -112,23 +112,23 @@ PyArray_typeinforanged(
 #endif
 
 NPY_NO_EXPORT int
-typeinfo_init_structsequences(PyObject *multiarray_dict)
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict, PyObject *d)
 {
-    CAPI_WARN("startup: PyStructSequence_InitType2");
-    if (PyStructSequence_InitType2(
-            &PyArray_typeinfoType, &typeinfo_desc) < 0) {
+    CAPI_WARN("startup: PyStructSequence_NewType");
+    PyArray_typeinfoType = PyStructSequence_NewType(&typeinfo_desc);
+    if (!PyArray_typeinfoType) {
         return -1;
     }
-    if (PyStructSequence_InitType2(
-            &PyArray_typeinforangedType, &typeinforanged_desc) < 0) {
+    PyArray_typeinforangedType = PyStructSequence_NewType(&typeinforanged_desc);
+    if (!PyArray_typeinforangedType) {
         return -1;
     }
-    if (PyDict_SetItemString(multiarray_dict,
-            "typeinfo", (PyObject *)&PyArray_typeinfoType) < 0) {
+    if (PyDict_SetItemString(d,
+            "typeinfo", (PyObject *)PyArray_typeinfoType) < 0) {
         return -1;
     }
-    if (PyDict_SetItemString(multiarray_dict,
-            "typeinforanged", (PyObject *)&PyArray_typeinforangedType) < 0) {
+    if (PyDict_SetItemString(d,
+            "typeinforanged", (PyObject *)PyArray_typeinforangedType) < 0) {
         return -1;
     }
     return 0;

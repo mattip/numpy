@@ -3,10 +3,11 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <hpy.h>
 #include "npy_config.h"
 
 NPY_VISIBILITY_HIDDEN int
-typeinfo_init_structsequences(PyObject *multiarray_dict);
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict, PyObject *d);
 
 NPY_VISIBILITY_HIDDEN PyObject *
 PyArray_typeinfo(
