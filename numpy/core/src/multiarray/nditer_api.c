@@ -250,6 +250,13 @@ static char *_reset_cast_error = (
 NPY_NO_EXPORT int
 NpyIter_Reset(NpyIter *iter, char **errmsg)
 {
+    return HNpyIter_Reset(npy_get_context(), iter, errmsg);
+}
+
+/* TODO(fa): will become part of Numpy's HPy API */
+NPY_NO_EXPORT int
+HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     /*int ndim = NIT_NDIM(iter);*/
     int nop = NIT_NOP(iter);
@@ -259,7 +266,7 @@ NpyIter_Reset(NpyIter *iter, char **errmsg)
 
         /* If buffer allocation was delayed, do it now */
         if (itflags&NPY_ITFLAG_DELAYBUF) {
-            if (!npyiter_allocate_buffers(iter, errmsg)) {
+            if (!hnpyiter_allocate_buffers(ctx, iter, errmsg)) {
                 if (errmsg != NULL) {
                     *errmsg = _reset_cast_error;
                 }
@@ -291,7 +298,7 @@ NpyIter_Reset(NpyIter *iter, char **errmsg)
 
     if (itflags&NPY_ITFLAG_BUFFER) {
         /* Prepare the next buffers and set iterend/size */
-        if (npyiter_copy_to_buffers(iter, NULL) < 0) {
+        if (hnpyiter_copy_to_buffers(ctx, iter, NULL) < 0) {
             if (errmsg != NULL) {
                 *errmsg = _reset_cast_error;
             }
@@ -1100,6 +1107,16 @@ NpyIter_GetInitialDataPtrArray(NpyIter *iter)
     return NIT_RESETDATAPTR(iter);
 }
 
+NPY_NO_EXPORT HPy *
+HNpyIter_GetDescrArray(NpyIter *iter)
+{
+    /*npy_uint32 itflags = NIT_ITFLAGS(iter);*/
+    /*int ndim = NIT_NDIM(iter);*/
+    /*int nop = NIT_NOP(iter);*/
+
+    return NIT_DTYPES(iter);
+}
+
 /*NUMPY_API
  * Get the array of data type pointers (1 per object being iterated)
  */
@@ -1108,9 +1125,18 @@ NpyIter_GetDescrArray(NpyIter *iter)
 {
     /*npy_uint32 itflags = NIT_ITFLAGS(iter);*/
     /*int ndim = NIT_NDIM(iter);*/
-    /*int nop = NIT_NOP(iter);*/
-
-    return NIT_DTYPES(iter);
+    HPyContext *ctx = npy_get_context();
+    
+    /* TODO(fa): MEMLEAK
+     * We should probably store the legacy array also in the NpyIter struct.
+     */
+    int nop = NIT_NOP(iter);
+    HPy *h_dtypes = NIT_DTYPES(iter);
+    PyArray_Descr **dtypes = (PyArray_Descr **) malloc(nop * sizeof(PyArray_Descr *));
+    for (npy_int i = 0; i < nop; i++) {
+        dtypes[i] = (PyArray_Descr *) HPy_AsPyObject(ctx, h_dtypes[i]);
+    }
+    return dtypes;
 }
 
 /*NUMPY_API
@@ -1123,7 +1149,17 @@ NpyIter_GetOperandArray(NpyIter *iter)
     /*int ndim = NIT_NDIM(iter);*/
     int nop = NIT_NOP(iter);
 
-    return NIT_OPERANDS(iter);
+    HPyContext *ctx = npy_get_context();
+    
+    /* TODO(fa): MEMLEAK
+     * We should probably store the legacy array also in the NpyIter struct.
+     */
+    HPy *h_operands = NIT_OPERANDS(iter);
+    PyArrayObject **operands = (PyArrayObject **) malloc(nop * sizeof(PyArrayObject *));
+    for (npy_int i = 0; i < nop; i++) {
+        operands[i] = (PyArrayObject *) HPy_AsPyObject(ctx, h_operands[i]);
+    }
+    return operands;
 }
 
 /*NUMPY_API
@@ -1156,8 +1192,12 @@ NpyIter_GetIterView(NpyIter *iter, npy_intp i)
                 "cannot provide an iterator view when buffering is enabled");
         return NULL;
     }
+    
+    HPyContext *ctx = npy_get_context();
 
-    obj = NIT_OPERANDS(iter)[i];
+    /* TODO(fa): use NIT_OPERANDS once migrated */
+    /* obj = NIT_OPERANDS(iter)[i]; */
+    obj = NpyIter_GetOperandArray(iter);
     dtype = PyArray_DESCR(obj);
     writeable = NIT_OPITFLAGS(iter)[i]&NPY_OP_ITFLAG_WRITE;
     dataptr = NIT_RESETDATAPTR(iter)[i];
@@ -1486,13 +1526,19 @@ NpyIter_DebugPrint(NpyIter *iter)
     printf("\n");
     printf("| DTypes: ");
     for (iop = 0; iop < nop; ++iop) {
-        printf("%p ", (void *)NIT_DTYPES(iter)[iop]);
+        printf("%p ", HPy_AsVoidP(NIT_DTYPES(iter)[iop]));
     }
     printf("\n");
     printf("| DTypes: ");
+    HPyContext *ctx = npy_get_context();
     for (iop = 0; iop < nop; ++iop) {
-        if (NIT_DTYPES(iter)[iop] != NULL)
-            PyObject_Print((PyObject*)NIT_DTYPES(iter)[iop], stdout, 0);
+        if (!HPy_IsNull(NIT_DTYPES(iter)[iop]))
+        {
+            HPy h = HPy_Repr(ctx, NIT_DTYPES(iter)[iop]);
+            const char *s = HPyUnicode_AsUTF8AndSize(ctx, h, NULL);
+            printf("%s\n", s);
+            HPy_Close(ctx, h);
+        }
         else
             printf("(nil) ");
         printf(" ");
@@ -1514,16 +1560,22 @@ NpyIter_DebugPrint(NpyIter *iter)
     }
     printf("| Operands: ");
     for (iop = 0; iop < nop; ++iop) {
-        printf("%p ", (void *)NIT_OPERANDS(iter)[iop]);
+        printf("%p ", HPy_AsVoidP(NIT_OPERANDS(iter)[iop]));
     }
     printf("\n");
     printf("| Operand DTypes: ");
     for (iop = 0; iop < nop; ++iop) {
         PyArray_Descr *dtype;
-        if (NIT_OPERANDS(iter)[iop] != NULL) {
-            dtype = PyArray_DESCR(NIT_OPERANDS(iter)[iop]);
-            if (dtype != NULL)
-                PyObject_Print((PyObject *)dtype, stdout, 0);
+        if (!HPy_IsNull(NIT_OPERANDS(iter)[iop])) {
+            HPy h_dtype = HPyArray_GetDescr(ctx, NIT_OPERANDS(iter)[iop]);
+            if (!HPy_IsNull(h_dtype))
+            {
+                HPy h = HPy_Repr(ctx, h_dtype);
+                const char *s = HPyUnicode_AsUTF8AndSize(ctx, h, NULL);
+                printf("%s\n", s);
+                HPy_Close(ctx, h);
+                HPy_Close(ctx, h_dtype);
+            }
             else
                 printf("(nil) ");
         }
@@ -1722,6 +1774,12 @@ npyiter_coalesce_axes(NpyIter *iter)
     }
 }
 
+NPY_NO_EXPORT int
+npyiter_allocate_buffers(NpyIter *iter, char **errmsg)
+{
+    return hnpyiter_allocate_buffers(npy_get_context(), iter, errmsg);
+}
+
 /*
  * If errmsg is non-NULL, it should point to a variable which will
  * receive the error message, and no Python exception will be set.
@@ -1729,7 +1787,7 @@ npyiter_coalesce_axes(NpyIter *iter)
  * the GIL.
  */
 NPY_NO_EXPORT int
-npyiter_allocate_buffers(NpyIter *iter, char **errmsg)
+hnpyiter_allocate_buffers(HPyContext *ctx, NpyIter *iter, char **errmsg)
 {
     /*npy_uint32 itflags = NIT_ITFLAGS(iter);*/
     /*int ndim = NIT_NDIM(iter);*/
@@ -1738,7 +1796,8 @@ npyiter_allocate_buffers(NpyIter *iter, char **errmsg)
     npy_intp i;
     npyiter_opitflags *op_itflags = NIT_OPITFLAGS(iter);
     NpyIter_BufferData *bufferdata = NIT_BUFFERDATA(iter);
-    PyArray_Descr **op_dtype = NIT_DTYPES(iter);
+    HPy *op_dtype = NIT_DTYPES(iter);
+    // PyArray_Descr **op_dtype = NIT_DTYPES(iter);
     npy_intp buffersize = NBF_BUFFERSIZE(bufferdata);
     char *buffer, **buffers = NBF_BUFFERS(bufferdata);
 
@@ -1750,18 +1809,19 @@ npyiter_allocate_buffers(NpyIter *iter, char **errmsg)
          * allocate one.
          */
         if (!(flags&NPY_OP_ITFLAG_BUFNEVER)) {
-            npy_intp itemsize = op_dtype[iop]->elsize;
+            PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, op_dtype[iop]);
+            npy_intp itemsize = descr->elsize;
             buffer = PyArray_malloc(itemsize*buffersize);
             if (buffer == NULL) {
                 if (errmsg == NULL) {
-                    PyErr_NoMemory();
+                    HPyErr_NoMemory(ctx);
                 }
                 else {
                     *errmsg = "out of memory";
                 }
                 goto fail;
             }
-            if (PyDataType_FLAGCHK(op_dtype[iop], NPY_NEEDS_INIT)) {
+            if (PyDataType_FLAGCHK(descr, NPY_NEEDS_INIT)) {
                 memset(buffer, '\0', itemsize*buffersize);
             }
             buffers[iop] = buffer;
@@ -2073,6 +2133,12 @@ npyiter_copy_from_buffers(NpyIter *iter)
 NPY_NO_EXPORT int
 npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
 {
+    return hnpyiter_copy_to_buffers(npy_get_context(), iter, prev_dataptrs);
+}
+
+NPY_NO_EXPORT int
+hnpyiter_copy_to_buffers(HPyContext *ctx, NpyIter *iter, char **prev_dataptrs)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int ndim = NIT_NDIM(iter);
     int iop, nop = NIT_NOP(iter);
@@ -2082,8 +2148,8 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
     NpyIter_AxisData *axisdata = NIT_AXISDATA(iter),
                     *reduce_outeraxisdata = NULL;
 
-    PyArray_Descr **dtypes = NIT_DTYPES(iter);
-    PyArrayObject **operands = NIT_OPERANDS(iter);
+    HPy *dtypes = NIT_DTYPES(iter);
+    HPy *operands = NIT_OPERANDS(iter);
     npy_intp *strides = NBF_STRIDES(bufferdata),
              *ad_strides = NAD_STRIDES(axisdata);
     npy_intp sizeof_axisdata = NIT_AXISDATA_SIZEOF(itflags, ndim, nop);
@@ -2205,9 +2271,13 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
     if (singlestridesize >= transfersize) {
         is_onestride = 1;
     }
+    
 
     NpyIter_TransferInfo *transferinfo = NBF_TRANSFERINFO(bufferdata);
     for (iop = 0; iop < nop; ++iop) {
+        // PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, dtypes[iop]);
+        PyArray_Descr *descr = NULL;
+#define AS_STRUCT(ctx, dtype) (descr != NULL ? descr : (descr = PyArray_Descr_AsStruct(ctx, dtype)))
 
         switch (op_itflags[iop]&
                         (NPY_OP_ITFLAG_BUFNEVER|
@@ -2278,7 +2348,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                 else {
                     /* In this case, the buffer is being used */
                     ptrs[iop] = buffers[iop];
-                    strides[iop] = dtypes[iop]->elsize;
+                    strides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
                     if (itflags&NPY_ITFLAG_REDUCE) {
                         reduce_outerstrides[iop] = reduce_innersize *
                                                      strides[iop];
@@ -2329,7 +2399,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                         }
                         /* Outer reduce loop advances by one item */
                         else {
-                            reduce_outerstrides[iop] = dtypes[iop]->elsize;
+                            reduce_outerstrides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
                         }
                         /* Signal that the buffer is being used */
                         op_itflags[iop] |= NPY_OP_ITFLAG_USINGBUFFER;
@@ -2361,7 +2431,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                     /* In this case, the buffer is being used */
                     else {
                         ptrs[iop] = buffers[iop];
-                        strides[iop] = dtypes[iop]->elsize;
+                        strides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
 
                         if (NAD_STRIDES(reduce_outeraxisdata)[iop] == 0) {
                             /* Reduction in outer reduce loop */
@@ -2370,7 +2440,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                         else {
                             /* Advance to next items in outer reduce loop */
                             reduce_outerstrides[iop] = reduce_innersize *
-                                                         dtypes[iop]->elsize;
+                                                         AS_STRUCT(ctx, dtypes[iop])->elsize;
                         }
                         /* Signal that the buffer is being used */
                         op_itflags[iop] |= NPY_OP_ITFLAG_USINGBUFFER;
@@ -2387,7 +2457,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
 
                 if (!(op_itflags[iop]&NPY_OP_ITFLAG_REDUCE)) {
                     ptrs[iop] = buffers[iop];
-                    strides[iop] = dtypes[iop]->elsize;
+                    strides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
                     if (itflags&NPY_ITFLAG_REDUCE) {
                         reduce_outerstrides[iop] = reduce_innersize *
                                                      strides[iop];
@@ -2408,12 +2478,12 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                         /* Outer reduce loop advances by one item */
                         else {
                             NPY_IT_DBG_PRINT1("cast op %d has outermost stride !=0\n", (int)iop);
-                            reduce_outerstrides[iop] = dtypes[iop]->elsize;
+                            reduce_outerstrides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
                         }
                     }
                     else {
                         NPY_IT_DBG_PRINT1("cast op %d has innermost stride !=0\n", (int)iop);
-                        strides[iop] = dtypes[iop]->elsize;
+                        strides[iop] = AS_STRUCT(ctx, dtypes[iop])->elsize;
 
                         if (NAD_STRIDES(reduce_outeraxisdata)[iop] == 0) {
                             NPY_IT_DBG_PRINT1("cast op %d has outermost stride 0\n", (int)iop);
@@ -2424,7 +2494,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
                             NPY_IT_DBG_PRINT1("cast op %d has outermost stride !=0\n", (int)iop);
                             /* Advance to next items in outer reduce loop */
                             reduce_outerstrides[iop] = reduce_innersize *
-                                                         dtypes[iop]->elsize;
+                                                         AS_STRUCT(ctx, dtypes[iop])->elsize;
                         }
                     }
                     reduce_outerptrs[iop] = ptrs[iop];
@@ -2438,6 +2508,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
          */
         if (op_itflags[iop] & NPY_OP_ITFLAG_USINGBUFFER &&
                 transferinfo[iop].read.func != NULL) {
+            HPy h_dtype;
             npy_intp src_itemsize;
             npy_intp op_transfersize;
 
@@ -2446,7 +2517,9 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
 
             npy_bool skip_transfer = 0;
 
-            src_itemsize = PyArray_DTYPE(operands[iop])->elsize;
+            h_dtype = HPyArray_DTYPE(ctx, operands[iop]);
+            src_itemsize = PyArray_Descr_AsStruct(ctx, h_dtype)->elsize;
+            HPy_Close(ctx, h_dtype);
 
             /* If we reach here, buffering is required */
             any_buffered = 1;
@@ -2544,7 +2617,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
              * do not have references, we can assume that the write function
              * will leave the source (buffer) unmodified.
              */
-            if (!skip_transfer || PyDataType_REFCHK(dtypes[iop])) {
+            if (!skip_transfer || PyDataType_REFCHK(AS_STRUCT(ctx, dtypes[iop]))) {
                 NPY_IT_DBG_PRINT2("Iterator: Copying operand %d to "
                                 "buffer (%d items)\n",
                                 (int)iop, (int)op_transfersize);
@@ -2561,6 +2634,7 @@ npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs)
             }
         }
     }
+#undef AS_STRUCT
 
     /*
      * If buffering wasn't needed, we can grow the inner
@@ -2625,7 +2699,7 @@ npyiter_clear_buffers(NpyIter *iter)
 
     /* Cleanup any buffers with references */
     char **buffers = NBF_BUFFERS(bufferdata);
-    PyArray_Descr **dtypes = NIT_DTYPES(iter);
+    PyArray_Descr **dtypes = NpyIter_GetDescrArray(iter);
     npyiter_opitflags *op_itflags = NIT_OPITFLAGS(iter);
     for (int iop = 0; iop < nop; ++iop, ++buffers) {
         /*

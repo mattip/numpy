@@ -46,6 +46,8 @@ struct NewNpyArrayIterObject_tag {
     char writeflags[NPY_MAXARGS];
 };
 
+HPyType_LEGACY_HELPERS(NewNpyArrayIterObject)
+
 static int npyiter_cache_values(NewNpyArrayIterObject *self)
 {
     NpyIter *iter = self->iter;
@@ -65,7 +67,7 @@ static int npyiter_cache_values(NewNpyArrayIterObject *self)
 
     /* Internal data pointers */
     self->dataptrs = NpyIter_GetDataPtrArray(iter);
-    self->dtypes = NpyIter_GetDescrArray(iter);
+    self->dtypes = HNpyIter_GetDescrArray(iter);
     self->operands = NpyIter_GetOperandArray(iter);
 
     if (NpyIter_HasExternalLoop(iter)) {
