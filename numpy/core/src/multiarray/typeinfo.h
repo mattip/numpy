@@ -7,7 +7,7 @@
 #include "npy_config.h"
 
 NPY_VISIBILITY_HIDDEN int
-typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict, PyObject *d);
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict);
 
 NPY_VISIBILITY_HIDDEN PyObject *
 PyArray_typeinfo(

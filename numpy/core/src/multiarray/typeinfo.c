@@ -16,10 +16,10 @@
 
 
 
-static PyTypeObject *PyArray_typeinfoType;
-static PyTypeObject *PyArray_typeinforangedType;
+static HPy PyArray_typeinfoType;
+static HPy PyArray_typeinforangedType;
 
-static PyStructSequence_Field typeinfo_fields[] = {
+static HPyStructSequence_Field typeinfo_fields[] = {
     {"char",      "The character used to represent the type"},
     {"num",       "The numeric id assigned to the type"},
     {"bits",      "The number of bits in the type"},
@@ -28,7 +28,7 @@ static PyStructSequence_Field typeinfo_fields[] = {
     {NULL, NULL,}
 };
 
-static PyStructSequence_Field typeinforanged_fields[] = {
+static HPyStructSequence_Field typeinforanged_fields[] = {
     {"char",      "The character used to represent the type"},
     {"num",       "The numeric id assigned to the type"},
     {"bits",      "The number of bits in the type"},
@@ -39,14 +39,14 @@ static PyStructSequence_Field typeinforanged_fields[] = {
     {NULL, NULL,}
 };
 
-static PyStructSequence_Desc typeinfo_desc = {
+static HPyStructSequence_Desc typeinfo_desc = {
     "numpy.core.multiarray.typeinfo",         /* name          */
     "Information about a scalar numpy type",  /* doc           */
     typeinfo_fields,                          /* fields        */
     5,                                        /* n_in_sequence */
 };
 
-static PyStructSequence_Desc typeinforanged_desc = {
+static HPyStructSequence_Desc typeinforanged_desc = {
     "numpy.core.multiarray.typeinforanged",                /* name          */
     "Information about a scalar numpy type with a range",  /* doc           */
     typeinforanged_fields,                                 /* fields        */
@@ -58,7 +58,7 @@ PyArray_typeinfo(
     char typechar, int typenum, int nbits, int align,
     PyTypeObject *type_obj)
 {
-    PyObject *entry = PyStructSequence_New(PyArray_typeinfoType);
+    PyObject *entry = PyStructSequence_New((PyTypeObject*)HPy_AsPyObject(NULL, PyArray_typeinfoType));
     if (entry == NULL)
         return NULL;
     PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
@@ -80,7 +80,7 @@ PyArray_typeinforanged(
     char typechar, int typenum, int nbits, int align,
     PyObject *max, PyObject *min, PyTypeObject *type_obj)
 {
-    PyObject *entry = PyStructSequence_New(PyArray_typeinforangedType);
+    PyObject *entry = PyStructSequence_New((PyTypeObject*)HPy_AsPyObject(NULL, PyArray_typeinforangedType));
     if (entry == NULL)
         return NULL;
     PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
@@ -112,23 +112,22 @@ PyArray_typeinforanged(
 #endif
 
 NPY_NO_EXPORT int
-typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict, PyObject *d)
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict)
 {
-    CAPI_WARN("startup: PyStructSequence_NewType");
-    PyArray_typeinfoType = PyStructSequence_NewType(&typeinfo_desc);
-    if (!PyArray_typeinfoType) {
+    PyArray_typeinfoType = HPyStructSequence_NewType(ctx, &typeinfo_desc);
+    if (HPy_IsNull(PyArray_typeinfoType)) {
         return -1;
     }
-    PyArray_typeinforangedType = PyStructSequence_NewType(&typeinforanged_desc);
-    if (!PyArray_typeinforangedType) {
+    PyArray_typeinforangedType = HPyStructSequence_NewType(ctx, &typeinforanged_desc);
+    if (HPy_IsNull(PyArray_typeinforangedType)) {
         return -1;
     }
-    if (PyDict_SetItemString(d,
-            "typeinfo", (PyObject *)PyArray_typeinfoType) < 0) {
+    if (HPy_SetItem_s(ctx, multiarray_dict,
+            "typeinfo", PyArray_typeinfoType) < 0) {
         return -1;
     }
-    if (PyDict_SetItemString(d,
-            "typeinforanged", (PyObject *)PyArray_typeinforangedType) < 0) {
+    if (HPy_SetItem_s(ctx, multiarray_dict,
+            "typeinforanged", PyArray_typeinforangedType) < 0) {
         return -1;
     }
     return 0;
