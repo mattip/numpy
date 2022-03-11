@@ -5343,8 +5343,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    CAPI_WARN("startup: set_typeinfo");
-    if (set_typeinfo(ctx, d) != 0) {
+    if (set_typeinfo(ctx, h_d) != 0) {
         goto err;
     }
     HPy h_array_method_type = HPyType_FromSpec(ctx, &PyArrayMethod_Type_Spec, NULL);

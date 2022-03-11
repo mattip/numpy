@@ -53,47 +53,47 @@ static HPyStructSequence_Desc typeinforanged_desc = {
     7,                                                     /* n_in_sequence */
 };
 
-NPY_NO_EXPORT PyObject *
-PyArray_typeinfo(
+NPY_NO_EXPORT HPy
+PyArray_typeinfo(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyTypeObject *type_obj)
+    HPy type_obj)
 {
-    PyObject *entry = PyStructSequence_New((PyTypeObject*)HPy_AsPyObject(NULL, PyArray_typeinfoType));
-    if (entry == NULL)
-        return NULL;
-    PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
-    PyStructSequence_SET_ITEM(entry, 1, Py_BuildValue("i", typenum));
-    PyStructSequence_SET_ITEM(entry, 2, Py_BuildValue("i", nbits));
-    PyStructSequence_SET_ITEM(entry, 3, Py_BuildValue("i", align));
-    PyStructSequence_SET_ITEM(entry, 4, Py_BuildValue("O", (PyObject *) type_obj));
+    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinfoType);
+    if (HPy_IsNull(entry))
+        return HPy_NULL;
+    HPyStructSequence_SetItem(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequence_SetItem(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
+    HPyStructSequence_SetItem(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
+    HPyStructSequence_SetItem(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
+    HPyStructSequence_SetItem(ctx, entry, 4, HPy_BuildValue(ctx, "O", type_obj));
 
-    if (PyErr_Occurred()) {
-        Py_DECREF(entry);
-        return NULL;
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, entry);
+        return HPy_NULL;
     }
 
     return entry;
 }
 
-NPY_NO_EXPORT PyObject *
-PyArray_typeinforanged(
+NPY_NO_EXPORT HPy
+PyArray_typeinforanged(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyObject *max, PyObject *min, PyTypeObject *type_obj)
+    HPy max, HPy min, HPy type_obj)
 {
-    PyObject *entry = PyStructSequence_New((PyTypeObject*)HPy_AsPyObject(NULL, PyArray_typeinforangedType));
-    if (entry == NULL)
-        return NULL;
-    PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
-    PyStructSequence_SET_ITEM(entry, 1, Py_BuildValue("i", typenum));
-    PyStructSequence_SET_ITEM(entry, 2, Py_BuildValue("i", nbits));
-    PyStructSequence_SET_ITEM(entry, 3, Py_BuildValue("i", align));
-    PyStructSequence_SET_ITEM(entry, 4, max);
-    PyStructSequence_SET_ITEM(entry, 5, min);
-    PyStructSequence_SET_ITEM(entry, 6, Py_BuildValue("O", (PyObject *) type_obj));
+    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinforangedType);
+    if (HPy_IsNull(entry))
+        return HPy_NULL;
+    HPyStructSequence_SetItem(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequence_SetItem(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
+    HPyStructSequence_SetItem(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
+    HPyStructSequence_SetItem(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
+    HPyStructSequence_SetItem(ctx, entry, 4, max);
+    HPyStructSequence_SetItem(ctx, entry, 5, min);
+    HPyStructSequence_SetItem(ctx, entry, 6, HPy_BuildValue(ctx, "O", type_obj));
 
-    if (PyErr_Occurred()) {
-        Py_DECREF(entry);
-        return NULL;
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, entry);
+        return HPy_NULL;
     }
 
     return entry;
