@@ -21,6 +21,8 @@
 #include "conversion_utils.h"
 #include "ctors.h"
 
+#include "nditer_hpy.h"
+
 /* Functions not part of the public NumPy C API */
 npy_bool npyiter_has_writeback(NpyIter *iter);
 

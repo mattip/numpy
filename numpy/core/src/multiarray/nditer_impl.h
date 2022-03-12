@@ -24,6 +24,8 @@
 #include "lowlevel_strided_loops.h"
 #include "dtype_transfer.h"
 
+#include "nditer_hpy.h"
+
 /********** ITERATOR CONSTRUCTION TIMING **************/
 #define NPY_IT_CONSTRUCTION_TIMING 0
 
