@@ -19,38 +19,39 @@
 #include "array_coercion.h"
 #include "templ_common.h"
 #include "array_assign.h"
+#include "hpy_utils.h"
 
 /* Internal helper functions private to this file */
 static int
 npyiter_check_global_flags(npy_uint32 flags, npy_uint32* itflags);
 static int
-npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
+hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
                         const npy_intp *itershape);
 static int
-npyiter_calculate_ndim(int nop, PyArrayObject **op_in,
+hnpyiter_calculate_ndim(HPyContext *ctx, int nop, HPy *op_in,
                        int oa_ndim);
 static int
-npyiter_check_per_op_flags(npy_uint32 flags, npyiter_opitflags *op_itflags);
+hnpyiter_check_per_op_flags(HPyContext *ctx, npy_uint32 flags, npyiter_opitflags *op_itflags);
 static int
-npyiter_prepare_one_operand(PyArrayObject **op,
+hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
                         char **op_dataptr,
-                        PyArray_Descr *op_request_dtype,
-                        PyArray_Descr** op_dtype,
+                        HPy op_request_dtype,
+                        HPy *op_dtype,
                         npy_uint32 flags,
                         npy_uint32 op_flags, npyiter_opitflags *op_itflags);
 static int
-npyiter_prepare_operands(int nop,
-                    PyArrayObject **op_in,
-                    PyArrayObject **op,
+hnpyiter_prepare_operands(HPyContext *ctx, int nop,
+                    HPy *op_in,
+                    HPy *op,
                     char **op_dataptr,
-                    PyArray_Descr **op_request_dtypes,
-                    PyArray_Descr **op_dtype,
+                    HPy *op_request_dtypes,
+                    HPy *op_dtype,
                     npy_uint32 flags,
                     npy_uint32 *op_flags, npyiter_opitflags *op_itflags,
                     npy_int8 *out_maskop);
 static int
-npyiter_check_casting(int nop, PyArrayObject **op,
-                    PyArray_Descr **op_dtype,
+hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
+                    HPy *op_dtype,
                     NPY_CASTING casting,
                     npyiter_opitflags *op_itflags);
 static int
@@ -110,6 +111,27 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
                  int oa_ndim, int **op_axes, npy_intp *itershape,
                  npy_intp buffersize)
 {
+    NpyIter *res;
+    HPyContext *ctx = npy_get_context();
+    HPy *h_op_in = HPy_FromPyObjectArray(ctx, (PyObject **)op_in, nop);
+    HPy *h_op_request_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)op_request_dtypes, nop);
+    
+    res = HNpyIter_AdvancedNew(ctx, nop, h_op_in, flags, order, casting, op_flags, h_op_request_dtypes, oa_ndim, op_axes, itershape, buffersize);
+
+    HPy_CloseAndFreeArray(ctx, h_op_in, nop);
+    HPy_CloseAndFreeArray(ctx, h_op_request_dtypes, nop);
+    
+    return res;
+}
+
+NPY_NO_EXPORT NpyIter *
+HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
+                 NPY_ORDER order, NPY_CASTING casting,
+                 npy_uint32 *op_flags,
+                 HPy *op_request_dtypes,
+                 int oa_ndim, int **op_axes, npy_intp *itershape,
+                 npy_intp buffersize)
+{
     npy_uint32 itflags = NPY_ITFLAG_IDENTPERM;
     int idim, ndim;
     int iop;
@@ -118,8 +140,8 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     NpyIter *iter;
 
     /* Per-operand values */
-    PyArrayObject **op;
-    PyArray_Descr **op_dtype;
+    HPy *op;
+    HPy *op_dtype;
     npyiter_opitflags *op_itflags;
     char **op_dataptr;
 
@@ -154,9 +176,11 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_start);
 
     if (nop > NPY_MAXARGS) {
-        PyErr_Format(PyExc_ValueError,
+        char buf[128];
+        snprintf(buf, sizeof(buf),
             "Cannot construct an iterator with more than %d operands "
             "(%d were requested)", NPY_MAXARGS, nop);
+        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
         return NULL;
     }
 
@@ -167,7 +191,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
      * is thus an error in 1.13 after deprecation.
      */
     if ((oa_ndim == 0) && (op_axes == NULL)) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
             "Using `oa_ndim == 0` when `op_axes` is NULL. "
             "Use `oa_ndim == -1` or the MultiNew "
             "iterator for NumPy <1.8 compatibility");
@@ -175,7 +199,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     }
 
     /* Error check 'oa_ndim' and 'op_axes', which must be used together */
-    if (!npyiter_check_op_axes(nop, oa_ndim, op_axes, itershape)) {
+    if (!hnpyiter_check_op_axes(ctx, nop, oa_ndim, op_axes, itershape)) {
         return NULL;
     }
 
@@ -189,7 +213,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_check_global_flags);
 
     /* Calculate how many dimensions the iterator should have */
-    ndim = npyiter_calculate_ndim(nop, op_in, oa_ndim);
+    ndim = hnpyiter_calculate_ndim(ctx, nop, op_in, oa_ndim);
 
     NPY_IT_TIME_POINT(c_calculate_ndim);
 
@@ -213,7 +237,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     op_dataptr = NIT_RESETDATAPTR(iter);
 
     /* Prepare all the operands */
-    if (!npyiter_prepare_operands(nop, op_in, op, op_dataptr,
+    if (!hnpyiter_prepare_operands(ctx, nop, op_in, op, op_dataptr,
                         op_request_dtypes, op_dtype,
                         flags,
                         op_flags, op_itflags,
@@ -295,7 +319,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
 
     /* Set some flags for allocated outputs */
     for (iop = 0; iop < nop; ++iop) {
-        if (op[iop] == NULL) {
+        if (HPy_IsNull(op[iop])) {
             /* Flag this so later we can avoid flipping axes */
             any_allocate = 1;
             /* If a subtype may be used, indicate so */
@@ -306,7 +330,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
              * If the data type wasn't provided, will need to
              * calculate it.
              */
-            if (op_dtype[iop] == NULL) {
+            if (HPy_IsNull(op_dtype[iop])) {
                 any_missing_dtypes = 1;
             }
         }
@@ -333,8 +357,12 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_find_best_axis_ordering);
 
     if (need_subtype) {
+        /* TODO(fa): cut off */
+        /*
         npyiter_get_priority_subtype(nop, op, op_itflags,
                                      &subtype_priority, &subtype);
+        */
+        assert(0);
     }
 
     NPY_IT_TIME_POINT(c_get_priority_subtype);
@@ -344,42 +372,44 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
      * dtype, we need to figure it out now, before allocating the outputs.
      */
     if (any_missing_dtypes || (flags & NPY_ITER_COMMON_DTYPE)) {
-        PyArray_Descr *dtype;
-        int only_inputs = !(flags & NPY_ITER_COMMON_DTYPE);
-
-        op = NIT_OPERANDS(iter);
-        op_dtype = NIT_DTYPES(iter);
-
-        dtype = npyiter_get_common_dtype(nop, op,
-                                    op_itflags, op_dtype,
-                                    op_request_dtypes,
-                                    only_inputs);
-        if (dtype == NULL) {
-            NpyIter_Deallocate(iter);
-            return NULL;
-        }
-        if (flags & NPY_ITER_COMMON_DTYPE) {
-            NPY_IT_DBG_PRINT("Iterator: Replacing all data types\n");
-            /* Replace all the data types */
-            for (iop = 0; iop < nop; ++iop) {
-                if (op_dtype[iop] != dtype) {
-                    Py_XDECREF(op_dtype[iop]);
-                    Py_INCREF(dtype);
-                    op_dtype[iop] = dtype;
-                }
-            }
-        }
-        else {
-            NPY_IT_DBG_PRINT("Iterator: Setting unset output data types\n");
-            /* Replace the NULL data types */
-            for (iop = 0; iop < nop; ++iop) {
-                if (op_dtype[iop] == NULL) {
-                    Py_INCREF(dtype);
-                    op_dtype[iop] = dtype;
-                }
-            }
-        }
-        Py_DECREF(dtype);
+        /* TODO(fa): cut off */
+        assert(0);
+//        PyArray_Descr *dtype;
+//        int only_inputs = !(flags & NPY_ITER_COMMON_DTYPE);
+//
+//        op = NIT_OPERANDS(iter);
+//        op_dtype = NIT_DTYPES(iter);
+//
+//        dtype = npyiter_get_common_dtype(nop, op,
+//                                    op_itflags, op_dtype,
+//                                    op_request_dtypes,
+//                                    only_inputs);
+//        if (dtype == NULL) {
+//            NpyIter_Deallocate(iter);
+//            return NULL;
+//        }
+//        if (flags & NPY_ITER_COMMON_DTYPE) {
+//            NPY_IT_DBG_PRINT("Iterator: Replacing all data types\n");
+//            /* Replace all the data types */
+//            for (iop = 0; iop < nop; ++iop) {
+//                if (!HPy_Is(ctx, op_dtype[iop], dtype)) {
+//                    Py_XDECREF(op_dtype[iop]);
+//                    Py_INCREF(dtype);
+//                    op_dtype[iop] = dtype;
+//                }
+//            }
+//        }
+//        else {
+//            NPY_IT_DBG_PRINT("Iterator: Setting unset output data types\n");
+//            /* Replace the NULL data types */
+//            for (iop = 0; iop < nop; ++iop) {
+//                if (op_dtype[iop] == NULL) {
+//                    Py_INCREF(dtype);
+//                    op_dtype[iop] = dtype;
+//                }
+//            }
+//        }
+//        Py_DECREF(dtype);
     }
 
     NPY_IT_TIME_POINT(c_find_output_common_dtype);
@@ -389,7 +419,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
      * to check that data type conversions are following the
      * casting rules.
      */
-    if (!npyiter_check_casting(nop, op, op_dtype, casting, op_itflags)) {
+    if (!hnpyiter_check_casting(ctx, nop, op, op_dtype, casting, op_itflags)) {
         NpyIter_Deallocate(iter);
         return NULL;
     }
@@ -457,8 +487,7 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
      */
     if (flags & NPY_ITER_REFS_OK) {
         for (iop = 0; iop < nop; ++iop) {
-            PyArray_Descr *rdt = op_dtype[iop];
-            if ((rdt->flags & (NPY_ITEM_REFCOUNT |
+            if ((PyArray_Descr_AsStruct(ctx, op_dtype[iop])->flags & (NPY_ITEM_REFCOUNT |
                                      NPY_ITEM_IS_POINTER |
                                      NPY_NEEDS_PYAPI)) != 0) {
                 /* Iteration needs API access */
@@ -803,9 +832,10 @@ npyiter_check_global_flags(npy_uint32 flags, npy_uint32* itflags)
 }
 
 static int
-npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
+hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
                         const npy_intp *itershape)
 {
+    char buf[128];
     char axes_dupcheck[NPY_MAXDIMS];
     int iop, idim;
 
@@ -816,7 +846,7 @@ npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
          * signalled by `oa_ndim == 0`.)
          */
         if (op_axes != NULL || itershape != NULL) {
-            PyErr_Format(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "If 'op_axes' or 'itershape' is not NULL in the iterator "
                     "constructor, 'oa_ndim' must be zero or greater");
             return 0;
@@ -824,14 +854,15 @@ npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
         return 1;
     }
     if (oa_ndim > NPY_MAXDIMS) {
-        PyErr_Format(PyExc_ValueError,
+        snprintf(buf, sizeof(buf),
                 "Cannot construct an iterator with more than %d dimensions "
                 "(%d were requested for op_axes)",
                 NPY_MAXDIMS, oa_ndim);
+        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
         return 0;
     }
     if (op_axes == NULL) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "If 'oa_ndim' is zero or greater in the iterator "
                 "constructor, then op_axes cannot be NULL");
         return 0;
@@ -847,7 +878,7 @@ npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
 
                 if (i >= 0) {
                     if (i >= NPY_MAXDIMS) {
-                        PyErr_Format(PyExc_ValueError,
+                        snprintf(buf, sizeof(buf),
                                 "The 'op_axes' provided to the iterator "
                                 "constructor for operand %d "
                                 "contained invalid "
@@ -855,11 +886,12 @@ npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
                         return 0;
                     }
                     else if (axes_dupcheck[i] == 1) {
-                        PyErr_Format(PyExc_ValueError,
+                        snprintf(buf, sizeof(buf),
                                 "The 'op_axes' provided to the iterator "
                                 "constructor for operand %d "
                                 "contained duplicate "
                                 "value %d", iop, i);
+                        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
                         return 0;
                     }
                     else {
@@ -874,7 +906,7 @@ npyiter_check_op_axes(int nop, int oa_ndim, int **op_axes,
 }
 
 static int
-npyiter_calculate_ndim(int nop, PyArrayObject **op_in,
+hnpyiter_calculate_ndim(HPyContext *ctx, int nop, HPy *op_in,
                        int oa_ndim)
 {
     /* If 'op_axes' is being used, force 'ndim' */
@@ -886,8 +918,8 @@ npyiter_calculate_ndim(int nop, PyArrayObject **op_in,
         int ndim = 0, iop;
 
         for (iop = 0; iop < nop; ++iop) {
-            if (op_in[iop] != NULL) {
-                int ondim = PyArray_NDIM(op_in[iop]);
+            if (!HPy_IsNull(op_in[iop])) {
+                int ondim = PyArray_NDIM(PyArrayObject_AsStruct(ctx, op_in[iop]));
                 if (ondim > ndim) {
                     ndim = ondim;
                 }
@@ -905,10 +937,10 @@ npyiter_calculate_ndim(int nop, PyArrayObject **op_in,
  * Returns 1 on success, 0 on failure.
  */
 static int
-npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
+hnpyiter_check_per_op_flags(HPyContext *ctx, npy_uint32 op_flags, npyiter_opitflags *op_itflags)
 {
     if ((op_flags & NPY_ITER_GLOBAL_FLAGS) != 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                     "A global iterator flag was passed as a per-operand flag "
                     "to the iterator constructor");
         return 0;
@@ -918,7 +950,7 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
     if (op_flags & NPY_ITER_READONLY) {
         /* The read/write flags are mutually exclusive */
         if (op_flags & (NPY_ITER_READWRITE|NPY_ITER_WRITEONLY)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Only one of the iterator flags READWRITE, "
                     "READONLY, and WRITEONLY may be "
                     "specified for an operand");
@@ -930,7 +962,7 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
     else if (op_flags & NPY_ITER_READWRITE) {
         /* The read/write flags are mutually exclusive */
         if (op_flags & NPY_ITER_WRITEONLY) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Only one of the iterator flags READWRITE, "
                     "READONLY, and WRITEONLY may be "
                     "specified for an operand");
@@ -943,7 +975,7 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
         *op_itflags = NPY_OP_ITFLAG_WRITE;
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "None of the iterator flags READWRITE, "
                 "READONLY, or WRITEONLY were "
                 "specified for an operand");
@@ -954,7 +986,7 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
     if (((*op_itflags) & NPY_OP_ITFLAG_WRITE) &&
                 (op_flags & (NPY_ITER_COPY |
                            NPY_ITER_UPDATEIFCOPY)) == NPY_ITER_COPY) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "If an iterator operand is writeable, must use "
                 "the flag UPDATEIFCOPY instead of "
                 "COPY");
@@ -964,13 +996,13 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
     /* Check the flag for a write masked operands */
     if (op_flags & NPY_ITER_WRITEMASKED) {
         if (!((*op_itflags) & NPY_OP_ITFLAG_WRITE)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                 "The iterator flag WRITEMASKED may only "
                 "be used with READWRITE or WRITEONLY");
             return 0;
         }
         if ((op_flags & NPY_ITER_ARRAYMASK) != 0) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                 "The iterator flag WRITEMASKED may not "
                 "be used together with ARRAYMASK");
             return 0;
@@ -980,7 +1012,7 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
 
     if ((op_flags & NPY_ITER_VIRTUAL) != 0) {
         if ((op_flags & NPY_ITER_READWRITE) == 0) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                 "The iterator flag VIRTUAL should be "
                 "be used together with READWRITE");
             return 0;
@@ -999,18 +1031,21 @@ npyiter_check_per_op_flags(npy_uint32 op_flags, npyiter_opitflags *op_itflags)
  * Returns 1 on success, 0 on failure.
  */
 static int
-npyiter_prepare_one_operand(PyArrayObject **op,
+hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
                         char **op_dataptr,
-                        PyArray_Descr *op_request_dtype,
-                        PyArray_Descr **op_dtype,
+                        HPy op_request_dtype,
+                        HPy *op_dtype,
                         npy_uint32 flags,
                         npy_uint32 op_flags, npyiter_opitflags *op_itflags)
 {
+    /* required for cut-off to legacy API */
+    PyObject *py_op = NULL;
+
     /* NULL operands must be automatically allocated outputs */
-    if (*op == NULL) {
+    if (HPy_IsNull(*op)) {
         /* ALLOCATE or VIRTUAL should be enabled */
         if ((op_flags & (NPY_ITER_ALLOCATE|NPY_ITER_VIRTUAL)) == 0) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator operand was NULL, but neither the "
                     "ALLOCATE nor the VIRTUAL flag was specified");
             return 0;
@@ -1019,7 +1054,7 @@ npyiter_prepare_one_operand(PyArrayObject **op,
         if (op_flags & NPY_ITER_ALLOCATE) {
             /* Writing should be enabled */
             if (!((*op_itflags) & NPY_OP_ITFLAG_WRITE)) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "Automatic allocation was requested for an iterator "
                         "operand, but it wasn't flagged for writing");
                 return 0;
@@ -1033,7 +1068,7 @@ npyiter_prepare_one_operand(PyArrayObject **op,
             if (((flags & (NPY_ITER_BUFFERED |
                             NPY_ITER_DELAY_BUFALLOC)) == NPY_ITER_BUFFERED) &&
                     ((*op_itflags) & NPY_OP_ITFLAG_READ)) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "Automatic allocation was requested for an iterator "
                         "operand, and it was flagged as readable, but "
                         "buffering  without delayed allocation was enabled");
@@ -1041,18 +1076,20 @@ npyiter_prepare_one_operand(PyArrayObject **op,
             }
 
             /* If a requested dtype was provided, use it, otherwise NULL */
-            Py_XINCREF(op_request_dtype);
-            *op_dtype = op_request_dtype;
+            *op_dtype = HPy_Dup(ctx, op_request_dtype);
         }
         else {
-            *op_dtype = NULL;
+            *op_dtype = HPy_NULL;
         }
 
         /* Specify bool if no dtype was requested for the mask */
         if (op_flags & NPY_ITER_ARRAYMASK) {
-            if (*op_dtype == NULL) {
-                *op_dtype = PyArray_DescrFromType(NPY_BOOL);
-                if (*op_dtype == NULL) {
+            if (HPy_IsNull(*op_dtype)) {
+                /* TODO(fa): cut off to Numpy API */
+                PyArray_Descr *py_op_dtype = PyArray_DescrFromType(NPY_BOOL);
+                *op_dtype = HPy_FromPyObject(ctx, py_op_dtype);
+                Py_DECREF(py_op_dtype);
+                if (HPy_IsNull(*op_dtype)) {
                     return 0;
                 }
             }
@@ -1065,74 +1102,89 @@ npyiter_prepare_one_operand(PyArrayObject **op,
 
     /* VIRTUAL operands must be NULL */
     if (op_flags & NPY_ITER_VIRTUAL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator operand flag VIRTUAL was specified, "
                 "but the operand was not NULL");
         return 0;
     }
 
 
-    if (PyArray_Check(*op)) {
+    if (HPyArray_Check(ctx, *op)) {
 
+        PyObject *py_op = HPy_AsPyObject(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE
-            && PyArray_FailUnlessWriteable(*op, "operand array with iterator "
+            /* TODO(fa): cut off to Numpy API */
+            && PyArray_FailUnlessWriteable(py_op, "operand array with iterator "
                                            "write flag set") < 0) {
-            return 0;
+            goto error;
         }
-        if (!(flags & NPY_ITER_ZEROSIZE_OK) && PyArray_SIZE(*op) == 0) {
-            PyErr_SetString(PyExc_ValueError,
+        PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
+        if (!(flags & NPY_ITER_ZEROSIZE_OK) && PyArray_SIZE(op_data) == 0) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iteration of zero-sized operands is not enabled");
-            return 0;
+            goto error;
         }
-        *op_dataptr = PyArray_BYTES(*op);
-        /* PyArray_DESCR does not give us a reference */
-        *op_dtype = PyArray_DESCR(*op);
-        if (*op_dtype == NULL) {
-            PyErr_SetString(PyExc_ValueError,
+        *op_dataptr = HPyArray_BYTES(ctx, *op);
+        *op_dtype = HPyArray_GetDescr(ctx, *op);
+        if (HPy_IsNull(*op_dtype)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator input operand has no dtype descr");
-            return 0;
+            goto error;
         }
-        Py_INCREF(*op_dtype);
         /*
          * If references weren't specifically allowed, make sure there
          * are no references in the inputs or requested dtypes.
          */
         if (!(flags & NPY_ITER_REFS_OK)) {
-            PyArray_Descr *dt = PyArray_DESCR(*op);
+            HPy h_dt = HPyArray_GetDescr(ctx, *op);
+            PyArray_Descr *dt = PyArray_Descr_AsStruct(ctx, h_dt);
             if (((dt->flags & (NPY_ITEM_REFCOUNT |
                            NPY_ITEM_IS_POINTER)) != 0) ||
-                    (dt != *op_dtype &&
-                        (((*op_dtype)->flags & (NPY_ITEM_REFCOUNT |
+                    (!HPy_Is(ctx, h_dt, *op_dtype) &&
+                        ((PyArray_Descr_AsStruct(ctx, *op_dtype)->flags & (NPY_ITEM_REFCOUNT |
                                              NPY_ITEM_IS_POINTER))) != 0)) {
-                PyErr_SetString(PyExc_TypeError,
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "Iterator operand or requested dtype holds "
                         "references, but the REFS_OK flag was not enabled");
-                return 0;
+                HPy_Close(ctx, h_dt);
+                goto error;
             }
+            HPy_Close(ctx, h_dt);
         }
         /*
          * Checking whether casts are valid is done later, once the
          * final data types have been selected.  For now, just store the
          * requested type.
          */
-        if (op_request_dtype != NULL) {
+        if (!HPy_IsNull(op_request_dtype)) {
             /* We just have a borrowed reference to op_request_dtype */
-            Py_SETREF(*op_dtype, PyArray_AdaptDescriptorToArray(
-                                            *op, (PyObject *)op_request_dtype));
-            if (*op_dtype == NULL) {
-                return 0;
+            /* TODO(fa): cut off to Numpy API */
+            PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
+            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray(py_op, py_op_request_dtype);
+            HPy h = HPy_FromPyObject(ctx, py_new_descr);
+            Py_DECREF(py_op_request_dtype);
+            Py_DECREF(py_new_descr);
+            HPy_Close(ctx, *op_dtype);
+            *op_dtype = h;
+            if (HPy_IsNull(h)) {
+                goto error;
             }
         }
 
         /* Check if the operand is in the byte order requested */
         if (op_flags & NPY_ITER_NBO) {
             /* Check byte order */
-            if (!PyArray_ISNBO((*op_dtype)->byteorder)) {
+            if (!PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, *op_dtype)->byteorder)) {
                 /* Replace with a new descr which is in native byte order */
-                Py_SETREF(*op_dtype,
-                          PyArray_DescrNewByteorder(*op_dtype, NPY_NATIVE));
-                if (*op_dtype == NULL) {
-                    return 0;
+                /* TODO(fa): cut off to Numpy API 'PyArray_DescrNewByteorder'*/
+                PyObject *py_op_dtype = HPy_AsPyObject(ctx, *op_dtype);
+                PyArray_Descr *py_new_op_dtype = PyArray_DescrNewByteorder(py_op_dtype, NPY_NATIVE);
+                Py_DECREF(py_op_dtype);
+                HPy_Close(ctx, *op_dtype);
+                *op_dtype = HPy_FromPyObject(ctx, (PyObject *)py_new_op_dtype);
+                Py_DECREF(py_new_op_dtype);
+                if (HPy_IsNull(*op_dtype)) {
+                    goto error;
                 }                
                 NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
                                     "because of NPY_ITER_NBO\n");
@@ -1143,7 +1195,7 @@ npyiter_prepare_one_operand(PyArrayObject **op,
         /* Check if the operand is aligned */
         if (op_flags & NPY_ITER_ALIGNED) {
             /* Check alignment */
-            if (!IsAligned(*op)) {
+            if (!IsAligned(op_data)) {
                 NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
                                     "because of NPY_ITER_ALIGNED\n");
                 *op_itflags |= NPY_OP_ITFLAG_CAST;
@@ -1155,12 +1207,17 @@ npyiter_prepare_one_operand(PyArrayObject **op,
          */
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator inputs must be ndarrays");
-        return 0;
+        goto error;
     }
 
+    Py_XDECREF(py_op);
     return 1;
+
+error:
+    Py_XDECREF(py_op);
+    return 0;
 }
 
 /*
@@ -1168,11 +1225,11 @@ npyiter_prepare_one_operand(PyArrayObject **op,
  * can replace the arrays if copying is necessary.
  */
 static int
-npyiter_prepare_operands(int nop, PyArrayObject **op_in,
-                    PyArrayObject **op,
+hnpyiter_prepare_operands(HPyContext *ctx, int nop, HPy *op_in,
+                    HPy *op,
                     char **op_dataptr,
-                    PyArray_Descr **op_request_dtypes,
-                    PyArray_Descr **op_dtype,
+                    HPy *op_request_dtypes,
+                    HPy *op_dtype,
                     npy_uint32 flags,
                     npy_uint32 *op_flags, npyiter_opitflags *op_itflags,
                     npy_int8 *out_maskop)
@@ -1185,19 +1242,18 @@ npyiter_prepare_operands(int nop, PyArrayObject **op_in,
      * Here we just prepare the provided operands.
      */
     for (iop = 0; iop < nop; ++iop) {
-        op[iop] = op_in[iop];
-        Py_XINCREF(op[iop]);
-        op_dtype[iop] = NULL;
+        op[iop] = HPy_Dup(ctx, op_in[iop]);
+        op_dtype[iop] = HPy_NULL;
 
         /* Check the readonly/writeonly flags, and fill in op_itflags */
-        if (!npyiter_check_per_op_flags(op_flags[iop], &op_itflags[iop])) {
+        if (!hnpyiter_check_per_op_flags(ctx, op_flags[iop], &op_itflags[iop])) {
             goto fail_iop;
         }
 
         /* Extract the operand which is for masked iteration */
         if ((op_flags[iop] & NPY_ITER_ARRAYMASK) != 0) {
             if (maskop != -1) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "Only one iterator operand may receive an "
                         "ARRAYMASK flag");
                 goto fail_iop;
@@ -1215,9 +1271,9 @@ npyiter_prepare_operands(int nop, PyArrayObject **op_in,
          * Prepare the operand.  This produces an op_dtype[iop] reference
          * on success.
          */
-        if (!npyiter_prepare_one_operand(&op[iop],
+        if (!hnpyiter_prepare_one_operand(ctx, &op[iop],
                         &op_dataptr[iop],
-                        op_request_dtypes ? op_request_dtypes[iop] : NULL,
+                        op_request_dtypes ? op_request_dtypes[iop] : HPy_NULL,
                         &op_dtype[iop],
                         flags,
                         op_flags[iop], &op_itflags[iop])) {
@@ -1226,30 +1282,30 @@ npyiter_prepare_operands(int nop, PyArrayObject **op_in,
     }
 
     /* If all the operands were NULL, it's an error */
-    if (op[0] == NULL) {
+    if (HPy_IsNull(op[0])) {
         int all_null = 1;
         for (iop = 1; iop < nop; ++iop) {
-            if (op[iop] != NULL) {
+            if (!HPy_IsNull(op[iop])) {
                 all_null = 0;
                 break;
             }
         }
         if (all_null) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "At least one iterator operand must be non-NULL");
             goto fail_nop;
         }
     }
 
     if (any_writemasked_ops && maskop < 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "An iterator operand was flagged as WRITEMASKED, "
                 "but no ARRAYMASK operand was given to supply "
                 "the mask");
         goto fail_nop;
     }
     else if (!any_writemasked_ops && maskop >= 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "An iterator operand was flagged as the ARRAYMASK, "
                 "but no WRITEMASKED operands were given to use "
                 "the mask");
@@ -1262,8 +1318,8 @@ npyiter_prepare_operands(int nop, PyArrayObject **op_in,
     iop = nop - 1;
   fail_iop:
     for (i = 0; i < iop+1; ++i) {
-        Py_XDECREF(op[i]);
-        Py_XDECREF(op_dtype[i]);
+        HPy_Close(ctx, op[i]);
+        HPy_Close(ctx, op_dtype[i]);
     }
     return 0;
 }
@@ -1289,17 +1345,23 @@ npyiter_casting_to_string(NPY_CASTING casting)
 
 
 static int
-npyiter_check_casting(int nop, PyArrayObject **op,
-                    PyArray_Descr **op_dtype,
+hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
+                    HPy *h_op_dtype,
                     NPY_CASTING casting,
                     npyiter_opitflags *op_itflags)
 {
+    // PyArrayObject **op,
+    // PyArray_Descr **op_dtype,
     int iop;
 
     for(iop = 0; iop < nop; ++iop) {
         NPY_IT_DBG_PRINT1("Iterator: Checking casting for operand %d\n",
                             (int)iop);
 #if NPY_IT_DBG_TRACING
+#ifdef HPY
+#error "not supported in HPy"
+#else
+        
         printf("op: ");
         if (op[iop] != NULL) {
             PyObject_Print((PyObject *)PyArray_DESCR(op[iop]), stdout, 0);
@@ -1311,39 +1373,67 @@ npyiter_check_casting(int nop, PyArrayObject **op,
         PyObject_Print((PyObject *)op_dtype[iop], stdout, 0);
         printf("\n");
 #endif
+#endif
         /* If the types aren't equivalent, a cast is necessary */
-        if (op[iop] != NULL && !PyArray_EquivTypes(PyArray_DESCR(op[iop]),
-                                                     op_dtype[iop])) {
-            /* Check read (op -> temp) casting */
-            if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
-                        !PyArray_CanCastArrayTo(op[iop],
-                                          op_dtype[iop],
-                                          casting)) {
+        if (!HPy_IsNull(op[iop])) {
+            HPy h_op_descr = HPyArray_GetDescr(ctx, op[iop]); /* PyArray_DESCR(op[iop]) */
+            PyArray_Descr *op_descr = HPy_AsPyObject(ctx, h_op_descr);
+            HPy_Close(ctx, h_op_descr);
+
+            PyArray_Descr *op_dtype_iop = HPy_AsPyObject(ctx, h_op_dtype[iop]);
+            if (!PyArray_EquivTypes(op_descr, op_dtype_iop)) {
+                /* Check read (op -> temp) casting */
+                /* TODO(fa) cut-off 'PyArray_CanCastArrayTo' */
+                PyArrayObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+                if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
+                        !PyArray_CanCastArrayTo(py_op_iop,
+                                op_dtype_iop,
+                                casting)) {
+                    HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "Iterator operand %d dtype could not be cast from "
+                            "%R to %R according to the rule %s");
+                    /* TODO(fa) cut-off PyErr_Format
                 PyErr_Format(PyExc_TypeError,
                         "Iterator operand %d dtype could not be cast from "
                         "%R to %R according to the rule %s",
                         iop, PyArray_DESCR(op[iop]), op_dtype[iop],
                         npyiter_casting_to_string(casting));
-                return 0;
-            }
-            /* Check write (temp -> op) casting */
-            if ((op_itflags[iop] & NPY_OP_ITFLAG_WRITE) &&
-                        !PyArray_CanCastTypeTo(op_dtype[iop],
-                                          PyArray_DESCR(op[iop]),
-                                          casting)) {
+                     */
+                    Py_XDECREF(op_dtype_iop);
+                    Py_XDECREF(op_descr);
+                    Py_XDECREF(py_op_iop);
+                    return 0;
+                }
+                Py_XDECREF(py_op_iop);
+                /* Check write (temp -> op) casting */
+                if ((op_itflags[iop] & NPY_OP_ITFLAG_WRITE) &&
+                        !PyArray_CanCastTypeTo(op_dtype_iop,
+                                op_descr,
+                                casting)) {
+                    HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "Iterator requested dtype could not be cast from "
+                            "%R to %R, the operand %d dtype, "
+                            "according to the rule %s");
+                    /* TODO(fa) cut-off PyErr_Format
                 PyErr_Format(PyExc_TypeError,
                         "Iterator requested dtype could not be cast from "
                         "%R to %R, the operand %d dtype, "
                         "according to the rule %s",
                         op_dtype[iop], PyArray_DESCR(op[iop]), iop,
                         npyiter_casting_to_string(casting));
-                return 0;
-            }
+                     */
+                    Py_XDECREF(op_dtype_iop);
+                    Py_XDECREF(op_descr);
+                    return 0;
+                }
+                Py_XDECREF(op_dtype_iop);
+                Py_XDECREF(op_descr);
 
-            NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
-                                "because the types aren't equivalent\n");
-            /* Indicate that this operand needs casting */
-            op_itflags[iop] |= NPY_OP_ITFLAG_CAST;
+                NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
+                        "because the types aren't equivalent\n");
+                /* Indicate that this operand needs casting */
+                op_itflags[iop] |= NPY_OP_ITFLAG_CAST;
+            }
         }
     }
 

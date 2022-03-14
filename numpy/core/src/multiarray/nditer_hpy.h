@@ -24,5 +24,12 @@ NPY_NO_EXPORT int
 HNpyIter_ResetBasePointers(HPyContext *ctx, NpyIter *iter, char **baseptrs, char **errmsg);
 NPY_NO_EXPORT void
 HNpyIter_GetInnerFixedStrideArray(HPyContext *ctx, NpyIter *iter, npy_intp *out_strides);
+NPY_NO_EXPORT NpyIter *
+HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
+                 NPY_ORDER order, NPY_CASTING casting,
+                 npy_uint32 *op_flags,
+                 HPy *op_request_dtypes,
+                 int oa_ndim, int **op_axes, npy_intp *itershape,
+                 npy_intp buffersize);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_HPY_H_ */
