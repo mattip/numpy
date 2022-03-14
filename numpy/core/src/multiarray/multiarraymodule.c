@@ -1688,6 +1688,7 @@ finish:
 
 // HPY TODO: HACK HACK
 NPY_NO_EXPORT HPy h_array_type_global;
+#include "convert.h"
 
 static NPY_INLINE HPy
 _hpy_array_fromobject_generic(
@@ -1695,7 +1696,7 @@ _hpy_array_fromobject_generic(
         npy_bool subok, int ndmin)
 {
     HPy ret = HPy_NULL;
-    PyArrayObject *oparr = (PyArrayObject *) HPy_AsStructLegacy(ctx, op);
+    PyArrayObject *oparr;
     HPy oldtype = HPy_NULL;
     PyArray_Descr *oldtype_data;
     PyArray_Descr *type_data = HPy_AsStructLegacy(ctx, type);
@@ -1713,6 +1714,7 @@ _hpy_array_fromobject_generic(
     // It would be faster to check subok first and then exact or subclass check
     if (HPy_Is(ctx, HPy_Type(ctx, op), h_array_type_global) || 
         (subok && HPy_TypeCheck(ctx, op, h_array_type_global))) {
+        oparr = (PyArrayObject *) HPy_AsStructLegacy(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);
@@ -1725,9 +1727,7 @@ _hpy_array_fromobject_generic(
                     return HPy_NULL;
                 }
                 capi_warn("np.array: array copy");
-                PyObject *py_ret = PyArray_NewCopy(oparr, order);
-                ret = HPy_FromPyObject(ctx, py_ret);
-                Py_XDECREF(py_ret);
+                ret = HPyArray_NewCopy(ctx, op, order);
                 goto finish;
             }
         }
