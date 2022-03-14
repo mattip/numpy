@@ -709,6 +709,27 @@ get_array_memory_extents(PyArrayObject *arr,
     }
 }
 
+static void
+hpy_get_array_memory_extents(HPyContext *ctx, HPy arr,
+                         npy_uintp *out_start, npy_uintp *out_end,
+                         npy_uintp *num_bytes)
+{
+    npy_intp low, upper;
+    int j;
+    PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+    npy_intp itemsize = HPyArray_ITEMSIZE(ctx, arr, arr_data);
+    offset_bounds_from_strides(itemsize, PyArray_NDIM(arr_data),
+                               PyArray_DIMS(arr_data), PyArray_STRIDES(arr_data),
+                               &low, &upper);
+    *out_start = (npy_uintp)PyArray_DATA(arr_data) + (npy_uintp)low;
+    *out_end = (npy_uintp)PyArray_DATA(arr_data) + (npy_uintp)upper;
+
+    *num_bytes = itemsize;
+    for (j = 0; j < PyArray_NDIM(arr_data); ++j) {
+        *num_bytes *= PyArray_DIM(arr_data, j);
+    }
+}
+
 
 static int
 strides_to_terms(PyArrayObject *arr, diophantine_term_t *terms,
@@ -835,6 +856,94 @@ solve_may_share_memory(PyArrayObject *a, PyArrayObject *b,
 
     /* Solve */
     return solve_diophantine(nterms, terms, rhs, max_work, 0, x);
+}
+
+/* PyArrayObject *a, PyArrayObject *b */
+NPY_VISIBILITY_HIDDEN mem_overlap_t
+hpy_solve_may_share_memory(HPyContext *ctx, HPy a, HPy b,
+                       HPy_ssize_t max_work)
+{
+    npy_int64 rhs;
+    diophantine_term_t terms[2*NPY_MAXDIMS + 2];
+    npy_uintp start1 = 0, end1 = 0, size1 = 0;
+    npy_uintp start2 = 0, end2 = 0, size2 = 0;
+    npy_uintp uintp_rhs;
+    npy_int64 x[2*NPY_MAXDIMS + 2];
+    unsigned int nterms;
+
+    hpy_get_array_memory_extents(ctx, a, &start1, &end1, &size1);
+    hpy_get_array_memory_extents(ctx, b, &start2, &end2, &size2);
+
+    if (!(start1 < end2 && start2 < end1 && start1 < end1 && start2 < end2)) {
+        /* Memory extents don't overlap */
+        return MEM_OVERLAP_NO;
+    }
+
+    if (max_work == 0) {
+        /* Too much work required, give up */
+        return MEM_OVERLAP_TOO_HARD;
+    }
+
+    /* Convert problem to Diophantine equation form with positive coefficients.
+       The bounds computed by offset_bounds_from_strides correspond to
+       all-positive strides.
+
+       start1 + sum(abs(stride1)*x1)
+       == start2 + sum(abs(stride2)*x2)
+       == end1 - 1 - sum(abs(stride1)*x1')
+       == end2 - 1 - sum(abs(stride2)*x2')
+
+       <=>
+
+       sum(abs(stride1)*x1) + sum(abs(stride2)*x2')
+       == end2 - 1 - start1
+
+       OR
+
+       sum(abs(stride1)*x1') + sum(abs(stride2)*x2)
+       == end1 - 1 - start2
+
+       We pick the problem with the smaller RHS (they are non-negative due to
+       the extent check above.)
+    */
+
+    uintp_rhs = MIN(end2 - 1 - start1, end1 - 1 - start2);
+    if (uintp_rhs > NPY_MAX_INT64) {
+        /* Integer overflow */
+        return MEM_OVERLAP_OVERFLOW;
+    }
+    rhs = (npy_int64)uintp_rhs;
+
+    nterms = 0;
+    PyArrayObject *a_data = PyArrayObject_AsStruct(ctx, a);
+    if (strides_to_terms(a_data, terms, &nterms, 1)) {
+        return MEM_OVERLAP_OVERFLOW;
+    }
+    PyArrayObject *b_data = PyArrayObject_AsStruct(ctx, b);
+    if (strides_to_terms(b_data, terms, &nterms, 1)) {
+        return MEM_OVERLAP_OVERFLOW;
+    }
+    npy_intp a_itemsize = HPyArray_ITEMSIZE(ctx, a, a_data);
+    if (a_itemsize > 1) {
+        terms[nterms].a = 1;
+        terms[nterms].ub = a_itemsize - 1;
+        ++nterms;
+    }
+    npy_intp b_itemsize = HPyArray_ITEMSIZE(ctx, b, b_data);
+    if (b_itemsize > 1) {
+        terms[nterms].a = 1;
+        terms[nterms].ub = b_itemsize - 1;
+        ++nterms;
+    }
+
+    /* Simplify, if possible */
+    if (diophantine_simplify(&nterms, terms, rhs)) {
+        /* Integer overflow */
+        return MEM_OVERLAP_OVERFLOW;
+    }
+
+    /* Solve */
+    return solve_diophantine(nterms, terms, rhs, (Py_ssize_t)max_work, 0, x);
 }
 
 
