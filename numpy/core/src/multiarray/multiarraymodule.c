@@ -1610,7 +1610,6 @@ _array_fromobject_generic(
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = oparr;
                 Py_INCREF(ret);
-                printf("DEBUG: 1\n");
                 goto finish;
             }
             else {
@@ -1619,13 +1618,11 @@ _array_fromobject_generic(
                             "Unable to avoid copy while creating a new array.");
                     return NULL;
                 }
-                capi_warn("FAKE np.array: array copy");
                 ret = (PyArrayObject *)PyArray_NewCopy(oparr, order);
                 goto finish;
             }
         }
         /* One more chance */
-        capi_warn("FAKE np.array: PyArray_EquivTypes");
         oldtype = PyArray_DESCR(oparr);
         if (PyArray_EquivTypes(oldtype, type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
@@ -1680,7 +1677,6 @@ finish:
 
     nd = PyArray_NDIM(ret);
     if (nd >= ndmin) {
-        printf("DEBUG: 2\n");
         return (PyObject *)ret;
     }
     /*
@@ -1717,13 +1713,9 @@ _hpy_array_fromobject_generic(
     // It would be faster to check subok first and then exact or subclass check
     if (HPy_Is(ctx, HPy_Type(ctx, op), h_array_type_global) || 
         (subok && HPy_TypeCheck(ctx, op, h_array_type_global))) {
-        // HPy_AsPyObject(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
-                ret = op;
-                // HPY TODO: numpy is doing: Py_INCREF(ret);, that looks suspicious?,
-                // this it is done in other early return branches
-                printf("DEBUG: 1\n");
+                ret = HPy_Dup(ctx, op);
                 goto finish;
             }
             else {
@@ -1733,17 +1725,20 @@ _hpy_array_fromobject_generic(
                     return HPy_NULL;
                 }
                 capi_warn("np.array: array copy");
-                ret = HPy_FromPyObject(ctx, PyArray_NewCopy(oparr, order));
+                PyObject *py_ret = PyArray_NewCopy(oparr, order);
+                ret = HPy_FromPyObject(ctx, py_ret);
+                Py_XDECREF(py_ret);
                 goto finish;
             }
         }
         /* One more chance */
         oldtype = HPyArray_DESCR(ctx, op, oparr);
         oldtype_data = HPy_AsStructLegacy(ctx, oldtype);
+        HPy_Close(ctx, oldtype); // HPY TODO: assumes that oldtype stays alive -> fix when porting this code
         capi_warn("np.array: PyArray_EquivTypes");
         if (PyArray_EquivTypes(oldtype_data, type_data)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
-                ret = op;
+                ret = HPy_Dup(ctx, op);
                 goto finish;
             }
             else {
@@ -1753,7 +1748,9 @@ _hpy_array_fromobject_generic(
                     return HPy_NULL;
                 }
                 capi_warn("np.array: PyArray_NewCopy");
-                ret = HPy_FromPyObject(ctx, (PyObject *) PyArray_NewCopy(oparr, order));
+                PyObject *py_ret = (PyObject *) PyArray_NewCopy(oparr, order);
+                ret = HPy_FromPyObject(ctx, py_ret);
+                Py_XDECREF(py_ret);
                 if (oldtype_data == type_data || HPy_IsNull(ret)) {
                     goto finish;
                 }
@@ -1783,6 +1780,8 @@ _hpy_array_fromobject_generic(
     }
 
     flags |= NPY_ARRAY_FORCECAST;
+    // HPY NOTE: this used to do Py_XINCREF(type), but
+    // HPyArray_CheckFromAny should not need that, hopefully...
     ret = HPyArray_CheckFromAny(ctx, op, type,
         0, 0, flags, HPy_NULL);
 
@@ -1793,7 +1792,6 @@ finish:
 
     nd = HPyArray_NDIM(ctx, ret);
     if (nd >= ndmin) {
-        printf("DEBUG: 2\n");
         return ret;
     }
 
@@ -1823,7 +1821,6 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     NPY_ORDER order = NPY_KEEPORDER;
     HPyTracker tracker;
 
-    printf("DEBUG: array_array\n");
     if (nargs != 1) {
         HPy h_type_in = HPy_NULL, h_copy = HPy_NULL, h_order = HPy_NULL;
         HPy h_subok = HPy_NULL, h_ndmin = HPy_NULL, h_like = HPy_NULL;
@@ -1875,9 +1872,9 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
 
         res = _hpy_array_fromobject_generic(
            ctx, op, h_type, copy, order, subok, ndmin);
-        PyObject *pyobj = HPy_AsPyObject(ctx, res);
-        printf("array_array result refcnt = %d\n", (int) pyobj->ob_refcnt);
-        Py_DECREF(pyobj);
+        // PyObject *pyobj = HPy_AsPyObject(ctx, res);
+        // printf("array_array result refcnt = %d\n", (int) pyobj->ob_refcnt);
+        // Py_DECREF(pyobj);
 
         // PyObject *pyobj = _array_fromobject_generic(
         //         HPy_AsPyObject(ctx, op), (PyArray_Descr*) HPy_AsPyObject(ctx, h_type),
@@ -1886,7 +1883,6 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         // printf("array_array result refcnt = %d\n", (int) pyobj->ob_refcnt);
         // Py_DECREF(pyobj);
 
-    HPy_Close(ctx, op);
     HPy_Close(ctx, h_type);
     return res;
 }
