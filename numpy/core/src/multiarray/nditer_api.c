@@ -285,7 +285,7 @@ HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg)
                     NBF_SIZE(bufferdata) > 0) {
                 return NPY_SUCCEED;
             }
-            if (npyiter_copy_from_buffers(iter) < 0) {
+            if (hnpyiter_copy_from_buffers(ctx, iter) < 0) {
                 if (errmsg != NULL) {
                     *errmsg = _reset_cast_error;
                 }
@@ -322,6 +322,12 @@ HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg)
 NPY_NO_EXPORT int
 NpyIter_ResetBasePointers(NpyIter *iter, char **baseptrs, char **errmsg)
 {
+    return HNpyIter_ResetBasePointers(npy_get_context(), iter, baseptrs, errmsg);
+}
+
+NPY_NO_EXPORT int
+HNpyIter_ResetBasePointers(HPyContext *ctx, NpyIter *iter, char **baseptrs, char **errmsg)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     /*int ndim = NIT_NDIM(iter);*/
     int iop, nop = NIT_NOP(iter);
@@ -338,7 +344,7 @@ NpyIter_ResetBasePointers(NpyIter *iter, char **baseptrs, char **errmsg)
             NIT_ITFLAGS(iter) &= ~NPY_ITFLAG_DELAYBUF;
         }
         else {
-            if (npyiter_copy_from_buffers(iter) < 0) {
+            if (hnpyiter_copy_from_buffers(ctx, iter) < 0) {
                 if (errmsg != NULL) {
                     *errmsg = _reset_cast_error;
                 }
@@ -356,7 +362,7 @@ NpyIter_ResetBasePointers(NpyIter *iter, char **baseptrs, char **errmsg)
 
     if (itflags&NPY_ITFLAG_BUFFER) {
         /* Prepare the next buffers and set iterend/size */
-        if (npyiter_copy_to_buffers(iter, NULL) < 0) {
+        if (hnpyiter_copy_to_buffers(ctx, iter, NULL) < 0) {
             if (errmsg != NULL) {
                 *errmsg = _reset_cast_error;
             }
@@ -1193,11 +1199,11 @@ NpyIter_GetIterView(NpyIter *iter, npy_intp i)
         return NULL;
     }
     
-    HPyContext *ctx = npy_get_context();
 
-    /* TODO(fa): use NIT_OPERANDS once migrated */
+    /* TODO(fa): use NIT_OPERANDS once migrated
+     * HPyContext *ctx = npy_get_context();
     /* obj = NIT_OPERANDS(iter)[i]; */
-    obj = NpyIter_GetOperandArray(iter);
+    obj = NpyIter_GetOperandArray(iter)[i];
     dtype = PyArray_DESCR(obj);
     writeable = NIT_OPITFLAGS(iter)[i]&NPY_OP_ITFLAG_WRITE;
     dataptr = NIT_RESETDATAPTR(iter)[i];
@@ -1925,13 +1931,19 @@ npyiter_goto_iterindex(NpyIter *iter, npy_intp iterindex)
     }
 }
 
+NPY_NO_EXPORT int
+npyiter_copy_from_buffers(NpyIter *iter)
+{
+    return hnpyiter_copy_from_buffers(npy_get_context(), iter);
+}
+
 /*
  * This gets called after the buffers have been exhausted, and
  * their data needs to be written back to the arrays.  The multi-index
  * must be positioned for the beginning of the buffer.
  */
 NPY_NO_EXPORT int
-npyiter_copy_from_buffers(NpyIter *iter)
+hnpyiter_copy_from_buffers(HPyContext *ctx, NpyIter *iter)
 {
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int ndim = NIT_NDIM(iter);
@@ -1943,7 +1955,7 @@ npyiter_copy_from_buffers(NpyIter *iter)
     NpyIter_AxisData *axisdata = NIT_AXISDATA(iter),
                     *reduce_outeraxisdata = NULL;
 
-    PyArray_Descr **dtypes = NIT_DTYPES(iter);
+    HPy *dtypes = NIT_DTYPES(iter);
     npy_intp transfersize = NBF_SIZE(bufferdata);
     npy_intp *strides = NBF_STRIDES(bufferdata),
              *ad_strides = NAD_STRIDES(axisdata);
@@ -1974,6 +1986,8 @@ npyiter_copy_from_buffers(NpyIter *iter)
 
     NpyIter_TransferInfo *transferinfo = NBF_TRANSFERINFO(bufferdata);
     for (iop = 0; iop < nop; ++iop) {
+        PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, dtypes[iop]);
+
         buffer = buffers[iop];
         /*
          * Copy the data back to the arrays.  If the type has refs,
@@ -2072,7 +2086,7 @@ npyiter_copy_from_buffers(NpyIter *iter)
                         maskptr, strides[maskop],
                         dst_coords, axisdata_incr,
                         dst_shape, axisdata_incr,
-                        op_transfersize, dtypes[iop]->elsize,
+                        op_transfersize, dtype->elsize,
                         &transferinfo[iop].write) < 0) {
                     return -1;
                 }
@@ -2084,7 +2098,7 @@ npyiter_copy_from_buffers(NpyIter *iter)
                         buffer, src_stride,
                         dst_coords, axisdata_incr,
                         dst_shape, axisdata_incr,
-                        op_transfersize, dtypes[iop]->elsize,
+                        op_transfersize, dtype->elsize,
                         &transferinfo[iop].write) < 0) {
                     return -1;
                 }
@@ -2102,7 +2116,7 @@ npyiter_copy_from_buffers(NpyIter *iter)
             NPY_IT_DBG_PRINT1("Iterator: Freeing refs and zeroing buffer "
                                 "of operand %d\n", (int)iop);
             /* Decrement refs */
-            npy_intp buf_stride = dtypes[iop]->elsize;
+            npy_intp buf_stride = dtype->elsize;
             if (transferinfo[iop].write.func(
                     &transferinfo[iop].write.context,
                     &buffer, &transfersize, &buf_stride,
@@ -2117,7 +2131,7 @@ npyiter_copy_from_buffers(NpyIter *iter)
              * array pointing into the buffer, it will get None
              * values for its references after this.
              */
-            memset(buffer, 0, dtypes[iop]->elsize*transfersize);
+            memset(buffer, 0, dtype->elsize*transfersize);
         }
     }
 
