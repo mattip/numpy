@@ -1362,6 +1362,12 @@ NpyIter_GetAxisStrideArray(NpyIter *iter, int axis)
 NPY_NO_EXPORT void
 NpyIter_GetInnerFixedStrideArray(NpyIter *iter, npy_intp *out_strides)
 {
+    HNpyIter_GetInnerFixedStrideArray(npy_get_context(), iter, out_strides);
+}
+
+NPY_NO_EXPORT void
+HNpyIter_GetInnerFixedStrideArray(HPyContext *ctx, NpyIter *iter, npy_intp *out_strides)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int ndim = NIT_NDIM(iter);
     int iop, nop = NIT_NOP(iter);
@@ -1374,7 +1380,7 @@ NpyIter_GetInnerFixedStrideArray(NpyIter *iter, npy_intp *out_strides)
         npyiter_opitflags *op_itflags = NIT_OPITFLAGS(iter);
         npy_intp stride, *strides = NBF_STRIDES(data),
                 *ad_strides = NAD_STRIDES(axisdata0);
-        PyArray_Descr **dtypes = NIT_DTYPES(iter);
+        HPy *dtypes = NIT_DTYPES(iter);
 
         for (iop = 0; iop < nop; ++iop) {
             stride = strides[iop];
@@ -1418,7 +1424,7 @@ NpyIter_GetInnerFixedStrideArray(NpyIter *iter, npy_intp *out_strides)
              * Inner loop contiguous array means its stride won't change when
              * switching between buffering and not buffering
              */
-            else if (ad_strides[iop] == dtypes[iop]->elsize) {
+            else if (ad_strides[iop] == PyArray_Descr_AsStruct(ctx, dtypes[iop])->elsize) {
                 out_strides[iop] = ad_strides[iop];
             }
             /*

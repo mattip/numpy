@@ -22,5 +22,7 @@ NPY_NO_EXPORT HPy *
 HNpyIter_GetDescrArray(NpyIter *iter);
 NPY_NO_EXPORT int
 HNpyIter_ResetBasePointers(HPyContext *ctx, NpyIter *iter, char **baseptrs, char **errmsg);
+NPY_NO_EXPORT void
+HNpyIter_GetInnerFixedStrideArray(HPyContext *ctx, NpyIter *iter, npy_intp *out_strides);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_HPY_H_ */
