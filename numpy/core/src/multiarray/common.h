@@ -103,6 +103,12 @@ _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
     }
 }
 
+static NPY_INLINE void
+_hpy_set_descr(HPyContext *ctx, HPy h_arr, PyArrayObject *tmp_array, HPy new_descr)
+{
+    HPyField_Store(ctx, h_arr, &((PyArrayObject_fields *)tmp_array)->f_descr, new_descr);
+}
+
 /**
  * unpack tuple of dtype->fields (descr, offset, title[not-needed])
  *

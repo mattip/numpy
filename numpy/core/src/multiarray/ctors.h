@@ -117,4 +117,8 @@ NPY_NO_EXPORT PyArrayObject *
 PyArray_SubclassWrap(PyArrayObject *arr_of_subclass, PyArrayObject *towrap);
 
 
+NPY_NO_EXPORT HPy
+HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
+                     int max_depth, int requires, HPy context);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

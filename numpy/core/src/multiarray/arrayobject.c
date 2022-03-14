@@ -1525,32 +1525,39 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
     return result;
 }
 
-/*NUMPY_API
- */
-NPY_NO_EXPORT int
-PyArray_ElementStrides(PyObject *obj)
-{
-    PyArrayObject *arr;
-    int itemsize;
-    int i, ndim;
-    npy_intp *strides;
+static int _PyArray_ElementStrides(PyArrayObject *arr) {
+    int itemsize = PyArray_ITEMSIZE(arr);
+    int ndim = PyArray_NDIM(arr);
+    npy_intp *strides = PyArray_STRIDES(arr);
 
-    if (!PyArray_Check(obj)) {
-        return 0;
-    }
-
-    arr = (PyArrayObject *)obj;
-
-    itemsize = PyArray_ITEMSIZE(arr);
-    ndim = PyArray_NDIM(arr);
-    strides = PyArray_STRIDES(arr);
-
-    for (i = 0; i < ndim; i++) {
+    for (int i = 0; i < ndim; i++) {
         if ((strides[i] % itemsize) != 0) {
             return 0;
         }
     }
     return 1;
+}
+
+/*NUMPY_API
+ */
+NPY_NO_EXPORT int
+PyArray_ElementStrides(PyObject *obj)
+{
+    if (!PyArray_Check(obj)) {
+        return 0;
+    }
+
+    return _PyArray_ElementStrides((PyArrayObject *)obj);
+}
+
+NPY_NO_EXPORT int
+HPyArray_ElementStrides(HPyContext *ctx, HPy obj)
+{
+    if (!HPyArray_Check(ctx, obj)) {
+        return 0;
+    }
+
+    return _PyArray_ElementStrides(HPy_AsStructLegacy(ctx, obj));
 }
 
 /*

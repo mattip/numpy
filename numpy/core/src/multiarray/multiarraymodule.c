@@ -1610,6 +1610,7 @@ _array_fromobject_generic(
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = oparr;
                 Py_INCREF(ret);
+                printf("DEBUG: 1\n");
                 goto finish;
             }
             else {
@@ -1618,11 +1619,13 @@ _array_fromobject_generic(
                             "Unable to avoid copy while creating a new array.");
                     return NULL;
                 }
+                capi_warn("FAKE np.array: array copy");
                 ret = (PyArrayObject *)PyArray_NewCopy(oparr, order);
                 goto finish;
             }
         }
         /* One more chance */
+        capi_warn("FAKE np.array: PyArray_EquivTypes");
         oldtype = PyArray_DESCR(oparr);
         if (PyArray_EquivTypes(oldtype, type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
@@ -1677,6 +1680,7 @@ finish:
 
     nd = PyArray_NDIM(ret);
     if (nd >= ndmin) {
+        printf("DEBUG: 2\n");
         return (PyObject *)ret;
     }
     /*
@@ -1686,21 +1690,140 @@ finish:
     return _prepend_ones(ret, nd, ndmin, order);
 }
 
+// HPY TODO: HACK HACK
+NPY_NO_EXPORT HPy h_array_type_global;
+
+static NPY_INLINE HPy
+_hpy_array_fromobject_generic(
+        HPyContext *ctx, HPy op, HPy type, _PyArray_CopyMode copy, NPY_ORDER order,
+        npy_bool subok, int ndmin)
+{
+    HPy ret = HPy_NULL;
+    PyArrayObject *oparr = (PyArrayObject *) HPy_AsStructLegacy(ctx, op);
+    HPy oldtype = HPy_NULL;
+    PyArray_Descr *oldtype_data;
+    PyArray_Descr *type_data = HPy_AsStructLegacy(ctx, type);
+    int nd, flags = 0;
+
+    if (ndmin > NPY_MAXDIMS) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "ndmin bigger than allowable number of dimensions "
+                "NPY_MAXDIMS (=%d)"/*, HPY TODO: NPY_MAXDIMS*/);
+        return HPy_NULL;
+    }
+    /* fast exit if simple call */
+    // HPY TODO (API): original code uses "check exact"
+    // HPy version has to use two calls HPy_Type and HPy_Is
+    // It would be faster to check subok first and then exact or subclass check
+    if (HPy_Is(ctx, HPy_Type(ctx, op), h_array_type_global) || 
+        (subok && HPy_TypeCheck(ctx, op, h_array_type_global))) {
+        // HPy_AsPyObject(ctx, op);
+        if (HPy_IsNull(type)) {
+            if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
+                ret = op;
+                // HPY TODO: numpy is doing: Py_INCREF(ret);, that looks suspicious?,
+                // this it is done in other early return branches
+                printf("DEBUG: 1\n");
+                goto finish;
+            }
+            else {
+                if (copy == NPY_COPY_NEVER) {
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "Unable to avoid copy while creating a new array.");
+                    return HPy_NULL;
+                }
+                capi_warn("np.array: array copy");
+                ret = HPy_FromPyObject(ctx, PyArray_NewCopy(oparr, order));
+                goto finish;
+            }
+        }
+        /* One more chance */
+        oldtype = HPyArray_DESCR(ctx, op, oparr);
+        oldtype_data = HPy_AsStructLegacy(ctx, oldtype);
+        capi_warn("np.array: PyArray_EquivTypes");
+        if (PyArray_EquivTypes(oldtype_data, type_data)) {
+            if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
+                ret = op;
+                goto finish;
+            }
+            else {
+                if (copy == NPY_COPY_NEVER) {
+                    PyErr_SetString(PyExc_ValueError,
+                            "Unable to avoid copy while creating a new array.");
+                    return HPy_NULL;
+                }
+                capi_warn("np.array: PyArray_NewCopy");
+                ret = HPy_FromPyObject(ctx, (PyObject *) PyArray_NewCopy(oparr, order));
+                if (oldtype_data == type_data || HPy_IsNull(ret)) {
+                    goto finish;
+                }
+                _hpy_set_descr(ctx, ret, oparr, oldtype);
+                goto finish;
+            }
+        }
+    }
+
+    if (copy == NPY_COPY_ALWAYS) {
+        flags = NPY_ARRAY_ENSURECOPY;
+    }
+    else if (copy == NPY_COPY_NEVER ) {
+        flags = NPY_ARRAY_ENSURENOCOPY;
+    }
+    if (order == NPY_CORDER) {
+        flags |= NPY_ARRAY_C_CONTIGUOUS;
+    }
+    else if ((order == NPY_FORTRANORDER)
+                 /* order == NPY_ANYORDER && */
+                 || (HPy_TypeCheck(ctx, op, h_array_type_global) &&
+                     PyArray_ISFORTRAN(oparr))) {
+        flags |= NPY_ARRAY_F_CONTIGUOUS;
+    }
+    if (!subok) {
+        flags |= NPY_ARRAY_ENSUREARRAY;
+    }
+
+    flags |= NPY_ARRAY_FORCECAST;
+    ret = HPyArray_CheckFromAny(ctx, op, type,
+        0, 0, flags, HPy_NULL);
+
+finish:
+    if (HPy_IsNull(ret)) {
+        return ret;
+    }
+
+    nd = HPyArray_NDIM(ctx, ret);
+    if (nd >= ndmin) {
+        printf("DEBUG: 2\n");
+        return ret;
+    }
+
+    hpy_abort_not_implemented("_hpy_array_fromobject_generic: _prepend_ones");
+    // /*
+    //  * create a new array from the same data with ones in the shape
+    //  * steals a reference to ret
+    //  */
+    // return _prepend_ones(ret, nd, ndmin, order);
+}
+
 #undef STRIDING_OK
 
+
+#include <stdio.h>
+#include <stdlib.h>
 
 HPyDef_METH(array_array, "array", array_array_impl, HPyFunc_KEYWORDS)
 static HPy
 array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
     HPy op = HPy_NULL;
+    HPy h_type = HPy_NULL;
     npy_bool subok = NPY_FALSE;
     _PyArray_CopyMode copy = NPY_COPY_ALWAYS;
     int ndmin = 0;
-    PyArray_Descr *type = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
     HPyTracker tracker;
 
+    printf("DEBUG: array_array\n");
     if (nargs != 1) {
         HPy h_type_in = HPy_NULL, h_copy = HPy_NULL, h_order = HPy_NULL;
         HPy h_subok = HPy_NULL, h_ndmin = HPy_NULL, h_like = HPy_NULL;
@@ -1711,14 +1834,10 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
             return HPy_NULL;
         }
 
-        HPy h_type;
         if (HPyArray_DescrConverter2(ctx, h_type_in, &h_type) == NPY_FAIL) {
             HPyTracker_Close(ctx, tracker);
             return HPy_NULL;
         }
-        type = (PyArray_Descr*) HPy_AsPyObject(ctx, h_type);
-        HPy_Close(ctx, h_type);
-
         if (!HPy_IsNull(h_copy) && HPyArray_CopyConverter(ctx, h_copy, &copy) == NPY_FAIL) {
             HPyTracker_Close(ctx, tracker);
             return HPy_NULL;
@@ -1747,10 +1866,29 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         op = args[0];
     }
 
-    PyObject *py_res = _array_fromobject_generic(
-            HPy_AsPyObject(ctx, op), type, copy, order, subok, ndmin);
+    // static int cnt = -9999999;
+    // if (cnt == -9999999) {
+    //     cnt = atoi(getenv("TRIES"));
+    // }
+
+    HPy res;
+
+        res = _hpy_array_fromobject_generic(
+           ctx, op, h_type, copy, order, subok, ndmin);
+        PyObject *pyobj = HPy_AsPyObject(ctx, res);
+        printf("array_array result refcnt = %d\n", (int) pyobj->ob_refcnt);
+        Py_DECREF(pyobj);
+
+        // PyObject *pyobj = _array_fromobject_generic(
+        //         HPy_AsPyObject(ctx, op), (PyArray_Descr*) HPy_AsPyObject(ctx, h_type),
+        //         copy, order, subok, ndmin);
+        // res = HPy_FromPyObject(ctx, pyobj);
+        // printf("array_array result refcnt = %d\n", (int) pyobj->ob_refcnt);
+        // Py_DECREF(pyobj);
+
     HPy_Close(ctx, op);
-    return HPy_FromPyObject(ctx, py_res);
+    HPy_Close(ctx, h_type);
+    return res;
 }
 
 static PyObject *
@@ -4889,6 +5027,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyArray_Type = HPy_Dup(ctx, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
+    h_array_type_global = HPy_Dup(ctx, h_array_type);
     HPy_Close(ctx, h_array_type);
 
     if (setup_scalartypes(ctx, d) < 0) {

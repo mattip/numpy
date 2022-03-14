@@ -2002,6 +2002,63 @@ PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
     return obj;
 }
 
+// HPY TODO: not needed once HPyArray_DescrNew, HPyArray_ElementStrides are in API
+#include "descriptor.h"
+#include "arrayobject.h"
+
+NPY_NO_EXPORT HPy
+HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
+                     int max_depth, int requires, HPy context)
+{
+    PyArray_Descr *descr_data;
+    if (!HPy_IsNull(descr)) {
+        descr_data = (PyArray_Descr*) HPy_AsStructLegacy(ctx, descr);
+    }
+    PyArrayObject *oparr = (PyArrayObject*) HPy_AsStructLegacy(ctx, op);
+    if (requires & NPY_ARRAY_NOTSWAPPED) {
+        if (HPy_IsNull(descr) && HPyArray_Check(ctx, op) &&
+                PyArray_ISBYTESWAPPED(oparr)) {
+            descr = HPyArray_DescrNew(ctx, HPyArray_DESCR(ctx, op, oparr));
+            if (HPy_IsNull(descr)) {
+                return HPy_NULL;
+            }
+            descr_data = (PyArray_Descr*) HPy_AsStructLegacy(ctx, descr);
+        }
+        else if (!HPy_IsNull(descr) && !PyArray_ISNBO(descr_data->byteorder)) {
+            hpy_abort_not_implemented("HPyArray_CheckFromAny: PyArray_DESCR_REPLACE");
+            // HPY TODO: PyArray_DESCR_REPLACE(descr);
+        }
+        if (!HPy_IsNull(descr) && descr_data->byteorder != NPY_IGNORE) {
+            descr_data->byteorder = NPY_NATIVE;
+        }
+    }
+
+    // HPy obj = HPyArray_CheckFromAny(ctx, op, descr, min_depth, max_depth, requires, context);
+    HPy obj = HPy_FromPyObject(ctx, PyArray_FromAny(
+        HPy_AsPyObject(ctx, op),
+        HPy_AsPyObject(ctx, descr),
+        min_depth, max_depth, requires, HPy_AsPyObject(ctx, context)));
+    if (HPy_IsNull(obj)) {
+        return HPy_NULL;
+    }
+
+    if ((requires & NPY_ARRAY_ELEMENTSTRIDES)
+            && !HPyArray_ElementStrides(ctx, obj)) {
+
+        hpy_abort_not_implemented("PyArray_NewCopy");
+        // PyObject *ret;
+        // if (requires & NPY_ARRAY_ENSURENOCOPY) {
+        //     PyErr_SetString(PyExc_ValueError,
+        //             "Unable to avoid copy while creating a new array.");
+        //     return NULL;
+        // }
+        // ret = PyArray_NewCopy((PyArrayObject *)obj, NPY_ANYORDER);
+        // Py_DECREF(obj);
+        // obj = ret;
+    }
+    return obj;
+}
+
 
 /*NUMPY_API
  * steals reference to newtype --- acc. NULL
