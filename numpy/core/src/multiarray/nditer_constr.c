@@ -21,6 +21,7 @@
 #include "array_assign.h"
 #include "hpy_utils.h"
 #include "ndarrayobject.h"
+#include "nditer_hpy.h"
 
 /* Internal helper functions private to this file */
 static int
