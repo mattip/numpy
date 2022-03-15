@@ -1172,6 +1172,25 @@ PyArray_NewLikeArray(PyArrayObject *prototype, NPY_ORDER order,
     return PyArray_NewLikeArrayWithShape(prototype, order, dtype, -1, NULL, subok);
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                     HPy dtype, int subok)
+{
+    if (HPy_IsNull(prototype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "prototype is NULL in PyArray_NewLikeArray");
+        return HPy_NULL;
+    }
+    PyObject *py_prototype = HPy_AsPyObject(ctx, prototype);
+    PyObject *py_dtype = HPy_AsPyObject(ctx, dtype);
+    PyObject *py_ret = PyArray_NewLikeArrayWithShape(py_prototype, order, py_dtype, -1, NULL, subok);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_XDECREF(py_prototype);
+    Py_XDECREF(py_dtype);
+    Py_XDECREF(py_ret);
+    return ret;
+}
+
 /*NUMPY_API
  * Generic new array creation routine.
  */

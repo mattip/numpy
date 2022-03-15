@@ -121,4 +121,8 @@ NPY_NO_EXPORT HPy
 HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
                      int max_depth, int requires, HPy context);
 
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                     HPy dtype, int subok);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

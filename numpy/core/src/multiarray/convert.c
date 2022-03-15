@@ -575,18 +575,13 @@ HPyArray_NewCopy(HPyContext *ctx, HPy obj, NPY_ORDER order)
         return HPy_NULL;
     }
 
-    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    PyObject *py_ret = (PyArrayObject *)PyArray_NewLikeArray(py_obj, order, NULL, 1);
-    ret = HPy_FromPyObject(ctx, py_ret);
-    Py_DECREF(py_obj);
-    Py_DECREF(py_ret);
-
+    ret = HPyArray_NewLikeArray(ctx, obj, order, HPy_NULL, 1);
     if (HPy_IsNull(ret)) {
         return HPy_NULL;
     }
 
-    py_obj = HPy_AsPyObject(ctx, obj);
-    py_ret = HPy_AsPyObject(ctx, ret);
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyObject *py_ret = HPy_AsPyObject(ctx, ret);
     if (PyArray_AssignArray(py_ret, py_obj, NULL, NPY_UNSAFE_CASTING) < 0) {
         Py_DECREF(py_ret);
         Py_DECREF(py_obj);
