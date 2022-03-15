@@ -1651,7 +1651,7 @@ PyArray_NDIM(const PyArrayObject *arr)
 }
 
 static NPY_INLINE int
-HPyArray_NDIM(HPyContext *ctx, HPy arr)
+HPyArray_GetNDim(HPyContext *ctx, HPy arr)
 {
     return ((PyArrayObject_fields *) HPy_AsStructLegacy(ctx, arr))->nd;
 }
@@ -1669,7 +1669,7 @@ PyArray_BYTES(PyArrayObject *arr)
 }
 
 static NPY_INLINE char *
-HPyArray_BYTES(HPyContext *ctx, HPy h_arr)
+HPyArray_GetBytes(HPyContext *ctx, HPy h_arr)
 {
     return HPyArray_AsFields(ctx, h_arr)->data;
 }
