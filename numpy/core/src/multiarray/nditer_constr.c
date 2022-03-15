@@ -434,7 +434,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * copying due to casting/byte order/alignment can be
      * done now using a memory layout matching the iterator.
      */
-    HPy h_subtype = HPy_FromPyObject(ctx, subtype);
+    HPy h_subtype = HPy_FromPyObject(ctx, (PyObject *) subtype);
     if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, h_subtype, op_flags,
                             op_itflags, op_axes)) {
         HPy_Close(ctx, h_subtype);
@@ -1125,7 +1125,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
 
     if (HPyArray_Check(ctx, *op)) {
 
-        PyObject *py_op = HPy_AsPyObject(ctx, *op);
+        py_op = HPy_AsPyObject(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE) {
             /* TODO HPY LABS PORT: cut off to Numpy API */
             capi_warn("hnpyiter_prepare_one_operand");
@@ -1140,8 +1140,8 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
                     "Iteration of zero-sized operands is not enabled");
             goto error;
         }
-        *op_dataptr = HPyArray_BYTES(ctx, *op);
-        *op_dtype = HPyArray_GetDescr(ctx, *op);
+        *op_dataptr = PyArray_BYTES(op_data);
+        *op_dtype = HPyArray_DESCR(ctx, *op, op_data);
         if (HPy_IsNull(*op_dtype)) {
             HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator input operand has no dtype descr");
@@ -1178,7 +1178,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             capi_warn("hnpyiter_prepare_one_operand");
             PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
             PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray((PyArrayObject*) py_op, py_op_request_dtype);
-            HPy h = HPy_FromPyObject(ctx, py_new_descr);
+            HPy h = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
             Py_DECREF(py_op_request_dtype);
             Py_DECREF(py_new_descr);
             HPy_Close(ctx, *op_dtype);
@@ -1395,15 +1395,15 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
         /* If the types aren't equivalent, a cast is necessary */
         if (!HPy_IsNull(op[iop])) {
             HPy h_op_descr = HPyArray_GetDescr(ctx, op[iop]); /* PyArray_DESCR(op[iop]) */
-            PyArray_Descr *op_descr = HPy_AsPyObject(ctx, h_op_descr);
+            PyArray_Descr *op_descr = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_descr);
             HPy_Close(ctx, h_op_descr);
 
-            PyArray_Descr *op_dtype_iop = HPy_AsPyObject(ctx, h_op_dtype[iop]);
+            PyArray_Descr *op_dtype_iop = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_dtype[iop]);
             if (!PyArray_EquivTypes(op_descr, op_dtype_iop)) {
                 /* Check read (op -> temp) casting */
                 /* TODO HPY LABS PORT cut-off 'PyArray_CanCastArrayTo' */
                 capi_warn("hnpyiter_prepare_one_operand");
-                PyArrayObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+                PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
                 if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
                         !PyArray_CanCastArrayTo(py_op_iop,
                                 op_dtype_iop,
@@ -2938,8 +2938,8 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             PyTypeObject *op_subtype;
 
             /* Check whether the subtype was disabled */
-            op_subtype = HPy_AsPyObject(ctx, (op_flags[iop] & NPY_ITER_NO_SUBTYPE) ?
-                                                HPyArray_Type : subtype);
+            op_subtype = (PyTypeObject *) HPy_AsPyObject(ctx, (op_flags[iop] & NPY_ITER_NO_SUBTYPE) ? 
+                                                         HPyArray_Type : subtype);
             Py_XDECREF(op_subtype); // for the incref in HPy_AsPyObject that we did not need...
 
             /*
@@ -2949,6 +2949,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * (but the actual dimension of op can be larger). If op_axes
              * is given, ndim is not actually used.
              */
+            capi_warn("hnpyiter_allocate_arrays");
             out = npyiter_new_temp_array(iter, op_subtype,
                                         flags, &op_itflags[iop],
                                         ndim,
@@ -2959,12 +2960,13 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                 return 0;
             }
 
-            op[iop] = HPy_FromPyObject(ctx, out);
+            op[iop] = HPy_FromPyObject(ctx, (PyObject *) out);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the new array.
              */
+            capi_warn("hnpyiter_allocate_arrays");
             npyiter_replace_axisdata(iter, iop, out, ndim,
                     op_axes ? op_axes[iop] : NULL);
 
@@ -2972,6 +2974,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * New arrays are guaranteed true-aligned, but copy/cast code
              * needs uint-alignment in addition.
              */
+            capi_warn("hnpyiter_allocate_arrays");
             if (IsUintAligned(out)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
@@ -2990,14 +2993,15 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                                                    NPY_OP_ITFLAG_READ) &&
                           PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop])) == 0) {
             PyArrayObject *temp;            
-            PyObject *py_op_dtype_iop = HPy_AsPyObject(ctx, op_dtype[iop]); // implicit increfcnt
+            PyArray_Descr *py_op_dtype_iop = (PyArray_Descr *) HPy_AsPyObject(ctx, op_dtype[iop]); // implicit increfcnt
             temp = (PyArrayObject *)PyArray_NewFromDescr(
                                         &PyArray_Type, py_op_dtype_iop,
                                         0, NULL, NULL, NULL, 0, NULL);
             if (temp == NULL) {
                 return 0;
             }
-            PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
+            capi_warn("hnpyiter_allocate_arrays");
             if (PyArray_CopyInto(temp, py_op_iop) != 0) {
                 Py_DECREF(py_op_iop);
                 Py_DECREF(temp);
@@ -3005,14 +3009,15 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             }
             Py_DECREF(py_op_iop);
             HPy_Close(ctx, op[iop]);
-            op[iop] = HPy_FromPyObject(ctx, temp);
+            op[iop] = HPy_FromPyObject(ctx, (PyObject *) temp);
             Py_DECREF(temp);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the temporary array.
              */
-            py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            capi_warn("hnpyiter_allocate_arrays");
+            py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
             npyiter_replace_axisdata(iter, iop, py_op_iop, 0, NULL);
             Py_DECREF(py_op_iop);
 
@@ -3020,6 +3025,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * New arrays are guaranteed true-aligned, but copy/cast code
              * needs uint-alignment in addition.
              */
+            capi_warn("hnpyiter_allocate_arrays");
             if (IsUintAligned(temp)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
@@ -3046,6 +3052,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             int ondim = PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop]));
 
             /* Allocate the temporary array, if possible */
+            capi_warn("hnpyiter_allocate_arrays");
             temp = npyiter_new_temp_array(iter, &PyArray_Type,
                                         flags, &op_itflags[iop],
                                         ondim,
@@ -3062,7 +3069,8 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              *       op[iop]'s mask instead here.
              */
             if (op_itflags[iop] & NPY_OP_ITFLAG_READ) {
-                PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+                PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
+                capi_warn("hnpyiter_allocate_arrays");
                 if (PyArray_CopyInto(temp, py_op_iop) != 0) {
                     Py_DECREF(py_op_iop);
                     Py_DECREF(temp);
@@ -3072,9 +3080,10 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             }
             /* If the data will be written to, set WRITEBACKIFCOPY
                and require a context manager */
-            PyObject *op_iop = NULL;
+            PyArrayObject *op_iop = NULL;
             if (op_itflags[iop] & NPY_OP_ITFLAG_WRITE) {
-                op_iop = HPy_AsPyObject(ctx, op[iop]);
+                op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
+                capi_warn("hnpyiter_allocate_arrays");
                 if (PyArray_SetWritebackIfCopyBase(temp, op_iop) < 0) {
                     Py_DECREF(temp);
                     return 0;
@@ -3083,14 +3092,15 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             }
 
             Py_XDECREF(op_iop);
-            op[iop] = HPy_FromPyObject(ctx, temp);
+            op[iop] = HPy_FromPyObject(ctx, (PyObject *) temp);
             Py_DECREF(temp);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the temporary array.
              */
-            op_iop = HPy_AsPyObject(ctx, op[iop]);
+            op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
+            capi_warn("hnpyiter_allocate_arrays");
             npyiter_replace_axisdata(iter, iop, op_iop, ondim,
                     op_axes ? op_axes[iop] : NULL);
             Py_DECREF(op_iop);
@@ -3122,7 +3132,8 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * If the operand is aligned, any buffering can use aligned
              * optimizations.
              */
-            PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
+            capi_warn("hnpyiter_allocate_arrays");
             if (IsUintAligned(py_op_iop)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
