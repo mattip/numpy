@@ -24,6 +24,11 @@ static NPY_INLINE
 void capi_warn(const char *where) {
         printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
 }
+static __attribute__ ((noreturn)) NPY_INLINE
+void hpy_abort_not_implemented(const char *where) {
+        printf("FATAL ERROR: not implemented in HPY: %s\n", where);
+        abort();
+}
 
 #ifdef __cplusplus
 }
