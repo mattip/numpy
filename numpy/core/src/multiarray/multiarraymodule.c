@@ -1790,7 +1790,7 @@ finish:
         return ret;
     }
 
-    nd = HPyArray_NDIM(ctx, ret);
+    nd = HPyArray_GetNDim(ctx, ret);
     if (nd >= ndmin) {
         return ret;
     }
