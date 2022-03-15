@@ -20,6 +20,7 @@
 #include "templ_common.h"
 #include "array_assign.h"
 #include "hpy_utils.h"
+#include "ndarrayobject.h"
 
 /* Internal helper functions private to this file */
 static int
@@ -432,11 +433,14 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * copying due to casting/byte order/alignment can be
      * done now using a memory layout matching the iterator.
      */
-    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, subtype, op_flags,
+    HPy h_subtype = HPy_FromPyObject(ctx, subtype);
+    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, h_subtype, op_flags,
                             op_itflags, op_axes)) {
+        HPy_Close(ctx, h_subtype);
         HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
+    HPy_Close(ctx, h_subtype);
 
     NPY_IT_TIME_POINT(c_allocate_arrays);
 
@@ -1095,7 +1099,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             if (HPy_IsNull(*op_dtype)) {
                 /* TODO(fa): cut off to Numpy API */
                 PyArray_Descr *py_op_dtype = PyArray_DescrFromType(NPY_BOOL);
-                *op_dtype = HPy_FromPyObject(ctx, py_op_dtype);
+                *op_dtype = HPy_FromPyObject(ctx, (PyObject*) py_op_dtype);
                 Py_DECREF(py_op_dtype);
                 if (HPy_IsNull(*op_dtype)) {
                     return 0;
@@ -1122,7 +1126,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         PyObject *py_op = HPy_AsPyObject(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE
             /* TODO(fa): cut off to Numpy API */
-            && PyArray_FailUnlessWriteable(py_op, "operand array with iterator "
+            && PyArray_FailUnlessWriteable((PyArrayObject*) py_op, "operand array with iterator "
                                            "write flag set") < 0) {
             goto error;
         }
@@ -1168,7 +1172,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             /* We just have a borrowed reference to op_request_dtype */
             /* TODO(fa): cut off to Numpy API */
             PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
-            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray(py_op, py_op_request_dtype);
+            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray((PyArrayObject*) py_op, py_op_request_dtype);
             HPy h = HPy_FromPyObject(ctx, py_new_descr);
             Py_DECREF(py_op_request_dtype);
             Py_DECREF(py_new_descr);
@@ -1186,7 +1190,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
                 /* Replace with a new descr which is in native byte order */
                 /* TODO(fa): cut off to Numpy API 'PyArray_DescrNewByteorder'*/
                 PyObject *py_op_dtype = HPy_AsPyObject(ctx, *op_dtype);
-                PyArray_Descr *py_new_op_dtype = PyArray_DescrNewByteorder(py_op_dtype, NPY_NATIVE);
+                PyArray_Descr *py_new_op_dtype = PyArray_DescrNewByteorder((PyArray_Descr*) py_op_dtype, NPY_NATIVE);
                 Py_DECREF(py_op_dtype);
                 HPy_Close(ctx, *op_dtype);
                 *op_dtype = HPy_FromPyObject(ctx, (PyObject *)py_new_op_dtype);
@@ -2874,16 +2878,16 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                 PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op[iop]);
                 if ((op_flags[iop] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
                     (op_flags[iother] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
-                    PyArray_BYTES(op_data) == PyArray_BYTES(op[iother]) &&
-                    PyArray_NDIM(op_data) == PyArray_NDIM(op[iother]) &&
+                    PyArray_BYTES(op_data) == PyArray_BYTES(PyArrayObject_AsStruct(ctx, op[iother])) &&
+                    PyArray_NDIM(op_data) == PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iother])) &&
                     PyArray_CompareLists(PyArray_DIMS(op_data),
-                                         PyArray_DIMS(op[iother]),
+                                         PyArray_DIMS(PyArrayObject_AsStruct(ctx, op[iother])),
                                          PyArray_NDIM(op_data)) &&
                     PyArray_CompareLists(PyArray_STRIDES(op_data),
-                                         PyArray_STRIDES(op[iother]),
+                                         PyArray_STRIDES(PyArrayObject_AsStruct(ctx, op[iother])),
                                          PyArray_NDIM(op_data))) {
-                    HPy op_iop_descr = HPyArray_GetDescr(op[iop]);
-                    HPy op_iother_descr = HPyArray_GetDescr(op[iother]);
+                    HPy op_iop_descr = HPyArray_GetDescr(ctx, op[iother]);
+                    HPy op_iother_descr = HPyArray_GetDescr(ctx, op[iother]);
                     int same_descr = HPy_Is(ctx, op_iop_descr, op_iother_descr);
                     HPy_Close(ctx, op_iop_descr);
                     HPy_Close(ctx, op_iother_descr);
@@ -2897,8 +2901,8 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                  * Use max work = 1. If the arrays are large, it might
                  * make sense to go further.
                  */
-                may_share_memory = solve_may_share_memory(op[iop],
-                                                          op[iother],
+                may_share_memory = solve_may_share_memory(PyArrayObject_AsStruct(ctx, op[iop]),
+                                                          PyArrayObject_AsStruct(ctx, op[iother]),
                                                           1);
 
                 if (may_share_memory) {
@@ -2922,13 +2926,14 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
         }
 
         /* NULL means an output the iterator should allocate */
-        if (op[iop] == NULL) {
+        if (HPy_IsNull(op[iop])) {
             PyArrayObject *out;
             PyTypeObject *op_subtype;
 
             /* Check whether the subtype was disabled */
-            op_subtype = (op_flags[iop] & NPY_ITER_NO_SUBTYPE) ?
-                                                &PyArray_Type : subtype;
+            op_subtype = HPy_AsPyObject(ctx, (op_flags[iop] & NPY_ITER_NO_SUBTYPE) ?
+                                                HPyArray_Type : subtype);
+            Py_XDECREF(op_subtype); // for the incref in HPy_AsPyObject that we did not need...
 
             /*
              * Allocate the output array.
@@ -2941,19 +2946,19 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                                         flags, &op_itflags[iop],
                                         ndim,
                                         NULL,
-                                        op_dtype[iop],
+                                        PyArray_Descr_AsStruct(ctx, op_dtype[iop]),
                                         op_axes ? op_axes[iop] : NULL);
             if (out == NULL) {
                 return 0;
             }
 
-            op[iop] = out;
+            op[iop] = HPy_FromPyObject(ctx, out);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the new array.
              */
-            npyiter_replace_axisdata(iter, iop, op[iop], ndim,
+            npyiter_replace_axisdata(iter, iop, out, ndim,
                     op_axes ? op_axes[iop] : NULL);
 
             /*
@@ -2963,6 +2968,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             if (IsUintAligned(out)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
+            Py_XDECREF(out);
             /* New arrays need no cast */
             op_itflags[iop] &= ~NPY_OP_ITFLAG_CAST;
         }
@@ -2975,27 +2981,33 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                          NPY_OP_ITFLAG_READ |
                          NPY_OP_ITFLAG_WRITE)) == (NPY_OP_ITFLAG_CAST |
                                                    NPY_OP_ITFLAG_READ) &&
-                          PyArray_NDIM(op[iop]) == 0) {
-            PyArrayObject *temp;
-            Py_INCREF(op_dtype[iop]);
+                          PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop])) == 0) {
+            PyArrayObject *temp;            
+            PyObject *py_op_dtype_iop = HPy_AsPyObject(ctx, op_dtype[iop]); // implicit increfcnt
             temp = (PyArrayObject *)PyArray_NewFromDescr(
-                                        &PyArray_Type, op_dtype[iop],
+                                        &PyArray_Type, py_op_dtype_iop,
                                         0, NULL, NULL, NULL, 0, NULL);
             if (temp == NULL) {
                 return 0;
             }
-            if (PyArray_CopyInto(temp, op[iop]) != 0) {
+            PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            if (PyArray_CopyInto(temp, py_op_iop) != 0) {
+                Py_DECREF(py_op_iop);
                 Py_DECREF(temp);
                 return 0;
             }
-            Py_DECREF(op[iop]);
-            op[iop] = temp;
+            Py_DECREF(py_op_iop);
+            HPy_Close(ctx, op[iop]);
+            op[iop] = HPy_FromPyObject(ctx, temp);
+            Py_DECREF(temp);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the temporary array.
              */
-            npyiter_replace_axisdata(iter, iop, op[iop], 0, NULL);
+            py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            npyiter_replace_axisdata(iter, iop, py_op_iop, 0, NULL);
+            Py_DECREF(py_op_iop);
 
             /*
              * New arrays are guaranteed true-aligned, but copy/cast code
@@ -3024,14 +3036,14 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                         (NPY_ITER_COPY|NPY_ITER_UPDATEIFCOPY))) ||
                  (op_itflags[iop] & NPY_OP_ITFLAG_FORCECOPY)) {
             PyArrayObject *temp;
-            int ondim = PyArray_NDIM(op[iop]);
+            int ondim = PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop]));
 
             /* Allocate the temporary array, if possible */
             temp = npyiter_new_temp_array(iter, &PyArray_Type,
                                         flags, &op_itflags[iop],
                                         ondim,
-                                        PyArray_DIMS(op[iop]),
-                                        op_dtype[iop],
+                                        PyArray_DIMS(PyArrayObject_AsStruct(ctx, op[iop])),
+                                        PyArray_Descr_AsStruct(ctx, op_dtype[iop]),
                                         op_axes ? op_axes[iop] : NULL);
             if (temp == NULL) {
                 return 0;
@@ -3043,31 +3055,38 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              *       op[iop]'s mask instead here.
              */
             if (op_itflags[iop] & NPY_OP_ITFLAG_READ) {
-                if (PyArray_CopyInto(temp, op[iop]) != 0) {
+                PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+                if (PyArray_CopyInto(temp, py_op_iop) != 0) {
+                    Py_DECREF(py_op_iop);
                     Py_DECREF(temp);
                     return 0;
                 }
+                Py_DECREF(py_op_iop);
             }
             /* If the data will be written to, set WRITEBACKIFCOPY
                and require a context manager */
+            PyObject *op_iop = NULL;
             if (op_itflags[iop] & NPY_OP_ITFLAG_WRITE) {
-                Py_INCREF(op[iop]);
-                if (PyArray_SetWritebackIfCopyBase(temp, op[iop]) < 0) {
+                op_iop = HPy_AsPyObject(ctx, op[iop]);
+                if (PyArray_SetWritebackIfCopyBase(temp, op_iop) < 0) {
                     Py_DECREF(temp);
                     return 0;
                 }
                 op_itflags[iop] |= NPY_OP_ITFLAG_HAS_WRITEBACK;
             }
 
-            Py_DECREF(op[iop]);
-            op[iop] = temp;
+            Py_XDECREF(op_iop);
+            op[iop] = HPy_FromPyObject(ctx, temp);
+            Py_DECREF(temp);
 
             /*
              * Now we need to replace the pointers and strides with values
              * from the temporary array.
              */
-            npyiter_replace_axisdata(iter, iop, op[iop], ondim,
+            op_iop = HPy_AsPyObject(ctx, op[iop]);
+            npyiter_replace_axisdata(iter, iop, op_iop, ondim,
                     op_axes ? op_axes[iop] : NULL);
+            Py_DECREF(op_iop);
 
             /*
              * New arrays are guaranteed true-aligned, but copy/cast code
@@ -3096,9 +3115,11 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * If the operand is aligned, any buffering can use aligned
              * optimizations.
              */
-            if (IsUintAligned(op[iop])) {
+            PyObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
+            if (IsUintAligned(py_op_iop)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
+            Py_DECREF(py_op_iop);
         }
 
         /* Here we can finally check for contiguous iteration */
@@ -3106,7 +3127,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             NpyIter_AxisData *axisdata = NIT_AXISDATA(iter);
             npy_intp stride = NAD_STRIDES(axisdata)[iop];
 
-            if (stride != op_dtype[iop]->elsize) {
+            if (stride != PyArray_Descr_AsStruct(ctx, op_dtype[iop])->elsize) {
                 NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
                                     "because of NPY_ITER_CONTIG\n");
                 op_itflags[iop] |= NPY_OP_ITFLAG_CAST;
@@ -3132,7 +3153,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                 op_itflags[iop] |= NPY_OP_ITFLAG_BUFNEVER;
                 NBF_STRIDES(bufferdata)[iop] = NAD_STRIDES(axisdata)[iop];
             }
-            else if (PyArray_NDIM(op[iop]) > 0) {
+            else if (PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop])) > 0) {
                 npy_intp stride, shape, innerstride = 0, innershape;
                 npy_intp sizeof_axisdata =
                                     NIT_AXISDATA_SIZEOF(itflags, ndim, nop);
