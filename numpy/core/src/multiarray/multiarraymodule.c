@@ -1725,8 +1725,7 @@ _hpy_array_fromobject_generic(
                     HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Unable to avoid copy while creating a new array.");
                     return HPy_NULL;
-                }
-                capi_warn("np.array: array copy");
+                }                
                 ret = HPyArray_NewCopy(ctx, op, order);
                 goto finish;
             }

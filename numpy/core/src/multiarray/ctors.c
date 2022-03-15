@@ -1018,6 +1018,49 @@ PyArray_NewFromDescr(
             flags, obj, NULL);
 }
 
+
+/*
+ * Sets the base object using PyArray_SetBaseObject
+ */
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescrAndBase(
+        HPyContext *ctx, HPy subtype, HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj, HPy base)
+{
+    capi_warn("HPyArray_NewFromDescrAndBase: HPyArray_NewFromDescr_int needs PyObject/PyArray_Descr");
+    PyObject *py_descr = HPy_AsPyObject(ctx, descr);
+    HPy res = HPyArray_NewFromDescr_int(ctx, subtype, (PyArray_Descr*) py_descr, nd,
+                                    dims, strides, data,
+                                    flags, obj, base, 0, 0);
+    Py_XDECREF(py_descr);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescr(
+        HPyContext *ctx, HPy subtype, HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj)
+{
+    if (HPy_IsNull(subtype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "subtype is NULL in PyArray_NewFromDescr");
+        return HPy_NULL;
+    }
+
+    if (HPy_IsNull(descr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "descr is NULL in PyArray_NewFromDescr");
+        return HPy_NULL;
+    }
+
+    return HPyArray_NewFromDescrAndBase(
+            ctx, subtype, descr,
+            nd, dims, strides, data,
+            flags, obj, HPy_NULL);
+}
+
 /*
  * Sets the base object using PyArray_SetBaseObject
  */
@@ -1144,6 +1187,104 @@ PyArray_NewLikeArrayWithShape(PyArrayObject *prototype, NPY_ORDER order,
     return ret;
 }
 
+#include "arrayobject.h"
+
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArrayWithShape(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                              HPy dtype, int ndim, npy_intp const *dims, int subok)
+{
+    HPy ret = HPy_NULL;
+    PyArrayObject *prototype_arr = PyArrayObject_AsStruct(ctx, prototype);
+
+    if (ndim == -1) {
+        ndim = PyArray_NDIM(prototype_arr);
+        dims = PyArray_DIMS(prototype_arr);
+    }
+    else if (order == NPY_KEEPORDER && (ndim != PyArray_NDIM(prototype_arr))) {
+        order = NPY_CORDER;
+    }
+
+    /* If no override data type, use the one from the prototype */
+    if (HPy_IsNull(dtype)) {
+        dtype = HPyArray_DESCR(ctx, prototype, prototype_arr);
+    }
+
+    /* Handle ANYORDER and simple KEEPORDER cases */
+    switch (order) {
+        case NPY_ANYORDER:
+            order = PyArray_ISFORTRAN(prototype_arr) ?
+                                    NPY_FORTRANORDER : NPY_CORDER;
+            break;
+        case NPY_KEEPORDER:
+            if (PyArray_IS_C_CONTIGUOUS(prototype_arr) || ndim <= 1) {
+                order = NPY_CORDER;
+                break;
+            }
+            else if (PyArray_IS_F_CONTIGUOUS(prototype_arr)) {
+                order = NPY_FORTRANORDER;
+                break;
+            }
+            break;
+        default:
+            break;
+    }
+
+    /* If it's not KEEPORDER, this is simple */
+    if (order != NPY_KEEPORDER) {
+        ret = HPyArray_NewFromDescr(ctx,
+                        subok ? HPy_Type(ctx, prototype) : HPyArray_Type,
+                        dtype,
+                        ndim,
+                        dims,
+                        NULL,
+                        NULL,
+                        order,
+                        subok ? prototype : HPy_NULL);
+    }
+    /* KEEPORDER needs some analysis of the strides */
+    else {
+        npy_intp strides[NPY_MAXDIMS], stride;
+        npy_stride_sort_item strideperm[NPY_MAXDIMS];
+        int idim;
+
+        hpy_abort_not_implemented("HPyArray_NewLikeArrayWithShape: KEEPORDER");
+        // PyArray_CreateSortedStridePerm(ndim,
+        //                                 PyArray_STRIDES(prototype),
+        //                                 strideperm);
+
+        // /* Build the new strides */
+        // stride = dtype->elsize;
+        // if (stride == 0 && PyDataType_ISSTRING(dtype)) {
+        //     /* Special case for dtype=str or dtype=bytes. */
+        //     if (dtype->type_num == NPY_STRING) {
+        //         /* dtype is bytes */
+        //         stride = 1;
+        //     }
+        //     else {
+        //         /* dtype is str (type_num is NPY_UNICODE) */
+        //         stride = 4;
+        //     }
+        // }
+        // for (idim = ndim-1; idim >= 0; --idim) {
+        //     npy_intp i_perm = strideperm[idim].perm;
+        //     strides[i_perm] = stride;
+        //     stride *= dims[i_perm];
+        // }
+
+        // /* Finally, allocate the array */
+        // ret = PyArray_NewFromDescr(subok ? Py_TYPE(prototype) : &PyArray_Type,
+        //                                 dtype,
+        //                                 ndim,
+        //                                 dims,
+        //                                 strides,
+        //                                 NULL,
+        //                                 0,
+        //                                 subok ? (PyObject *)prototype : NULL);
+    }
+
+    return ret;
+}
+
 /*NUMPY_API
  * Creates a new array with the same shape as the provided one,
  * with possible memory layout order and data type changes.
@@ -1181,14 +1322,8 @@ HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
             "prototype is NULL in PyArray_NewLikeArray");
         return HPy_NULL;
     }
-    PyObject *py_prototype = HPy_AsPyObject(ctx, prototype);
-    PyObject *py_dtype = HPy_AsPyObject(ctx, dtype);
-    PyObject *py_ret = PyArray_NewLikeArrayWithShape(py_prototype, order, py_dtype, -1, NULL, subok);
-    HPy ret = HPy_FromPyObject(ctx, py_ret);
-    Py_XDECREF(py_prototype);
-    Py_XDECREF(py_dtype);
-    Py_XDECREF(py_ret);
-    return ret;
+
+    return HPyArray_NewLikeArrayWithShape(ctx, prototype, order, dtype, -1, NULL, subok);
 }
 
 /*NUMPY_API
