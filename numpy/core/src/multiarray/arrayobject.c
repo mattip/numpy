@@ -447,12 +447,23 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
         return 0;
     }
     HPyContext *ctx = npy_get_context();
-    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
-    HPy h_base = HPyArray_GetBase(ctx, h_arr);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+    int res = HPyArray_ResolveWritebackIfCopy(ctx, h_self);
+    HPy_Close(ctx, h_self);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self)
+{
+    if (HPy_IsNull(self)) {
+        return 0;
+    }
+    HPy h_base = HPyArray_GetBase(ctx, self);
 
     if (!HPy_IsNull(h_base)) {
 
-        int flags = HPyArray_FLAGS(ctx, h_arr);
+        int flags = HPyArray_FLAGS(ctx, self);
         if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
             /*
              * WRITEBACKIFCOPY means that base's data
@@ -463,14 +474,16 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
              */
             int retval = 0;
             HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
-            HPyArray_CLEARFLAGS(ctx, h_arr, NPY_ARRAY_WRITEBACKIFCOPY);
+            HPyArray_CLEARFLAGS(ctx, self, NPY_ARRAY_WRITEBACKIFCOPY);
+            capi_warn("HPyArray_ResolveWritebackIfCopy");
             PyObject *base = HPy_AsPyObject(ctx, h_base);
+            PyObject *py_self = HPy_AsPyObject(ctx, self);
             HPy_Close(ctx, h_base);
-            retval = PyArray_CopyAnyInto((PyArrayObject *)base, self);
+            retval = PyArray_CopyAnyInto((PyArrayObject *)base, py_self);
+            Py_DECREF(py_self);
             Py_DECREF(base);
-            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+            HPyArray_SetBase(ctx, self, HPy_NULL);
 
-            HPy_Close(ctx, h_arr);
             if (retval < 0) {
                 /* this should never happen, how did the two copies of data
                  * get out of sync?
@@ -480,7 +493,6 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
             return 1;
         }
     }
-    HPy_Close(ctx, h_arr);
     return 0;
 }
 

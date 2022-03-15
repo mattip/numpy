@@ -246,6 +246,10 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
         PyArray_FromDimsAndDataAndDescr(nd, d, PyArray_DescrFromType(type),   \
                                         data)
 
+/* Numpy HPy API */
+
+NPY_NO_EXPORT int
+HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self);
 
 /*
    Check to see if this key in the dictionary is the "title"
