@@ -365,5 +365,7 @@ NPY_NO_EXPORT int
 hnpyiter_copy_to_buffers(HPyContext *ctx, NpyIter *iter, char **prev_dataptrs);
 NPY_NO_EXPORT int
 hnpyiter_copy_from_buffers(HPyContext *ctx, NpyIter *iter);
+NPY_NO_EXPORT void
+hnpyiter_clear_buffers(HPyContext *ctx, NpyIter *iter);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_IMPL_H_ */

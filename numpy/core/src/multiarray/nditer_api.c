@@ -2690,6 +2690,12 @@ hnpyiter_copy_to_buffers(HPyContext *ctx, NpyIter *iter, char **prev_dataptrs)
 NPY_NO_EXPORT void
 npyiter_clear_buffers(NpyIter *iter)
 {
+    hnpyiter_clear_buffers(npy_get_context(), iter);
+}
+
+NPY_NO_EXPORT void
+hnpyiter_clear_buffers(HPyContext *ctx, NpyIter *iter)
+{
     int nop = iter->nop;
     NpyIter_BufferData *bufferdata = NIT_BUFFERDATA(iter);
 
@@ -2719,7 +2725,7 @@ npyiter_clear_buffers(NpyIter *iter)
 
     /* Cleanup any buffers with references */
     char **buffers = NBF_BUFFERS(bufferdata);
-    PyArray_Descr **dtypes = NpyIter_GetDescrArray(iter);
+    HPy *dtypes = HNpyIter_GetDescrArray(iter);
     npyiter_opitflags *op_itflags = NIT_OPITFLAGS(iter);
     for (int iop = 0; iop < nop; ++iop, ++buffers) {
         /*
@@ -2729,20 +2735,21 @@ npyiter_clear_buffers(NpyIter *iter)
          * a well defined state (either NULL or owning the reference).
          * Only we implement cleanup
          */
-        if (!PyDataType_REFCHK(dtypes[iop]) ||
+        PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtypes[iop]);
+        if (!PyDataType_REFCHK(py_dtype) ||
                 !(op_itflags[iop]&NPY_OP_ITFLAG_USINGBUFFER)) {
             continue;
         }
         if (*buffers == 0) {
             continue;
         }
-        int itemsize = dtypes[iop]->elsize;
+        int itemsize = py_dtype->elsize;
         for (npy_intp i = 0; i < NBF_SIZE(bufferdata); i++) {
             /*
              * See above comment, if this API is expanded the GIL assumption
              * could become incorrect.
              */
-            PyArray_Item_XDECREF(*buffers + (itemsize * i), dtypes[iop]);
+            PyArray_Item_XDECREF(*buffers + (itemsize * i), py_dtype);
         }
         /* Clear out the buffer just to be sure */
         memset(*buffers, 0, NBF_SIZE(bufferdata) * itemsize);
