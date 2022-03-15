@@ -673,6 +673,8 @@ typedef struct _PyArray_Descr {
         npy_hash_t hash;
 } PyArray_Descr;
 
+HPyType_LEGACY_HELPERS(PyArray_Descr)
+
 typedef struct _arr_descr {
         PyArray_Descr *base;
         PyObject *shape;       /* a tuple */
@@ -775,10 +777,12 @@ typedef struct tagPyArrayObject {
 } PyArrayObject;
 #endif
 
+HPyType_LEGACY_HELPERS(PyArrayObject)
+
 static NPY_INLINE PyArrayObject_fields *
 HPyArray_AsFields(HPyContext *ctx, HPy h)
 {
-    return (PyArrayObject_fields*)HPy_AsStructLegacy(ctx, h);
+    return (PyArrayObject_fields*)PyArrayObject_AsStruct(ctx, h);
 }
 
 /*
@@ -1552,6 +1556,12 @@ HPyArray_GetDescr(HPyContext *ctx, HPy arr)
     return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_descr);
 }
 
+static NPY_INLINE HPy
+HPyArray_DESCR(HPyContext *ctx, HPy arr, const PyArrayObject *arr_data)
+{
+    return HPyField_Load(ctx, arr, ((PyArrayObject_fields *)arr_data)->f_descr);
+}
+
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
 PyArray_DESCR(const PyArrayObject *arr)
 {
@@ -1635,6 +1645,12 @@ PyArray_NDIM(const PyArrayObject *arr)
     return ((PyArrayObject_fields *)arr)->nd;
 }
 
+static NPY_INLINE int
+HPyArray_NDIM(HPyContext *ctx, HPy arr)
+{
+    return ((PyArrayObject_fields *) HPy_AsStructLegacy(ctx, arr))->nd;
+}
+
 static NPY_INLINE void *
 PyArray_DATA(PyArrayObject *arr)
 {
@@ -1645,6 +1661,12 @@ static NPY_INLINE char *
 PyArray_BYTES(PyArrayObject *arr)
 {
     return ((PyArrayObject_fields *)arr)->data;
+}
+
+static NPY_INLINE char *
+HPyArray_BYTES(HPyContext *ctx, HPy h_arr)
+{
+    return HPyArray_AsFields(ctx, h_arr)->data;
 }
 
 static NPY_INLINE npy_intp *
@@ -1684,6 +1706,24 @@ PyArray_ITEMSIZE(const PyArrayObject *arr)
     return PyArray_DESCR(arr)->elsize;
 }
 
+static NPY_INLINE npy_intp
+HPyArray_ITEMSIZE(HPyContext *ctx, HPy arr, const PyArrayObject *arr_data)
+{
+    HPy descr = HPyArray_DESCR(ctx, arr, arr_data);
+    npy_intp res = PyArray_Descr_AsStruct(ctx, descr)->elsize;
+    HPy_Close(ctx, descr);
+    return res;
+}
+
+static NPY_INLINE npy_intp
+HPyArray_GetItemsize(HPyContext *ctx, HPy arr)
+{
+    HPy descr = HPyArray_GetDescr(ctx, arr);
+    npy_intp res = PyArray_Descr_AsStruct(ctx, descr)->elsize;
+    HPy_Close(ctx, descr);
+    return res;
+}
+
 static NPY_INLINE int
 PyArray_TYPE(const PyArrayObject *arr)
 {
@@ -1718,6 +1758,12 @@ static NPY_INLINE PyArray_Descr *
 PyArray_DTYPE(PyArrayObject *arr)
 {
     return PyArray_DESCR(arr);
+}
+
+static NPY_INLINE HPy
+HPyArray_DTYPE(HPyContext *ctx, HPy arr)
+{
+    return HPyArray_GetDescr(ctx, arr);
 }
 
 static NPY_INLINE npy_intp *

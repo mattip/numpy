@@ -28,6 +28,7 @@ array_might_be_written(PyArrayObject *obj);
 static const int NPY_ARRAY_WARN_ON_WRITE = (1 << 31);
 
 extern NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec;
+extern NPY_NO_EXPORT HPy HPyArray_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYOBJECT_H_ */
