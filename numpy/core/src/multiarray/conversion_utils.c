@@ -1169,7 +1169,7 @@ HPyArray_IntpFromIndexSequence(HPyContext *ctx, HPy seq, npy_intp *vals, npy_int
 {
     HPy_ssize_t nd;
     npy_intp i;
-    HPy op, err;
+    HPy op;
 
     /*
      * Check to see if sequence is a single integer first.

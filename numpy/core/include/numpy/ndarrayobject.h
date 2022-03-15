@@ -28,6 +28,8 @@ extern "C" {
 
 #define PyArray_Check(op) PyObject_TypeCheck(op, &PyArray_Type)
 #define PyArray_CheckExact(op) (((PyObject*)(op))->ob_type == &PyArray_Type)
+#define HPyArray_Check(ctx, op) HPy_TypeCheck(ctx, op, HPyArray_Type)
+#define HPyArray_CheckExact(ctx, op) HPy_Is(ctx, op, HPyArray_Type)
 
 #define PyArray_HasArrayInterfaceType(op, type, context, out)                 \
         ((((out)=PyArray_FromStructInterface(op)) != Py_NotImplemented) ||    \

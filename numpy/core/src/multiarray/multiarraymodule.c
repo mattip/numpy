@@ -111,6 +111,7 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
 
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
+NPY_NO_EXPORT HPy HPyArray_Type;
 NPY_NO_EXPORT HPy HPyArrayDescr_Type;
 
 /* Only here for API compatibility */
@@ -4870,6 +4871,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
+    HPyArray_Type = HPy_Dup(ctx, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
     HPy_Close(ctx, h_array_type);
 
