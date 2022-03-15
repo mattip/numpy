@@ -41,7 +41,7 @@ HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
             return HPy_NULL;
         }
 
-        flags = PyArray_FLAGS((PyArrayObject *)HPy_AsStructLegacy(ctx, obj));
+        flags = PyArray_FLAGS(PyArrayObject_AsStruct(ctx, obj));
     }
     flagobj = HPy_New(ctx, flags_type, &data);
     HPy_Close(ctx, array_type);
@@ -484,7 +484,7 @@ arrayflags_warn_on_write_set_impl(HPyContext *ctx,
     if (ret > 0) {
         data = PyArrayFlagsObject_AsStruct(ctx, self);
         h_arr = HPyField_Load(ctx, self, data->arr);
-        array_data = (PyArrayObject*)HPy_AsStructLegacy(ctx, h_arr);
+        array_data = PyArrayObject_AsStruct(ctx, h_arr);
         if (!(PyArray_FLAGS(array_data) & NPY_ARRAY_WRITEABLE)) {
             HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot set '_warn_on_write' flag when 'writable' is "

@@ -1977,7 +1977,7 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
 {
     PyArray_Descr *newdescr;
     // ATTENTION! When changing to non-legacy: update also the memcopy below
-    PyArray_Descr *base = HPy_AsStructLegacy(ctx, h_base);
+    PyArray_Descr *base = PyArray_Descr_AsStruct(ctx, h_base);
     HPy h_newdescr = HPy_New(ctx, HPy_Type(ctx, h_base), &newdescr);
 
     if (HPy_IsNull(h_newdescr)) {

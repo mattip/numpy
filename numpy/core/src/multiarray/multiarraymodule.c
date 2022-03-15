@@ -1699,7 +1699,7 @@ _hpy_array_fromobject_generic(
     PyArrayObject *oparr;
     HPy oldtype = HPy_NULL;
     PyArray_Descr *oldtype_data;
-    PyArray_Descr *type_data = HPy_AsStructLegacy(ctx, type);
+    PyArray_Descr *type_data = PyArray_Descr_AsStruct(ctx, type);
     int nd, flags = 0;
 
     if (ndmin > NPY_MAXDIMS) {
@@ -1714,7 +1714,7 @@ _hpy_array_fromobject_generic(
     // It would be faster to check subok first and then exact or subclass check
     if (HPy_Is(ctx, HPy_Type(ctx, op), h_array_type_global) || 
         (subok && HPy_TypeCheck(ctx, op, h_array_type_global))) {
-        oparr = (PyArrayObject *) HPy_AsStructLegacy(ctx, op);
+        oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);
@@ -1733,7 +1733,7 @@ _hpy_array_fromobject_generic(
         }
         /* One more chance */
         oldtype = HPyArray_DESCR(ctx, op, oparr);
-        oldtype_data = HPy_AsStructLegacy(ctx, oldtype);
+        oldtype_data = PyArray_Descr_AsStruct(ctx, oldtype);
         HPy_Close(ctx, oldtype); // HPY TODO: assumes that oldtype stays alive -> fix when porting this code
         capi_warn("np.array: PyArray_EquivTypes");
         if (PyArray_EquivTypes(oldtype_data, type_data)) {
@@ -4994,7 +4994,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
     // HPY note: we initialize to the same as the previous static initializer
-    PyArray_DTypeMeta *pyarry_descr_data = (PyArray_DTypeMeta*) HPy_AsStructLegacy(ctx, h_PyArrayDescr_Type);
+    PyArray_DTypeMeta *pyarry_descr_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArrayDescr_Type);
     pyarry_descr_data->type_num = -1;
     pyarry_descr_data->flags = NPY_DT_ABSTRACT;
     pyarry_descr_data->singleton = NULL;

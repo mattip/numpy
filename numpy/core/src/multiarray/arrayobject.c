@@ -1557,7 +1557,7 @@ HPyArray_ElementStrides(HPyContext *ctx, HPy obj)
         return 0;
     }
 
-    return _PyArray_ElementStrides(HPy_AsStructLegacy(ctx, obj));
+    return _PyArray_ElementStrides(PyArrayObject_AsStruct(ctx, obj));
 }
 
 /*

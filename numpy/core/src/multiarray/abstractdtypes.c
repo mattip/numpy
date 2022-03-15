@@ -125,7 +125,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
         HPy_Close(ctx, h_PyArray_PyIntAbstractDType);
         goto cleanup;
     }
-    PyArray_DTypeMeta *int_abstract_dtype_data = (PyArray_DTypeMeta *) HPy_AsStructLegacy(ctx, h_PyArray_PyIntAbstractDType);
+    PyArray_DTypeMeta *int_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyIntAbstractDType);
     int_abstract_dtype_data->dt_slots = &pyintabstractdtype_slots;
     int_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     int_abstract_dtype_data->scalar_type = &PyLong_Type;
@@ -137,7 +137,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
         HPy_Close(ctx, h_PyArray_PyFloatAbstractDType);
         goto cleanup;
     }
-    PyArray_DTypeMeta *float_abstract_dtype_data = (PyArray_DTypeMeta *) HPy_AsStructLegacy(ctx, h_PyArray_PyFloatAbstractDType);
+    PyArray_DTypeMeta *float_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyFloatAbstractDType);
     float_abstract_dtype_data->dt_slots = &pyfloatabstractdtype_slots;
     float_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     float_abstract_dtype_data->scalar_type = &PyFloat_Type;
@@ -149,7 +149,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
         HPy_Close(ctx, h_PyArray_PyComplexAbstractDType);
         goto cleanup;
     }
-    PyArray_DTypeMeta *complex_abstract_dtype_data = (PyArray_DTypeMeta *) HPy_AsStructLegacy(ctx, h_PyArray_PyComplexAbstractDType);
+    PyArray_DTypeMeta *complex_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyComplexAbstractDType);
     complex_abstract_dtype_data->dt_slots = &pycomplexabstractdtype_slots;
     complex_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     complex_abstract_dtype_data->scalar_type = &PyComplex_Type;

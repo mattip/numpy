@@ -1653,7 +1653,7 @@ PyArray_NDIM(const PyArrayObject *arr)
 static NPY_INLINE int
 HPyArray_GetNDim(HPyContext *ctx, HPy arr)
 {
-    return ((PyArrayObject_fields *) HPy_AsStructLegacy(ctx, arr))->nd;
+    return ((PyArrayObject_fields *) PyArrayObject_AsStruct(ctx, arr))->nd;
 }
 
 static NPY_INLINE void *
@@ -2069,6 +2069,8 @@ typedef void (PyDataMem_EventHookFunc)(void *inp, void *outp, size_t size,
         void *dt_slots;
         void *reserved[3];
     } PyArray_DTypeMeta;
+
+    HPyType_LEGACY_HELPERS(PyArray_DTypeMeta);
 
 #endif  /* NPY_INTERNAL_BUILD */
 

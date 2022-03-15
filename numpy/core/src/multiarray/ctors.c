@@ -2031,9 +2031,9 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
 {
     PyArray_Descr *descr_data;
     if (!HPy_IsNull(descr)) {
-        descr_data = (PyArray_Descr*) HPy_AsStructLegacy(ctx, descr);
+        descr_data = PyArray_Descr_AsStruct(ctx, descr);
     }
-    PyArrayObject *oparr = (PyArrayObject*) HPy_AsStructLegacy(ctx, op);
+    PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
     if (requires & NPY_ARRAY_NOTSWAPPED) {
         if (HPy_IsNull(descr) && HPyArray_Check(ctx, op) &&
                 PyArray_ISBYTESWAPPED(oparr)) {
@@ -2041,7 +2041,7 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
             if (HPy_IsNull(descr)) {
                 return HPy_NULL;
             }
-            descr_data = (PyArray_Descr*) HPy_AsStructLegacy(ctx, descr);
+            descr_data = PyArray_Descr_AsStruct(ctx, descr);
         }
         else if (!HPy_IsNull(descr) && !PyArray_ISNBO(descr_data->byteorder)) {
             hpy_abort_not_implemented("HPyArray_CheckFromAny: PyArray_DESCR_REPLACE");
