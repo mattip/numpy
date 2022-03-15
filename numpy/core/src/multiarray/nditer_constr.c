@@ -86,9 +86,9 @@ npyiter_new_temp_array(NpyIter *iter, PyTypeObject *subtype,
                 int op_ndim, npy_intp const *shape,
                 PyArray_Descr *op_dtype, const int *op_axes);
 static int
-npyiter_allocate_arrays(NpyIter *iter,
+hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                         npy_uint32 flags,
-                        PyArray_Descr **op_dtype, PyTypeObject *subtype,
+                        HPy *op_dtype, HPy subtype,
                         const npy_uint32 *op_flags, npyiter_opitflags *op_itflags,
                         int **op_axes);
 static void
@@ -266,7 +266,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     /* Fill in the AXISDATA arrays and set the ITERSIZE field */
     if (!npyiter_fill_axisdata(iter, flags, op_itflags, op_dataptr,
                                         op_flags, op_axes, itershape)) {
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
 
@@ -420,7 +420,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * casting rules.
      */
     if (!hnpyiter_check_casting(ctx, nop, op, op_dtype, casting, op_itflags)) {
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
 
@@ -432,9 +432,9 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * copying due to casting/byte order/alignment can be
      * done now using a memory layout matching the iterator.
      */
-    if (!npyiter_allocate_arrays(iter, flags, op_dtype, subtype, op_flags,
+    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, subtype, op_flags,
                             op_itflags, op_axes)) {
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
 
@@ -499,19 +499,19 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     /* If buffering is set without delayed allocation */
     if (itflags & NPY_ITFLAG_BUFFER) {
         if (!npyiter_allocate_transfer_functions(iter)) {
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(ctx, iter);
             return NULL;
         }
         if (!(itflags & NPY_ITFLAG_DELAYBUF)) {
             /* Allocate the buffers */
             if (!npyiter_allocate_buffers(iter, NULL)) {
-                NpyIter_Deallocate(iter);
+                HNpyIter_Deallocate(ctx, iter);
                 return NULL;
             }
 
             /* Prepare the next buffers and set iterend/size */
             if (npyiter_copy_to_buffers(iter, NULL) < 0) {
-                NpyIter_Deallocate(iter);
+                HNpyIter_Deallocate(ctx, iter);
                 return NULL;
             }
         }
@@ -690,13 +690,21 @@ NpyIter_Copy(NpyIter *iter)
 NPY_NO_EXPORT int
 NpyIter_Deallocate(NpyIter *iter)
 {
-    int success = PyErr_Occurred() == NULL;
+    return HNpyIter_Deallocate(npy_get_context(), iter);
+}
+
+NPY_NO_EXPORT int
+HNpyIter_Deallocate(HPyContext *ctx, NpyIter *iter)
+{
+    int success = !HPyErr_Occurred(ctx);
 
     npy_uint32 itflags;
     /*int ndim = NIT_NDIM(iter);*/
     int iop, nop;
-    PyArray_Descr **dtype;
-    PyArrayObject **object;
+    // PyArray_Descr **dtype;
+    // PyArrayObject **object;
+    HPy *dtype;
+    HPy *object;
     npyiter_opitflags *op_itflags;
 
     if (iter == NULL) {
@@ -713,12 +721,12 @@ NpyIter_Deallocate(NpyIter *iter)
     if (itflags & NPY_ITFLAG_BUFFER) {
         /* Ensure no data is held by the buffers before they are cleared */
         if (success) {
-            if (npyiter_copy_from_buffers(iter) < 0) {
+            if (hnpyiter_copy_from_buffers(ctx, iter) < 0) {
                 success = NPY_FAIL;
             }
         }
         else {
-            npyiter_clear_buffers(iter);
+            hnpyiter_clear_buffers(ctx, iter);
         }
 
         NpyIter_BufferData *bufferdata = NIT_BUFFERDATA(iter);
@@ -744,15 +752,15 @@ NpyIter_Deallocate(NpyIter *iter)
      */
     for (iop = 0; iop < nop; ++iop, ++dtype, ++object) {
         if (op_itflags[iop] & NPY_OP_ITFLAG_HAS_WRITEBACK) {
-            if (success && PyArray_ResolveWritebackIfCopy(*object) < 0) {
+            if (success && HPyArray_ResolveWritebackIfCopy(ctx, *object) < 0) {
                 success = 0;
             }
             else {
-                PyArray_DiscardWritebackIfCopy(*object);
+                HPyArray_DiscardWritebackIfCopy(ctx, *object);
             }
         }
-        Py_XDECREF(*dtype);
-        Py_XDECREF(*object);
+        HPy_Close(ctx, *dtype);
+        HPy_Close(ctx, *object);
     }
 
     /* Deallocate the iterator memory */
@@ -2788,12 +2796,13 @@ npyiter_new_temp_array(NpyIter *iter, PyTypeObject *subtype,
 }
 
 static int
-npyiter_allocate_arrays(NpyIter *iter,
+hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                         npy_uint32 flags,
-                        PyArray_Descr **op_dtype, PyTypeObject *subtype,
+                        HPy *op_dtype, HPy subtype,
                         const npy_uint32 *op_flags, npyiter_opitflags *op_itflags,
                         int **op_axes)
 {
+    // PyArray_Descr **op_dtype, PyTypeObject *subtype,
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int idim, ndim = NIT_NDIM(iter);
     int iop, nop = NIT_NOP(iter);
@@ -2801,7 +2810,7 @@ npyiter_allocate_arrays(NpyIter *iter,
     int check_writemasked_reductions = 0;
 
     NpyIter_BufferData *bufferdata = NULL;
-    PyArrayObject **op = NIT_OPERANDS(iter);
+    HPy *op = NIT_OPERANDS(iter);
 
     if (itflags & NPY_ITFLAG_BUFFER) {
         bufferdata = NIT_BUFFERDATA(iter);
@@ -2825,7 +2834,7 @@ npyiter_allocate_arrays(NpyIter *iter,
             int may_share_memory = 0;
             int iother;
 
-            if (op[iop] == NULL) {
+            if (HPy_IsNull(op[iop])) {
                 /* Iterator will always allocate */
                 continue;
             }
@@ -2840,7 +2849,7 @@ npyiter_allocate_arrays(NpyIter *iter,
             }
 
             for (iother = 0; iother < nop; ++iother) {
-                if (iother == iop || op[iother] == NULL) {
+                if (iother == iop || HPy_IsNull(op[iother])) {
                     continue;
                 }
 
@@ -2862,20 +2871,26 @@ npyiter_allocate_arrays(NpyIter *iter,
                  * However, if there is internal overlap (e.g. a zero stride on
                  * a non-unit dimension), a copy cannot be avoided.
                  */
+                PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op[iop]);
                 if ((op_flags[iop] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
                     (op_flags[iother] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
-                    PyArray_BYTES(op[iop]) == PyArray_BYTES(op[iother]) &&
-                    PyArray_NDIM(op[iop]) == PyArray_NDIM(op[iother]) &&
-                    PyArray_CompareLists(PyArray_DIMS(op[iop]),
+                    PyArray_BYTES(op_data) == PyArray_BYTES(op[iother]) &&
+                    PyArray_NDIM(op_data) == PyArray_NDIM(op[iother]) &&
+                    PyArray_CompareLists(PyArray_DIMS(op_data),
                                          PyArray_DIMS(op[iother]),
-                                         PyArray_NDIM(op[iop])) &&
-                    PyArray_CompareLists(PyArray_STRIDES(op[iop]),
+                                         PyArray_NDIM(op_data)) &&
+                    PyArray_CompareLists(PyArray_STRIDES(op_data),
                                          PyArray_STRIDES(op[iother]),
-                                         PyArray_NDIM(op[iop])) &&
-                    PyArray_DESCR(op[iop]) == PyArray_DESCR(op[iother]) &&
-                    solve_may_have_internal_overlap(op[iop], 1) == 0) {
-
-                    continue;
+                                         PyArray_NDIM(op_data))) {
+                    HPy op_iop_descr = HPyArray_GetDescr(op[iop]);
+                    HPy op_iother_descr = HPyArray_GetDescr(op[iother]);
+                    int same_descr = HPy_Is(ctx, op_iop_descr, op_iother_descr);
+                    HPy_Close(ctx, op_iop_descr);
+                    HPy_Close(ctx, op_iother_descr);
+                    
+                    if (same_descr && solve_may_have_internal_overlap(op_data, 1) == 0) {
+                        continue;
+                    }
                 }
 
                 /*

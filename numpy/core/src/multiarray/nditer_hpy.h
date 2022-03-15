@@ -31,5 +31,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
                  HPy *op_request_dtypes,
                  int oa_ndim, int **op_axes, npy_intp *itershape,
                  npy_intp buffersize);
+NPY_NO_EXPORT int
+HNpyIter_Deallocate(HPyContext *ctx, NpyIter *iter);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_HPY_H_ */
