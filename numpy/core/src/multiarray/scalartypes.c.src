@@ -3531,21 +3531,6 @@ object_arrtype_inplace_repeat(PyObjectScalarObject *self, Py_ssize_t count)
     return PySequence_InPlaceRepeat(self->obval, count);
 }
 
-static PySequenceMethods object_arrtype_as_sequence = {
-    .sq_length = (lenfunc)object_arrtype_length,
-    .sq_concat = (binaryfunc)object_arrtype_concat,
-    .sq_repeat = (ssizeargfunc)object_arrtype_repeat,
-    .sq_contains = (objobjproc)object_arrtype_contains,
-    .sq_inplace_concat = (binaryfunc)object_arrtype_inplace_concat,
-    .sq_inplace_repeat = (ssizeargfunc)object_arrtype_inplace_repeat,
-};
-
-static PyMappingMethods object_arrtype_as_mapping = {
-    .mp_length = (lenfunc)object_arrtype_length,
-    .mp_subscript = (binaryfunc)object_arrtype_subscript,
-    .mp_ass_subscript = (objobjargproc)object_arrtype_ass_subscript,
-};
-
 static int
 object_arrtype_getbuffer(PyObjectScalarObject *self, Py_buffer *view, int flags)
 {
