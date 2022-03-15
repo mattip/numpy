@@ -358,12 +358,12 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_find_best_axis_ordering);
 
     if (need_subtype) {
-        /* TODO(fa): cut off */
+        /* TODO HPY LABS PORT: cut off */
+        hpy_abort_not_implemented("HNpyIter_AdvancedNew");
         /*
         npyiter_get_priority_subtype(nop, op, op_itflags,
                                      &subtype_priority, &subtype);
         */
-        assert(0);
     }
 
     NPY_IT_TIME_POINT(c_get_priority_subtype);
@@ -373,8 +373,8 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * dtype, we need to figure it out now, before allocating the outputs.
      */
     if (any_missing_dtypes || (flags & NPY_ITER_COMMON_DTYPE)) {
-        /* TODO(fa): cut off */
-        assert(0);
+        /* TODO HPY LABS PORT: cut off */
+        hpy_abort_not_implemented("HNpyIter_AdvancedNew");
 //        PyArray_Descr *dtype;
 //        int only_inputs = !(flags & NPY_ITER_COMMON_DTYPE);
 //
@@ -1097,7 +1097,8 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         /* Specify bool if no dtype was requested for the mask */
         if (op_flags & NPY_ITER_ARRAYMASK) {
             if (HPy_IsNull(*op_dtype)) {
-                /* TODO(fa): cut off to Numpy API */
+                /* TODO HPY LABS PORT: cut off to Numpy API */
+                capi_warn("hnpyiter_prepare_one_operand");
                 PyArray_Descr *py_op_dtype = PyArray_DescrFromType(NPY_BOOL);
                 *op_dtype = HPy_FromPyObject(ctx, (PyObject*) py_op_dtype);
                 Py_DECREF(py_op_dtype);
@@ -1124,11 +1125,13 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
     if (HPyArray_Check(ctx, *op)) {
 
         PyObject *py_op = HPy_AsPyObject(ctx, *op);
-        if ((*op_itflags) & NPY_OP_ITFLAG_WRITE
-            /* TODO(fa): cut off to Numpy API */
-            && PyArray_FailUnlessWriteable((PyArrayObject*) py_op, "operand array with iterator "
+        if ((*op_itflags) & NPY_OP_ITFLAG_WRITE) {
+            /* TODO HPY LABS PORT: cut off to Numpy API */
+            capi_warn("hnpyiter_prepare_one_operand");
+            if (PyArray_FailUnlessWriteable((PyArrayObject*) py_op, "operand array with iterator "
                                            "write flag set") < 0) {
-            goto error;
+                goto error;
+            }
         }
         PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
         if (!(flags & NPY_ITER_ZEROSIZE_OK) && PyArray_SIZE(op_data) == 0) {
@@ -1170,7 +1173,8 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
          */
         if (!HPy_IsNull(op_request_dtype)) {
             /* We just have a borrowed reference to op_request_dtype */
-            /* TODO(fa): cut off to Numpy API */
+            /* TODO HPY LABS PORT: cut off to Numpy API */
+            capi_warn("hnpyiter_prepare_one_operand");
             PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
             PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray((PyArrayObject*) py_op, py_op_request_dtype);
             HPy h = HPy_FromPyObject(ctx, py_new_descr);
@@ -1188,7 +1192,8 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             /* Check byte order */
             if (!PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, *op_dtype)->byteorder)) {
                 /* Replace with a new descr which is in native byte order */
-                /* TODO(fa): cut off to Numpy API 'PyArray_DescrNewByteorder'*/
+                /* TODO HPY LABS PORT: cut off to Numpy API 'PyArray_DescrNewByteorder'*/
+                capi_warn("hnpyiter_prepare_one_operand");
                 PyObject *py_op_dtype = HPy_AsPyObject(ctx, *op_dtype);
                 PyArray_Descr *py_new_op_dtype = PyArray_DescrNewByteorder((PyArray_Descr*) py_op_dtype, NPY_NATIVE);
                 Py_DECREF(py_op_dtype);
@@ -1395,7 +1400,8 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
             PyArray_Descr *op_dtype_iop = HPy_AsPyObject(ctx, h_op_dtype[iop]);
             if (!PyArray_EquivTypes(op_descr, op_dtype_iop)) {
                 /* Check read (op -> temp) casting */
-                /* TODO(fa) cut-off 'PyArray_CanCastArrayTo' */
+                /* TODO HPY LABS PORT cut-off 'PyArray_CanCastArrayTo' */
+                capi_warn("hnpyiter_prepare_one_operand");
                 PyArrayObject *py_op_iop = HPy_AsPyObject(ctx, op[iop]);
                 if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
                         !PyArray_CanCastArrayTo(py_op_iop,
@@ -1404,7 +1410,7 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
                     HPyErr_SetString(ctx, ctx->h_TypeError,
                             "Iterator operand %d dtype could not be cast from "
                             "%R to %R according to the rule %s");
-                    /* TODO(fa) cut-off PyErr_Format
+                    /* TODO HPY LABS PORT PyErr_Format
                 PyErr_Format(PyExc_TypeError,
                         "Iterator operand %d dtype could not be cast from "
                         "%R to %R according to the rule %s",
@@ -1426,7 +1432,7 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
                             "Iterator requested dtype could not be cast from "
                             "%R to %R, the operand %d dtype, "
                             "according to the rule %s");
-                    /* TODO(fa) cut-off PyErr_Format
+                    /* TODO HPY LABS PORT PyErr_Format
                 PyErr_Format(PyExc_TypeError,
                         "Iterator requested dtype could not be cast from "
                         "%R to %R, the operand %d dtype, "

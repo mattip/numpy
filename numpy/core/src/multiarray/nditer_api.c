@@ -253,7 +253,6 @@ NpyIter_Reset(NpyIter *iter, char **errmsg)
     return HNpyIter_Reset(npy_get_context(), iter, errmsg);
 }
 
-/* TODO(fa): will become part of Numpy's HPy API */
 NPY_NO_EXPORT int
 HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg)
 {
@@ -1133,7 +1132,7 @@ NpyIter_GetDescrArray(NpyIter *iter)
     /*int ndim = NIT_NDIM(iter);*/
     HPyContext *ctx = npy_get_context();
     
-    /* TODO(fa): MEMLEAK
+    /* TODO HPY LABS PORT: MEMLEAK
      * We should probably store the legacy array also in the NpyIter struct.
      */
     int nop = NIT_NOP(iter);
@@ -1157,7 +1156,7 @@ NpyIter_GetOperandArray(NpyIter *iter)
 
     HPyContext *ctx = npy_get_context();
     
-    /* TODO(fa): MEMLEAK
+    /* TODO HPY LABS PORT: MEMLEAK
      * We should probably store the legacy array also in the NpyIter struct.
      */
     HPy *h_operands = NIT_OPERANDS(iter);
@@ -1200,9 +1199,6 @@ NpyIter_GetIterView(NpyIter *iter, npy_intp i)
     }
     
 
-    /* TODO(fa): use NIT_OPERANDS once migrated
-     * HPyContext *ctx = npy_get_context();
-    /* obj = NIT_OPERANDS(iter)[i]; */
     obj = NpyIter_GetOperandArray(iter)[i];
     dtype = PyArray_DESCR(obj);
     writeable = NIT_OPITFLAGS(iter)[i]&NPY_OP_ITFLAG_WRITE;
