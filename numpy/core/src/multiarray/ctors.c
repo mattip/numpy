@@ -944,11 +944,7 @@ HPyArray_NewFromDescr_int(
             }
         }
         else {
-            // TODO HPY LABS PORT: we can remove the capsule check if we are sure it is not used in the example
-            PyObject *tmp = HPy_AsPyObject(ctx, func);
-            bool is_capsule = PyCapsule_CheckExact(tmp);
-            Py_CLEAR(tmp);
-            if (is_capsule) {
+            if (HPy_TypeCheck(ctx, func, ctx->h_CapsuleType)) {
                 hpy_abort_not_implemented("HPyArray_NewFromDescr_int: __array_finalize__ is PyCapsule");
                 /* A C-function is stored here */
                 // PyArray_FinalizeFunc *cfunc;
