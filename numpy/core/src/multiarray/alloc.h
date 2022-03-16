@@ -42,12 +42,15 @@ npy_free_cache_dim_array(PyArrayObject * arr)
 
 extern PyDataMem_Handler default_handler;
 #if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
-extern PyObject *current_handler; /* PyContextVar/PyCapsule */
+extern HPy current_handler; /* PyContextVar/PyCapsule */
 #endif
 
 NPY_NO_EXPORT PyObject *
 get_handler_name(PyObject *NPY_UNUSED(self), PyObject *obj);
 NPY_NO_EXPORT PyObject *
 get_handler_version(PyObject *NPY_UNUSED(self), PyObject *obj);
+
+NPY_NO_EXPORT HPy
+HPyDataMem_GetHandler(HPyContext *ctx);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ALLOC_H_ */

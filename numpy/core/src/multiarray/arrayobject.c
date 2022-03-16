@@ -1692,11 +1692,14 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 
     HPy h_result;
     if (buffer.ptr == NULL) {
+        HPy h_descr = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, descr,
+                ctx, h_subtype, h_descr,
                 (int)dims.len, dims.ptr, strides.ptr, NULL,
                 is_f_order, HPy_NULL, HPy_NULL,
                 0, 1);
+        HPy_Close(ctx, h_descr);
+        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref...
         if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
@@ -1731,11 +1734,14 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
             buffer.flags |= NPY_ARRAY_F_CONTIGUOUS;
         }
         HPy h_base = HPy_FromPyObject(ctx, buffer.base);
+        HPy h_desc = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, descr,
+                ctx, h_subtype, h_desc,
                 dims.len, dims.ptr, strides.ptr, offset + (char *)buffer.ptr,
                 buffer.flags, HPy_NULL, h_base,
                 0, 1);
+        HPy_Close(ctx, h_desc);
+        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref anymore
         HPy_Close(ctx, h_base);
         if (HPy_IsNull(h_result)) {
             descr = NULL;

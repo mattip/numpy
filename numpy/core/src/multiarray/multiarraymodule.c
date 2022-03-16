@@ -5234,8 +5234,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
      * Initialize the context-local current handler
      * with the default PyDataMem_Handler capsule.
     */
-    current_handler = PyContextVar_New("current_allocator", PyDataMem_DefaultHandler);
-    if (current_handler == NULL) {
+    current_handler = HPyContextVar_New(ctx, "current_allocator", HPy_FromPyObject(ctx, PyDataMem_DefaultHandler));
+    if (HPy_IsNull(current_handler)) {
         goto err;
     }
 #endif

@@ -188,6 +188,13 @@ PyArray_DiscardWritebackIfCopy(PyArrayObject *arr)
                 descr = _new_; \
         } while(0)
 
+#define HPyArray_DESCR_REPLACE(ctx, descr) do { \
+                HPy _new_; \
+                _new_ = HPyArray_DescrNew(ctx, descr); \
+                HPy_Close(ctx, descr); \
+                descr = _new_; \
+        } while(0)
+
 /* Copy should always return contiguous array */
 #define PyArray_Copy(obj) PyArray_NewCopy(obj, NPY_CORDER)
 
@@ -256,6 +263,7 @@ NPY_TITLE_KEY_check(PyObject *key, PyObject *value)
 #define NPY_TITLE_KEY(key, value) (NPY_TITLE_KEY_check((key), (value)))
 
 #define DEPRECATE(msg) PyErr_WarnEx(PyExc_DeprecationWarning,msg,1)
+#define HPY_DEPRECATE(ctx, msg) HPyErr_WarnEx(ctx,ctx->h_DeprecationWarning,msg,1)
 #define DEPRECATE_FUTUREWARNING(msg) PyErr_WarnEx(PyExc_FutureWarning,msg,1)
 
 #ifdef __cplusplus

@@ -25,7 +25,7 @@ PyArray_NewFromDescr_int(
 NPY_NO_EXPORT HPy
 HPyArray_NewFromDescr_int(
         HPyContext *ctx,
-        HPy h_subtype, PyArray_Descr *descr, int nd,
+        HPy h_subtype, HPy h_descr, int nd,
         npy_intp const *dims, npy_intp const *strides, void *data,
         int flags, HPy h_obj, HPy h_base, int zeroed,
         int allow_emptystring);

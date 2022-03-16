@@ -613,8 +613,14 @@ typedef struct {
 #define PyDataType_FLAGCHK(dtype, flag) \
         (((dtype)->flags & (flag)) == (flag))
 
+#define HPyDataType_FLAGCHK(ctx, dtype, flag) \
+        ((PyArray_Descr_AsStruct(ctx, dtype)->flags & (flag)) == (flag))
+
 #define PyDataType_REFCHK(dtype) \
         PyDataType_FLAGCHK(dtype, NPY_ITEM_REFCOUNT)
+
+#define HPyDataType_REFCHK(ctx, dtype) \
+        HPyDataType_FLAGCHK(ctx, dtype, NPY_ITEM_REFCOUNT)
 
 typedef struct _PyArray_Descr {
         PyObject_HEAD
