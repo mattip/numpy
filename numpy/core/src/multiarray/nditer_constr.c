@@ -57,7 +57,7 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
                     NPY_CASTING casting,
                     npyiter_opitflags *op_itflags);
 static int
-npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itflags,
+hnpyiter_fill_axisdata(HPyContext *ctx, NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itflags,
                     char **op_dataptr,
                     const npy_uint32 *op_flags, int **op_axes,
                     npy_intp const *itershape);
@@ -266,7 +266,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     }
 
     /* Fill in the AXISDATA arrays and set the ITERSIZE field */
-    if (!npyiter_fill_axisdata(iter, flags, op_itflags, op_dataptr,
+    if (!hnpyiter_fill_axisdata(ctx, iter, flags, op_itflags, op_dataptr,
                                         op_flags, op_axes, itershape)) {
         HNpyIter_Deallocate(ctx, iter);
         return NULL;
@@ -1576,7 +1576,7 @@ npyiter_get_op_axis(int axis, npy_bool *reduction_axis) {
  * Returns 1 on success, 0 on failure.
  */
 static int
-npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itflags,
+hnpyiter_fill_axisdata(HPyContext *ctx, NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itflags,
                     char **op_dataptr,
                     const npy_uint32 *op_flags, int **op_axes,
                     npy_intp const *itershape)
@@ -1585,11 +1585,13 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
     int idim, ndim = NIT_NDIM(iter);
     int iop, nop = NIT_NOP(iter);
     int maskop = NIT_MASKOP(iter);
+    PyArrayObject *op_iop_data = NULL;
 
     int ondim;
     NpyIter_AxisData *axisdata;
     npy_intp sizeof_axisdata;
-    PyArrayObject **op = NIT_OPERANDS(iter), *op_cur;
+    HPy *op = NIT_OPERANDS(iter);
+    HPy op_cur;
     npy_intp broadcast_shape[NPY_MAXDIMS];
 
     /* First broadcast the shapes together */
@@ -1609,9 +1611,10 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
     }
     for (iop = 0; iop < nop; ++iop) {
         op_cur = op[iop];
-        if (op_cur != NULL) {
-            npy_intp *shape = PyArray_DIMS(op_cur);
-            ondim = PyArray_NDIM(op_cur);
+        if (!HPy_IsNull(op_cur)) {
+            PyArrayObject *op_cur_data = PyArrayObject_AsStruct(ctx, op_cur);
+            npy_intp *shape = PyArray_DIMS(op_cur_data);
+            ondim = PyArray_NDIM(op_cur_data);
 
             if (op_axes == NULL || op_axes[iop] == NULL) {
                 /*
@@ -1619,7 +1622,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                  * op_axes[iop] is NULL
                  */
                 if (ondim > ndim) {
-                    PyErr_SetString(PyExc_ValueError,
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
                             "input operand has more dimensions than allowed "
                             "by the axis remapping");
                     return 0;
@@ -1654,7 +1657,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                             }
                         }
                         else {
-                            PyErr_Format(PyExc_ValueError,
+                            HPyErr_Format_p(ctx, ctx->h_ValueError,
                                     "Iterator input op_axes[%d][%d] (==%d) "
                                     "is not a valid axis of op[%d], which "
                                     "has %d dimensions ",
@@ -1701,13 +1704,14 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
 
         for (iop = 0; iop < nop; ++iop) {
             op_cur = op[iop];
+            PyArrayObject *op_cur_data = PyArrayObject_AsStruct(ctx, op_cur);
 
             if (op_axes == NULL || op_axes[iop] == NULL) {
-                if (op_cur == NULL) {
+                if (HPy_IsNull(op_cur)) {
                     strides[iop] = 0;
                 }
                 else {
-                    ondim = PyArray_NDIM(op_cur);
+                    ondim = PyArray_NDIM(op_cur_data);
                     if (bshape == 1) {
                         strides[iop] = 0;
                         if (idim >= ondim &&
@@ -1716,7 +1720,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                         }
                     }
                     else if (idim >= ondim ||
-                                    PyArray_DIM(op_cur, ondim-idim-1) == 1) {
+                                    PyArray_DIM(op_cur_data, ondim-idim-1) == 1) {
                         strides[iop] = 0;
                         if (op_flags[iop] & NPY_ITER_NO_BROADCAST) {
                             goto operand_different_than_broadcast;
@@ -1724,14 +1728,14 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                         /* If it's writeable, this means a reduction */
                         if (op_itflags[iop] & NPY_OP_ITFLAG_WRITE) {
                             if (!(flags & NPY_ITER_REDUCE_OK)) {
-                                PyErr_SetString(PyExc_ValueError,
+                                HPyErr_SetString(ctx, ctx->h_ValueError,
                                         "output operand requires a "
                                         "reduction, but reduction is "
                                         "not enabled");
                                 return 0;
                             }
                             if (!(op_itflags[iop] & NPY_OP_ITFLAG_READ)) {
-                                PyErr_SetString(PyExc_ValueError,
+                                HPyErr_SetString(ctx, ctx->h_ValueError,
                                         "output operand requires a "
                                         "reduction, but is flagged as "
                                         "write-only, not read-write");
@@ -1747,7 +1751,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                              * and violating the strict masking semantics
                              */
                             if (iop == maskop) {
-                                PyErr_SetString(PyExc_ValueError,
+                                HPyErr_SetString(ctx, ctx->h_ValueError,
                                         "output operand requires a "
                                         "reduction, but is flagged as "
                                         "the ARRAYMASK operand which "
@@ -1761,7 +1765,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                         }
                     }
                     else {
-                        strides[iop] = PyArray_STRIDE(op_cur, ondim-idim-1);
+                        strides[iop] = PyArray_STRIDE(op_cur_data, ondim-idim-1);
                     }
                 }
             }
@@ -1777,13 +1781,13 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                     NIT_ITFLAGS(iter) |= NPY_ITFLAG_REDUCE;
                     op_itflags[iop] |= NPY_OP_ITFLAG_REDUCE;
 
-                    if (NPY_UNLIKELY((i >= 0) && (op_cur != NULL) &&
-                            (PyArray_DIM(op_cur, i) != 1))) {
-                        PyErr_Format(PyExc_ValueError,
+                    if (NPY_UNLIKELY((i >= 0) && !HPy_IsNull(op_cur) &&
+                            (PyArray_DIM(op_cur_data, i) != 1))) {
+                        HPyErr_Format_p(ctx, ctx->h_ValueError,
                                 "operand was set up as a reduction along axis "
                                 "%d, but the length of the axis is %zd "
                                 "(it has to be 1)",
-                                i, (Py_ssize_t)PyArray_DIM(op_cur, i));
+                                i, (Py_ssize_t)PyArray_DIM(op_cur_data, i));
                         return 0;
                     }
                 }
@@ -1796,11 +1800,11 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                     strides[iop] = 0;
                 }
                 else if (i >= 0) {
-                    if (op_cur == NULL) {
+                    if (HPy_IsNull(op_cur)) {
                         /* stride is filled later, shape will match `bshape` */
                         strides[iop] = 0;
                     }
-                    else if (PyArray_DIM(op_cur, i) == 1) {
+                    else if (PyArray_DIM(op_cur_data, i) == 1) {
                         strides[iop] = 0;
                         if (op_flags[iop] & NPY_ITER_NO_BROADCAST) {
                             goto operand_different_than_broadcast;
@@ -1811,7 +1815,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                         }
                     }
                     else {
-                        strides[iop] = PyArray_STRIDE(op_cur, i);
+                        strides[iop] = PyArray_STRIDE(op_cur_data, i);
                     }
                 }
                 else {
@@ -1844,7 +1848,7 @@ npyiter_fill_axisdata(NpyIter *iter, npy_uint32 flags, npyiter_opitflags *op_itf
                 break;
             }
             else {
-                PyErr_SetString(PyExc_ValueError, "iterator is too large");
+                HPyErr_SetString(ctx, ctx->h_ValueError, "iterator is too large");
                 return 0;
             }
         }
@@ -1859,34 +1863,48 @@ broadcast_error: {
         npy_intp remdims[NPY_MAXDIMS];
 
         if (op_axes == NULL) {
-            PyObject *shape1 = PyUnicode_FromString("");
-            if (shape1 == NULL) {
+            HPy shape1 = HPyUnicode_FromString(ctx, "");
+            if (HPy_IsNull(shape1)) {
                 return 0;
             }
             for (iop = 0; iop < nop; ++iop) {
-                if (op[iop] != NULL) {
-                    int ndims = PyArray_NDIM(op[iop]);
-                    npy_intp *dims = PyArray_DIMS(op[iop]);
-                    PyObject *tmp = convert_shape_to_string(ndims, dims, " ");
-                    if (tmp == NULL) {
-                        Py_DECREF(shape1);
+                if (!HPy_IsNull(op[iop])) {
+                    op_iop_data = PyArrayObject_AsStruct(ctx, op[iop]);
+                    int ndims = PyArray_NDIM(op_iop_data);
+                    npy_intp *dims = PyArray_DIMS(op_iop_data);
+                    capi_warn("hnpyiter_fill_axisdata");
+                    PyObject *py_tmp = convert_shape_to_string(ndims, dims, " ");
+                    if (py_tmp == NULL) {
+                        HPy_Close(ctx, shape1);
                         return 0;
                     }
-                    Py_SETREF(shape1, PyUnicode_Concat(shape1, tmp));
-                    Py_DECREF(tmp);
-                    if (shape1 == NULL) {
+                    HPy tmp = HPy_FromPyObject(ctx, py_tmp);
+                    Py_DECREF(py_tmp);
+                    HPy_SETREF(ctx, shape1, HPy_Add(ctx, shape1, tmp));
+                    HPy_Close(ctx, tmp);
+                    if (HPy_IsNull(shape1)) {
                         return 0;
                     }
                 }
             }
             if (itershape == NULL) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "operands could not be broadcast together with "
+                        "shapes %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                         "operands could not be broadcast together with "
                         "shapes %S", shape1);
-                Py_DECREF(shape1);
+                */
+                HPy_Close(ctx, shape1);
                 return 0;
             }
             else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "operands could not be broadcast together with "
+                        "shapes %S and requested shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
+                capi_warn("hnpyiter_fill_axisdata");
                 PyObject *shape2 = convert_shape_to_string(ndim, itershape, "");
                 if (shape2 == NULL) {
                     Py_DECREF(shape1);
@@ -1895,31 +1913,36 @@ broadcast_error: {
                 PyErr_Format(PyExc_ValueError,
                         "operands could not be broadcast together with "
                         "shapes %S and requested shape %S", shape1, shape2);
-                Py_DECREF(shape1);
                 Py_DECREF(shape2);
+                */
+                HPy_Close(ctx, shape1);
                 return 0;
             }
         }
         else {
-            PyObject *shape1 = PyUnicode_FromString("");
-            if (shape1 == NULL) {
+            HPy shape1 = HPyUnicode_FromString(ctx, "");
+            if (HPy_IsNull(shape1)) {
                 return 0;
             }
             for (iop = 0; iop < nop; ++iop) {
-                if (op[iop] != NULL) {
+                if (!HPy_IsNull(op[iop])) {
+                    op_iop_data = PyArrayObject_AsStruct(ctx, op[iop]);
                     int *axes = op_axes[iop];
-                    int ndims = PyArray_NDIM(op[iop]);
-                    npy_intp *dims = PyArray_DIMS(op[iop]);
+                    int ndims = PyArray_NDIM(op_iop_data);
+                    npy_intp *dims = PyArray_DIMS(op_iop_data);
                     char *tmpstr = (axes == NULL) ? " " : "->";
 
-                    PyObject *tmp = convert_shape_to_string(ndims, dims, tmpstr);
-                    if (tmp == NULL) {
-                        Py_DECREF(shape1);
+                    capi_warn("hpyiter_fill_axisdata");
+                    PyObject *py_tmp = convert_shape_to_string(ndims, dims, tmpstr);
+                    if (py_tmp == NULL) {
+                        HPy_Close(ctx, shape1);
                         return 0;
                     }
-                    Py_SETREF(shape1, PyUnicode_Concat(shape1, tmp));
-                    Py_DECREF(tmp);
-                    if (shape1 == NULL) {
+                    HPy tmp = HPy_FromPyObject(ctx, py_tmp);
+                    Py_DECREF(py_tmp);
+                    HPy_SETREF(ctx, shape1, HPy_Add(ctx, shape1, tmp));
+                    HPy_Close(ctx, tmp);
+                    if (HPy_IsNull(shape1)) {
                         return 0;
                     }
 
@@ -1927,45 +1950,61 @@ broadcast_error: {
                         for (idim = 0; idim < ndim; ++idim) {
                             int i = npyiter_get_op_axis(axes[idim], NULL);
 
-                            if (i >= 0 && i < PyArray_NDIM(op[iop])) {
-                                remdims[idim] = PyArray_DIM(op[iop], i);
+                            if (i >= 0 && i < PyArray_NDIM(op_iop_data)) {
+                                remdims[idim] = PyArray_DIM(op_iop_data, i);
                             }
                             else {
                                 remdims[idim] = -1;
                             }
                         }
-                        PyObject *tmp = convert_shape_to_string(ndim, remdims, " ");
-                        if (tmp == NULL) {
-                            Py_DECREF(shape1);
+                        capi_warn("hpyiter_fill_axisdata");
+                        PyObject *py_tmp = convert_shape_to_string(ndim, remdims, " ");
+                        if (py_tmp == NULL) {
+                            HPy_Close(ctx, shape1);
                             return 0;
                         }
-                        Py_SETREF(shape1, PyUnicode_Concat(shape1, tmp));
-                        Py_DECREF(tmp);
-                        if (shape1 == NULL) {
+                        HPy tmp = HPy_FromPyObject(ctx, py_tmp);
+                        Py_DECREF(py_tmp);
+                        HPy_SETREF(ctx, shape1, HPy_Add(ctx, shape1, tmp));
+                        HPy_Close(ctx, tmp);
+                        if (HPy_IsNull(shape1)) {
                             return 0;
                         }
                     }
                 }
             }
             if (itershape == NULL) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "operands could not be broadcast together with "
+                        "remapped shapes [original->remapped]: %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                         "operands could not be broadcast together with "
                         "remapped shapes [original->remapped]: %S", shape1);
-                Py_DECREF(shape1);
+                */
+                HPy_Close(ctx, shape1);
                 return 0;
             }
             else {
-                PyObject *shape2 = convert_shape_to_string(ndim, itershape, "");
-                if (shape2 == NULL) {
-                    Py_DECREF(shape1);
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "operands could not be broadcast together with "
+                        "remapped shapes [original->remapped]: %S and "
+                        "requested shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
+                capi_warn("hpyiter_fill_axisdata");
+                PyObject *py_shape2 = convert_shape_to_string(ndim, itershape, "");
+                if (py_shape2 == NULL) {
+                    HPy_Close(ctx, shape1);
                     return 0;
                 }
+                Py_DECREF(py_shape2);
                 PyErr_Format(PyExc_ValueError,
                         "operands could not be broadcast together with "
                         "remapped shapes [original->remapped]: %S and "
                         "requested shape %S", shape1, shape2);
-                Py_DECREF(shape1);
-                Py_DECREF(shape2);
+                HPy_Close(ctx, shape2);
+                */
+                HPy_Close(ctx, shape1);
                 return 0;
             }
         }
@@ -1973,35 +2012,53 @@ broadcast_error: {
 
 operand_different_than_broadcast: {
         /* operand shape */
-        int ndims = PyArray_NDIM(op[iop]);
-        npy_intp *dims = PyArray_DIMS(op[iop]);
-        PyObject *shape1 = convert_shape_to_string(ndims, dims, "");
-        if (shape1 == NULL) {
+        int ndims = PyArray_NDIM(op_iop_data);
+        npy_intp *dims = PyArray_DIMS(op_iop_data);
+        capi_warn("hpyiter_fill_axisdata");
+        PyObject *py_shape1 = convert_shape_to_string(ndims, dims, "");
+        if (py_shape1 == NULL) {
             return 0;
         }
+        HPy shape1 = HPy_FromPyObject(ctx, py_shape1);
+        Py_DECREF(py_shape1);
 
         /* Broadcast shape */
-        PyObject *shape2 = convert_shape_to_string(ndim, broadcast_shape, "");
-        if (shape2 == NULL) {
-            Py_DECREF(shape1);
+        /* TODO HPY LABS PORT: only needed for below PyErr_Format
+        capi_warn("hpyiter_fill_axisdata");
+        PyObject *py_shape2 = convert_shape_to_string(ndim, broadcast_shape, "");
+        if (py_shape2 == NULL) {
+            HPy_Close(ctx, shape1);
             return 0;
         }
+        HPy shape2 = HPy_FromPyObject(ctx, py_shape2);
+        Py_DECREF(py_shape2);
+        */
 
         if (op_axes == NULL || op_axes[iop] == NULL) {
             /* operand shape not remapped */
 
             if (op_flags[iop] & NPY_ITER_READONLY) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "non-broadcastable operand with shape %S doesn't "
+                    "match the broadcast shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                     "non-broadcastable operand with shape %S doesn't "
                     "match the broadcast shape %S", shape1, shape2);
+                */
             }
             else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "non-broadcastable output operand with shape %S doesn't "
+                    "match the broadcast shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                     "non-broadcastable output operand with shape %S doesn't "
                     "match the broadcast shape %S", shape1, shape2);
+                */
             }
-            Py_DECREF(shape1);
-            Py_DECREF(shape2);
+            HPy_Close(ctx, shape1);
+            // HPy_Close(ctx, shape2);
             return 0;
         }
         else {
@@ -2011,36 +2068,48 @@ operand_different_than_broadcast: {
             int *axes = op_axes[iop];
             for (idim = 0; idim < ndim; ++idim) {
                 npy_intp i = axes[ndim - idim - 1];
-                if (i >= 0 && i < PyArray_NDIM(op[iop])) {
-                    remdims[idim] = PyArray_DIM(op[iop], i);
+                if (i >= 0 && i < PyArray_NDIM(op_iop_data)) {
+                    remdims[idim] = PyArray_DIM(op_iop_data, i);
                 }
                 else {
                     remdims[idim] = -1;
                 }
             }
 
+            /* TODO HPY LABS PORT: only needed for below PyErr_Format
             PyObject *shape3 = convert_shape_to_string(ndim, remdims, "");
             if (shape3 == NULL) {
-                Py_DECREF(shape1);
+                HPy_Close(ctx, shape1);
                 Py_DECREF(shape2);
                 return 0;
             }
+            */
 
             if (op_flags[iop] & NPY_ITER_READONLY) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "non-broadcastable operand with shape %S "
+                    "[remapped to %S] doesn't match the broadcast shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                     "non-broadcastable operand with shape %S "
                     "[remapped to %S] doesn't match the broadcast shape %S",
                     shape1, shape3, shape2);
+                */
             }
             else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "non-broadcastable output operand with shape %S "
+                    "[remapped to %S] doesn't match the broadcast shape %S");
+                /* TODO HPY LABS PORT: PyErr_Format
                 PyErr_Format(PyExc_ValueError,
                     "non-broadcastable output operand with shape %S "
                     "[remapped to %S] doesn't match the broadcast shape %S",
                     shape1, shape3, shape2);
+                */
             }
-            Py_DECREF(shape1);
-            Py_DECREF(shape2);
-            Py_DECREF(shape3);
+            HPy_Close(ctx, shape1);
+            // HPy_Close(ctx, shape2);
+            // HPy_Close(ctx, shape3);
             return 0;
         }
     }
