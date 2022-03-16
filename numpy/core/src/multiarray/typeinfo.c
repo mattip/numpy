@@ -43,14 +43,12 @@ static HPyStructSequence_Desc typeinfo_desc = {
     "numpy.core.multiarray.typeinfo",         /* name          */
     "Information about a scalar numpy type",  /* doc           */
     typeinfo_fields,                          /* fields        */
-    5,                                        /* n_in_sequence */
 };
 
 static HPyStructSequence_Desc typeinforanged_desc = {
     "numpy.core.multiarray.typeinforanged",                /* name          */
     "Information about a scalar numpy type with a range",  /* doc           */
     typeinforanged_fields,                                 /* fields        */
-    7,                                                     /* n_in_sequence */
 };
 
 NPY_NO_EXPORT HPy
@@ -58,21 +56,19 @@ PyArray_typeinfo(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
     HPy type_obj)
 {
-    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinfoType);
-    if (HPy_IsNull(entry))
-        return HPy_NULL;
-    HPyStructSequence_SetItem(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
-    HPyStructSequence_SetItem(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
-    HPyStructSequence_SetItem(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
-    HPyStructSequence_SetItem(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
-    HPyStructSequence_SetItem(ctx, entry, 4, HPy_BuildValue(ctx, "O", type_obj));
+    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinfoType);
+    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
+    HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
+    HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
+    HPyStructSequenceBuilder_Set(ctx, entry, 4, HPy_BuildValue(ctx, "O", type_obj));
 
     if (HPyErr_Occurred(ctx)) {
-        HPy_Close(ctx, entry);
+        HPyStructSequenceBuilder_Cancel(ctx, entry);
         return HPy_NULL;
     }
 
-    return entry;
+    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinfoType);
 }
 
 NPY_NO_EXPORT HPy
@@ -80,23 +76,21 @@ PyArray_typeinforanged(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
     HPy max, HPy min, HPy type_obj)
 {
-    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinforangedType);
-    if (HPy_IsNull(entry))
-        return HPy_NULL;
-    HPyStructSequence_SetItem(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
-    HPyStructSequence_SetItem(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
-    HPyStructSequence_SetItem(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
-    HPyStructSequence_SetItem(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
-    HPyStructSequence_SetItem(ctx, entry, 4, max);
-    HPyStructSequence_SetItem(ctx, entry, 5, min);
-    HPyStructSequence_SetItem(ctx, entry, 6, HPy_BuildValue(ctx, "O", type_obj));
+    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinforangedType);
+    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
+    HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
+    HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
+    HPyStructSequenceBuilder_Set(ctx, entry, 4, max);
+    HPyStructSequenceBuilder_Set(ctx, entry, 5, min);
+    HPyStructSequenceBuilder_Set(ctx, entry, 6, HPy_BuildValue(ctx, "O", type_obj));
 
     if (HPyErr_Occurred(ctx)) {
-        HPy_Close(ctx, entry);
+        HPyStructSequenceBuilder_Cancel(ctx, entry);
         return HPy_NULL;
     }
 
-    return entry;
+    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinforangedType);
 }
 
 /* Python version needed for older PyPy */
