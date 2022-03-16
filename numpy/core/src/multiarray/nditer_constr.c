@@ -1099,7 +1099,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         if (op_flags & NPY_ITER_ARRAYMASK) {
             if (HPy_IsNull(*op_dtype)) {
                 /* TODO HPY LABS PORT: cut off to Numpy API */
-                capi_warn("hnpyiter_prepare_one_operand");
+                CAPI_WARN("hnpyiter_prepare_one_operand");
                 PyArray_Descr *py_op_dtype = PyArray_DescrFromType(NPY_BOOL);
                 *op_dtype = HPy_FromPyObject(ctx, (PyObject*) py_op_dtype);
                 Py_DECREF(py_op_dtype);
@@ -1128,7 +1128,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         py_op = HPy_AsPyObject(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE) {
             /* TODO HPY LABS PORT: cut off to Numpy API */
-            capi_warn("hnpyiter_prepare_one_operand");
+            CAPI_WARN("hnpyiter_prepare_one_operand");
             if (PyArray_FailUnlessWriteable((PyArrayObject*) py_op, "operand array with iterator "
                                            "write flag set") < 0) {
                 goto error;
@@ -1175,7 +1175,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         if (!HPy_IsNull(op_request_dtype)) {
             /* We just have a borrowed reference to op_request_dtype */
             /* TODO HPY LABS PORT: cut off to Numpy API */
-            capi_warn("hnpyiter_prepare_one_operand");
+            CAPI_WARN("hnpyiter_prepare_one_operand");
             PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
             PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray((PyArrayObject*) py_op, py_op_request_dtype);
             HPy h = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
@@ -1194,7 +1194,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             if (!PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, *op_dtype)->byteorder)) {
                 /* Replace with a new descr which is in native byte order */
                 /* TODO HPY LABS PORT: cut off to Numpy API 'PyArray_DescrNewByteorder'*/
-                capi_warn("hnpyiter_prepare_one_operand");
+                CAPI_WARN("hnpyiter_prepare_one_operand");
                 PyObject *py_op_dtype = HPy_AsPyObject(ctx, *op_dtype);
                 PyArray_Descr *py_new_op_dtype = PyArray_DescrNewByteorder((PyArray_Descr*) py_op_dtype, NPY_NATIVE);
                 Py_DECREF(py_op_dtype);
@@ -1402,7 +1402,7 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
             if (!PyArray_EquivTypes(op_descr, op_dtype_iop)) {
                 /* Check read (op -> temp) casting */
                 /* TODO HPY LABS PORT cut-off 'PyArray_CanCastArrayTo' */
-                capi_warn("hnpyiter_prepare_one_operand");
+                CAPI_WARN("hnpyiter_prepare_one_operand");
                 PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
                 if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
                         !PyArray_CanCastArrayTo(py_op_iop,
@@ -1872,7 +1872,7 @@ broadcast_error: {
                     op_iop_data = PyArrayObject_AsStruct(ctx, op[iop]);
                     int ndims = PyArray_NDIM(op_iop_data);
                     npy_intp *dims = PyArray_DIMS(op_iop_data);
-                    capi_warn("hnpyiter_fill_axisdata");
+                    CAPI_WARN("hnpyiter_fill_axisdata");
                     PyObject *py_tmp = convert_shape_to_string(ndims, dims, " ");
                     if (py_tmp == NULL) {
                         HPy_Close(ctx, shape1);
@@ -1904,7 +1904,7 @@ broadcast_error: {
                         "operands could not be broadcast together with "
                         "shapes %S and requested shape %S");
                 /* TODO HPY LABS PORT: PyErr_Format
-                capi_warn("hnpyiter_fill_axisdata");
+                CAPI_WARN("hnpyiter_fill_axisdata");
                 PyObject *shape2 = convert_shape_to_string(ndim, itershape, "");
                 if (shape2 == NULL) {
                     Py_DECREF(shape1);
@@ -1932,7 +1932,7 @@ broadcast_error: {
                     npy_intp *dims = PyArray_DIMS(op_iop_data);
                     char *tmpstr = (axes == NULL) ? " " : "->";
 
-                    capi_warn("hpyiter_fill_axisdata");
+                    CAPI_WARN("hpyiter_fill_axisdata");
                     PyObject *py_tmp = convert_shape_to_string(ndims, dims, tmpstr);
                     if (py_tmp == NULL) {
                         HPy_Close(ctx, shape1);
@@ -1957,7 +1957,7 @@ broadcast_error: {
                                 remdims[idim] = -1;
                             }
                         }
-                        capi_warn("hpyiter_fill_axisdata");
+                        CAPI_WARN("hpyiter_fill_axisdata");
                         PyObject *py_tmp = convert_shape_to_string(ndim, remdims, " ");
                         if (py_tmp == NULL) {
                             HPy_Close(ctx, shape1);
@@ -1991,7 +1991,7 @@ broadcast_error: {
                         "remapped shapes [original->remapped]: %S and "
                         "requested shape %S");
                 /* TODO HPY LABS PORT: PyErr_Format
-                capi_warn("hpyiter_fill_axisdata");
+                CAPI_WARN("hpyiter_fill_axisdata");
                 PyObject *py_shape2 = convert_shape_to_string(ndim, itershape, "");
                 if (py_shape2 == NULL) {
                     HPy_Close(ctx, shape1);
@@ -2014,7 +2014,7 @@ operand_different_than_broadcast: {
         /* operand shape */
         int ndims = PyArray_NDIM(op_iop_data);
         npy_intp *dims = PyArray_DIMS(op_iop_data);
-        capi_warn("hpyiter_fill_axisdata");
+        CAPI_WARN("hpyiter_fill_axisdata");
         PyObject *py_shape1 = convert_shape_to_string(ndims, dims, "");
         if (py_shape1 == NULL) {
             return 0;
@@ -2024,7 +2024,7 @@ operand_different_than_broadcast: {
 
         /* Broadcast shape */
         /* TODO HPY LABS PORT: only needed for below PyErr_Format
-        capi_warn("hpyiter_fill_axisdata");
+        CAPI_WARN("hpyiter_fill_axisdata");
         PyObject *py_shape2 = convert_shape_to_string(ndim, broadcast_shape, "");
         if (py_shape2 == NULL) {
             HPy_Close(ctx, shape1);
@@ -2704,7 +2704,7 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
 
     /* If it's a scalar, don't need to check the axes */
     if (op_ndim == 0) {
-        capi_warn("hnpyiter_new_temp_array");
+        CAPI_WARN("hnpyiter_new_temp_array");
         PyArray_Descr *py_op_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, op_dtype);
         PyTypeObject *py_subtype = (PyTypeObject *) HPy_AsPyObject(ctx, subtype);
         PyArrayObject *py_ret = (PyArrayObject *)PyArray_NewFromDescr(py_subtype, py_op_dtype, 0,
@@ -2859,7 +2859,7 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
     }
 
     /* Allocate the temporary array */
-    capi_warn("hnpyiter_new_temp_array");
+    CAPI_WARN("hnpyiter_new_temp_array");
     PyArray_Descr *py_op_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, op_dtype);
     PyTypeObject *py_subtype = (PyTypeObject *) HPy_AsPyObject(ctx, subtype);
     PyArrayObject *py_ret = (PyArrayObject *)PyArray_NewFromDescr(py_subtype, py_op_dtype, op_ndim,
@@ -3082,7 +3082,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                 return 0;
             }
             PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
-            capi_warn("hnpyiter_allocate_arrays");
+            CAPI_WARN("hnpyiter_allocate_arrays");
             if (PyArray_CopyInto(temp, py_op_iop) != 0) {
                 Py_DECREF(py_op_iop);
                 Py_DECREF(temp);
@@ -3097,7 +3097,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * Now we need to replace the pointers and strides with values
              * from the temporary array.
              */
-            capi_warn("hnpyiter_allocate_arrays");
+            CAPI_WARN("hnpyiter_allocate_arrays");
             py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
             npyiter_replace_axisdata(iter, iop, py_op_iop, 0, NULL);
             Py_DECREF(py_op_iop);
@@ -3152,7 +3152,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              */
             if (op_itflags[iop] & NPY_OP_ITFLAG_READ) {
                 PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
-                capi_warn("hnpyiter_allocate_arrays");
+                CAPI_WARN("hnpyiter_allocate_arrays");
                 if (PyArray_CopyInto(py_temp, py_op_iop) != 0) {
                     Py_DECREF(py_op_iop);
                     Py_DECREF(py_temp);
@@ -3165,7 +3165,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             PyArrayObject *op_iop = NULL;
             if (op_itflags[iop] & NPY_OP_ITFLAG_WRITE) {
                 op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
-                capi_warn("hnpyiter_allocate_arrays");
+                CAPI_WARN("hnpyiter_allocate_arrays");
                 if (PyArray_SetWritebackIfCopyBase(py_temp, op_iop) < 0) {
                     Py_DECREF(py_temp);
                     return 0;
@@ -3182,7 +3182,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * from the temporary array.
              */
             op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
-            capi_warn("hnpyiter_allocate_arrays");
+            CAPI_WARN("hnpyiter_allocate_arrays");
             npyiter_replace_axisdata(iter, iop, op_iop, ondim,
                     op_axes ? op_axes[iop] : NULL);
             Py_DECREF(op_iop);
