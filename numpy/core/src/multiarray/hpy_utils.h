@@ -3,6 +3,13 @@
 
 #include "numpy/ndarraytypes.h"
 
+#define HPy_SETREF(ctx, op, op2) \
+    do {                         \
+        HPy _h_tmp = (op);       \
+        (op) = (op2);            \
+        HPy_Close(ctx, _h_tmp);  \
+    } while (0)
+
 /* Set an error with a format string; it will use 'vsnprintf' for formatting. */
 NPY_NO_EXPORT void
 HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...);
