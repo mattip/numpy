@@ -3,6 +3,10 @@
 
 #include "numpy/ndarraytypes.h"
 
+/* Set an error with a format string; it will use 'vsnprintf' for formatting. */
+NPY_NO_EXPORT void
+HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...);
+
 static NPY_INLINE HPy *
 HPy_FromPyObjectArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
 {

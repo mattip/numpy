@@ -927,6 +927,7 @@ def configuration(parent_package='', top_path=None):
             join('src', 'multiarray', 'flagsobject.c'),
             join('src', 'multiarray', 'getset.c'),
             join('src', 'multiarray', 'hashdescr.c'),
+            join('src', 'multiarray', 'hpy_utils.c'),
             join('src', 'multiarray', 'item_selection.c'),
             join('src', 'multiarray', 'iterators.c'),
             join('src', 'multiarray', 'legacy_dtype_implementation.c'),
