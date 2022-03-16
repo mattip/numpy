@@ -2987,8 +2987,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * New arrays are guaranteed true-aligned, but copy/cast code
              * needs uint-alignment in addition.
              */
-            capi_warn("hnpyiter_allocate_arrays");
-            if (IsUintAligned(out)) {
+            if (HIsUintAligned(ctx, out, out_data)) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
             op[iop] = out;
@@ -3038,8 +3037,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * New arrays are guaranteed true-aligned, but copy/cast code
              * needs uint-alignment in addition.
              */
-            capi_warn("hnpyiter_allocate_arrays");
-            if (IsUintAligned(temp)) {
+            if (HIsUintAligned(ctx, op[iop], PyArrayObject_AsStruct(ctx, op[iop]))) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
             /*
@@ -3108,6 +3106,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
 
             Py_XDECREF(op_iop);
             op[iop] = HPy_FromPyObject(ctx, (PyObject *) py_temp);
+            Py_DECREF(py_temp);
 
             /*
              * Now we need to replace the pointers and strides with values
@@ -3123,13 +3122,11 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * New arrays are guaranteed true-aligned, but copy/cast code
              * additionally needs uint-alignment in addition.
              */
-            if (IsUintAligned(py_temp)) {
+            if (HIsUintAligned(ctx, op[iop], PyArrayObject_AsStruct(ctx, op[iop]))) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
             /* The temporary copy needs no cast */
             op_itflags[iop] &= ~NPY_OP_ITFLAG_CAST;
-
-            Py_DECREF(py_temp);
         }
         else {
             /*
@@ -3148,12 +3145,9 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
              * If the operand is aligned, any buffering can use aligned
              * optimizations.
              */
-            PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
-            capi_warn("hnpyiter_allocate_arrays");
-            if (IsUintAligned(py_op_iop)) {
+            if (HIsUintAligned(ctx, op[iop], PyArrayObject_AsStruct(ctx, op[iop]))) {
                 op_itflags[iop] |= NPY_OP_ITFLAG_ALIGNED;
             }
-            Py_DECREF(py_op_iop);
         }
 
         /* Here we can finally check for contiguous iteration */

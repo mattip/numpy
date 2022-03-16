@@ -152,6 +152,16 @@ IsUintAligned(PyArrayObject *ap)
                                 npy_uint_alignment(PyArray_DESCR(ap)->elsize));
 }
 
+NPY_NO_EXPORT int
+HIsUintAligned(HPyContext *ctx, HPy arr, PyArrayObject *arr_data)
+{
+    HPy descr = HPyArray_DESCR(ctx, arr, arr_data);
+    int res = raw_array_is_aligned(PyArray_NDIM(arr_data), PyArray_DIMS(arr_data),
+                                PyArray_DATA(arr_data), PyArray_STRIDES(arr_data),
+                                npy_uint_alignment(PyArray_Descr_AsStruct(ctx, descr)->elsize));
+    HPy_Close(ctx, descr);
+    return res;
+}
 
 
 /* Returns 1 if the arrays have overlapping data, 0 otherwise */
