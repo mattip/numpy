@@ -4738,27 +4738,36 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      *         npy_long, npy_ulong, npy_longlong, npy_ulonglong#
      * #max= 1,
      *       NPY_MAX_BYTE, NPY_MAX_UBYTE, NPY_MAX_SHORT,
-     *       NPY_MAX_USHORT, NPY_MAX_INT, PyLong_FromUnsignedLong(NPY_MAX_UINT),
-     *       PyLong_FromLongLong((npy_longlong) NPY_MAX_INTP),
-     *       PyLong_FromUnsignedLongLong((npy_ulonglong) NPY_MAX_UINTP),
+     *       NPY_MAX_USHORT, NPY_MAX_INT, HPyLong_FromUnsignedLong(_CTX_COMMA_ NPY_MAX_UINT),
+     *       HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MAX_INTP),
+     *       HPyLong_FromUnsignedLongLong(_CTX_COMMA_ (npy_ulonglong) NPY_MAX_UINTP),
      *       NPY_MAX_LONG,
-     *       PyLong_FromUnsignedLong((npy_ulong) NPY_MAX_ULONG),
-     *       PyLong_FromLongLong((npy_longlong) NPY_MAX_LONGLONG),
-     *       PyLong_FromUnsignedLongLong((npy_ulonglong) NPY_MAX_ULONGLONG)#
+     *       HPyLong_FromUnsignedLong(_CTX_COMMA_ (npy_ulong) NPY_MAX_ULONG),
+     *       HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MAX_LONGLONG),
+     *       HPyLong_FromUnsignedLongLong(_CTX_COMMA_ (npy_ulonglong) NPY_MAX_ULONGLONG)#
      * #min = 0, NPY_MIN_BYTE, 0, NPY_MIN_SHORT, 0, NPY_MIN_INT, 0,
-     *        PyLong_FromLongLong((npy_longlong) NPY_MIN_INTP),
+     *        HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MIN_INTP),
      *        0, NPY_MIN_LONG, 0,
-     *        PyLong_FromLongLong((npy_longlong) NPY_MIN_LONGLONG), 0#
-     * #cx = i*6, N, N, N, l, N, N, N#
-     * #cn = i*7, N, i, l, i, N, i#
+     *        HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MIN_LONGLONG), 0#
+     * #cx = i*6, O, O, O, l, O, O, O#
+     * #cn = i*7, O, i, l, i, O, i#
+     * #maxType = int*6, HPy*3, long, HPy*3#
+     * #minType = int*7, HPy, int, long, int, HPy, int#
+     * #maxClose = //*6, HPy_Close(_CTX_COMMA_*3, //, HPy_Close(_CTX_COMMA_*3#
+     * #minClose = //*7, HPy_Close(_CTX_COMMA_, //*3, HPy_Close(_CTX_COMMA_, //#
      */
 
+#define _CTX_COMMA_ ctx,
+    @maxType@ max@Name@ = @max@;
+    @minType@ min@Name@ = @min@;
     h_s = PyArray_typeinforanged(ctx,
         NPY_@name@LTR, NPY_@name@, NPY_BITSOF_@uname@, _ALIGN(@type@),
-        HPy_BuildValue(ctx, "@cx@", @max@),
-        HPy_BuildValue(ctx, "@cn@", @min@),
+        HPy_BuildValue(ctx, "@cx@", max@Name@),
+        HPy_BuildValue(ctx, "@cn@", min@Name@),
         HPy_FromPyObject(ctx, (PyObject *)&Py@Name@ArrType_Type)
     );
+    @maxClose@ max@Name@);
+    @minClose@ min@Name@);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4769,7 +4778,7 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
-
+#undef _CTX_COMMA_
 
     /**end repeat**/
 

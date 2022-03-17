@@ -57,7 +57,7 @@ PyArray_typeinfo(HPyContext *ctx,
     HPy type_obj)
 {
     HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinfoType);
-    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "i", typechar));
     HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
     HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
     HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
@@ -77,7 +77,7 @@ PyArray_typeinforanged(HPyContext *ctx,
     HPy max, HPy min, HPy type_obj)
 {
     HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinforangedType);
-    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "C", typechar));
+    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "i", typechar));
     HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
     HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
     HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
