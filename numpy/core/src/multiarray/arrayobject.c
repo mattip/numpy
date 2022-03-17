@@ -233,6 +233,78 @@ PyArray_SetBaseObject(PyArrayObject *arr, PyObject *obj)
     return 0;
 }
 
+// ATTENTION: does not steal obj anymore
+NPY_NO_EXPORT int
+HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_in)
+{
+    if (HPy_IsNull(obj_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot set the NumPy array 'base' "
+                "dependency to NULL after initialization");
+        return -1;
+    }
+    /*
+     * Allow the base to be set only once. Once the object which
+     * owns the data is set, it doesn't make sense to change it.
+     */
+    if (!HPy_IsNull(HPyArray_BASE(ctx, h_arr, arr))) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot set the NumPy array 'base' "
+                "dependency more than once");
+        return -1;
+    }
+
+    /*
+     * Don't allow infinite chains of views, always set the base
+     * to the first owner of the data.
+     * That is, either the first object which isn't an array,
+     * or the first object which owns its own data.
+     */
+    HPy obj = HPy_Dup(ctx, obj_in);
+    while (HPyArray_Check(ctx, obj) && !HPy_Is(ctx, h_arr, obj)) {
+        PyArrayObject *obj_arr = PyArrayObject_AsStruct(ctx, obj);
+
+        /* Propagate WARN_ON_WRITE through views. */
+        if (PyArray_FLAGS(obj_arr) & NPY_ARRAY_WARN_ON_WRITE) {
+            PyArray_ENABLEFLAGS(arr, NPY_ARRAY_WARN_ON_WRITE);
+        }
+
+        /* If this array owns its own data, stop collapsing */
+        if (PyArray_CHKFLAGS(obj_arr, NPY_ARRAY_OWNDATA)) {
+            break;
+        }
+
+        HPy tmp = HPyArray_BASE(ctx, obj, obj_arr);
+        /* If there's no base, stop collapsing */
+        if (HPy_IsNull(tmp)) {
+            break;
+        }
+        /* Stop the collapse new base when the would not be of the same
+         * type (i.e. different subclass).
+         */
+        if (!HPy_Is(ctx, HPy_Type(ctx, tmp), HPy_Type(ctx, h_arr))) {
+            HPy_Close(ctx, tmp);
+            break;
+        }
+
+        HPy_Close(ctx, obj);
+        obj = tmp;
+    }
+
+    /* Disallow circular references */
+    if (HPy_Is(ctx, h_arr, obj)) {
+        HPy_Close(ctx, obj);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot create a circular NumPy array 'base' dependency");
+        return -1;
+    }
+
+    HPyArray_SetBase(ctx, h_arr, obj);
+    HPy_Close(ctx, obj);
+
+    return 0;
+}
+
 
 /**
  * Assign an arbitrary object a NumPy array. This is largely basically

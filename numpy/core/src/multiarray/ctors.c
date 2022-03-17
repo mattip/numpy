@@ -900,9 +900,7 @@ HPyArray_NewFromDescr_int(
      * __array_finalize__ below receives it
      */
     if (!HPy_IsNull(h_base)) {
-        capi_warn("HPyArray_NewFromDescr_int: h_base not HPy_NULL -> PyArray_SetBaseObject");
-        PyObject *base = HPy_AsPyObject(ctx, h_base);
-        if (PyArray_SetBaseObject((PyArrayObject *)fa, base) < 0) {
+        if (HPyArray_SetBaseObject(ctx, result, (PyArrayObject *)fa, h_base) < 0) {
             goto fail;
         }
     }

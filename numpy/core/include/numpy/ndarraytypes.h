@@ -1590,13 +1590,19 @@ PyArray_DESCR(const PyArrayObject *arr)
 }
 
 static NPY_INLINE HPy
-HPyArray_GetBase(HPyContext *ctx, HPy arr)
+HPyArray_BASE(HPyContext *ctx, HPy h_arr, PyArrayObject *arr_obj)
 {
-    HPyField f_base = HPyArray_AsFields(ctx, arr)->f_base;
-    if (f_base._i == 0) {
+    PyArrayObject_fields *arr = (PyArrayObject_fields*) arr_obj;
+    if (HPyField_IsNull(arr->f_base)) {
         return HPy_NULL;
     }
-    return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_base);
+    return HPyField_Load(ctx, h_arr, arr->f_base);
+}
+
+static NPY_INLINE HPy
+HPyArray_GetBase(HPyContext *ctx, HPy arr)
+{
+    return HPyArray_BASE(ctx, arr, (PyArrayObject*) HPyArray_AsFields(ctx, arr));
 }
 
 static NPY_INLINE void
