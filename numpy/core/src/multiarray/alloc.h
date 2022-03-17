@@ -16,6 +16,12 @@ PyDataMem_UserNEW(npy_uintp sz, PyObject *mem_handler);
 NPY_NO_EXPORT void *
 PyDataMem_UserNEW_ZEROED(size_t nmemb, size_t size, PyObject *mem_handler);
 
+NPY_NO_EXPORT void *
+HPyDataMem_UserNEW(HPyContext *ctx, size_t size, HPy mem_handler);
+
+NPY_NO_EXPORT void *
+HPyDataMem_UserNEW_ZEROED(HPyContext *ctx, size_t nmemb, size_t size, HPy mem_handler);
+
 NPY_NO_EXPORT void
 PyDataMem_UserFREE(void * p, npy_uintp sd, PyObject *mem_handler);
 

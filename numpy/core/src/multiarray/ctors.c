@@ -865,14 +865,12 @@ HPyArray_NewFromDescr_int(
          * It is bad to have uninitialized OBJECT pointers
          * which could also be sub-fields of a VOID array
          */
-        PyObject *handler = HPy_AsPyObject(ctx, h_handler);
         if (zeroed || PyDataType_FLAGCHK(descr, NPY_NEEDS_INIT)) {
-            data = PyDataMem_UserNEW_ZEROED(nbytes, 1, handler);
+            data = HPyDataMem_UserNEW_ZEROED(ctx, nbytes, 1, h_handler);
         }
         else {
-            data = PyDataMem_UserNEW(nbytes, handler);
+            data = HPyDataMem_UserNEW(ctx, nbytes, h_handler);
         }
-        Py_XDECREF(handler);
         HPy_Close(ctx, h_handler);
         if (data == NULL) {
             capi_warn("HPyArray_NewFromDescr_int: raise_memory_error");

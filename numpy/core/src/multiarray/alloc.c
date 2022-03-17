@@ -417,14 +417,25 @@ int uo_index=0;   /* user_override index */
 NPY_NO_EXPORT void *
 PyDataMem_UserNEW(size_t size, PyObject *mem_handler)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h = HPy_FromPyObject(ctx, mem_handler);
+    void *res = HPyDataMem_UserNEW(ctx, size, h);
+    HPy_Close(ctx, h);
+    return res;
+}
+
+NPY_NO_EXPORT void *
+HPyDataMem_UserNEW(HPyContext *ctx, size_t size, HPy mem_handler)
+{
     void *result;
-    PyDataMem_Handler *handler = (PyDataMem_Handler *) PyCapsule_GetPointer(mem_handler, "mem_handler");
+    PyDataMem_Handler *handler = (PyDataMem_Handler *) HPyCapsule_GetPointer(ctx, mem_handler, "mem_handler");
     if (handler == NULL) {
         return NULL;
     }
     assert(size != 0);
     result = handler->allocator.malloc(handler->allocator.ctx, size);
     if (_PyDataMem_eventhook != NULL) {
+        capi_warn("HPyDataMem_UserNEW_ZEROED: GIL usage if _PyDataMem_eventhook is set");
         NPY_ALLOW_C_API_DEF
         NPY_ALLOW_C_API
         if (_PyDataMem_eventhook != NULL) {
@@ -440,13 +451,24 @@ PyDataMem_UserNEW(size_t size, PyObject *mem_handler)
 NPY_NO_EXPORT void *
 PyDataMem_UserNEW_ZEROED(size_t nmemb, size_t size, PyObject *mem_handler)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h = HPy_FromPyObject(ctx, mem_handler);
+    void *res = HPyDataMem_UserNEW_ZEROED(ctx, nmemb, size, h);
+    HPy_Close(ctx, h);
+    return res;
+}
+
+NPY_NO_EXPORT void *
+HPyDataMem_UserNEW_ZEROED(HPyContext *ctx, size_t nmemb, size_t size, HPy mem_handler)
+{
     void *result;
-    PyDataMem_Handler *handler = (PyDataMem_Handler *) PyCapsule_GetPointer(mem_handler, "mem_handler");
+    PyDataMem_Handler *handler = (PyDataMem_Handler *) HPyCapsule_GetPointer(ctx, mem_handler, "mem_handler");
     if (handler == NULL) {
         return NULL;
     }
     result = handler->allocator.calloc(handler->allocator.ctx, nmemb, size);
     if (_PyDataMem_eventhook != NULL) {
+        capi_warn("HPyDataMem_UserNEW_ZEROED: GIL usage if _PyDataMem_eventhook is set");
         NPY_ALLOW_C_API_DEF
         NPY_ALLOW_C_API
         if (_PyDataMem_eventhook != NULL) {
