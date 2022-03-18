@@ -3646,6 +3646,8 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .flags = HPY_BASEFLAGS,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
+
+HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
 /**end repeat**/
 
 #undef NAME_bool
@@ -3692,6 +3694,7 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
 
+HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
 
 #undef _THIS_SIZE
 /**end repeat**/
@@ -3730,6 +3733,9 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .legacy = true,
 };
+
+HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
+
 #undef _THIS_SIZE
 
 /**end repeat**/
