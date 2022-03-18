@@ -1686,8 +1686,6 @@ finish:
     return _prepend_ones(ret, nd, ndmin, order);
 }
 
-// HPY TODO: HACK HACK
-NPY_NO_EXPORT HPy h_array_type_global;
 #include "convert.h"
 
 static NPY_INLINE HPy
@@ -1712,8 +1710,8 @@ _hpy_array_fromobject_generic(
     // HPY TODO (API): original code uses "check exact"
     // HPy version has to use two calls HPy_Type and HPy_Is
     // It would be faster to check subok first and then exact or subclass check
-    if (HPy_Is(ctx, HPy_Type(ctx, op), h_array_type_global) || 
-        (subok && HPy_TypeCheck(ctx, op, h_array_type_global))) {
+    if (HPy_Is(ctx, HPy_Type(ctx, op), HPyArray_Type) || 
+        (subok && HPy_TypeCheck(ctx, op, HPyArray_Type))) {
         oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
@@ -1770,7 +1768,7 @@ _hpy_array_fromobject_generic(
     }
     else if ((order == NPY_FORTRANORDER)
                  /* order == NPY_ANYORDER && */
-                 || (HPy_TypeCheck(ctx, op, h_array_type_global) &&
+                 || (HPy_TypeCheck(ctx, op, HPyArray_Type) &&
                      PyArray_ISFORTRAN(oparr))) {
         flags |= NPY_ARRAY_F_CONTIGUOUS;
     }
@@ -5022,7 +5020,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyArray_Type = HPy_Dup(ctx, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
-    h_array_type_global = HPy_Dup(ctx, h_array_type);
     HPy_Close(ctx, h_array_type);
 
     if (setup_scalartypes(ctx, d) < 0) {

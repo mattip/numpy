@@ -27,9 +27,6 @@ extern "C" {
 #define HPyArray_DescrCheck(ctx, op) HPy_TypeCheck(ctx, op, HPyArrayDescr_Type)
 
 
-// HPY TODO: HACK HACK
-extern NPY_NO_EXPORT HPy h_array_type_global;
-
 #define PyArray_Check(op) PyObject_TypeCheck(op, &PyArray_Type)
 #define PyArray_CheckExact(op) (((PyObject*)(op))->ob_type == &PyArray_Type)
 #define HPyArray_Check(ctx, op) HPy_TypeCheck(ctx, op, HPyArray_Type)
