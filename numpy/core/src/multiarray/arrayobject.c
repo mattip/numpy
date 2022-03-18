@@ -728,6 +728,7 @@ array_might_be_written(PyArrayObject *obj)
         "overlapping memory from np.broadcast_arrays. If this is intentional\n"
         "set the WRITEABLE flag True or make a copy immediately before writing.";
     if (PyArray_FLAGS(obj) & NPY_ARRAY_WARN_ON_WRITE) {
+        capi_warn("array_might_be_written: warning...");
         if (DEPRECATE(msg) < 0) {
             return -1;
         }

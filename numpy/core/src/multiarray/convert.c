@@ -580,18 +580,11 @@ HPyArray_NewCopy(HPyContext *ctx, HPy obj, NPY_ORDER order)
         return HPy_NULL;
     }
 
-    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    PyObject *py_ret = HPy_AsPyObject(ctx, ret);
-    capi_warn("HPyArray_NewCopy: PyArray_AssignArray");
-    if (PyArray_AssignArray(py_ret, (PyArrayObject*) py_obj, NULL, NPY_UNSAFE_CASTING) < 0) {
-        Py_DECREF(py_ret);
-        Py_DECREF(py_obj);
+    if (HPyArray_AssignArray(ctx, ret, obj, HPy_NULL, NPY_UNSAFE_CASTING) < 0) {
         HPy_Close(ctx, ret);
         return HPy_NULL;
     }
 
-    Py_DECREF(py_ret);
-    Py_DECREF(py_obj);
     return ret;
 }
 
