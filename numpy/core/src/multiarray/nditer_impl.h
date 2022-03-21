@@ -233,6 +233,10 @@ typedef npy_int16 npyiter_opitflags;
         &(iter)->iter_flexdata + NIT_BUFFERDATA_OFFSET(itflags, ndim, nop)))
 #define NIT_AXISDATA(iter) ((NpyIter_AxisData *)( \
         &(iter)->iter_flexdata + NIT_AXISDATA_OFFSET(itflags, ndim, nop)))
+#define NIT_PY_OPERANDS(iter) ((PyArrayObject **)( \
+        &(iter)->iter_flexdata + NIT_OPERANDS_OFFSET(itflags, ndim, nop)))
+#define NIT_PY_DTYPES(iter) ((PyArray_Descr **)( \
+        &(iter)->iter_flexdata + NIT_DTYPES_OFFSET(itflags, ndim, nop)))
 
 /* Internal-only BUFFERDATA MEMBER ACCESS */
 

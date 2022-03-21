@@ -600,8 +600,8 @@ NpyIter_Copy(NpyIter *iter)
     memcpy(newiter, iter, size);
 
     /* Take ownership of references to the operands and dtypes */
-    objects = NIT_OPERANDS(newiter);
-    dtypes = NIT_DTYPES(newiter);
+    objects = NIT_PY_OPERANDS(newiter);
+    dtypes = NIT_PY_DTYPES(newiter);
     for (iop = 0; iop < nop; ++iop) {
         Py_INCREF(objects[iop]);
         Py_INCREF(dtypes[iop]);
