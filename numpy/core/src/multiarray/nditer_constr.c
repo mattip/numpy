@@ -22,6 +22,7 @@
 #include "hpy_utils.h"
 #include "ndarrayobject.h"
 #include "nditer_hpy.h"
+#include "ctors.h"
 
 /* Internal helper functions private to this file */
 static int
@@ -2849,27 +2850,22 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
     }
 
     /* Allocate the temporary array */
-    CAPI_WARN("hnpyiter_new_temp_array");
-    PyArray_Descr *py_op_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, op_dtype);
-    PyTypeObject *py_subtype = (PyTypeObject *) HPy_AsPyObject(ctx, subtype);
-    PyArrayObject *py_ret = (PyArrayObject *)PyArray_NewFromDescr(py_subtype, py_op_dtype, op_ndim,
-                               shape, strides, NULL, 0, NULL);
-    Py_DECREF(py_subtype);
-    if (py_ret == NULL) {
+    ret = HPyArray_NewFromDescr_int(ctx, subtype, op_dtype, op_ndim,
+                               shape, strides, NULL, 0, HPy_NULL, HPy_NULL, 0, 0);
+    if (HPy_IsNull(ret)) {
         return HPy_NULL;
     }
-    ret = HPy_FromPyObject(ctx, (PyObject *) py_ret);
-    Py_DECREF(py_ret);
 
     /* Double-check that the subtype didn't mess with the dimensions */
     if (!HPy_Is(ctx, subtype, HPyArray_Type)) {
+        PyArrayObject *ret_data = PyArrayObject_AsStruct(ctx, ret);
         /*
          * TODO: the dtype could have a subarray, which adds new dimensions
          *       to `ret`, that should typically be fine, but will break
          *       in this branch.
          */
-        if (PyArray_NDIM(py_ret) != op_ndim ||
-                    !PyArray_CompareLists(shape, PyArray_DIMS(py_ret), op_ndim)) {
+        if (PyArray_NDIM(ret_data) != op_ndim ||
+                    !PyArray_CompareLists(shape, PyArray_DIMS(ret_data), op_ndim)) {
             HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Iterator automatic output has an array subtype "
                     "which changed the dimensions of the output");
