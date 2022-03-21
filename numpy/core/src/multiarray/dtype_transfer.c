@@ -81,6 +81,13 @@ get_decref_transfer_function(int aligned,
                             NPY_cast_info *cast_info,
                             int *out_needs_api);
 
+static int
+hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
+                            npy_intp src_stride,
+                            HPy src_dtype,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api);
+
 
 /*************************** COPY REFERENCES *******************************/
 
@@ -2791,6 +2798,18 @@ get_decref_transfer_function(int aligned,
     return NPY_SUCCEED;
 }
 
+static int
+hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
+                            npy_intp src_stride,
+                            HPy src_dtype,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api)
+{
+        /* TODO HPY LABS PORT: cut off */
+        hpy_abort_not_implemented("hpy_get_decref_transfer_function");
+        return -1;
+}
+
 
 /*
  * ********************* Generalized Multistep Cast ************************
@@ -3290,6 +3309,48 @@ PyArray_GetDTypeTransferFunction(int aligned,
     return NPY_SUCCEED;
 }
 
+NPY_NO_EXPORT int
+HPyArray_GetDTypeTransferFunction(HPyContext *ctx, int aligned,
+                            npy_intp src_stride, npy_intp dst_stride,
+                            HPy src_dtype, HPy dst_dtype,
+                            int move_references,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api)
+{
+    assert(!HPy_IsNull(src_dtype));
+
+    /*
+     * If one of the dtypes is NULL, we give back either a src decref
+     * function or a dst setzero function
+     *
+     * TODO: Eventually, we may wish to support user dtype with references
+     *       (including and beyond bare `PyObject *` this may require extending
+     *       the ArrayMethod API and those paths should likely be split out
+     *       from this function.)
+     */
+    if (HPy_IsNull(dst_dtype)) {
+        assert(move_references);
+        return hpy_get_decref_transfer_function(ctx, aligned,
+                                PyArray_Descr_AsStruct(ctx, src_dtype)->elsize,
+                                src_dtype,
+                                cast_info,
+                                out_needs_api);
+    }
+
+    /* TODO LABS HPY PORT: cut off */
+    CAPI_WARN("HPyArray_GetDTypeTransferFunction");
+    PyArray_Descr *py_src_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, src_dtype);
+    PyArray_Descr *py_dst_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, dst_dtype);
+    int res = define_cast_for_descrs(aligned,
+            src_stride, dst_stride,
+            py_src_dtype, py_dst_dtype, move_references,
+            cast_info, out_needs_api);
+    Py_DECREF(py_src_dtype);
+    Py_DECREF(py_dst_dtype);
+
+    return res < 0 ? NPY_FAIL : NPY_SUCCEED;
+}
+
 
 /*
  * Internal wrapping of casts that have to be performed in a "single"
@@ -3496,40 +3557,71 @@ PyArray_GetMaskedDTypeTransferFunction(int aligned,
                             NPY_cast_info *cast_info,
                             int *out_needs_api)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_src_dtype = HPy_FromPyObject(ctx, (PyObject *)src_dtype);
+    HPy h_dst_dtype = HPy_FromPyObject(ctx, (PyObject *)dst_dtype);
+    HPy h_mask_dtype = HPy_FromPyObject(ctx, (PyObject *)mask_dtype);
+
+    int res = HPyArray_GetMaskedDTypeTransferFunction(ctx, aligned,
+                            src_stride, dst_stride, mask_stride,
+                            h_src_dtype, h_dst_dtype, h_mask_dtype,
+                            move_references, cast_info, out_needs_api);
+    HPy_Close(ctx, h_src_dtype);
+    HPy_Close(ctx, h_dst_dtype);
+    HPy_Close(ctx, h_mask_dtype);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
+                            npy_intp src_stride,
+                            npy_intp dst_stride,
+                            npy_intp mask_stride,
+                            HPy src_dtype,
+                            HPy dst_dtype,
+                            HPy mask_dtype,
+                            int move_references,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api)
+{
     NPY_cast_info_init(cast_info);
 
-    if (mask_dtype->type_num != NPY_BOOL &&
-                            mask_dtype->type_num != NPY_UINT8) {
-        PyErr_SetString(PyExc_TypeError,
+    PyArray_Descr *src_dtype_data = PyArray_Descr_AsStruct(ctx, src_dtype);
+    PyArray_Descr *mask_dtype_data = PyArray_Descr_AsStruct(ctx, mask_dtype);
+    if (mask_dtype_data->type_num != NPY_BOOL &&
+                            mask_dtype_data->type_num != NPY_UINT8) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Only bool and uint8 masks are supported.");
         return NPY_FAIL;
     }
 
     /* Create the wrapper function's auxdata */
     _masked_wrapper_transfer_data *data;
-    data = PyMem_Malloc(sizeof(_masked_wrapper_transfer_data));
+    /* TODO HPY LABS PORT: PyMem_Malloc */
+    data = malloc(sizeof(_masked_wrapper_transfer_data));
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         return NPY_FAIL;
     }
     data->base.free = &_masked_wrapper_transfer_data_free;
     data->base.clone = &_masked_wrapper_transfer_data_clone;
 
     /* Fall back to wrapping a non-masked transfer function */
-    assert(dst_dtype != NULL);
-    if (PyArray_GetDTypeTransferFunction(aligned,
+    assert(!HPy_IsNull(dst_dtype));
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
                                 src_stride, dst_stride,
                                 src_dtype, dst_dtype,
                                 move_references,
                                 &data->wrapped,
                                 out_needs_api) != NPY_SUCCEED) {
-        PyMem_Free(data);
+        /* TODO HPY LABS PORT: PyMem_Free */
+        free(data);
         return NPY_FAIL;
     }
 
     /* If the src object will need a DECREF, get a function to handle that */
-    if (move_references && PyDataType_REFCHK(src_dtype)) {
-        if (get_decref_transfer_function(aligned,
+    if (move_references && PyDataType_REFCHK(src_dtype_data)) {
+        if (hpy_get_decref_transfer_function(ctx, aligned,
                             src_stride,
                             src_dtype,
                             &data->decref_src,
@@ -3547,10 +3639,10 @@ PyArray_GetMaskedDTypeTransferFunction(int aligned,
     }
     cast_info->auxdata = (NpyAuxData *)data;
     /* The context is almost unused, but clear it for cleanup. */
-    Py_INCREF(src_dtype);
-    cast_info->descriptors[0] = src_dtype;
-    Py_INCREF(dst_dtype);
-    cast_info->descriptors[1] = dst_dtype;
+    /* TODO HPY LABS PORT: migrate C struct 'NPY_cast_info' */
+    CAPI_WARN("HPyArray_GetMaskedDTypeTransferFunction: using NPY_cast_info");
+    cast_info->descriptors[0] = (PyArray_Descr *) HPy_AsPyObject(ctx, src_dtype);
+    cast_info->descriptors[1] = (PyArray_Descr *) HPy_AsPyObject(ctx, dst_dtype);
     cast_info->context.caller = NULL;
     cast_info->context.method = NULL;
 

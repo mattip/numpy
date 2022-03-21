@@ -199,6 +199,13 @@ PyArray_GetDTypeTransferFunction(int aligned,
                             int *out_needs_api);
 
 NPY_NO_EXPORT int
+HPyArray_GetDTypeTransferFunction(HPyContext *ctx, int aligned,
+                            npy_intp src_stride, npy_intp dst_stride,
+                            HPy src_dtype, HPy dst_dtype,
+                            int move_references,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api);
+NPY_NO_EXPORT int
 get_fields_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
@@ -239,6 +246,18 @@ PyArray_GetMaskedDTypeTransferFunction(int aligned,
                             PyArray_Descr *src_dtype,
                             PyArray_Descr *dst_dtype,
                             PyArray_Descr *mask_dtype,
+                            int move_references,
+                            NPY_cast_info *cast_info,
+                            int *out_needs_api);
+
+NPY_NO_EXPORT int
+HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
+                            npy_intp src_stride,
+                            npy_intp dst_stride,
+                            npy_intp mask_stride,
+                            HPy src_dtype,
+                            HPy dst_dtype,
+                            HPy mask_dtype,
                             int move_references,
                             NPY_cast_info *cast_info,
                             int *out_needs_api);
