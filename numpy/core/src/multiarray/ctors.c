@@ -332,6 +332,81 @@ _update_descr_and_dimensions(PyArray_Descr **des, npy_intp *newdims,
     return newnd;
 }
 
+/*
+ * Change a sub-array field to the base descriptor
+ * and update the dimensions and strides
+ * appropriately.  Dimensions and strides are added
+ * to the end.
+ *
+ * Strides are only added if given (because data is given).
+ */
+static int
+_hpy_update_descr_and_dimensions(HPyContext *ctx, HPy *des, npy_intp *newdims,
+                             npy_intp *newstrides, int oldnd)
+{
+    HPy old;
+    PyArray_Descr *old_data;
+    int newnd;
+    int numnew;
+    npy_intp *mydim;
+    int i;
+    int tuple;
+
+    CAPI_WARN("_hpy_update_descr_and_dimensions");
+    old = *des;
+    old_data = PyArray_Descr_AsStruct(ctx, old);
+    /* TODO HPY LABS PORT: uncomment once PyArray_ArrayDescr is migrated.
+       Intentionally using '&(...->ob_base)' instead of cast to get a
+       compilation error once we migrate PyArray_ArrayDescr */
+    *des = HPy_FromPyObject(ctx, &(old_data->subarray->base->ob_base));
+    // *des = HPyField_Load(ctx, old, old_data->subarray->base);
+
+
+    mydim = newdims + oldnd;
+    // TODO HPY LABS PORT: uncomment once PyArray_ArrayDescr is migrated
+    // HPy shape = HPyField_Load(ctx, old, old_data->subarray->shape);
+    HPy shape = HPy_FromPyObject(ctx, old_data->subarray->shape);
+    tuple = HPyTuple_Check(ctx, shape);
+    if (tuple) {
+        numnew = (int) HPy_Length(ctx, shape);
+    }
+    else {
+        numnew = 1;
+    }
+
+
+    newnd = oldnd + numnew;
+    if (newnd > NPY_MAXDIMS) {
+        goto finish;
+    }
+    if (tuple) {
+        for (i = 0; i < numnew; i++) {
+            mydim[i] = (npy_intp) HPyLong_AsLong(ctx,
+                    HPy_GetItem_i(ctx, shape, i));
+        }
+    }
+    else {
+        mydim[0] = (npy_intp) HPyLong_AsLong(ctx, shape);
+    }
+
+    if (newstrides) {
+        npy_intp tempsize;
+        npy_intp *mystrides;
+
+        mystrides = newstrides + oldnd;
+        /* Make new strides -- always C-contiguous */
+        tempsize = PyArray_Descr_AsStruct(ctx, *des)->elsize;
+        for (i = numnew - 1; i >= 0; i--) {
+            mystrides[i] = tempsize;
+            tempsize *= mydim[i] ? mydim[i] : 1;
+        }
+    }
+
+ finish:
+    HPy_Close(ctx, old);
+    return newnd;
+}
+
 NPY_NO_EXPORT void
 _unaligned_strided_byte_copy(char *dst, npy_intp outstrides, char *src,
                              npy_intp instrides, npy_intp N, int elsize)
