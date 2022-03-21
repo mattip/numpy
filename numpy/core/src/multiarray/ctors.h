@@ -25,7 +25,7 @@ PyArray_NewFromDescr_int(
 NPY_NO_EXPORT HPy
 HPyArray_NewFromDescr_int(
         HPyContext *ctx,
-        HPy h_subtype, PyArray_Descr *descr, int nd,
+        HPy h_subtype, HPy h_descr, int nd,
         npy_intp const *dims, npy_intp const *strides, void *data,
         int flags, HPy h_obj, HPy h_base, int zeroed,
         int allow_emptystring);
@@ -116,5 +116,13 @@ byte_swap_vector(void *p, npy_intp n, int size);
 NPY_NO_EXPORT PyArrayObject *
 PyArray_SubclassWrap(PyArrayObject *arr_of_subclass, PyArrayObject *towrap);
 
+
+NPY_NO_EXPORT HPy
+HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
+                     int max_depth, int requires, HPy context);
+
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                     HPy dtype, int subok);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

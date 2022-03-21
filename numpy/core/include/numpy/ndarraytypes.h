@@ -613,8 +613,14 @@ typedef struct {
 #define PyDataType_FLAGCHK(dtype, flag) \
         (((dtype)->flags & (flag)) == (flag))
 
+#define HPyDataType_FLAGCHK(ctx, dtype, flag) \
+        ((PyArray_Descr_AsStruct(ctx, dtype)->flags & (flag)) == (flag))
+
 #define PyDataType_REFCHK(dtype) \
         PyDataType_FLAGCHK(dtype, NPY_ITEM_REFCOUNT)
+
+#define HPyDataType_REFCHK(ctx, dtype) \
+        HPyDataType_FLAGCHK(ctx, dtype, NPY_ITEM_REFCOUNT)
 
 typedef struct _PyArray_Descr {
         PyObject_HEAD
@@ -1584,13 +1590,19 @@ PyArray_DESCR(const PyArrayObject *arr)
 }
 
 static NPY_INLINE HPy
-HPyArray_GetBase(HPyContext *ctx, HPy arr)
+HPyArray_BASE(HPyContext *ctx, HPy h_arr, PyArrayObject *arr_obj)
 {
-    HPyField f_base = HPyArray_AsFields(ctx, arr)->f_base;
-    if (f_base._i == 0) {
+    PyArrayObject_fields *arr = (PyArrayObject_fields*) arr_obj;
+    if (HPyField_IsNull(arr->f_base)) {
         return HPy_NULL;
     }
-    return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_base);
+    return HPyField_Load(ctx, h_arr, arr->f_base);
+}
+
+static NPY_INLINE HPy
+HPyArray_GetBase(HPyContext *ctx, HPy arr)
+{
+    return HPyArray_BASE(ctx, arr, (PyArrayObject*) HPyArray_AsFields(ctx, arr));
 }
 
 static NPY_INLINE void
@@ -1653,7 +1665,7 @@ PyArray_NDIM(const PyArrayObject *arr)
 static NPY_INLINE int
 HPyArray_GetNDim(HPyContext *ctx, HPy arr)
 {
-    return ((PyArrayObject_fields *) HPy_AsStructLegacy(ctx, arr))->nd;
+    return ((PyArrayObject_fields *) PyArrayObject_AsStruct(ctx, arr))->nd;
 }
 
 static NPY_INLINE void *
@@ -2069,6 +2081,8 @@ typedef void (PyDataMem_EventHookFunc)(void *inp, void *outp, size_t size,
         void *dt_slots;
         void *reserved[3];
     } PyArray_DTypeMeta;
+
+    HPyType_LEGACY_HELPERS(PyArray_DTypeMeta);
 
 #endif  /* NPY_INTERNAL_BUILD */
 

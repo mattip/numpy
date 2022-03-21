@@ -103,4 +103,10 @@ HPyArray_IntpFromIndexSequence(HPyContext *ctx, HPy seq, npy_intp *vals, npy_int
 NPY_NO_EXPORT int
 HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val);
 
+NPY_NO_EXPORT int
+HPyArray_CopyConverter(HPyContext *ctx, HPy obj, _PyArray_CopyMode *copymode);
+
+NPY_NO_EXPORT int
+HPyArray_BoolConverter(HPyContext *ctx, HPy object, npy_bool *val);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERSION_UTILS_H_ */

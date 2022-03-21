@@ -35,6 +35,12 @@ extern NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec;
 NPY_NO_EXPORT int
 HPyArray_DescrConverter(HPyContext *ctx, HPy obj, HPy *at);
 
+NPY_NO_EXPORT int
+HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at);
+
+NPY_NO_EXPORT HPy
+HPyArray_DescrNew(HPyContext *ctx, HPy h_base);
+
 NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull;
 NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
 // HPY TODO: HACK storing handle in a global variable...

@@ -19,6 +19,7 @@
 #include "scalartypes.h"
 
 #include "common.h"
+#include "scalarapi.h"
 
 static PyArray_Descr *
 _descr_from_subtype(PyObject *type)
@@ -557,6 +558,21 @@ PyArray_DescrFromTypeObject(PyObject *type)
         return new;
     }
     return _descr_from_subtype(type);
+}
+
+// HPY TODO: once the necessary helper functions are in API, no need to include:
+#include "arraytypes.h"
+
+NPY_NO_EXPORT HPy 
+HPyArray_DescrFromTypeObject(HPyContext *ctx, HPy type)
+{
+    /* if it's a builtin type, then use the typenumber */
+    int typenum = _hpy_typenum_fromtypeobj(type,1);
+    if (typenum != NPY_NOTYPE) {
+        return HPyArray_DescrFromType(ctx, typenum);
+    }
+
+    hpy_abort_not_implemented("PyArray_DescrFromTypeObject for non builtin types");
 }
 
 /*NUMPY_API

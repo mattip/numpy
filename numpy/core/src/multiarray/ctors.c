@@ -34,6 +34,9 @@
 #include "array_coercion.h"
 #include "arraytypes.h"
 
+#include "arrayobject.h"
+#include "descriptor.h"
+
 /*
  * Reading from a file or a string.
  *
@@ -670,11 +673,14 @@ PyArray_NewFromDescr_int(
     HPy h_subtype = HPy_FromPyObject(ctx, (PyObject*)subtype);
     HPy h_obj = HPy_FromPyObject(ctx, obj);
     HPy h_base = HPy_FromPyObject(ctx, base);
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject*) descr);
     HPy h_result = HPyArray_NewFromDescr_int(
-            ctx, h_subtype, descr, nd,
+            ctx, h_subtype, h_descr, nd,
             dims, strides, data,
             flags, h_obj, h_base, zeroed,
             allow_emptystring);
+    HPy_Close(ctx, h_descr);
+    Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref anymore
     HPy_Close(ctx, h_base);
     HPy_Close(ctx, h_obj);
     HPy_Close(ctx, h_subtype);
@@ -683,30 +689,28 @@ PyArray_NewFromDescr_int(
     return result;
 }
 
+// IMPORTANT: does not steal the reference to h_descr anymore!
 NPY_NO_EXPORT HPy
 HPyArray_NewFromDescr_int(
         HPyContext *ctx,
-        HPy h_subtype, PyArray_Descr *descr, int nd,
+        HPy h_subtype, HPy h_descr, int nd,
         npy_intp const *dims, npy_intp const *strides, void *data,
         int flags, HPy h_obj, HPy h_base, int zeroed,
         int allow_emptystring)
 {
     PyArrayObject_fields *fa;
     npy_intp nbytes;
-    PyObject *obj = NULL;
-    PyObject *subtype = NULL;
-    PyObject *handler = NULL;
 
-    if (descr == NULL) {
+    if (HPy_IsNull(h_descr)) {
         return HPy_NULL;
-    }
+    }    
     if (nd > NPY_MAXDIMS || nd < 0) {
-        PyErr_Format(PyExc_ValueError,
-                "number of dimensions must be within [0, %d]", NPY_MAXDIMS);
-        Py_DECREF(descr);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "number of dimensions must be within [0, %d]"/* HPY TODO: NPY_MAXDIMS*/);
         return HPy_NULL;
     }
 
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     if (descr->subarray) {
         HPy ret;
         npy_intp newdims[2*NPY_MAXDIMS];
@@ -719,7 +723,7 @@ HPyArray_NewFromDescr_int(
         nd =_update_descr_and_dimensions(&descr, newdims,
                                          newstrides, nd);
         ret = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, descr,
+                ctx, h_subtype, h_descr,
                 nd, newdims, newstrides, data,
                 flags, h_obj, h_base,
                 zeroed, allow_emptystring);
@@ -730,14 +734,13 @@ HPyArray_NewFromDescr_int(
     nbytes = descr->elsize;
     if (PyDataType_ISUNSIZED(descr)) {
         if (!PyDataType_ISFLEXIBLE(descr)) {
-            PyErr_SetString(PyExc_TypeError, "Empty data-type");
-            Py_DECREF(descr);
+            HPyErr_SetString(ctx, ctx->h_TypeError, "Empty data-type");
             return HPy_NULL;
         }
         else if (PyDataType_ISSTRING(descr) && !allow_emptystring &&
                  data == NULL) {
-            PyArray_DESCR_REPLACE(descr);
-            if (descr == NULL) {
+            HPyArray_DESCR_REPLACE(ctx, h_descr);
+            if (HPy_IsNull(h_descr)) {
                 return HPy_NULL;
             }
             if (descr->type_num == NPY_STRING) {
@@ -751,7 +754,6 @@ HPyArray_NewFromDescr_int(
 
     HPy result = HPy_New(ctx, h_subtype, &fa);
     if (HPy_IsNull(result)) {
-        Py_DECREF(descr);
         return HPy_NULL;
     }
     fa->_buffer_info = NULL;
@@ -772,15 +774,13 @@ HPyArray_NewFromDescr_int(
     else {
         fa->flags = (flags & ~NPY_ARRAY_WRITEBACKIFCOPY);
     }
-    HPy h_descr = HPy_FromPyObject(ctx, (PyObject*)descr);
     HPyField_Store(ctx, result, &fa->f_descr, h_descr);
-    HPy_Close(ctx, h_descr);
     fa->weakreflist = (PyObject *)NULL;
 
     if (nd > 0) {
         fa->dimensions = npy_alloc_cache_dim(2 * nd);
         if (fa->dimensions == NULL) {
-            PyErr_NoMemory();
+            HPyErr_NoMemory(ctx);
             goto fail;
         }
         fa->strides = fa->dimensions + nd;
@@ -804,7 +804,7 @@ HPyArray_NewFromDescr_int(
             }
 
             if (fa->dimensions[i] < 0) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "negative dimensions are not allowed");
                 goto fail;
             }
@@ -814,7 +814,7 @@ HPyArray_NewFromDescr_int(
              * the dimensions together to get the total size of the array.
              */
             if (npy_mul_with_overflow_intp(&nbytes, nbytes, fa->dimensions[i])) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "array is too big; `arr.size * arr.dtype.itemsize` "
                         "is larger than the maximum possible size.");
                 goto fail;
@@ -846,13 +846,11 @@ HPyArray_NewFromDescr_int(
 
     if (data == NULL) {
         /* Store the handler in case the default is modified */
-        handler = PyDataMem_GetHandler();
-        if (handler == NULL) {
+        HPy h_handler = HPyDataMem_GetHandler(ctx);
+        if (HPy_IsNull(h_handler)) {
             goto fail;
         }
-        HPy h_handler = HPy_FromPyObject(ctx, handler);
         HPyField_Store(ctx, result, &fa->f_mem_handler, h_handler);
-        HPy_Close(ctx, h_handler);
         /*
          * Allocate something even for zero-space arrays
          * e.g. shape=(0,) -- otherwise buffer exposure
@@ -868,12 +866,14 @@ HPyArray_NewFromDescr_int(
          * which could also be sub-fields of a VOID array
          */
         if (zeroed || PyDataType_FLAGCHK(descr, NPY_NEEDS_INIT)) {
-            data = PyDataMem_UserNEW_ZEROED(nbytes, 1, handler);
+            data = HPyDataMem_UserNEW_ZEROED(ctx, nbytes, 1, h_handler);
         }
         else {
-            data = PyDataMem_UserNEW(nbytes, handler);
+            data = HPyDataMem_UserNEW(ctx, nbytes, h_handler);
         }
+        HPy_Close(ctx, h_handler);
         if (data == NULL) {
+            capi_warn("HPyArray_NewFromDescr_int: raise_memory_error");
             raise_memory_error(fa->nd, fa->dimensions, descr);
             goto fail;
         }
@@ -900,8 +900,7 @@ HPyArray_NewFromDescr_int(
      * __array_finalize__ below receives it
      */
     if (!HPy_IsNull(h_base)) {
-        PyObject *base = HPy_AsPyObject(ctx, h_base);
-        if (PyArray_SetBaseObject((PyArrayObject *)fa, base) < 0) {
+        if (HPyArray_SetBaseObject(ctx, result, (PyArrayObject *)fa, h_base) < 0) {
             goto fail;
         }
     }
@@ -913,30 +912,25 @@ HPyArray_NewFromDescr_int(
      * (since that function does nothing), or, for backward compatibility,
      * if it is None.
      */
-    subtype = HPy_AsPyObject(ctx, h_subtype);
-    obj = HPy_AsPyObject(ctx, h_obj);
-    if ((PyTypeObject*)subtype != &PyArray_Type) {
-        PyObject *res, *func;
-        static PyObject *ndarray_array_finalize = NULL;
-        /* First time, cache ndarray's __array_finalize__ */
-        if (ndarray_array_finalize == NULL) {
-            ndarray_array_finalize = PyObject_GetAttr(
-                (PyObject *)&PyArray_Type, npy_ma_str_array_finalize);
-        }
-        func = PyObject_GetAttr((PyObject *)subtype, npy_ma_str_array_finalize);
-        if (func == NULL) {
+    if (!HPy_Is(ctx, h_subtype, HPyArray_Type)) {
+        HPy ndarray_array_finalize = HPy_GetAttr_s(ctx, HPyArray_Type, "__array_finalize__");
+        HPy func = HPy_GetAttr_s(ctx, h_subtype, "__array_finalize__");
+        if (HPy_IsNull(func)) {
+            HPy_Close(ctx, ndarray_array_finalize);
             goto fail;
         }
-        else if (func == ndarray_array_finalize) {
-            Py_DECREF(func);
+        else if (HPy_Is(ctx, func, ndarray_array_finalize)) {
+            HPy_Close(ctx, ndarray_array_finalize);
+            HPy_Close(ctx, func);
         }
-        else if (func == Py_None) {
-            Py_DECREF(func);
+        else if (HPy_Is(ctx, func, ctx->h_None)) {
+            HPy_Close(ctx, ndarray_array_finalize);
+            HPy_Close(ctx, func);
             /*
              * 2022-01-08, NumPy 1.23; when deprecation period is over, remove this
              * whole stanza so one gets a "NoneType object is not callable" TypeError.
              */
-            if (DEPRECATE(
+            if (HPY_DEPRECATE(ctx,
                     "Setting __array_finalize__ = None to indicate no finalization"
                     "should be done is deprecated.  Instead, just inherit from "
                     "ndarray or, if that is not possible, explicitly set to "
@@ -946,44 +940,48 @@ HPyArray_NewFromDescr_int(
             }
         }
         else {
-            if (PyCapsule_CheckExact(func)) {
+            if (HPy_TypeCheck(ctx, func, ctx->h_CapsuleType)) {
+                hpy_abort_not_implemented("HPyArray_NewFromDescr_int: __array_finalize__ is PyCapsule");
                 /* A C-function is stored here */
-                PyArray_FinalizeFunc *cfunc;
-                cfunc = PyCapsule_GetPointer(func, NULL);
-                Py_DECREF(func);
-                if (cfunc == NULL) {
-                    goto fail;
-                }
-                if (cfunc((PyArrayObject *)fa, obj) < 0) {
-                    goto fail;
-                }
+                // PyArray_FinalizeFunc *cfunc;
+                // cfunc = PyCapsule_GetPointer(func, NULL);
+                // Py_DECREF(func);
+                // if (cfunc == NULL) {
+                //     goto fail;
+                // }
+                // if (cfunc((PyArrayObject *)fa, py_obj) < 0) {
+                //     goto fail;
+                // }
             }
             else {
-                if (obj == NULL) {
-                    obj = Py_None;
+                HPy arg;
+                if (HPy_IsNull(h_obj)) {
+                    arg = HPy_Dup(ctx, ctx->h_None);
+                } else {
+                    arg = HPy_Dup(ctx, h_obj);
                 }
-                res = PyObject_CallFunctionObjArgs(func, (PyObject *)fa, obj, NULL);
-                Py_DECREF(func);
-                if (res == NULL) {
+                // result, arg
+                HPy args = HPyTuple_Pack(ctx, 2, result, arg);
+                HPy res = HPy_CallTupleDict(ctx, func, args, HPy_NULL);
+
+                HPy_Close(ctx, arg);
+                HPy_Close(ctx, args);
+                HPy_Close(ctx, ndarray_array_finalize);
+                HPy_Close(ctx, func);
+                
+                if (HPy_IsNull(res)) {
                     goto fail;
                 }
                 else {
-                    Py_DECREF(res);
+                    HPy_Close(ctx, res);
                 }
             }
         }
     }
-    Py_DECREF(descr);
-    Py_DECREF(subtype);
-    Py_XDECREF(obj);
     return result;
 
  fail:
-    Py_DECREF(descr);
-    Py_XDECREF(subtype);
-    Py_XDECREF(obj);
-    Py_XDECREF(handler);
-    Py_DECREF(fa);
+    HPy_Close(ctx, result);
     return HPy_NULL;
 }
 
@@ -1016,6 +1014,45 @@ PyArray_NewFromDescr(
             subtype, descr,
             nd, dims, strides, data,
             flags, obj, NULL);
+}
+
+
+/*
+ * Sets the base object using PyArray_SetBaseObject
+ */
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescrAndBase(
+        HPyContext *ctx, HPy subtype, HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj, HPy base)
+{
+    return HPyArray_NewFromDescr_int(ctx, subtype, descr, nd,
+                                    dims, strides, data,
+                                    flags, obj, base, 0, 0);
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescr(
+        HPyContext *ctx, HPy subtype, HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj)
+{
+    if (HPy_IsNull(subtype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "subtype is NULL in PyArray_NewFromDescr");
+        return HPy_NULL;
+    }
+
+    if (HPy_IsNull(descr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "descr is NULL in PyArray_NewFromDescr");
+        return HPy_NULL;
+    }
+
+    return HPyArray_NewFromDescrAndBase(
+            ctx, subtype, descr,
+            nd, dims, strides, data,
+            flags, obj, HPy_NULL);
 }
 
 /*
@@ -1144,6 +1181,102 @@ PyArray_NewLikeArrayWithShape(PyArrayObject *prototype, NPY_ORDER order,
     return ret;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArrayWithShape(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                              HPy dtype, int ndim, npy_intp const *dims, int subok)
+{
+    HPy ret = HPy_NULL;
+    PyArrayObject *prototype_arr = PyArrayObject_AsStruct(ctx, prototype);
+
+    if (ndim == -1) {
+        ndim = PyArray_NDIM(prototype_arr);
+        dims = PyArray_DIMS(prototype_arr);
+    }
+    else if (order == NPY_KEEPORDER && (ndim != PyArray_NDIM(prototype_arr))) {
+        order = NPY_CORDER;
+    }
+
+    /* If no override data type, use the one from the prototype */
+    if (HPy_IsNull(dtype)) {
+        dtype = HPyArray_DESCR(ctx, prototype, prototype_arr);
+    }
+
+    /* Handle ANYORDER and simple KEEPORDER cases */
+    switch (order) {
+        case NPY_ANYORDER:
+            order = PyArray_ISFORTRAN(prototype_arr) ?
+                                    NPY_FORTRANORDER : NPY_CORDER;
+            break;
+        case NPY_KEEPORDER:
+            if (PyArray_IS_C_CONTIGUOUS(prototype_arr) || ndim <= 1) {
+                order = NPY_CORDER;
+                break;
+            }
+            else if (PyArray_IS_F_CONTIGUOUS(prototype_arr)) {
+                order = NPY_FORTRANORDER;
+                break;
+            }
+            break;
+        default:
+            break;
+    }
+
+    /* If it's not KEEPORDER, this is simple */
+    if (order != NPY_KEEPORDER) {
+        ret = HPyArray_NewFromDescr(ctx,
+                        subok ? HPy_Type(ctx, prototype) : HPyArray_Type,
+                        dtype,
+                        ndim,
+                        dims,
+                        NULL,
+                        NULL,
+                        order,
+                        subok ? prototype : HPy_NULL);
+    }
+    /* KEEPORDER needs some analysis of the strides */
+    else {
+        npy_intp strides[NPY_MAXDIMS], stride;
+        npy_stride_sort_item strideperm[NPY_MAXDIMS];
+        int idim;
+
+        hpy_abort_not_implemented("HPyArray_NewLikeArrayWithShape: KEEPORDER");
+        // PyArray_CreateSortedStridePerm(ndim,
+        //                                 PyArray_STRIDES(prototype),
+        //                                 strideperm);
+
+        // /* Build the new strides */
+        // stride = dtype->elsize;
+        // if (stride == 0 && PyDataType_ISSTRING(dtype)) {
+        //     /* Special case for dtype=str or dtype=bytes. */
+        //     if (dtype->type_num == NPY_STRING) {
+        //         /* dtype is bytes */
+        //         stride = 1;
+        //     }
+        //     else {
+        //         /* dtype is str (type_num is NPY_UNICODE) */
+        //         stride = 4;
+        //     }
+        // }
+        // for (idim = ndim-1; idim >= 0; --idim) {
+        //     npy_intp i_perm = strideperm[idim].perm;
+        //     strides[i_perm] = stride;
+        //     stride *= dims[i_perm];
+        // }
+
+        // /* Finally, allocate the array */
+        // ret = PyArray_NewFromDescr(subok ? Py_TYPE(prototype) : &PyArray_Type,
+        //                                 dtype,
+        //                                 ndim,
+        //                                 dims,
+        //                                 strides,
+        //                                 NULL,
+        //                                 0,
+        //                                 subok ? (PyObject *)prototype : NULL);
+    }
+
+    return ret;
+}
+
 /*NUMPY_API
  * Creates a new array with the same shape as the provided one,
  * with possible memory layout order and data type changes.
@@ -1170,6 +1303,19 @@ PyArray_NewLikeArray(PyArrayObject *prototype, NPY_ORDER order,
         return NULL;
     }
     return PyArray_NewLikeArrayWithShape(prototype, order, dtype, -1, NULL, subok);
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
+                     HPy dtype, int subok)
+{
+    if (HPy_IsNull(prototype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "prototype is NULL in PyArray_NewLikeArray");
+        return HPy_NULL;
+    }
+
+    return HPyArray_NewLikeArrayWithShape(ctx, prototype, order, dtype, -1, NULL, subok);
 }
 
 /*NUMPY_API
@@ -1998,6 +2144,63 @@ PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
         ret = PyArray_NewCopy((PyArrayObject *)obj, NPY_ANYORDER);
         Py_DECREF(obj);
         obj = ret;
+    }
+    return obj;
+}
+
+// HPY TODO: not needed once HPyArray_DescrNew, HPyArray_ElementStrides are in API
+#include "descriptor.h"
+#include "arrayobject.h"
+
+NPY_NO_EXPORT HPy
+HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
+                     int max_depth, int requires, HPy context)
+{
+    PyArray_Descr *descr_data;
+    if (!HPy_IsNull(descr)) {
+        descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    }
+    PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
+    if (requires & NPY_ARRAY_NOTSWAPPED) {
+        if (HPy_IsNull(descr) && HPyArray_Check(ctx, op) &&
+                PyArray_ISBYTESWAPPED(oparr)) {
+            descr = HPyArray_DescrNew(ctx, HPyArray_DESCR(ctx, op, oparr));
+            if (HPy_IsNull(descr)) {
+                return HPy_NULL;
+            }
+            descr_data = PyArray_Descr_AsStruct(ctx, descr);
+        }
+        else if (!HPy_IsNull(descr) && !PyArray_ISNBO(descr_data->byteorder)) {
+            hpy_abort_not_implemented("HPyArray_CheckFromAny: PyArray_DESCR_REPLACE");
+            // HPY TODO: PyArray_DESCR_REPLACE(descr);
+        }
+        if (!HPy_IsNull(descr) && descr_data->byteorder != NPY_IGNORE) {
+            descr_data->byteorder = NPY_NATIVE;
+        }
+    }
+
+    // HPy obj = HPyArray_CheckFromAny(ctx, op, descr, min_depth, max_depth, requires, context);
+    HPy obj = HPy_FromPyObject(ctx, PyArray_FromAny(
+        HPy_AsPyObject(ctx, op),
+        (PyArray_Descr*) HPy_AsPyObject(ctx, descr),
+        min_depth, max_depth, requires, HPy_AsPyObject(ctx, context)));
+    if (HPy_IsNull(obj)) {
+        return HPy_NULL;
+    }
+
+    if ((requires & NPY_ARRAY_ELEMENTSTRIDES)
+            && !HPyArray_ElementStrides(ctx, obj)) {
+
+        hpy_abort_not_implemented("PyArray_NewCopy");
+        // PyObject *ret;
+        // if (requires & NPY_ARRAY_ENSURENOCOPY) {
+        //     PyErr_SetString(PyExc_ValueError,
+        //             "Unable to avoid copy while creating a new array.");
+        //     return NULL;
+        // }
+        // ret = PyArray_NewCopy((PyArrayObject *)obj, NPY_ANYORDER);
+        // Py_DECREF(obj);
+        // obj = ret;
     }
     return obj;
 }
@@ -3010,9 +3213,8 @@ HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, HPy type, int is_f
         type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
     
-    PyArray_Descr *type_descr = (PyArray_Descr*) HPy_AsPyObject(ctx, type);
     ret = HPyArray_NewFromDescr_int(
-            ctx, HPy_FromPyObject(ctx, (PyObject *)&PyArray_Type), type_descr,
+            ctx, HPyArray_Type, type,
             nd, dims, NULL, NULL,
             is_f_order, HPy_NULL, HPy_NULL,
             1, 0);
@@ -3023,7 +3225,7 @@ HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, HPy type, int is_f
     }
 
     /* handle objects */
-    if (PyDataType_REFCHK(type_descr)) {
+    if (HPyDataType_REFCHK(ctx, type)) {
         PyObject *py_ret = HPy_AsPyObject(ctx, ret);
         int result = _zerofill((PyArrayObject*) py_ret);
         Py_DECREF(py_ret);

@@ -102,4 +102,8 @@ simple_cast_resolve_descriptors(
 NPY_NO_EXPORT int
 PyArray_InitializeCasts(void);
 
+NPY_NO_EXPORT npy_bool
+HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
+        NPY_CASTING casting);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERT_DATATYPE_H_ */

@@ -8,6 +8,7 @@
 #include <limits.h>
 
 #define error_converting(x)  (((x) == -1) && PyErr_Occurred())
+#define hpy_error_converting(ctx, x)  (((x) == -1) && HPyErr_Occurred(ctx))
 
 #ifdef NPY_ALLOW_THREADS
 #define NPY_BEGIN_THREADS_NDITER(iter) \
@@ -100,6 +101,12 @@ _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
     if (!HPy_IsNull(h_new)) {
         HPy_Close(ctx, h_new);
     }
+}
+
+static NPY_INLINE void
+_hpy_set_descr(HPyContext *ctx, HPy h_arr, PyArrayObject *tmp_array, HPy new_descr)
+{
+    HPyField_Store(ctx, h_arr, &((PyArrayObject_fields *)tmp_array)->f_descr, new_descr);
 }
 
 /**

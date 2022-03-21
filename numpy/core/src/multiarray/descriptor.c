@@ -1391,6 +1391,19 @@ PyArray_DescrNewFromType(int type_num)
     return new;
 }
 
+NPY_NO_EXPORT int
+HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at)
+{
+    // HPY TODO: the default for kwargs parsing is NULL with HPY
+    if (HPy_Is(ctx, obj, ctx->h_None) || HPy_IsNull(obj)) {
+        *at = HPy_NULL;
+        return NPY_SUCCEED;
+    }
+    else {
+        return HPyArray_DescrConverter(ctx, obj, at);
+    }
+}
+
 /*NUMPY_API
  * Get typenum from an object -- None goes to NULL
  */
@@ -1573,8 +1586,9 @@ _convert_from_any(PyObject *obj, int align)
     }
 }
 
-// HPY TODO: once HPyArray_DescrFromType is in API, no need to include:
+// HPY TODO: once the necessary helper functions are in API, no need to include:
 #include "arraytypes.h"
+#include "scalarapi.h"
 
 static HPy
 _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
@@ -1582,15 +1596,7 @@ _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
     HPy h_PyGenericArrType_Type = HPy_FromPyObject(ctx, (PyObject*) &PyGenericArrType_Type);
 
     if (HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type)) {
-        capi_warn("_hpy_convert_from_type -> PyArray_DescrFromTypeObject");
-        // HPY TODO: convert the path PyArray_DescrFromTypeObject -> _typenum_fromtypeobj
-        // This requires conversion of scalartypes.c.src
-        PyObject *pyobj = HPy_AsPyObject(ctx, typ);
-        PyArray_Descr *pyres = PyArray_DescrFromTypeObject(pyobj);
-        HPy hres = HPy_FromPyObject(ctx, (PyObject*) pyres);
-        Py_DECREF(pyobj);
-        Py_DECREF(pyres);
-        return hres;
+        return HPyArray_DescrFromTypeObject(ctx, typ);
     }
     else if (HPy_Is(ctx, typ, ctx->h_LongType)) {
         return HPyArray_DescrFromType(ctx, NPY_LONG);
@@ -1964,6 +1970,64 @@ PyArray_DescrNew(PyArray_Descr *base)
     newdescr->hash = -1;
 
     return newdescr;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
+{
+    PyArray_Descr *newdescr;
+    // ATTENTION! When changing to non-legacy: update also the memcopy below
+    PyArray_Descr *base = PyArray_Descr_AsStruct(ctx, h_base);
+    HPy h_newdescr = HPy_New(ctx, HPy_Type(ctx, h_base), &newdescr);
+
+    if (HPy_IsNull(h_newdescr)) {
+        return HPy_NULL;
+    }
+    /* Don't copy PyObject_HEAD part */
+    size_t offset = 0;
+    if (PyArray_Descr_IS_LEGACY) {
+        offset = sizeof(PyObject);
+    }
+    memcpy((char *)newdescr + offset,
+           (char *)base + offset,
+           sizeof(PyArray_Descr) - offset);
+
+    /*
+     * The c_metadata has a by-value ownership model, need to clone it
+     * (basically a deep copy, but the auxdata clone function has some
+     * flexibility still) so the new PyArray_Descr object owns
+     * a copy of the data. Having both 'base' and 'newdescr' point to
+     * the same auxdata pointer would cause a double-free of memory.
+     */
+    if (base->c_metadata != NULL) {
+        newdescr->c_metadata = NPY_AUXDATA_CLONE(base->c_metadata);
+        if (newdescr->c_metadata == NULL) {
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
+        }
+    }
+
+    capi_warn("HPyArray_DescrNew: PyArray_Descr still contains PyObject fields");
+    if (newdescr->fields == Py_None) {
+        newdescr->fields = NULL;
+    }
+    Py_XINCREF(newdescr->fields);
+    Py_XINCREF(newdescr->names);
+    if (newdescr->subarray) {
+        newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
+        if (newdescr->subarray == NULL) {
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
+        }
+        memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
+        Py_INCREF(newdescr->subarray->shape);
+        Py_INCREF(newdescr->subarray->base);
+    }
+    Py_XINCREF(newdescr->typeobj);
+    Py_XINCREF(newdescr->metadata);
+    newdescr->hash = -1;
+
+    return h_newdescr;
 }
 
 /*

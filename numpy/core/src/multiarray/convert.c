@@ -563,6 +563,31 @@ PyArray_NewCopy(PyArrayObject *obj, NPY_ORDER order)
     return (PyObject *)ret;
 }
 
+// HPY TODO: Make it API
+NPY_NO_EXPORT HPy
+HPyArray_NewCopy(HPyContext *ctx, HPy obj, NPY_ORDER order)
+{
+    HPy ret;
+
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "obj is NULL in PyArray_NewCopy");
+        return HPy_NULL;
+    }
+
+    ret = HPyArray_NewLikeArray(ctx, obj, order, HPy_NULL, 1);
+    if (HPy_IsNull(ret)) {
+        return HPy_NULL;
+    }
+
+    if (HPyArray_AssignArray(ctx, ret, obj, HPy_NULL, NPY_UNSAFE_CASTING) < 0) {
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
+    }
+
+    return ret;
+}
+
 /*NUMPY_API
  * View
  * steals a reference to type -- accepts NULL

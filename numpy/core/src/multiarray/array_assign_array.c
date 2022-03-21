@@ -438,3 +438,192 @@ fail:
     }
     return -1;
 }
+
+NPY_NO_EXPORT int
+HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
+                    HPy h_wheremask,
+                    NPY_CASTING casting)
+{
+    PyArrayObject *src = PyArrayObject_AsStruct(ctx, h_src);
+    PyArrayObject *dst = PyArrayObject_AsStruct(ctx, h_dst);
+    int copied_src = 0;
+
+    npy_intp src_strides[NPY_MAXDIMS];
+
+    /* Use array_assign_scalar if 'src' NDIM is 0 */
+    if (PyArray_NDIM(src) == 0) {
+        capi_warn("HPyArray_AssignArray: PyArray_AssignRawScalar");
+        return PyArray_AssignRawScalar(
+                            dst, PyArray_DESCR(src), PyArray_DATA(src),
+                            PyArrayObject_AsStruct(ctx, h_wheremask), casting);
+    }
+    
+    HPy h_src_descr = HPyArray_DESCR(ctx, h_src, src);
+    HPy h_dst_descr = HPyArray_DESCR(ctx, h_dst, dst);
+    /*
+     * Performance fix for expressions like "a[1000:6000] += x".  In this
+     * case, first an in-place add is done, followed by an assignment,
+     * equivalently expressed like this:
+     *
+     *   tmp = a[1000:6000]   # Calls array_subscript in mapping.c
+     *   np.add(tmp, x, tmp)
+     *   a[1000:6000] = tmp   # Calls array_assign_subscript in mapping.c
+     *
+     * In the assignment the underlying data type, shape, strides, and
+     * data pointers are identical, but src != dst because they are separately
+     * generated slices.  By detecting this and skipping the redundant
+     * copy of values to themselves, we potentially give a big speed boost.
+     *
+     * Note that we don't call EquivTypes, because usually the exact same
+     * dtype object will appear, and we don't want to slow things down
+     * with a complicated comparison.  The comparisons are ordered to
+     * try and reject this with as little work as possible.
+     */
+    if (PyArray_DATA(src) == PyArray_DATA(dst) &&
+                        HPy_Is(ctx, h_src_descr, h_dst_descr) &&
+                        PyArray_NDIM(src) == PyArray_NDIM(dst) &&
+                        PyArray_CompareLists(PyArray_DIMS(src),
+                                             PyArray_DIMS(dst),
+                                             PyArray_NDIM(src)) &&
+                        PyArray_CompareLists(PyArray_STRIDES(src),
+                                             PyArray_STRIDES(dst),
+                                             PyArray_NDIM(src))) {
+        /*printf("Redundant copy operation detected\n");*/
+        return 0;
+    }
+
+    if (PyArray_FailUnlessWriteable(dst, "assignment destination") < 0) {
+        goto fail;
+    }
+
+    /* Check the casting rule */
+    if (!HPyArray_CanCastTypeTo(ctx, h_src_descr,
+                                h_dst_descr, casting)) {
+        capi_warn("HPyArray_AssignArray: npy_set_invalid_cast_error");
+        npy_set_invalid_cast_error(
+                PyArray_DESCR(src), PyArray_DESCR(dst), casting, NPY_FALSE);
+        goto fail;
+    }
+
+    /*
+     * When ndim is 1 and the strides point in the same direction,
+     * the lower-level inner loop handles copying
+     * of overlapping data. For bigger ndim and opposite-strided 1D
+     * data, we make a temporary copy of 'src' if 'src' and 'dst' overlap.'
+     */
+    capi_warn("HPyArray_AssignArray: arrays_overlap and reminder of this function...");
+    if (((PyArray_NDIM(dst) == 1 && PyArray_NDIM(src) >= 1 &&
+                    PyArray_STRIDES(dst)[0] *
+                            PyArray_STRIDES(src)[PyArray_NDIM(src) - 1] < 0) ||
+                    PyArray_NDIM(dst) > 1 || PyArray_HASFIELDS(dst)) &&
+                    arrays_overlap(src, dst)) {
+        PyArrayObject *tmp;
+
+        /*
+         * Allocate a temporary copy array.
+         */
+        tmp = (PyArrayObject *)PyArray_NewLikeArray(dst,
+                                        NPY_KEEPORDER, NULL, 0);
+        if (tmp == NULL) {
+            goto fail;
+        }
+
+        if (PyArray_AssignArray(tmp, src, NULL, NPY_UNSAFE_CASTING) < 0) {
+            Py_DECREF(tmp);
+            goto fail;
+        }
+
+        src = tmp;
+        copied_src = 1;
+    }
+
+    /* Broadcast 'src' to 'dst' for raw iteration */
+    if (PyArray_NDIM(src) > PyArray_NDIM(dst)) {
+        int ndim_tmp = PyArray_NDIM(src);
+        npy_intp *src_shape_tmp = PyArray_DIMS(src);
+        npy_intp *src_strides_tmp = PyArray_STRIDES(src);
+        /*
+         * As a special case for backwards compatibility, strip
+         * away unit dimensions from the left of 'src'
+         */
+        while (ndim_tmp > PyArray_NDIM(dst) && src_shape_tmp[0] == 1) {
+            --ndim_tmp;
+            ++src_shape_tmp;
+            ++src_strides_tmp;
+        }
+
+        if (broadcast_strides(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                    ndim_tmp, src_shape_tmp,
+                    src_strides_tmp, "input array",
+                    src_strides) < 0) {
+            goto fail;
+        }
+    }
+    else {
+        if (broadcast_strides(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                    PyArray_NDIM(src), PyArray_DIMS(src),
+                    PyArray_STRIDES(src), "input array",
+                    src_strides) < 0) {
+            goto fail;
+        }
+    }
+
+    PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
+    /* optimization: scalar boolean mask */
+    if (wheremask != NULL &&
+            PyArray_NDIM(wheremask) == 0 &&
+            PyArray_DESCR(wheremask)->type_num == NPY_BOOL) {
+        npy_bool value = *(npy_bool *)PyArray_DATA(wheremask);
+        if (value) {
+            /* where=True is the same as no where at all */
+            wheremask = NULL;
+        }
+        else {
+            /* where=False copies nothing */
+            return 0;
+        }
+    }
+
+    if (wheremask == NULL) {
+        /* A straightforward value assignment */
+        /* Do the assignment with raw array iteration */
+        if (raw_array_assign_array(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
+                PyArray_DESCR(src), PyArray_DATA(src), src_strides) < 0) {
+            goto fail;
+        }
+    }
+    else {
+        npy_intp wheremask_strides[NPY_MAXDIMS];
+
+        /* Broadcast the wheremask to 'dst' for raw iteration */
+        if (broadcast_strides(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                    PyArray_NDIM(wheremask), PyArray_DIMS(wheremask),
+                    PyArray_STRIDES(wheremask), "where mask",
+                    wheremask_strides) < 0) {
+            goto fail;
+        }
+
+        /* A straightforward where-masked assignment */
+         /* Do the masked assignment with raw array iteration */
+        if (raw_array_wheremasked_assign_array(
+                PyArray_NDIM(dst), PyArray_DIMS(dst),
+                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
+                PyArray_DESCR(src), PyArray_DATA(src), src_strides,
+                PyArray_DESCR(wheremask), PyArray_DATA(wheremask),
+                        wheremask_strides) < 0) {
+            goto fail;
+        }
+    }
+
+    if (copied_src) {
+        Py_DECREF(src);
+    }
+    return 0;
+
+fail:
+    if (copied_src) {
+        Py_DECREF(src);
+    }
+    return -1;
+}

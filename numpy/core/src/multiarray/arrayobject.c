@@ -233,6 +233,78 @@ PyArray_SetBaseObject(PyArrayObject *arr, PyObject *obj)
     return 0;
 }
 
+// ATTENTION: does not steal obj anymore
+NPY_NO_EXPORT int
+HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_in)
+{
+    if (HPy_IsNull(obj_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot set the NumPy array 'base' "
+                "dependency to NULL after initialization");
+        return -1;
+    }
+    /*
+     * Allow the base to be set only once. Once the object which
+     * owns the data is set, it doesn't make sense to change it.
+     */
+    if (!HPy_IsNull(HPyArray_BASE(ctx, h_arr, arr))) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot set the NumPy array 'base' "
+                "dependency more than once");
+        return -1;
+    }
+
+    /*
+     * Don't allow infinite chains of views, always set the base
+     * to the first owner of the data.
+     * That is, either the first object which isn't an array,
+     * or the first object which owns its own data.
+     */
+    HPy obj = HPy_Dup(ctx, obj_in);
+    while (HPyArray_Check(ctx, obj) && !HPy_Is(ctx, h_arr, obj)) {
+        PyArrayObject *obj_arr = PyArrayObject_AsStruct(ctx, obj);
+
+        /* Propagate WARN_ON_WRITE through views. */
+        if (PyArray_FLAGS(obj_arr) & NPY_ARRAY_WARN_ON_WRITE) {
+            PyArray_ENABLEFLAGS(arr, NPY_ARRAY_WARN_ON_WRITE);
+        }
+
+        /* If this array owns its own data, stop collapsing */
+        if (PyArray_CHKFLAGS(obj_arr, NPY_ARRAY_OWNDATA)) {
+            break;
+        }
+
+        HPy tmp = HPyArray_BASE(ctx, obj, obj_arr);
+        /* If there's no base, stop collapsing */
+        if (HPy_IsNull(tmp)) {
+            break;
+        }
+        /* Stop the collapse new base when the would not be of the same
+         * type (i.e. different subclass).
+         */
+        if (!HPy_Is(ctx, HPy_Type(ctx, tmp), HPy_Type(ctx, h_arr))) {
+            HPy_Close(ctx, tmp);
+            break;
+        }
+
+        HPy_Close(ctx, obj);
+        obj = tmp;
+    }
+
+    /* Disallow circular references */
+    if (HPy_Is(ctx, h_arr, obj)) {
+        HPy_Close(ctx, obj);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot create a circular NumPy array 'base' dependency");
+        return -1;
+    }
+
+    HPyArray_SetBase(ctx, h_arr, obj);
+    HPy_Close(ctx, obj);
+
+    return 0;
+}
+
 
 /**
  * Assign an arbitrary object a NumPy array. This is largely basically
@@ -656,6 +728,7 @@ array_might_be_written(PyArrayObject *obj)
         "overlapping memory from np.broadcast_arrays. If this is intentional\n"
         "set the WRITEABLE flag True or make a copy immediately before writing.";
     if (PyArray_FLAGS(obj) & NPY_ARRAY_WARN_ON_WRITE) {
+        capi_warn("array_might_be_written: warning...");
         if (DEPRECATE(msg) < 0) {
             return -1;
         }
@@ -1525,32 +1598,39 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
     return result;
 }
 
-/*NUMPY_API
- */
-NPY_NO_EXPORT int
-PyArray_ElementStrides(PyObject *obj)
-{
-    PyArrayObject *arr;
-    int itemsize;
-    int i, ndim;
-    npy_intp *strides;
+static int _PyArray_ElementStrides(PyArrayObject *arr) {
+    int itemsize = PyArray_ITEMSIZE(arr);
+    int ndim = PyArray_NDIM(arr);
+    npy_intp *strides = PyArray_STRIDES(arr);
 
-    if (!PyArray_Check(obj)) {
-        return 0;
-    }
-
-    arr = (PyArrayObject *)obj;
-
-    itemsize = PyArray_ITEMSIZE(arr);
-    ndim = PyArray_NDIM(arr);
-    strides = PyArray_STRIDES(arr);
-
-    for (i = 0; i < ndim; i++) {
+    for (int i = 0; i < ndim; i++) {
         if ((strides[i] % itemsize) != 0) {
             return 0;
         }
     }
     return 1;
+}
+
+/*NUMPY_API
+ */
+NPY_NO_EXPORT int
+PyArray_ElementStrides(PyObject *obj)
+{
+    if (!PyArray_Check(obj)) {
+        return 0;
+    }
+
+    return _PyArray_ElementStrides((PyArrayObject *)obj);
+}
+
+NPY_NO_EXPORT int
+HPyArray_ElementStrides(HPyContext *ctx, HPy obj)
+{
+    if (!HPyArray_Check(ctx, obj)) {
+        return 0;
+    }
+
+    return _PyArray_ElementStrides(PyArrayObject_AsStruct(ctx, obj));
 }
 
 /*
@@ -1685,11 +1765,14 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 
     HPy h_result;
     if (buffer.ptr == NULL) {
+        HPy h_descr = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, descr,
+                ctx, h_subtype, h_descr,
                 (int)dims.len, dims.ptr, strides.ptr, NULL,
                 is_f_order, HPy_NULL, HPy_NULL,
                 0, 1);
+        HPy_Close(ctx, h_descr);
+        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref...
         if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
@@ -1724,11 +1807,14 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
             buffer.flags |= NPY_ARRAY_F_CONTIGUOUS;
         }
         HPy h_base = HPy_FromPyObject(ctx, buffer.base);
+        HPy h_desc = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, descr,
+                ctx, h_subtype, h_desc,
                 dims.len, dims.ptr, strides.ptr, offset + (char *)buffer.ptr,
                 buffer.flags, HPy_NULL, h_base,
                 0, 1);
+        HPy_Close(ctx, h_desc);
+        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref anymore
         HPy_Close(ctx, h_base);
         if (HPy_IsNull(h_result)) {
             descr = NULL;

@@ -587,7 +587,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
         goto cleanup;
     }
 
-    PyArray_DTypeMeta *new_dtype_data = (PyArray_DTypeMeta *) HPy_AsStructLegacy(ctx, h_new_dtype_type);
+    PyArray_DTypeMeta *new_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_new_dtype_type);
 
     dt_slots->castingimpls = PyDict_New();
     if (dt_slots->castingimpls == NULL) {

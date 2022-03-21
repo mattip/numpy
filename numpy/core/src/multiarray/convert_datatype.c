@@ -696,6 +696,46 @@ PyArray_CanCastTypeTo(PyArray_Descr *from, PyArray_Descr *to,
     return is_valid;
 }
 
+NPY_NO_EXPORT npy_bool
+HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
+        NPY_CASTING casting)
+{
+    PyArray_Descr *to = PyArray_Descr_AsStruct(ctx, h_to);
+
+    /*
+     * NOTE: This code supports U and S, this is identical to the code
+     *       in `ctors.c` which does not allow these dtypes to be attached
+     *       to an array. Unlike the code for `np.array(..., dtype=)`
+     *       which uses `PyArray_ExtractDTypeAndDescriptor` it rejects "m8"
+     *       as a flexible dtype instance representing a DType.
+     */
+    /*
+     * TODO: We should grow support for `np.can_cast("d", "S")` being
+     *       different from `np.can_cast("d", "S0")` here, at least for
+     *       the python side API.
+     *       The `to = NULL` branch, which considers "S0" to be "flexible"
+     *       should probably be deprecated.
+     *       (This logic is duplicated in `PyArray_CanCastArrayTo`)
+     */
+    if (PyDataType_ISUNSIZED(to) && to->subarray == NULL) {
+        to = NULL;  /* consider mainly S0 and U0 as S and U */
+    }
+
+    capi_warn("HPyArray_CanCastTypeTo -> PyArray_CheckCastSafety");
+    HPy to_meta = HPy_Type(ctx, h_to);
+    int is_valid = PyArray_CheckCastSafety(casting,
+            PyArray_Descr_AsStruct(ctx, h_from), 
+            PyArray_Descr_AsStruct(ctx, h_to),
+            PyArray_DTypeMeta_AsStruct(ctx, to_meta));
+    HPy_Close(ctx, to_meta);
+    /* Clear any errors and consider this unsafe (should likely be changed) */
+    if (is_valid < 0) {
+        HPyErr_Clear(ctx);
+        return 0;
+    }
+    return is_valid;
+}
+
 
 /* CanCastArrayTo needs this function */
 static int min_scalar_type_num(char *valueptr, int type_num,

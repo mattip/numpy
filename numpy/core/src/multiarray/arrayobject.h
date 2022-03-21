@@ -31,4 +31,10 @@ extern NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec;
 extern NPY_NO_EXPORT HPy HPyArray_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec;
 
+NPY_NO_EXPORT int
+HPyArray_ElementStrides(HPyContext *ctx, HPy obj);
+
+NPY_NO_EXPORT int
+HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_in);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYOBJECT_H_ */
