@@ -178,11 +178,9 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_start);
 
     if (nop > NPY_MAXARGS) {
-        char buf[128];
-        snprintf(buf, sizeof(buf),
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
             "Cannot construct an iterator with more than %d operands "
             "(%d were requested)", NPY_MAXARGS, nop);
-        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
         return NULL;
     }
 
@@ -848,7 +846,6 @@ static int
 hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
                         const npy_intp *itershape)
 {
-    char buf[128];
     char axes_dupcheck[NPY_MAXDIMS];
     int iop, idim;
 
@@ -867,11 +864,10 @@ hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
         return 1;
     }
     if (oa_ndim > NPY_MAXDIMS) {
-        snprintf(buf, sizeof(buf),
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                 "Cannot construct an iterator with more than %d dimensions "
                 "(%d were requested for op_axes)",
                 NPY_MAXDIMS, oa_ndim);
-        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
         return 0;
     }
     if (op_axes == NULL) {
@@ -891,7 +887,7 @@ hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
 
                 if (i >= 0) {
                     if (i >= NPY_MAXDIMS) {
-                        snprintf(buf, sizeof(buf),
+                        HPyErr_Format_p(ctx, ctx->h_ValueError,
                                 "The 'op_axes' provided to the iterator "
                                 "constructor for operand %d "
                                 "contained invalid "
@@ -899,12 +895,11 @@ hnpyiter_check_op_axes(HPyContext *ctx, int nop, int oa_ndim, int **op_axes,
                         return 0;
                     }
                     else if (axes_dupcheck[i] == 1) {
-                        snprintf(buf, sizeof(buf),
+                        HPyErr_Format_p(ctx, ctx->h_ValueError,
                                 "The 'op_axes' provided to the iterator "
                                 "constructor for operand %d "
                                 "contained duplicate "
                                 "value %d", iop, i);
-                        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
                         return 0;
                     }
                     else {
@@ -2687,9 +2682,6 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
     npy_intp sizeof_axisdata;
     int i;
     
-    /* for error message formatting */
-    char buf[256];
-
     HPy ret;
 
     /*
@@ -2748,13 +2740,12 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
                     }
                     stride *= new_shape[i];
                     if (i >= ndim) {
-                        snprintf(buf, sizeof(buf),
+                        HPyErr_Format_p(ctx, ctx->h_ValueError,
                                 "automatically allocated output array "
                                 "specified with an inconsistent axis mapping; "
                                 "the axis mapping cannot include dimension %d "
                                 "which is too large for the iterator dimension "
                                 "of %d.", i, ndim);
-                        HPyErr_SetString(ctx, ctx->h_ValueError, buf);
                         return HPy_NULL;
                     }
                 }
@@ -2814,12 +2805,11 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
          */
         for (i = 0; i < op_ndim; i++) {
             if (strides[i] == NPY_MAX_INTP) {
-                snprintf(buf, sizeof(buf),
+                HPyErr_Format_p(ctx, ctx->h_ValueError,
                         "automatically allocated output array "
                         "specified with an inconsistent axis mapping; "
                         "the axis mapping is missing an entry for "
                         "dimension %d.", i);
-                HPyErr_SetString(ctx, ctx->h_ValueError, buf);
                 return HPy_NULL;
             }
         }
