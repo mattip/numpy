@@ -71,7 +71,7 @@ npyiter_replace_axisdata(
 static void
 npyiter_compute_index_strides(NpyIter *iter, npy_uint32 flags);
 static void
-npyiter_apply_forced_iteration_order(NpyIter *iter, NPY_ORDER order);
+npyiter_apply_forced_iteration_order(HPyContext *ctx, NpyIter *iter, NPY_ORDER order);
 static void
 npyiter_flip_negative_strides(NpyIter *iter);
 static void
@@ -99,7 +99,7 @@ npyiter_get_priority_subtype(int nop, PyArrayObject **op,
                             const npyiter_opitflags *op_itflags,
                             double *subtype_priority, PyTypeObject **subtype);
 static int
-npyiter_allocate_transfer_functions(NpyIter *iter);
+hnpyiter_allocate_transfer_functions(HPyContext *ctx, NpyIter *iter);
 
 
 /*NUMPY_API
@@ -154,7 +154,6 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
 
     /* The subtype for automatically allocated outputs */
     double subtype_priority = NPY_PRIORITY;
-    PyTypeObject *subtype = &PyArray_Type;
 
 #if NPY_IT_CONSTRUCTION_TIMING
     npy_intp c_temp,
@@ -313,7 +312,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     /*
      * If an iteration order is being forced, apply it.
      */
-    npyiter_apply_forced_iteration_order(iter, order);
+    npyiter_apply_forced_iteration_order(ctx, iter, order);
     itflags = NIT_ITFLAGS(iter);
 
     NPY_IT_TIME_POINT(c_apply_forced_iteration_order);
@@ -361,6 +360,7 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
         /* TODO HPY LABS PORT: cut off */
         hpy_abort_not_implemented("HNpyIter_AdvancedNew");
         /*
+        PyTypeObject *subtype = &PyArray_Type;
         npyiter_get_priority_subtype(nop, op, op_itflags,
                                      &subtype_priority, &subtype);
         */
@@ -433,14 +433,11 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * copying due to casting/byte order/alignment can be
      * done now using a memory layout matching the iterator.
      */
-    HPy h_subtype = HPy_FromPyObject(ctx, (PyObject *) subtype);
-    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, h_subtype, op_flags,
+    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, HPyArray_Type, op_flags,
                             op_itflags, op_axes)) {
-        HPy_Close(ctx, h_subtype);
         HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
-    HPy_Close(ctx, h_subtype);
 
     NPY_IT_TIME_POINT(c_allocate_arrays);
 
@@ -502,19 +499,19 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
 
     /* If buffering is set without delayed allocation */
     if (itflags & NPY_ITFLAG_BUFFER) {
-        if (!npyiter_allocate_transfer_functions(iter)) {
+        if (!hnpyiter_allocate_transfer_functions(ctx, iter)) {
             HNpyIter_Deallocate(ctx, iter);
             return NULL;
         }
         if (!(itflags & NPY_ITFLAG_DELAYBUF)) {
             /* Allocate the buffers */
-            if (!npyiter_allocate_buffers(iter, NULL)) {
+            if (!hnpyiter_allocate_buffers(ctx, iter, NULL)) {
                 HNpyIter_Deallocate(ctx, iter);
                 return NULL;
             }
 
             /* Prepare the next buffers and set iterend/size */
-            if (npyiter_copy_to_buffers(iter, NULL) < 0) {
+            if (hnpyiter_copy_to_buffers(ctx, iter, NULL) < 0) {
                 HNpyIter_Deallocate(ctx, iter);
                 return NULL;
             }
@@ -2283,7 +2280,7 @@ npyiter_compute_index_strides(NpyIter *iter, npy_uint32 flags)
  * whether the iteration order was forced.
  */
 static void
-npyiter_apply_forced_iteration_order(NpyIter *iter, NPY_ORDER order)
+npyiter_apply_forced_iteration_order(HPyContext *ctx, NpyIter *iter, NPY_ORDER order)
 {
     /*npy_uint32 itflags = NIT_ITFLAGS(iter);*/
     int ndim = NIT_NDIM(iter);
@@ -2304,12 +2301,12 @@ npyiter_apply_forced_iteration_order(NpyIter *iter, NPY_ORDER order)
         NIT_ITFLAGS(iter) |= NPY_ITFLAG_FORCEDORDER;
         /* Only need to actually do something if there is more than 1 dim */
         if (ndim > 1) {
-            PyArrayObject **op = NIT_OPERANDS(iter);
+            HPy *op = NIT_OPERANDS(iter);
             int forder = 1;
 
             /* Check that all the array inputs are fortran order */
             for (iop = 0; iop < nop; ++iop, ++op) {
-                if (*op && !PyArray_CHKFLAGS(*op, NPY_ARRAY_F_CONTIGUOUS)) {
+                if (!HPy_IsNull(*op) && !PyArray_CHKFLAGS(PyArrayObject_AsStruct(ctx, *op), NPY_ARRAY_F_CONTIGUOUS)) {
                     forder = 0;
                     break;
                 }
@@ -3329,7 +3326,7 @@ npyiter_get_priority_subtype(int nop, PyArrayObject **op,
 }
 
 static int
-npyiter_allocate_transfer_functions(NpyIter *iter)
+hnpyiter_allocate_transfer_functions(HPyContext *ctx, NpyIter *iter)
 {
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     /*int ndim = NIT_NDIM(iter);*/
@@ -3339,8 +3336,10 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
     npyiter_opitflags *op_itflags = NIT_OPITFLAGS(iter);
     NpyIter_BufferData *bufferdata = NIT_BUFFERDATA(iter);
     NpyIter_AxisData *axisdata = NIT_AXISDATA(iter);
-    PyArrayObject **op = NIT_OPERANDS(iter);
-    PyArray_Descr **op_dtype = NIT_DTYPES(iter);
+    // PyArrayObject **op = NIT_OPERANDS(iter);
+    // PyArray_Descr **op_dtype = NIT_DTYPES(iter);
+    HPy *op = NIT_OPERANDS(iter);
+    HPy *op_dtype = NIT_DTYPES(iter);
     npy_intp *strides = NAD_STRIDES(axisdata), op_stride;
     NpyIter_TransferInfo *transferinfo = NBF_TRANSFERINFO(bufferdata);
 
@@ -3348,6 +3347,8 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
 
     for (iop = 0; iop < nop; ++iop) {
         npyiter_opitflags flags = op_itflags[iop];
+        PyArrayObject *op_iop_data = PyArrayObject_AsStruct(ctx, op[iop]);
+        PyArray_Descr *op_dtype_iop_data = PyArray_Descr_AsStruct(ctx, op_dtype[iop]);
         /*
          * Reduction operands may be buffered with a different stride,
          * so we must pass NPY_MAX_INTP to the transfer function factory.
@@ -3362,75 +3363,86 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
         if (!(flags & NPY_OP_ITFLAG_BUFNEVER)) {
             if (flags & NPY_OP_ITFLAG_READ) {
                 int move_references = 0;
-                if (PyArray_GetDTypeTransferFunction(
+                HPy op_iop_dtype = HPyArray_DESCR(ctx, op[iop], op_iop_data);
+                if (HPyArray_GetDTypeTransferFunction(ctx,
                                         (flags & NPY_OP_ITFLAG_ALIGNED) != 0,
                                         op_stride,
-                                        op_dtype[iop]->elsize,
-                                        PyArray_DESCR(op[iop]),
+                                        op_dtype_iop_data->elsize,
+                                        op_iop_dtype,
                                         op_dtype[iop],
                                         move_references,
                                         &transferinfo[iop].read,
                                         &needs_api) != NPY_SUCCEED) {
                     iop -= 1;  /* This one cannot be cleaned up yet. */
+                    HPy_Close(ctx, op_iop_dtype);
                     goto fail;
                 }
+                HPy_Close(ctx, op_iop_dtype);
             }
             else {
                 transferinfo[iop].read.func = NULL;
             }
             if (flags & NPY_OP_ITFLAG_WRITE) {
                 int move_references = 1;
+                HPy op_iop_dtype = HPyArray_DESCR(ctx, op[iop], op_iop_data);
 
                 /* If the operand is WRITEMASKED, use a masked transfer fn */
                 if (flags & NPY_OP_ITFLAG_WRITEMASKED) {
                     int maskop = NIT_MASKOP(iter);
-                    PyArray_Descr *mask_dtype = PyArray_DESCR(op[maskop]);
+                    HPy mask_dtype = HPyArray_GetDescr(ctx, op[maskop]);
+                    int mask_dtype_elsize = PyArray_Descr_AsStruct(ctx, mask_dtype)->elsize;
+
 
                     /*
                      * If the mask's stride is contiguous, use it, otherwise
                      * the mask may or may not be buffered, so the stride
                      * could be inconsistent.
                      */
-                    if (PyArray_GetMaskedDTypeTransferFunction(
+                    if (HPyArray_GetMaskedDTypeTransferFunction(ctx,
                             (flags & NPY_OP_ITFLAG_ALIGNED) != 0,
-                            op_dtype[iop]->elsize,
+                            op_dtype_iop_data->elsize,
                             op_stride,
-                            (strides[maskop] == mask_dtype->elsize) ?
-                                mask_dtype->elsize : NPY_MAX_INTP,
+                            (strides[maskop] == mask_dtype_elsize) ?
+                                mask_dtype_elsize : NPY_MAX_INTP,
                             op_dtype[iop],
-                            PyArray_DESCR(op[iop]),
+                            op_iop_dtype,
                             mask_dtype,
                             move_references,
                             &transferinfo[iop].write,
                             &needs_api) != NPY_SUCCEED) {
+                        HPy_Close(ctx, op_iop_dtype);
+                        HPy_Close(ctx, mask_dtype);
                         goto fail;
                     }
+                    HPy_Close(ctx, mask_dtype);
                 }
                 else {
-                    if (PyArray_GetDTypeTransferFunction(
+                    if (HPyArray_GetDTypeTransferFunction(ctx,
                             (flags & NPY_OP_ITFLAG_ALIGNED) != 0,
-                            op_dtype[iop]->elsize,
+                            op_dtype_iop_data->elsize,
                             op_stride,
                             op_dtype[iop],
-                            PyArray_DESCR(op[iop]),
+                            op_iop_dtype,
                             move_references,
                             &transferinfo[iop].write,
                             &needs_api) != NPY_SUCCEED) {
+                        HPy_Close(ctx, op_iop_dtype);
                         goto fail;
                     }
                 }
+                HPy_Close(ctx, op_iop_dtype);
             }
             /* If no write back but there are references make a decref fn */
-            else if (PyDataType_REFCHK(op_dtype[iop])) {
+            else if (PyDataType_REFCHK(op_dtype_iop_data)) {
                 /*
                  * By passing NULL to dst_type and setting move_references
                  * to 1, we get back a function that just decrements the
                  * src references.
                  */
-                if (PyArray_GetDTypeTransferFunction(
+                if (HPyArray_GetDTypeTransferFunction(ctx,
                         (flags & NPY_OP_ITFLAG_ALIGNED) != 0,
-                        op_dtype[iop]->elsize, 0,
-                        op_dtype[iop], NULL,
+                        op_dtype_iop_data->elsize, 0,
+                        op_dtype[iop], HPy_NULL,
                         1,
                         &transferinfo[iop].write,
                         &needs_api) != NPY_SUCCEED) {
