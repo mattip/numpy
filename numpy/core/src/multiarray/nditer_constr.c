@@ -2697,14 +2697,8 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
 
     /* If it's a scalar, don't need to check the axes */
     if (op_ndim == 0) {
-        CAPI_WARN("hnpyiter_new_temp_array");
-        PyArray_Descr *py_op_dtype = (PyArray_Descr *) HPy_AsPyObject(ctx, op_dtype);
-        PyTypeObject *py_subtype = (PyTypeObject *) HPy_AsPyObject(ctx, subtype);
-        PyArrayObject *py_ret = (PyArrayObject *)PyArray_NewFromDescr(py_subtype, py_op_dtype, 0,
-                               NULL, NULL, NULL, 0, NULL);
-        Py_DECREF(py_subtype);
-        ret = HPy_FromPyObject(ctx, (PyObject *) py_ret);
-        Py_DECREF(py_ret);
+        ret = HPyArray_NewFromDescr(ctx, subtype, op_dtype, 0,
+                               NULL, NULL, NULL, 0, HPy_NULL);
         return ret;
     }
 
