@@ -912,8 +912,11 @@ HPyArray_NewFromDescr_int(
      * (since that function does nothing), or, for backward compatibility,
      * if it is None.
      */
-    if (!HPy_Is(ctx, h_subtype, HPyArray_Type)) {
-        HPy ndarray_array_finalize = HPy_GetAttr_s(ctx, HPyArray_Type, "__array_finalize__");
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    if (!HPy_Is(ctx, h_subtype, array_type)) {
+        HPy ndarray_array_finalize = HPy_GetAttr_s(ctx, array_type, "__array_finalize__");
+        HPy_Close(ctx, array_type);
+
         HPy func = HPy_GetAttr_s(ctx, h_subtype, "__array_finalize__");
         if (HPy_IsNull(func)) {
             HPy_Close(ctx, ndarray_array_finalize);
@@ -977,6 +980,8 @@ HPyArray_NewFromDescr_int(
                 }
             }
         }
+    } else {
+        HPy_Close(ctx, array_type);
     }
     return result;
 
@@ -1223,15 +1228,10 @@ HPyArray_NewLikeArrayWithShape(HPyContext *ctx, HPy prototype, NPY_ORDER order,
 
     /* If it's not KEEPORDER, this is simple */
     if (order != NPY_KEEPORDER) {
-        ret = HPyArray_NewFromDescr(ctx,
-                        subok ? HPy_Type(ctx, prototype) : HPyArray_Type,
-                        dtype,
-                        ndim,
-                        dims,
-                        NULL,
-                        NULL,
-                        order,
-                        subok ? prototype : HPy_NULL);
+        HPy type = subok ? HPy_Type(ctx, prototype) : HPyGlobal_Load(ctx, HPyArray_Type);
+        ret = HPyArray_NewFromDescr(ctx, type, dtype, ndim, dims, NULL, NULL,
+                order, subok ? prototype : HPy_NULL);
+        HPy_Close(ctx, type);
     }
     /* KEEPORDER needs some analysis of the strides */
     else {
@@ -3213,11 +3213,13 @@ HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, HPy type, int is_f
         type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
     
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     ret = HPyArray_NewFromDescr_int(
-            ctx, HPyArray_Type, type,
+            ctx, array_type, type,
             nd, dims, NULL, NULL,
             is_f_order, HPy_NULL, HPy_NULL,
             1, 0);
+    HPy_Close(ctx, array_type);
 
     if (HPy_IsNull(ret)) {
         // HPY TODO: note that HPyArray_NewFromDescr_int still steals 'type_descr' on error

@@ -2086,7 +2086,6 @@ typedef void (PyDataMem_EventHookFunc)(void *inp, void *outp, size_t size,
 
 #endif  /* NPY_INTERNAL_BUILD */
 
-
 /*
  * Use the keyword NPY_DEPRECATED_INCLUDES to ensure that the header files
  * npy_*_*_deprecated_api.h are only included from here and nowhere else.

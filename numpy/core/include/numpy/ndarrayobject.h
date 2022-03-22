@@ -24,13 +24,38 @@ extern "C" {
 /* C-API that requires previous API to be defined */
 
 #define PyArray_DescrCheck(op) PyObject_TypeCheck(op, &PyArrayDescr_Type)
-#define HPyArray_DescrCheck(ctx, op) HPy_TypeCheck(ctx, op, HPyArrayDescr_Type)
 
+extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
+static NPY_INLINE int
+HPyArray_DescrCheck(HPyContext *ctx, HPy op)
+{
+    HPy array_descr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    int res = HPy_TypeCheck(ctx, op, array_descr_type);
+    HPy_Close(ctx, array_descr_type);
+    return res;
+}
 
 #define PyArray_Check(op) PyObject_TypeCheck(op, &PyArray_Type)
 #define PyArray_CheckExact(op) (((PyObject*)(op))->ob_type == &PyArray_Type)
-#define HPyArray_Check(ctx, op) HPy_TypeCheck(ctx, op, HPyArray_Type)
-#define HPyArray_CheckExact(ctx, op) HPy_Is(ctx, op, HPyArray_Type)
+
+extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
+static NPY_INLINE int
+HPyArray_Check(HPyContext *ctx, HPy op)
+{
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    int res = HPy_TypeCheck(ctx, op, array_type);
+    HPy_Close(ctx, array_type);
+    return res;
+}
+
+static NPY_INLINE int
+HPyArray_CheckExact(HPyContext *ctx, HPy op)
+{
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    int res = HPy_Is(ctx, HPy_Type(ctx, op), array_type);
+    HPy_Close(ctx, array_type);
+    return res;
+}
 
 #define PyArray_HasArrayInterfaceType(op, type, context, out)                 \
         ((((out)=PyArray_FromStructInterface(op)) != Py_NotImplemented) ||    \
