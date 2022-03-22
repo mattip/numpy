@@ -728,6 +728,10 @@ PyArray_CompareString(const char *s1, const char *s2, size_t len)
     return 0;
 }
 
+static const char *might_be_writter_msg =
+        "Numpy has detected that you (may be) writing to an array with\n"
+        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
+        "set the WRITEABLE flag True or make a copy immediately before writing.";
 
 /* Call this from contexts where an array might be written to, but we have no
  * way to tell. (E.g., when converting to a read-write buffer.)
@@ -735,13 +739,9 @@ PyArray_CompareString(const char *s1, const char *s2, size_t len)
 NPY_NO_EXPORT int
 array_might_be_written(PyArrayObject *obj)
 {
-    const char *msg =
-        "Numpy has detected that you (may be) writing to an array with\n"
-        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
-        "set the WRITEABLE flag True or make a copy immediately before writing.";
     if (PyArray_FLAGS(obj) & NPY_ARRAY_WARN_ON_WRITE) {
         capi_warn("array_might_be_written: warning...");
-        if (DEPRECATE(msg) < 0) {
+        if (DEPRECATE(might_be_writter_msg) < 0) {
             return -1;
         }
         /* Only warn once per array */
@@ -776,6 +776,50 @@ PyArray_FailUnlessWriteable(PyArrayObject *obj, const char *name)
         return -1;
     }
     if (array_might_be_written(obj) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+hpy_array_might_be_written(HPyContext *ctx, HPy obj, PyArrayObject *obj_data)
+{
+    const char *msg =
+        "Numpy has detected that you (may be) writing to an array with\n"
+        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
+        "set the WRITEABLE flag True or make a copy immediately before writing.";
+    if (PyArray_FLAGS(obj_data) & NPY_ARRAY_WARN_ON_WRITE) {
+        capi_warn("array_might_be_written: warning...");
+        if (HPY_DEPRECATE(ctx, might_be_writter_msg) < 0) {
+            return -1;
+        }
+        /* Only warn once per array */
+        HPy x = HPy_Dup(ctx, obj);
+        PyArrayObject *x_data = obj_data;
+        while (1) {
+            PyArray_CLEARFLAGS(x_data, NPY_ARRAY_WARN_ON_WRITE);
+            HPy base = HPyArray_BASE(ctx, x, x_data);
+            if (HPy_IsNull(base) || !HPyArray_Check(ctx, base)) {
+                HPy_Close(ctx, base);
+                break;
+            }
+            HPy_Close(ctx, x);
+            x = base;
+            x_data = PyArrayObject_AsStruct(ctx, x);
+        }
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name)
+{
+    PyArrayObject *obj_data = PyArrayObject_AsStruct(ctx, obj);
+    if (!PyArray_ISWRITEABLE(obj_data)) {
+        HPyErr_Format_p(ctx, ctx->h_ValueError, "%s is read-only", name);
+        return -1;
+    }
+    if (hpy_array_might_be_written(ctx, obj, obj_data) < 0) {
         return -1;
     }
     return 0;

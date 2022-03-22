@@ -1118,12 +1118,9 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
 
     if (HPyArray_Check(ctx, *op)) {
 
-        py_op = HPy_AsPyObject(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE) {
-            /* TODO HPY LABS PORT: cut off to Numpy API */
-            CAPI_WARN("hnpyiter_prepare_one_operand");
-            if (PyArray_FailUnlessWriteable((PyArrayObject*) py_op, "operand array with iterator "
-                                           "write flag set") < 0) {
+            if (HPyArray_FailUnlessWriteable(ctx, *op,
+                    "operand array with iterator write flag set") < 0) {
                 goto error;
             }
         }
@@ -1169,8 +1166,10 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
             /* We just have a borrowed reference to op_request_dtype */
             /* TODO HPY LABS PORT: cut off to Numpy API */
             CAPI_WARN("hnpyiter_prepare_one_operand");
+            PyArrayObject *py_op = (PyArrayObject *)HPy_AsPyObject(ctx, *op);
             PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
-            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray((PyArrayObject*) py_op, py_op_request_dtype);
+            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray(py_op, py_op_request_dtype);
+            Py_XDECREF(py_op);
             HPy h = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
             Py_DECREF(py_op_request_dtype);
             Py_DECREF(py_new_descr);
@@ -1223,7 +1222,6 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         goto error;
     }
 
-    Py_XDECREF(py_op);
     return 1;
 
 error:
