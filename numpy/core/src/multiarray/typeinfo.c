@@ -57,11 +57,11 @@ PyArray_typeinfo(HPyContext *ctx,
     HPy type_obj)
 {
     HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinfoType);
-    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "i", typechar));
-    HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
-    HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
-    HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
-    HPyStructSequenceBuilder_Set(ctx, entry, 4, HPy_BuildValue(ctx, "O", type_obj));
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
+    HPyStructSequenceBuilder_Set(ctx, entry, 4, type_obj);
 
     if (HPyErr_Occurred(ctx)) {
         HPyStructSequenceBuilder_Cancel(ctx, entry);
@@ -77,13 +77,13 @@ PyArray_typeinforanged(HPyContext *ctx,
     HPy max, HPy min, HPy type_obj)
 {
     HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinforangedType);
-    HPyStructSequenceBuilder_Set(ctx, entry, 0, HPy_BuildValue(ctx, "i", typechar));
-    HPyStructSequenceBuilder_Set(ctx, entry, 1, HPy_BuildValue(ctx, "i", typenum));
-    HPyStructSequenceBuilder_Set(ctx, entry, 2, HPy_BuildValue(ctx, "i", nbits));
-    HPyStructSequenceBuilder_Set(ctx, entry, 3, HPy_BuildValue(ctx, "i", align));
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
     HPyStructSequenceBuilder_Set(ctx, entry, 4, max);
     HPyStructSequenceBuilder_Set(ctx, entry, 5, min);
-    HPyStructSequenceBuilder_Set(ctx, entry, 6, HPy_BuildValue(ctx, "O", type_obj));
+    HPyStructSequenceBuilder_Set(ctx, entry, 6, type_obj);
 
     if (HPyErr_Occurred(ctx)) {
         HPyStructSequenceBuilder_Cancel(ctx, entry);

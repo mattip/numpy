@@ -4592,7 +4592,7 @@ PyArray_DescrFromType(int type)
 NPY_NO_EXPORT int
 set_typeinfo(HPyContext *ctx, HPy h_dict)
 {
-    HPy h_s, h_infodict;
+    HPy h_s, h_infodict, h_max, h_min;
     int i;
 
     PyArray_Descr *dtype;
@@ -4760,12 +4760,16 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
 #define _CTX_COMMA_ ctx,
     @maxType@ max@Name@ = @max@;
     @minType@ min@Name@ = @min@;
+    h_max = HPy_BuildValue(ctx, "@cx@", max@Name@);
+    h_min = HPy_BuildValue(ctx, "@cn@", min@Name@);
     h_s = PyArray_typeinforanged(ctx,
         NPY_@name@LTR, NPY_@name@, NPY_BITSOF_@uname@, _ALIGN(@type@),
-        HPy_BuildValue(ctx, "@cx@", max@Name@),
-        HPy_BuildValue(ctx, "@cn@", min@Name@),
+        h_max,
+        h_min,
         HPy_FromPyObject(ctx, (PyObject *)&Py@Name@ArrType_Type)
     );
+    HPy_Close(ctx, h_max);
+    HPy_Close(ctx, h_min);
     @maxClose@ max@Name@);
     @minClose@ min@Name@);
     if (HPy_IsNull(h_s)) {
@@ -4866,13 +4870,17 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
+    h_max = HPyLong_FromLong(ctx, NPY_MAX_DATETIME);
+    h_min = HPyLong_FromLong(ctx, NPY_MIN_DATETIME);
     h_s = PyArray_typeinforanged(ctx,
         NPY_DATETIMELTR, NPY_DATETIME, NPY_BITSOF_DATETIME,
         _ALIGN(npy_datetime),
-        HPyLong_FromLong(ctx, NPY_MAX_DATETIME),
-        HPyLong_FromLong(ctx, NPY_MIN_DATETIME),
+        h_max,
+        h_min,
         HPy_FromPyObject(ctx, (PyObject *)_PyDatetimeArrType_Type_p)
     );
+    HPy_Close(ctx, h_max);
+    HPy_Close(ctx, h_min);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4883,13 +4891,17 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
+    h_max = HPyLong_FromLong(ctx, NPY_MAX_TIMEDELTA);
+    h_min = HPyLong_FromLong(ctx, NPY_MIN_TIMEDELTA);
     h_s = PyArray_typeinforanged(ctx,
         NPY_TIMEDELTALTR, NPY_TIMEDELTA, NPY_BITSOF_TIMEDELTA,
         _ALIGN(npy_timedelta),
-        HPyLong_FromLong(ctx, NPY_MAX_TIMEDELTA),
-        HPyLong_FromLong(ctx, NPY_MIN_TIMEDELTA),
+        h_max,
+        h_min,
         HPy_FromPyObject(ctx, (PyObject *)_PyTimedeltaArrType_Type_p)
     );
+    HPy_Close(ctx, h_max);
+    HPy_Close(ctx, h_min);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
