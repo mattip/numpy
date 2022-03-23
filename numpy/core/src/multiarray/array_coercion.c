@@ -1500,7 +1500,7 @@ HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
     if (!HPy_IsNull(dtype)) {
         HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
         if (HPy_TypeCheck(ctx, dtype, h_PyArrayDTypeMeta_Type)) {
-            assert(!HPy_Is(ctx, dtype, HPyArrayDescr_Type));  /* not np.dtype */
+            assert(!HPyGlobal_Is(ctx, dtype, HPyArrayDescr_Type));  /* not np.dtype */
             *out_DType = HPy_Dup(ctx, dtype);
         }
         else if (HPy_TypeCheck(ctx, HPy_Type(ctx, dtype),
