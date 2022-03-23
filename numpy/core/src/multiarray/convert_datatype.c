@@ -157,6 +157,105 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
     return res;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
+{
+    PyArray_DTypeMeta *from_data = PyArray_DTypeMeta_AsStruct(ctx, from);
+    PyArray_DTypeMeta *to_data = PyArray_DTypeMeta_AsStruct(ctx, to);
+    HPy res;
+    if (HPy_Is(ctx, from, to)) {
+        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
+        res = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->within_dtype_castingimpl);
+    }
+    else {
+        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
+        HPy tmp = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->castingimpls);
+        res = HPy_GetItem(ctx, tmp, to);
+        HPy_Close(ctx, tmp);
+    }
+    if (!HPy_IsNull(res) || HPyErr_Occurred(ctx)) {
+        return res;
+    }
+
+    hpy_abort_not_implemented("HPyArray_GetCastingImpl remainder");
+    return HPy_NULL;
+//    /*
+//     * The following code looks up CastingImpl based on the fact that anything
+//     * can be cast to and from objects or structured (void) dtypes.
+//     *
+//     * The last part adds casts dynamically based on legacy definition
+//     */
+//    if (from->type_num == NPY_OBJECT) {
+//        res = PyArray_GetObjectToGenericCastingImpl();
+//    }
+//    else if (to->type_num == NPY_OBJECT) {
+//        res = PyArray_GetGenericToObjectCastingImpl();
+//    }
+//    else if (from->type_num == NPY_VOID) {
+//        res = PyArray_GetVoidToGenericCastingImpl();
+//    }
+//    else if (to->type_num == NPY_VOID) {
+//        res = PyArray_GetGenericToVoidCastingImpl();
+//    }
+//    else if (from->type_num < NPY_NTYPES && to->type_num < NPY_NTYPES) {
+//        /* All builtin dtypes have their casts explicitly defined. */
+//        PyErr_Format(PyExc_RuntimeError,
+//                "builtin cast from %S to %S not found, this should not "
+//                "be possible.", from, to);
+//        return NULL;
+//    }
+//    else {
+//        if (NPY_DT_is_parametric(from) || NPY_DT_is_parametric(to)) {
+//            Py_RETURN_NONE;
+//        }
+//        /* Reject non-legacy dtypes (they need to use the new API) */
+//        if (!NPY_DT_is_legacy(from) || !NPY_DT_is_legacy(to)) {
+//            Py_RETURN_NONE;
+//        }
+//        if (from != to) {
+//            /* A cast function must have been registered */
+//            PyArray_VectorUnaryFunc *castfunc = PyArray_GetCastFunc(
+//                    from->singleton, to->type_num);
+//            if (castfunc == NULL) {
+//                PyErr_Clear();
+//                /* Remember that this cast is not possible */
+//                if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+//                            (PyObject *) to, Py_None) < 0) {
+//                    return NULL;
+//                }
+//                Py_RETURN_NONE;
+//            }
+//        }
+//
+//        /* PyArray_AddLegacyWrapping_CastingImpl find the correct casting level: */
+//        /*
+//         * TODO: Possibly move this to the cast registration time. But if we do
+//         *       that, we have to also update the cast when the casting safety
+//         *       is registered.
+//         */
+//        if (PyArray_AddLegacyWrapping_CastingImpl(from, to, -1) < 0) {
+//            return NULL;
+//        }
+//        return PyArray_GetCastingImpl(from, to);
+//    }
+//
+//    if (res == NULL) {
+//        return NULL;
+//    }
+//    if (from == to) {
+//        PyErr_Format(PyExc_RuntimeError,
+//                "Internal NumPy error, within-DType cast missing for %S!", from);
+//        Py_DECREF(res);
+//        return NULL;
+//    }
+//    if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+//                (PyObject *)to, res) < 0) {
+//        Py_DECREF(res);
+//        return NULL;
+//    }
+//    return res;
+}
+
 
 /**
  * Fetch the (bound) casting implementation from one DType to another.

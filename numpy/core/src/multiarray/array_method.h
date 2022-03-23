@@ -60,6 +60,17 @@ typedef struct {
     PyArray_Descr **descriptors;
 } PyArrayMethod_Context;
 
+/*
+ * HPy version of PyArrayMethod_Context
+ */
+typedef struct {
+    HPy caller;  /* E.g. the original ufunc, may be NULL */
+    struct PyArrayMethodObject_tag *method;
+
+    /* Operand descriptors, filled in by resolve_descriptors */
+    HPy *descriptors;
+} HPyArrayMethod_Context;
+
 
 typedef int (PyArrayMethod_StridedLoop)(PyArrayMethod_Context *context,
         char *const *data, const npy_intp *dimensions, const npy_intp *strides,
@@ -183,6 +194,28 @@ typedef struct PyArrayMethodObject_tag {
     translate_given_descrs_func *translate_given_descrs;
     translate_loop_descrs_func *translate_loop_descrs;
 } PyArrayMethodObject;
+
+typedef struct HPyArrayMethodObject_tag {
+    PyObject_HEAD
+    char *name;
+    int nin, nout;
+    /* Casting is normally "safe" for functions, but is important for casts */
+    NPY_CASTING casting;
+    /* default flags. The get_strided_loop function can override these */
+    NPY_ARRAYMETHOD_FLAGS flags;
+    resolve_descriptors_function *resolve_descriptors;
+    get_loop_function *get_strided_loop;
+    /* Typical loop functions (contiguous ones are used in current casts) */
+    PyArrayMethod_StridedLoop *strided_loop;
+    PyArrayMethod_StridedLoop *contiguous_loop;
+    PyArrayMethod_StridedLoop *unaligned_strided_loop;
+    PyArrayMethod_StridedLoop *unaligned_contiguous_loop;
+    /* Chunk only used for wrapping array method defined in umath */
+    struct HPyArrayMethodObject_tag *wrapped_meth;
+    HPy *wrapped_dtypes; /* PyArray_DTypeMeta* */
+    translate_given_descrs_func *translate_given_descrs;
+    translate_loop_descrs_func *translate_loop_descrs;
+} HPyArrayMethodObject;
 
 
 /*

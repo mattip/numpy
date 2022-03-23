@@ -8,6 +8,9 @@ extern NPY_NO_EXPORT npy_intp REQUIRED_STR_LEN[];
 NPY_NO_EXPORT PyObject *
 PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to);
 
+NPY_NO_EXPORT HPy
+HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to);
+
 NPY_NO_EXPORT PyObject *
 _get_castingimpl(PyObject *NPY_UNUSED(module), PyObject *args);
 
