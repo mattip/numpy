@@ -32,3 +32,12 @@ HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...)
 
     }
 }
+
+NPY_NO_EXPORT int
+HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected)
+{
+    HPy h_expected = HPyGlobal_Load(ctx, expected);
+    int is_dtype = HPy_Is(ctx, obj, h_expected);
+    HPy_Close(ctx, h_expected);
+    return is_dtype;
+}
