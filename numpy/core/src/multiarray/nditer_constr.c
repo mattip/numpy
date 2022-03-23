@@ -433,11 +433,14 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * copying due to casting/byte order/alignment can be
      * done now using a memory layout matching the iterator.
      */
-    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, HPyArray_Type, op_flags,
+    HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+    if (!hnpyiter_allocate_arrays(ctx, iter, flags, op_dtype, h_PyArray_Type, op_flags,
                             op_itflags, op_axes)) {
+        HPy_Close(ctx, h_PyArray_Type);
         HNpyIter_Deallocate(ctx, iter);
         return NULL;
     }
+    HPy_Close(ctx, h_PyArray_Type);
 
     NPY_IT_TIME_POINT(c_allocate_arrays);
 
@@ -2846,7 +2849,7 @@ hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
     }
 
     /* Double-check that the subtype didn't mess with the dimensions */
-    if (!HPy_Is(ctx, subtype, HPyArray_Type)) {
+    if (!HPyGlobal_Is(ctx, subtype, HPyArray_Type)) {
         PyArrayObject *ret_data = PyArrayObject_AsStruct(ctx, ret);
         /*
          * TODO: the dtype could have a subarray, which adds new dimensions
@@ -2996,9 +2999,10 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
         if (HPy_IsNull(op[iop])) {
             HPy out;
             HPy op_subtype;
+            int no_subtype = op_flags[iop] & NPY_ITER_NO_SUBTYPE;
 
             /* Check whether the subtype was disabled */
-            op_subtype = (op_flags[iop] & NPY_ITER_NO_SUBTYPE) ? HPyArray_Type : subtype;
+            op_subtype = no_subtype ? HPyGlobal_Load(ctx, HPyArray_Type) : subtype;
 
             /*
              * Allocate the output array.
@@ -3013,6 +3017,11 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                                         NULL,
                                         op_dtype[iop],
                                         op_axes ? op_axes[iop] : NULL);
+            /* close loaded array type if necessary */
+            if (no_subtype) {
+                HPy_Close(ctx, op_subtype);
+            }
+
             if (HPy_IsNull(out)) {
                 return 0;
             }
@@ -3108,12 +3117,14 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
             int ondim = PyArray_NDIM(op_iop_data);
 
             /* Allocate the temporary array, if possible */
-            temp = hnpyiter_new_temp_array(ctx, iter, HPyArray_Type,
+            HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+            temp = hnpyiter_new_temp_array(ctx, iter, h_PyArray_Type,
                                         flags, &op_itflags[iop],
                                         ondim,
                                         PyArray_DIMS(op_iop_data),
                                         op_dtype[iop],
                                         op_axes ? op_axes[iop] : NULL);
+            HPy_Close(ctx, h_PyArray_Type);
             if (HPy_IsNull(temp)) {
                 return 0;
             }
