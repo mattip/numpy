@@ -1167,20 +1167,12 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
          */
         if (!HPy_IsNull(op_request_dtype)) {
             /* We just have a borrowed reference to op_request_dtype */
-            /* TODO HPY LABS PORT: cut off to Numpy API */
-            CAPI_WARN("hnpyiter_prepare_one_operand");
-            PyArrayObject *py_op = (PyArrayObject *)HPy_AsPyObject(ctx, *op);
-            PyObject *py_op_request_dtype = HPy_AsPyObject(ctx, op_request_dtype);
-            PyArray_Descr *py_new_descr = PyArray_AdaptDescriptorToArray(py_op, py_op_request_dtype);
-            Py_XDECREF(py_op);
-            HPy h = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
-            Py_DECREF(py_op_request_dtype);
-            Py_DECREF(py_new_descr);
-            HPy_Close(ctx, *op_dtype);
-            *op_dtype = h;
+            HPy h = HPyArray_AdaptDescriptorToArray(ctx, *op, op_request_dtype);
             if (HPy_IsNull(h)) {
                 goto error;
             }
+            HPy_Close(ctx, *op_dtype);
+            *op_dtype = h;
         }
 
         /* Check if the operand is in the byte order requested */

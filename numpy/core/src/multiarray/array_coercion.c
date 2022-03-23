@@ -841,7 +841,7 @@ h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr
 {
     // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
     enum _dtype_discovery_flags flags = 0;
-    *out_descr = NULL;
+    *out_descr = HPy_NULL;
 
     if (HPy_IsNull(DType)) {
         *out_descr = HPyArray_GetDescr(ctx, arr);
@@ -889,6 +889,51 @@ PyArray_AdaptDescriptorToArray(PyArrayObject *arr, PyObject *dtype)
         }
     }
     Py_DECREF(new_DType);
+    return new_dtype;
+}
+
+/**
+ * Given a dtype or DType object, find the correct descriptor to cast the
+ * array to.
+ *
+ * This function is identical to normal casting using only the dtype, however,
+ * it supports inspecting the elements when the array has object dtype
+ * (and the given datatype describes a parametric DType class).
+ *
+ * @param arr
+ * @param dtype A dtype instance or class.
+ * @return A concrete dtype instance or HPy_NULL
+ */
+NPY_NO_EXPORT HPy
+HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype)
+{
+    /* If the requested dtype is flexible, adapt it */
+    HPy new_dtype; /* PyArray_Descr *new_dtype */
+    HPy new_DType; /* PyArray_DTypeMeta *new_DType */
+    int res;
+
+    res = HPyArray_ExtractDTypeAndDescriptor(ctx, dtype,
+            &new_dtype, &new_DType);
+    if (res < 0) {
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(new_dtype)) {
+        res = h_find_descriptor_from_array(ctx, arr, new_DType, &new_dtype);
+        if (res < 0) {
+            HPy_Close(ctx, new_DType);
+            return HPy_NULL;
+        }
+        if (HPy_IsNull(new_dtype)) {
+            /* This is an object array but contained no elements, use default */
+            CAPI_WARN("HPyArray_AdaptDescriptorToArray: call to descr meta type slot 'default_descr'");
+            PyArray_DTypeMeta *py_new_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, new_DType);
+            PyObject *py_new_dtype = (PyObject *)NPY_DT_CALL_default_descr(py_new_DType);
+            new_dtype = HPy_FromPyObject(ctx, py_new_dtype);
+            Py_DECREF(py_new_DType);
+            Py_DECREF(py_new_dtype);
+        }
+    }
+    HPy_Close(ctx, new_DType);
     return new_dtype;
 }
 
