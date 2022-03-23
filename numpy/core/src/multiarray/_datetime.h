@@ -38,6 +38,9 @@ create_datetime_dtype_with_unit(int type_num, NPY_DATETIMEUNIT unit);
 NPY_NO_EXPORT PyArray_DatetimeMetaData *
 get_datetime_metadata_from_dtype(PyArray_Descr *dtype);
 
+NPY_NO_EXPORT PyArray_DatetimeMetaData *
+h_get_datetime_metadata_from_dtype(HPyContext *ctx, PyArray_Descr *dtype_data);
+
 NPY_NO_EXPORT int
 find_string_array_datetime64_type(PyArrayObject *arr,
         PyArray_DatetimeMetaData *meta);

@@ -700,6 +700,21 @@ get_datetime_metadata_from_dtype(PyArray_Descr *dtype)
     return &(((PyArray_DatetimeDTypeMetaData *)dtype->c_metadata)->meta);
 }
 
+/*
+ * HPy version of 'get_datetime_metadata_from_dtype'
+ */
+NPY_NO_EXPORT PyArray_DatetimeMetaData *
+h_get_datetime_metadata_from_dtype(HPyContext *ctx, PyArray_Descr *dtype_data)
+{
+    if (!PyDataType_ISDATETIME(dtype_data)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "cannot get datetime metadata from non-datetime type");
+        return NULL;
+    }
+
+    return &(((PyArray_DatetimeDTypeMetaData *)dtype_data->c_metadata)->meta);
+}
+
 /* strtol does not know whether to put a const qualifier on endptr, wrap
  * it so we can put this cast in one place.
  */

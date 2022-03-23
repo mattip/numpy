@@ -72,6 +72,7 @@ typedef struct {
 
 
 #define NPY_DTYPE(descr) ((PyArray_DTypeMeta *)Py_TYPE(descr))
+#define HNPY_DTYPE(ctx, descr) (HPy_Type(ctx, descr))
 #define NPY_DT_SLOTS(dtype) ((NPY_DType_Slots *)(dtype)->dt_slots)
 
 #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)

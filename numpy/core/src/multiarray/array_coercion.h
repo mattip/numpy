@@ -37,6 +37,10 @@ NPY_NO_EXPORT int
 PyArray_ExtractDTypeAndDescriptor(PyObject *dtype,
         PyArray_Descr **out_descr, PyArray_DTypeMeta **out_DType);
 
+NPY_NO_EXPORT int
+HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
+        HPy *out_descr, HPy *out_DType);
+
 NPY_NO_EXPORT PyObject *
 _discover_array_parameters(PyObject *NPY_UNUSED(self),
                            PyObject *args, PyObject *kwargs);
