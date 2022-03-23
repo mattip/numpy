@@ -111,8 +111,8 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
 
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
-NPY_NO_EXPORT HPy HPyArray_Type;
-NPY_NO_EXPORT HPy HPyArrayDescr_Type;
+NPY_NO_EXPORT HPyGlobal HPyArray_Type;
+NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
 
 /* Only here for API compatibility */
 NPY_NO_EXPORT PyTypeObject PyBigArray_Type;
@@ -1693,6 +1693,7 @@ _hpy_array_fromobject_generic(
         HPyContext *ctx, HPy op, HPy type, _PyArray_CopyMode copy, NPY_ORDER order,
         npy_bool subok, int ndmin)
 {
+    HPy array_type = HPy_NULL;
     HPy ret = HPy_NULL;
     PyArrayObject *oparr;
     HPy oldtype = HPy_NULL;
@@ -1704,14 +1705,15 @@ _hpy_array_fromobject_generic(
         HPyErr_SetString(ctx, ctx->h_ValueError,
                 "ndmin bigger than allowable number of dimensions "
                 "NPY_MAXDIMS (=%d)"/*, HPY TODO: NPY_MAXDIMS*/);
-        return HPy_NULL;
+        goto fail;
     }
     /* fast exit if simple call */
     // HPY TODO (API): original code uses "check exact"
     // HPy version has to use two calls HPy_Type and HPy_Is
     // It would be faster to check subok first and then exact or subclass check
-    if (HPy_Is(ctx, HPy_Type(ctx, op), HPyArray_Type) || 
-        (subok && HPy_TypeCheck(ctx, op, HPyArray_Type))) {
+    array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    if (HPy_Is(ctx, HPy_Type(ctx, op), array_type) ||
+        (subok && HPy_TypeCheck(ctx, op, array_type))) {
         oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
@@ -1722,7 +1724,7 @@ _hpy_array_fromobject_generic(
                 if (copy == NPY_COPY_NEVER) {
                     HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Unable to avoid copy while creating a new array.");
-                    return HPy_NULL;
+                    goto fail;
                 }                
                 ret = HPyArray_NewCopy(ctx, op, order);
                 goto finish;
@@ -1740,9 +1742,9 @@ _hpy_array_fromobject_generic(
             }
             else {
                 if (copy == NPY_COPY_NEVER) {
-                    PyErr_SetString(PyExc_ValueError,
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Unable to avoid copy while creating a new array.");
-                    return HPy_NULL;
+                    goto fail;
                 }
                 capi_warn("np.array: PyArray_NewCopy");
                 PyObject *py_ret = (PyObject *) PyArray_NewCopy(oparr, order);
@@ -1768,7 +1770,7 @@ _hpy_array_fromobject_generic(
     }
     else if ((order == NPY_FORTRANORDER)
                  /* order == NPY_ANYORDER && */
-                 || (HPy_TypeCheck(ctx, op, HPyArray_Type) &&
+                 || (HPy_TypeCheck(ctx, op, array_type) &&
                      PyArray_ISFORTRAN(oparr))) {
         flags |= NPY_ARRAY_F_CONTIGUOUS;
     }
@@ -1783,6 +1785,8 @@ _hpy_array_fromobject_generic(
         0, 0, flags, HPy_NULL);
 
 finish:
+    HPy_Close(ctx, array_type);
+
     if (HPy_IsNull(ret)) {
         return ret;
     }
@@ -1798,6 +1802,10 @@ finish:
     //  * steals a reference to ret
     //  */
     // return _prepend_ones(ret, nd, ndmin, order);
+
+fail:
+    HPy_Close(ctx, array_type);
+    return HPy_NULL;
 }
 
 #undef STRIDING_OK
@@ -4921,7 +4929,12 @@ static HPyModuleDef moduledef = {
     .doc = NULL,
     .size = -1,
     .legacy_methods = array_module_methods,
-    .defines = array_module_hpy_methods
+    .defines = array_module_hpy_methods,
+    .globals = {
+            &HPyArrayDescr_Type,
+            &HPyArray_Type,
+            NULL
+    }
 };
 
 /* Initialization function for the module */
@@ -5000,7 +5013,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     // HPY TODO: storing the types to globals to support legacy code, and HPy code w/o module state
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
     PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
-    HPyArrayDescr_Type = HPy_Dup(ctx, h_PyArrayDescr_Type);
+
+    HPyGlobal_Store(ctx, &HPyArrayDescr_Type, h_PyArrayDescr_Type);
 
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_PyArrayDescr_Type);
@@ -5018,7 +5032,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
-    HPyArray_Type = HPy_Dup(ctx, h_array_type);
+    HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
     HPy_Close(ctx, h_array_type);
 

@@ -43,9 +43,8 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base);
 
 NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull;
 NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
-// HPY TODO: HACK storing handle in a global variable...
 // the variable is defined in multiarraymodule.c for now,
 // should be in/accesible via HPY API eventually
-NPY_NO_EXPORT HPy HPyArrayDescr_Type;
+NPY_NO_EXPORT extern HPyGlobal HPyArrayDescr_Type;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_ */
