@@ -824,6 +824,35 @@ find_descriptor_from_array(
 }
 
 /**
+ * Return the correct descriptor given an array object and a DType class.
+ *
+ * This is identical to casting the arrays descriptor/dtype to the new
+ * DType class
+ *
+ * @param arr The array object.
+ * @param DType The DType class to cast to (or NULL for convenience)
+ * @param out_descr The output descriptor will set. The result can be NULL
+ *        when the array is of object dtype and has no elements.
+ *
+ * @return -1 on failure, 0 on success.
+ */
+static int
+h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr)
+{
+    // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
+    enum _dtype_discovery_flags flags = 0;
+    *out_descr = NULL;
+
+    if (HPy_IsNull(DType)) {
+        *out_descr = HPyArray_GetDescr(ctx, arr);
+        return 0;
+    }
+
+    hpy_abort_not_implemented("h_find_descriptor_from_array");
+    return -1;
+}
+
+/**
  * Given a dtype or DType object, find the correct descriptor to cast the
  * array to.
  *
