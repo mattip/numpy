@@ -4935,6 +4935,7 @@ static HPyModuleDef moduledef = {
     .globals = {
             &HPyArrayDescr_Type,
             &HPyArray_Type,
+            &HPyArrayDTypeMeta_Type,
             NULL
     }
 };
@@ -5017,8 +5018,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
 
     HPyGlobal_Store(ctx, &HPyArrayDescr_Type, h_PyArrayDescr_Type);
+    HPyGlobal_Store(ctx, &HPyArrayDTypeMeta_Type, h_PyArrayDTypeMeta_Type);
 
-    HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_PyArrayDescr_Type);
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
 
