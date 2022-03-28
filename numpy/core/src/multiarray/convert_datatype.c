@@ -71,7 +71,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
     PyObject *res;
     if (from == to) {
-        res = NPY_DT_SLOTS(from)->within_dtype_castingimpl;
+        res = DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(from);
     }
     else {
         res = PyDict_GetItemWithError(DTYPE_SLOTS_CASTINGIMPL(from), (PyObject *)to);
@@ -161,11 +161,9 @@ NPY_NO_EXPORT HPy
 HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
 {
     PyArray_DTypeMeta *from_data = PyArray_DTypeMeta_AsStruct(ctx, from);
-    PyArray_DTypeMeta *to_data = PyArray_DTypeMeta_AsStruct(ctx, to);
     HPy res;
     if (HPy_Is(ctx, from, to)) {
-        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
-        res = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->within_dtype_castingimpl);
+        res = HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(ctx, from, from_data);
     }
     else {
         HPy tmp = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, from, from_data);
@@ -2552,15 +2550,20 @@ PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth)
                     meth->method->name);
             return -1;
         }
-        if (NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl != NULL) {
+        if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(meth->dtypes[0]) != NULL) {
             PyErr_Format(PyExc_RuntimeError,
                     "A cast was already added for %S -> %S. (method: %s)",
                     meth->dtypes[0], meth->dtypes[1], meth->method->name);
             return -1;
         }
         Py_INCREF(meth->method);
-        NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl = (
-                (PyObject *)meth->method);
+
+        HPyContext *ctx = npy_get_context();
+        HPy owner = HPy_FromPyObject(ctx, meth->dtypes[0]);
+        HPy value = HPy_FromPyObject(ctx, meth->method);
+        HPyField_Store(ctx, owner, &NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl, value);
+        HPy_Close(ctx, owner);
+        HPy_Close(ctx, value);
 
         return 0;
     }

@@ -284,7 +284,7 @@ PyArrayInitDTypeMeta_FromSpec(
         }
     }
 
-    if (NPY_DT_SLOTS(DType)->within_dtype_castingimpl == NULL) {
+    if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(DType) == NULL) {
         /*
          * We expect this for now. We should have a default for DType that
          * only supports simple copy (and possibly byte-order assuming that

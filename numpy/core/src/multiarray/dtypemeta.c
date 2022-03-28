@@ -592,6 +592,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
 
     PyArray_DTypeMeta *new_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_new_dtype_type);
+    new_dtype_data->dt_slots = dt_slots;
 
     HPy h_castingimpls = HPyDict_New(ctx);
     if (HPy_IsNull(h_castingimpls)) {
@@ -608,7 +609,6 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     Py_INCREF(descr->typeobj);
     new_dtype_data->scalar_type = descr->typeobj;
     new_dtype_data->type_num = descr->type_num;
-    new_dtype_data->dt_slots = dt_slots;
     new_dtype_data->flags = NPY_DT_LEGACY;
     dt_slots->f = *(descr->f);
 
