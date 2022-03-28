@@ -728,6 +728,50 @@ PyArray_CheckCastSafety(NPY_CASTING casting,
 }
 
 
+NPY_NO_EXPORT int
+HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
+        HPy h_from, HPy h_to, HPy h_to_dtype_in)
+{
+    HPy h_to_dtype;
+    if (HPy_IsNull(h_to)) {
+        h_to_dtype = HPy_Type(ctx, h_to);
+    } else {
+        h_to_dtype = HPy_Dup(ctx, h_to_dtype_in);
+    }
+    HPy h_from_dtype = HPy_Type(ctx, h_from);
+    HPy meth = HPyArray_GetCastingImpl(ctx, h_from_dtype, h_to_dtype);
+    HPy_Close(ctx, h_from_dtype);
+    if (HPy_IsNull(meth)) {
+        return -1;
+    }
+    if (HPy_Is(ctx, meth, ctx->h_None)) {
+        HPy_Close(ctx, meth);
+        return -1;
+    }
+    // TODO HPY LABS PORT: HACK: CAST
+    CAPI_WARN("PyArrayMethodObject cast");
+    PyArrayMethodObject *castingimpl = (PyArrayMethodObject *)((void*) meth._i);
+
+    if (PyArray_MinCastSafety(castingimpl->casting, casting) == casting) {
+        /* No need to check using `castingimpl.resolve_descriptors()` */
+        HPy_Close(ctx, meth);
+        return 1;
+    }
+
+    hpy_abort_not_implemented("HPyArray_CheckCastSafety: generic code path");
+    // PyArray_DTypeMeta *dtypes[2] = {PyArray_DTypeMeta_AsStruct(ctx, h_from_dtype), PyArray_DTypeMeta_AsStruct(ctx, h_to_dtype)};
+    // npy_intp view_offset;
+    // NPY_CASTING safety = _get_cast_safety_from_castingimpl(castingimpl,
+    //         dtypes, PyArray_Descr_AsStruct(ctx, h_from), PyArray_Descr_AsStruct(ctx, h_to), &view_offset);
+    // Py_DECREF(meth);
+    // /* If casting is the smaller (or equal) safety we match */
+    // if (safety < 0) {
+    //     return -1;
+    // }
+    // return PyArray_MinCastSafety(safety, casting) == casting;
+}
+
+
 /*NUMPY_API
  *Check the type coercion rules.
  */
@@ -921,12 +965,8 @@ HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
         to = NULL;  /* consider mainly S0 and U0 as S and U */
     }
 
-    capi_warn("HPyArray_CanCastTypeTo -> PyArray_CheckCastSafety");
     HPy to_meta = HPy_Type(ctx, h_to);
-    int is_valid = PyArray_CheckCastSafety(casting,
-            PyArray_Descr_AsStruct(ctx, h_from), 
-            PyArray_Descr_AsStruct(ctx, h_to),
-            PyArray_DTypeMeta_AsStruct(ctx, to_meta));
+    int is_valid = HPyArray_CheckCastSafety(ctx, casting, h_from, h_to, to_meta);
     HPy_Close(ctx, to_meta);
     /* Clear any errors and consider this unsafe (should likely be changed) */
     if (is_valid < 0) {
