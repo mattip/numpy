@@ -511,12 +511,12 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
      * of overlapping data. For bigger ndim and opposite-strided 1D
      * data, we make a temporary copy of 'src' if 'src' and 'dst' overlap.'
      */
-    capi_warn("HPyArray_AssignArray: arrays_overlap and reminder of this function...");
     if (((PyArray_NDIM(dst) == 1 && PyArray_NDIM(src) >= 1 &&
                     PyArray_STRIDES(dst)[0] *
                             PyArray_STRIDES(src)[PyArray_NDIM(src) - 1] < 0) ||
                     PyArray_NDIM(dst) > 1 || PyArray_HASFIELDS(dst)) &&
-                    arrays_overlap(src, dst)) {
+                    hpy_arrays_overlap(ctx, h_src, h_dst)) {
+        CAPI_WARN("HPyArray_AssignArray: overlapping arrays");
         PyArrayObject *tmp;
 
         /*
@@ -570,13 +570,13 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
 
     PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
     /* optimization: scalar boolean mask */
-    if (wheremask != NULL &&
+    if (!HPy_IsNull(h_wheremask) &&
             PyArray_NDIM(wheremask) == 0 &&
-            PyArray_DESCR(wheremask)->type_num == NPY_BOOL) {
+            PyArray_Descr_AsStruct(ctx, HPyArray_DESCR(ctx, h_wheremask, wheremask))->type_num == NPY_BOOL) {
         npy_bool value = *(npy_bool *)PyArray_DATA(wheremask);
         if (value) {
             /* where=True is the same as no where at all */
-            wheremask = NULL;
+            h_wheremask = HPy_NULL;
         }
         else {
             /* where=False copies nothing */
@@ -584,7 +584,7 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
         }
     }
 
-    if (wheremask == NULL) {
+    if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
         if (raw_array_assign_array(PyArray_NDIM(dst), PyArray_DIMS(dst),
@@ -606,6 +606,7 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
 
         /* A straightforward where-masked assignment */
          /* Do the masked assignment with raw array iteration */
+        CAPI_WARN("non-straightforward value assignment that needs raw_array_wheremasked_assign_array");
         if (raw_array_wheremasked_assign_array(
                 PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
@@ -617,12 +618,16 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
     }
 
     if (copied_src) {
+        CAPI_WARN("HPyArray_AssignArray: overlapping arrays");
+        // See the branch for overlapping arrays above that sets copied_src = true
         Py_DECREF(src);
     }
     return 0;
 
 fail:
     if (copied_src) {
+        CAPI_WARN("HPyArray_AssignArray: overlapping arrays");
+        // See the branch for overlapping arrays above that sets copied_src = true
         Py_DECREF(src);
     }
     return -1;

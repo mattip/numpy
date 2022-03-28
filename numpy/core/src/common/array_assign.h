@@ -123,5 +123,8 @@ HIsUintAligned(HPyContext *ctx, HPy arr, PyArrayObject *arr_data);
 NPY_NO_EXPORT int
 arrays_overlap(PyArrayObject *arr1, PyArrayObject *arr2);
 
+NPY_NO_EXPORT int
+hpy_arrays_overlap(HPyContext *ctx, HPy arr1, HPy arr2);
+
 
 #endif  /* NUMPY_CORE_SRC_COMMON_ARRAY_ASSIGN_H_ */

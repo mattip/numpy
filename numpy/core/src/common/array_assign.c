@@ -64,6 +64,7 @@ broadcast_strides(int ndim, npy_intp const *shape,
     return 0;
 
 broadcast_error: {
+        CAPI_WARN("broadcast_error");
         PyObject *shape1 = convert_shape_to_string(strides_ndim,
                                                    strides_shape, "");
         if (shape1 == NULL) {
@@ -171,6 +172,21 @@ arrays_overlap(PyArrayObject *arr1, PyArrayObject *arr2)
     mem_overlap_t result;
 
     result = solve_may_share_memory(arr1, arr2, NPY_MAY_SHARE_BOUNDS);
+    if (result == MEM_OVERLAP_NO) {
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
+
+/* Returns 1 if the arrays have overlapping data, 0 otherwise */
+NPY_NO_EXPORT int
+hpy_arrays_overlap(HPyContext *ctx, HPy arr1, HPy arr2)
+{
+    mem_overlap_t result;
+
+    result = hpy_solve_may_share_memory(ctx, arr1, arr2, NPY_MAY_SHARE_BOUNDS);
     if (result == MEM_OVERLAP_NO) {
         return 0;
     }
