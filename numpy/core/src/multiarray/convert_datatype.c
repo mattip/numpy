@@ -3244,7 +3244,7 @@ PyArray_GetGenericToVoidCastingImpl(void)
         return (PyObject *)method;
     }
 
-    method = PyObject_New(PyArrayMethodObject, &PyArrayMethod_Type);
+    method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
     if (method == NULL) {
         return PyErr_NoMemory();
     }
@@ -3405,7 +3405,7 @@ PyArray_GetVoidToGenericCastingImpl(void)
         return (PyObject *)method;
     }
 
-    method = PyObject_New(PyArrayMethodObject, &PyArrayMethod_Type);
+    method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
     if (method == NULL) {
         return PyErr_NoMemory();
     }
@@ -3783,7 +3783,7 @@ PyArray_GetObjectToGenericCastingImpl(void)
         return (PyObject *)method;
     }
 
-    method = PyObject_New(PyArrayMethodObject, &PyArrayMethod_Type);
+    method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
     if (method == NULL) {
         return PyErr_NoMemory();
     }
@@ -3840,7 +3840,7 @@ PyArray_GetGenericToObjectCastingImpl(void)
         return (PyObject *)method;
     }
 
-    method = PyObject_New(PyArrayMethodObject, &PyArrayMethod_Type);
+    method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
     if (method == NULL) {
         return PyErr_NoMemory();
     }

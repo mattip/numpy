@@ -4936,6 +4936,7 @@ static HPyModuleDef moduledef = {
             &HPyArrayDescr_Type,
             &HPyArray_Type,
             &HPyArrayDTypeMeta_Type,
+            &HPyArrayMethod_Type,
             NULL
     }
 };
@@ -5211,9 +5212,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (set_typeinfo(ctx, d) != 0) {
         goto err;
     }
-    if (PyType_Ready(&PyArrayMethod_Type) < 0) {
+    HPy h_array_method_type = HPyType_FromSpec(ctx, &PyArrayMethod_Type_Spec, NULL);
+    if (HPy_IsNull(h_array_method_type)) {
         goto err;
     }
+    PyArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_method_type);
+    HPyGlobal_Store(ctx, &HPyArrayMethod_Type, h_array_method_type);
+    HPy_Close(ctx, h_array_method_type);
+
     if (PyType_Ready(&PyBoundArrayMethod_Type) < 0) {
         goto err;
     }
