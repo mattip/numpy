@@ -203,6 +203,26 @@ PyArray_DiscardWritebackIfCopy(PyArrayObject *arr)
     }
 }
 
+static NPY_INLINE void
+HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
+{
+    if (!HPy_IsNull(h_arr)) {
+        HPy h_base = HPyArray_GetBase(ctx, h_arr);
+        if (HPy_IsNull(h_base)) {
+            HPy_Close(ctx, h_arr);
+            return;
+        }
+        int flags = HPyArray_FLAGS(ctx, h_arr);
+        if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
+            HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
+            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+            HPyArray_CLEARFLAGS(ctx, h_arr, NPY_ARRAY_WRITEBACKIFCOPY);
+        }
+        HPy_Close(ctx, h_base);
+        HPy_Close(ctx, h_arr);
+    }
+}
+
 #define PyArray_DESCR_REPLACE(descr) do { \
                 PyArray_Descr *_new_; \
                 _new_ = PyArray_DescrNew(descr); \
@@ -251,6 +271,10 @@ PyArray_DiscardWritebackIfCopy(PyArrayObject *arr)
         PyArray_FromDimsAndDataAndDescr(nd, d, PyArray_DescrFromType(type),   \
                                         data)
 
+/* Numpy HPy API */
+
+NPY_NO_EXPORT int
+HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self);
 
 /*
    Check to see if this key in the dictionary is the "title"

@@ -35,39 +35,44 @@
 
 static NPY_CASTING
 wrapping_method_resolve_descriptors(
-        PyArrayMethodObject *self,
-        PyArray_DTypeMeta *dtypes[],
-        PyArray_Descr *given_descrs[],
-        PyArray_Descr *loop_descrs[],
+        HPy self,
+        HPy dtypes[],
+        HPy given_descrs[],
+        HPy loop_descrs[],
         npy_intp *view_offset)
 {
-    int nin = self->nin, nout = self->nout, nargs = nin + nout;
-    PyArray_Descr *orig_given_descrs[NPY_MAXARGS];
-    PyArray_Descr *orig_loop_descrs[NPY_MAXARGS];
-
-    if (self->translate_given_descrs(
-            nin, nout, self->wrapped_dtypes,
-            given_descrs, orig_given_descrs) < 0) {
-        return -1;
-    }
-    NPY_CASTING casting = self->wrapped_meth->resolve_descriptors(
-            self->wrapped_meth, self->wrapped_dtypes,
-            orig_given_descrs, orig_loop_descrs, view_offset);
-    for (int i = 0; i < nargs; i++) {
-        Py_XDECREF(orig_given_descrs);
-    }
-    if (casting < 0) {
-        return -1;
-    }
-    int res = self->translate_loop_descrs(
-            nin, nout, dtypes, given_descrs, orig_loop_descrs, loop_descrs);
-    for (int i = 0; i < nargs; i++) {
-        Py_DECREF(orig_given_descrs);
-    }
-    if (res < 0) {
-        return -1;
-    }
-    return casting;
+    hpy_abort_not_implemented("wrapping_method_resolve_descriptors");
+    return NPY_NO_CASTING;
+//    HPyContext *ctx = npy_get_context();
+//    int nin = self->nin, nout = self->nout, nargs = nin + nout;
+//    HPy orig_given_descrs[NPY_MAXARGS];
+//    HPy orig_loop_descrs[NPY_MAXARGS];
+//    PyArrayMethodObject *data = PyArrayMethodObject_AsStruct(ctx, self);
+//
+//    if (data->translate_given_descrs(
+//            nin, nout, self->wrapped_dtypes,
+//            given_descrs, orig_given_descrs) < 0) {
+//        return -1;
+//    }
+//    HPy h_wrapped_meth = HPyField_Load(ctx, self, data->wrapped_meth);
+//    NPY_CASTING casting = PyArrayMethodObject_AsStruct(ctx, h_wrapped_meth)->resolve_descriptors(
+//            h_wrapped_meth, self->wrapped_dtypes,
+//            orig_given_descrs, orig_loop_descrs, view_offset);
+//    for (int i = 0; i < nargs; i++) {
+//        HPy_Close(ctx, orig_given_descrs[i]);
+//    }
+//    if (casting < 0) {
+//        return -1;
+//    }
+//    int res = self->translate_loop_descrs(
+//            nin, nout, dtypes, given_descrs, orig_loop_descrs, loop_descrs);
+//    for (int i = 0; i < nargs; i++) {
+//        HPy_Close(ctx, orig_given_descrs[i]);
+//    }
+//    if (res < 0) {
+//        return -1;
+//    }
+//    return casting;
 }
 
 
@@ -146,34 +151,36 @@ wrapping_method_get_loop(
         PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    assert(move_references == 0);  /* only used internally for "decref" funcs */
-    int nin = context->method->nin, nout = context->method->nout;
-
-    wrapping_auxdata *auxdata = get_wrapping_auxdata();
-    if (auxdata == NULL) {
-        return -1;
-    }
-
-    auxdata->orig_context.method = context->method->wrapped_meth;
-    auxdata->orig_context.caller = context->caller;
-
-    if (context->method->translate_given_descrs(
-            nin, nout, context->method->wrapped_dtypes,
-            context->descriptors, auxdata->orig_context.descriptors) < 0) {
-        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
-        return -1;
-    }
-    if (context->method->wrapped_meth->get_strided_loop(
-            &auxdata->orig_context, aligned, 0, strides,
-            &auxdata->orig_loop, &auxdata->orig_auxdata,
-            flags) < 0) {
-        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
-        return -1;
-    }
-
-    *out_loop = (PyArrayMethod_StridedLoop *)&wrapping_method_strided_loop;
-    *out_transferdata = (NpyAuxData *)auxdata;
-    return 0;
+    hpy_abort_not_implemented("wrapping_method_get_loop");
+    return -1;
+//    assert(move_references == 0);  /* only used internally for "decref" funcs */
+//    int nin = context->method->nin, nout = context->method->nout;
+//
+//    wrapping_auxdata *auxdata = get_wrapping_auxdata();
+//    if (auxdata == NULL) {
+//        return -1;
+//    }
+//
+//    auxdata->orig_context.method = context->method->wrapped_meth;
+//    auxdata->orig_context.caller = context->caller;
+//
+//    if (context->method->translate_given_descrs(
+//            nin, nout, context->method->wrapped_dtypes,
+//            context->descriptors, auxdata->orig_context.descriptors) < 0) {
+//        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
+//        return -1;
+//    }
+//    if (context->method->wrapped_meth->get_strided_loop(
+//            &auxdata->orig_context, aligned, 0, strides,
+//            &auxdata->orig_loop, &auxdata->orig_auxdata,
+//            flags) < 0) {
+//        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
+//        return -1;
+//    }
+//
+//    *out_loop = (PyArrayMethod_StridedLoop *)&wrapping_method_strided_loop;
+//    *out_transferdata = (NpyAuxData *)auxdata;
+//    return 0;
 }
 
 
@@ -195,107 +202,109 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         translate_given_descrs_func *translate_given_descrs,
         translate_loop_descrs_func *translate_loop_descrs)
 {
-    int res = -1;
-    PyUFuncObject *ufunc = (PyUFuncObject *)ufunc_obj;
-    PyObject *wrapped_dt_tuple = NULL;
-    PyObject *new_dt_tuple = NULL;
-    PyArrayMethodObject *meth = NULL;
-
-    if (!PyObject_TypeCheck(ufunc_obj, &PyUFunc_Type)) {
-        PyErr_SetString(PyExc_TypeError,
-                "ufunc object passed is not a ufunc!");
-        return -1;
-    }
-
-    wrapped_dt_tuple = PyArray_TupleFromItems(
-            ufunc->nargs, (PyObject **)wrapped_dtypes, 1);
-    if (wrapped_dt_tuple == NULL) {
-        goto finish;
-    }
-
-    PyArrayMethodObject *wrapped_meth = NULL;
-    PyObject *loops = ufunc->_loops;
-    Py_ssize_t length = PyList_Size(loops);
-    for (Py_ssize_t i = 0; i < length; i++) {
-        PyObject *item = PyList_GetItem(loops, i);
-        PyObject *cur_DType_tuple = PyTuple_GetItem(item, 0);
-        int cmp = PyObject_RichCompareBool(cur_DType_tuple, wrapped_dt_tuple, Py_EQ);
-        if (cmp < 0) {
-            goto finish;
-        }
-        if (cmp == 0) {
-            continue;
-        }
-        wrapped_meth = (PyArrayMethodObject *)PyTuple_GET_ITEM(item, 1);
-        if (!PyObject_TypeCheck(wrapped_meth, &PyArrayMethod_Type)) {
-            PyErr_SetString(PyExc_TypeError,
-                    "Matching loop was not an ArrayMethod.");
-            goto finish;
-        }
-        break;
-    }
-    if (wrapped_meth == NULL) {
-        PyErr_SetString(PyExc_TypeError,
-                "Did not find the to-be-wrapped loop in the ufunc.");
-        goto finish;
-    }
-
-    PyType_Slot slots[] = {
-        {NPY_METH_resolve_descriptors, &wrapping_method_resolve_descriptors},
-        {NPY_METH_get_loop, &wrapping_method_get_loop},
-        {0, NULL}
-    };
-
-    PyArrayMethod_Spec spec = {
-        .name = "wrapped-method",
-        .nin = wrapped_meth->nin,
-        .nout = wrapped_meth->nout,
-        .casting = wrapped_meth->casting,
-        .flags = wrapped_meth->flags,
-        .dtypes = new_dtypes,
-        .slots = slots,
-    };
-    PyBoundArrayMethodObject *bmeth = PyArrayMethod_FromSpec_int(&spec, 1);
-    if (bmeth == NULL) {
-        goto finish;
-    }
-
-    Py_INCREF(bmeth->method);
-    meth = bmeth->method;
-    Py_SETREF(bmeth, NULL);
-
-    /* Finalize the "wrapped" part of the new ArrayMethod */
-    meth->wrapped_dtypes = PyMem_Malloc(ufunc->nargs * sizeof(PyArray_DTypeMeta *));
-    if (meth->wrapped_dtypes == NULL) {
-        goto finish;
-    }
-
-    Py_INCREF(wrapped_meth);
-    meth->wrapped_meth = wrapped_meth;
-    meth->translate_given_descrs = translate_given_descrs;
-    meth->translate_loop_descrs = translate_loop_descrs;
-    for (int i = 0; i < ufunc->nargs; i++) {
-        Py_XINCREF(wrapped_dtypes[i]);
-        meth->wrapped_dtypes[i] = wrapped_dtypes[i];
-    }
-
-    new_dt_tuple = PyArray_TupleFromItems(
-            ufunc->nargs, (PyObject **)new_dtypes, 1);
-    if (new_dt_tuple == NULL) {
-        goto finish;
-    }
-
-    PyObject *info = PyTuple_Pack(2, new_dt_tuple, meth);
-    if (info == NULL) {
-        goto finish;
-    }
-
-    res = PyUFunc_AddLoop(ufunc, info, 0);
-    Py_DECREF(info);
-
-  finish:
-    Py_XDECREF(wrapped_dt_tuple);
-    Py_XDECREF(new_dt_tuple);
-    Py_XDECREF(meth);
-    return res;
+    hpy_abort_not_implemented("PyUFunc_AddWrappingLoop");
+    return -1;
+//    int res = -1;
+//    PyUFuncObject *ufunc = (PyUFuncObject *)ufunc_obj;
+//    PyObject *wrapped_dt_tuple = NULL;
+//    PyObject *new_dt_tuple = NULL;
+//    PyArrayMethodObject *meth = NULL;
+//
+//    if (!PyObject_TypeCheck(ufunc_obj, &PyUFunc_Type)) {
+//        PyErr_SetString(PyExc_TypeError,
+//                "ufunc object passed is not a ufunc!");
+//        return -1;
+//    }
+//
+//    wrapped_dt_tuple = PyArray_TupleFromItems(
+//            ufunc->nargs, (PyObject **)wrapped_dtypes, 1);
+//    if (wrapped_dt_tuple == NULL) {
+//        goto finish;
+//    }
+//
+//    PyArrayMethodObject *wrapped_meth = NULL;
+//    PyObject *loops = ufunc->_loops;
+//    Py_ssize_t length = PyList_Size(loops);
+//    for (Py_ssize_t i = 0; i < length; i++) {
+//        PyObject *item = PyList_GetItem(loops, i);
+//        PyObject *cur_DType_tuple = PyTuple_GetItem(item, 0);
+//        int cmp = PyObject_RichCompareBool(cur_DType_tuple, wrapped_dt_tuple, Py_EQ);
+//        if (cmp < 0) {
+//            goto finish;
+//        }
+//        if (cmp == 0) {
+//            continue;
+//        }
+//        wrapped_meth = (PyArrayMethodObject *)PyTuple_GET_ITEM(item, 1);
+//        if (!PyObject_TypeCheck(wrapped_meth, &PyArrayMethod_Type)) {
+//            PyErr_SetString(PyExc_TypeError,
+//                    "Matching loop was not an ArrayMethod.");
+//            goto finish;
+//        }
+//        break;
+//    }
+//    if (wrapped_meth == NULL) {
+//        PyErr_SetString(PyExc_TypeError,
+//                "Did not find the to-be-wrapped loop in the ufunc.");
+//        goto finish;
+//    }
+//
+//    PyType_Slot slots[] = {
+//        {NPY_METH_resolve_descriptors, &wrapping_method_resolve_descriptors},
+//        {NPY_METH_get_loop, &wrapping_method_get_loop},
+//        {0, NULL}
+//    };
+//
+//    PyArrayMethod_Spec spec = {
+//        .name = "wrapped-method",
+//        .nin = wrapped_meth->nin,
+//        .nout = wrapped_meth->nout,
+//        .casting = wrapped_meth->casting,
+//        .flags = wrapped_meth->flags,
+//        .dtypes = new_dtypes,
+//        .slots = slots,
+//    };
+//    PyBoundArrayMethodObject *bmeth = PyArrayMethod_FromSpec_int(&spec, 1);
+//    if (bmeth == NULL) {
+//        goto finish;
+//    }
+//
+//    Py_INCREF(bmeth->method);
+//    meth = bmeth->method;
+//    Py_SETREF(bmeth, NULL);
+//
+//    /* Finalize the "wrapped" part of the new ArrayMethod */
+//    meth->wrapped_dtypes = PyMem_Malloc(ufunc->nargs * sizeof(PyArray_DTypeMeta *));
+//    if (meth->wrapped_dtypes == NULL) {
+//        goto finish;
+//    }
+//
+//    Py_INCREF(wrapped_meth);
+//    meth->wrapped_meth = wrapped_meth;
+//    meth->translate_given_descrs = translate_given_descrs;
+//    meth->translate_loop_descrs = translate_loop_descrs;
+//    for (int i = 0; i < ufunc->nargs; i++) {
+//        Py_XINCREF(wrapped_dtypes[i]);
+//        meth->wrapped_dtypes[i] = wrapped_dtypes[i];
+//    }
+//
+//    new_dt_tuple = PyArray_TupleFromItems(
+//            ufunc->nargs, (PyObject **)new_dtypes, 1);
+//    if (new_dt_tuple == NULL) {
+//        goto finish;
+//    }
+//
+//    PyObject *info = PyTuple_Pack(2, new_dt_tuple, meth);
+//    if (info == NULL) {
+//        goto finish;
+//    }
+//
+//    res = PyUFunc_AddLoop(ufunc, info, 0);
+//    Py_DECREF(info);
+//
+//  finish:
+//    Py_XDECREF(wrapped_dt_tuple);
+//    Py_XDECREF(new_dt_tuple);
+//    Py_XDECREF(meth);
+//    return res;
 }

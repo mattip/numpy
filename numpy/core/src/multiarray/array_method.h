@@ -60,8 +60,25 @@ typedef struct {
     PyArray_Descr **descriptors;
 } PyArrayMethod_Context;
 
+/*
+ * HPy version of PyArrayMethod_Context
+ */
+typedef struct {
+    HPy caller;  /* E.g. the original ufunc, may be NULL */
+    //struct PyArrayMethodObject_tag *method;
+    HPy method;
+
+    /* Operand descriptors, filled in by resolve_descriptors */
+    HPy *descriptors;
+} HPyArrayMethod_Context;
+
 
 typedef int (PyArrayMethod_StridedLoop)(PyArrayMethod_Context *context,
+        char *const *data, const npy_intp *dimensions, const npy_intp *strides,
+        NpyAuxData *transferdata);
+
+typedef int (HPyArrayMethod_StridedLoop)(HPyContext *hctx,
+        HPyArrayMethod_Context *context,
         char *const *data, const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *transferdata);
 
@@ -71,6 +88,14 @@ typedef NPY_CASTING (resolve_descriptors_function)(
         PyArray_DTypeMeta **dtypes,
         PyArray_Descr **given_descrs,
         PyArray_Descr **loop_descrs,
+        npy_intp *view_offset);
+
+typedef NPY_CASTING (h_resolve_descriptors_function)(
+        HPyContext *ctx,
+        HPy method, /* (struct PyArrayMethodObject_tag *) */
+        HPy *dtypes, /* PyArray_DTypeMeta **dtypes */
+        HPy *given_descrs, /* PyArray_Descr **given_descrs */
+        HPy *loop_descrs, /* PyArray_Descr **loop_descrs */
         npy_intp *view_offset);
 
 
@@ -170,19 +195,22 @@ typedef struct PyArrayMethodObject_tag {
     NPY_CASTING casting;
     /* default flags. The get_strided_loop function can override these */
     NPY_ARRAYMETHOD_FLAGS flags;
-    resolve_descriptors_function *resolve_descriptors;
+    h_resolve_descriptors_function *resolve_descriptors;
     get_loop_function *get_strided_loop;
     /* Typical loop functions (contiguous ones are used in current casts) */
-    PyArrayMethod_StridedLoop *strided_loop;
-    PyArrayMethod_StridedLoop *contiguous_loop;
-    PyArrayMethod_StridedLoop *unaligned_strided_loop;
-    PyArrayMethod_StridedLoop *unaligned_contiguous_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *contiguous_loop;
+    HPyArrayMethod_StridedLoop *unaligned_strided_loop;
+    HPyArrayMethod_StridedLoop *unaligned_contiguous_loop;
     /* Chunk only used for wrapping array method defined in umath */
-    struct PyArrayMethodObject_tag *wrapped_meth;
-    PyArray_DTypeMeta **wrapped_dtypes;
+    HPyField wrapped_meth;
+    HPyField *wrapped_dtypes; /* PyArray_DTypeMeta **wrapped_dtypes */
     translate_given_descrs_func *translate_given_descrs;
     translate_loop_descrs_func *translate_loop_descrs;
 } PyArrayMethodObject;
+
+HPyType_LEGACY_HELPERS(PyArrayMethodObject)
+//HPyType_HELPERS(PyArrayMethodObject)
 
 
 /*
@@ -202,7 +230,9 @@ typedef struct {
 } PyBoundArrayMethodObject;
 
 
-extern NPY_NO_EXPORT PyTypeObject PyArrayMethod_Type;
+extern NPY_NO_EXPORT PyTypeObject *PyArrayMethod_Type;
+extern NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec;
+extern NPY_NO_EXPORT HPyGlobal HPyArrayMethod_Type;
 extern NPY_NO_EXPORT PyTypeObject PyBoundArrayMethod_Type;
 
 /*
@@ -250,5 +280,15 @@ PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec);
  */
 NPY_NO_EXPORT PyBoundArrayMethodObject *
 PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private);
+
+NPY_NO_EXPORT NPY_CASTING
+resolve_descriptors_trampoline(
+        h_resolve_descriptors_function target,
+        struct PyArrayMethodObject_tag *method,
+        PyArray_DTypeMeta **dtypes,
+        PyArray_Descr **given_descrs,
+        PyArray_Descr **loop_descrs,
+        npy_intp *view_offset);
+
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAY_METHOD_H_ */

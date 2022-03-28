@@ -168,6 +168,8 @@ typedef struct {
     void *reserved[3];
 } PyArray_DTypeMeta;
 
+HPyType_LEGACY_HELPERS(PyArray_DTypeMeta)
+
 
 /*
  * ******************************************************

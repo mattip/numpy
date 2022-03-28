@@ -20,7 +20,7 @@
 static void
 _UpdateContiguousFlags(PyArrayObject *ap);
 
-/* TODO(fa): will become part of Numpy's HPy API */
+/* TODO HPY LABS PORT: will become part of Numpy's HPy API */
 static HPy
 HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
 {
@@ -64,7 +64,6 @@ HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
 NPY_NO_EXPORT PyObject *
 PyArray_NewFlagsObject(PyObject *obj)
 {
-    /* TODO(fa): SUPER HACK ALERT */
     HPyContext *ctx = npy_get_context();
     HPy h_res;
     HPy h_obj = HPy_FromPyObject(ctx, obj);
@@ -635,7 +634,7 @@ arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
     int n;
     if (HPyUnicode_Check(ctx, ind)) {
         HPy tmp_str;
-        /* TODO(fa): should be HPyUnicode_AsASCIIString */
+        /* TODO HPY LABS PORT: should be HPyUnicode_AsASCIIString */
         tmp_str = HPyUnicode_AsUTF8String(ctx, ind);
         key = HPyBytes_AS_STRING(ctx, tmp_str);
         n = HPyBytes_GET_SIZE(ctx, tmp_str);
@@ -680,7 +679,7 @@ _torf_(int flags, int val)
     }
 }
 
-/* TODO(fa): HPy_tp_str not yet available
+/* TODO HPY LABS PORT: HPy_tp_str not yet available
 HPyDef arrayflags_str = {
     .kind = HPyDef_Kind_Slot,
     .slot = {

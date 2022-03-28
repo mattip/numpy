@@ -30,6 +30,12 @@ HPyArray_NewFromDescr_int(
         int flags, HPy h_obj, HPy h_base, int zeroed,
         int allow_emptystring);
 
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescr(
+        HPyContext *ctx, HPy subtype, HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj);
+
 NPY_NO_EXPORT PyObject *
 PyArray_NewLikeArrayWithShape(
         PyArrayObject *prototype, NPY_ORDER order,

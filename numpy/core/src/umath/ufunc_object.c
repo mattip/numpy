@@ -4542,7 +4542,7 @@ resolve_descriptors(int nop,
         /* The default: use the `ufuncimpl` as nature intended it */
         npy_intp view_offset = NPY_MIN_INTP;  /* currently ignored */
 
-        NPY_CASTING safety = ufuncimpl->resolve_descriptors(ufuncimpl,
+        NPY_CASTING safety = resolve_descriptors_trampoline(ufuncimpl->resolve_descriptors, ufuncimpl,
                 signature, original_dtypes, dtypes, &view_offset);
         if (safety < 0) {
             goto finish;
@@ -5524,7 +5524,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
             continue;
         }
         PyObject *registered = PyTuple_GET_ITEM(item, 1);
-        if (!PyObject_TypeCheck(registered, &PyArrayMethod_Type) || (
+        if (!PyObject_TypeCheck(registered, PyArrayMethod_Type) || (
                 (PyArrayMethodObject *)registered)->get_strided_loop !=
                         &get_wrapped_legacy_ufunc_loop) {
             PyErr_Format(PyExc_TypeError,

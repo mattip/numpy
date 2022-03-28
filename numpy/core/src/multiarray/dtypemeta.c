@@ -28,6 +28,7 @@ dtypemeta_dealloc(PyArray_DTypeMeta *self) {
     Py_XDECREF(self->scalar_type);
     Py_XDECREF(self->singleton);
     Py_XDECREF(NPY_DT_SLOTS(self)->castingimpls);
+    NPY_DT_SLOTS(self)->castingimpls = NULL;
     PyMem_Free(self->dt_slots);
     PyType_Type.tp_dealloc((PyObject *) self);
 }
@@ -570,7 +571,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     New_PyArrayDescr_spec.name = tp_name;
 
     HPy h_PyArrayDescr_Type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayDescr_Type);
-    HPy h_PyArrayDTypeMeta_Type = HPy_FromPyObject(ctx, (PyObject*) PyArrayDTypeMeta_Type);
+    HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
     HPy h_new_dtype_type = HPy_NULL;
     PyObject *dtype_class = NULL; // to pass to legacy helpers
     int result = -1;
@@ -699,8 +700,9 @@ static PyMemberDef dtypemeta_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
-// HPY TODO: global set in module init:
+// TODO HPY LABS PORT: global set in module init:
 NPY_NO_EXPORT PyTypeObject *PyArrayDTypeMeta_Type;
+NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;
 
 NPY_NO_EXPORT PyType_Slot PyArrayDTypeMeta_Type_legacy_slots[] = {
     {Py_tp_getset, dtypemeta_getset},

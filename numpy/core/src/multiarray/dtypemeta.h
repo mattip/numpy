@@ -72,6 +72,7 @@ typedef struct {
 
 
 #define NPY_DTYPE(descr) ((PyArray_DTypeMeta *)Py_TYPE(descr))
+#define HNPY_DTYPE(ctx, descr) (HPy_Type(ctx, descr))
 #define NPY_DT_SLOTS(dtype) ((NPY_DType_Slots *)(dtype)->dt_slots)
 
 #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)
@@ -122,6 +123,7 @@ python_builtins_are_known_scalar_types(
 NPY_NO_EXPORT int
 dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *dtypem);
 
-NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec;
+extern NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec;
+extern NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DTYPEMETA_H_ */

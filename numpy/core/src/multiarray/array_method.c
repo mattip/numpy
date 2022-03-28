@@ -426,7 +426,7 @@ PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private)
         res->dtypes[i] = spec->dtypes[i];
     }
 
-    res->method = PyObject_New(PyArrayMethodObject, &PyArrayMethod_Type);
+    res->method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
     if (res->method == NULL) {
         Py_DECREF(res);
         PyErr_NoMemory();
@@ -445,7 +445,9 @@ PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private)
     }
 
     Py_ssize_t length = strlen(spec->name);
-    res->method->name = PyMem_Malloc(length + 1);
+    // TODO HPY LABS PORT: PyMem_Malloc
+    // res->method->name = PyMem_Malloc(length + 1);
+    res->method->name = malloc(length + 1);
     if (res->method->name == NULL) {
         Py_DECREF(res);
         PyErr_NoMemory();
@@ -457,33 +459,47 @@ PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private)
 }
 
 
+HPyDef_SLOT(arraymethod_dealloc, arraymethod_dealloc_impl, HPy_tp_destroy)
 static void
-arraymethod_dealloc(PyObject *self)
+arraymethod_dealloc_impl(void *data)
 {
-    PyArrayMethodObject *meth;
-    meth = ((PyArrayMethodObject *)self);
-
-    PyMem_Free(meth->name);
-
-    if (meth->wrapped_meth != NULL) {
-        /* Cleanup for wrapping array method (defined in umath) */
-        Py_DECREF(meth->wrapped_meth);
-        for (int i = 0; i < meth->nin + meth->nout; i++) {
-            Py_XDECREF(meth->wrapped_dtypes[i]);
-        }
-        PyMem_Free(meth->wrapped_dtypes);
-    }
-
-    Py_TYPE(self)->tp_free(self);
+    PyArrayMethodObject *meth = (PyArrayMethodObject *)data;
+    // PyMem_Free(meth->name);
+    free(meth->name);
+    free(meth->wrapped_dtypes);
 }
 
+HPyDef_SLOT(arraymethod_traverse, arraymethod_traverse_impl, HPy_tp_traverse)
+static int
+arraymethod_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
+{
+    PyArrayMethodObject *meth = (PyArrayMethodObject *)self;
+    HPy_VISIT(&meth->wrapped_meth);
+    if (!HPyField_IsNull(meth->wrapped_meth)) {
+        assert(meth->wrapped_dtypes);
+        for (int i = 0; i < meth->nin + meth->nout; i++) {
+            HPy_VISIT((meth->wrapped_dtypes + i));
+        }
+    }
+    return 0;
+}
 
-NPY_NO_EXPORT PyTypeObject PyArrayMethod_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy._ArrayMethod",
-    .tp_basicsize = sizeof(PyArrayMethodObject),
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_dealloc = arraymethod_dealloc,
+NPY_NO_EXPORT HPyDef *PyArrayMethod_Type_defines[] = {
+        &arraymethod_dealloc,
+        &arraymethod_traverse,
+        NULL
+};
+
+// TODO HPY LABS PORT: for legacy compat; eventually remove !
+NPY_NO_EXPORT PyTypeObject *PyArrayMethod_Type;
+NPY_NO_EXPORT HPyGlobal HPyArrayMethod_Type;
+
+NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec = {
+    .name = "numpy._ArrayMethod",
+    .basicsize = sizeof(PyArrayMethodObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .defines = PyArrayMethod_Type_defines,
+    .legacy = 1,
 };
 
 
@@ -581,8 +597,11 @@ boundarraymethod__resolve_descripors(
     }
 
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = self->method->resolve_descriptors(
-            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
+    // TODO HPY LABS PORT
+    hpy_abort_not_implemented("boundarraymethod__resolve_descripors");
+//    NPY_CASTING casting = self->method->resolve_descriptors(
+//            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
+    NPY_CASTING casting = NPY_NO_CASTING;
 
     if (casting < 0 && PyErr_Occurred()) {
         return NULL;
@@ -740,8 +759,10 @@ boundarraymethod__simple_strided_call(
     }
 
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = self->method->resolve_descriptors(
-            self->method, self->dtypes, descrs, out_descrs, &view_offset);
+    hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
+//    NPY_CASTING casting = self->method->resolve_descriptors(
+//            self->method, self->dtypes, descrs, out_descrs, &view_offset);
+    NPY_CASTING casting = NPY_NO_CASTING;
 
     if (casting < 0) {
         PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
@@ -919,6 +940,45 @@ PyArrayMethod_GetMaskedStridedLoop(
     *out_loop = generic_masked_strided_loop;
     return 0;
 }
+
+#define PARAM_DTYPES(p, n) (p)
+#define PARAM_IN_DESCRS(p, n) ((p)+(n))
+#define PARAM_OUT_DESCRS(p, n) ((p)+(n)*2)
+
+NPY_NO_EXPORT NPY_CASTING
+resolve_descriptors_trampoline(
+        h_resolve_descriptors_function target,
+        struct PyArrayMethodObject_tag *method,
+        PyArray_DTypeMeta **dtypes,
+        PyArray_Descr **given_descrs,
+        PyArray_Descr **loop_descrs,
+        npy_intp *view_offset)
+{
+    HPyContext *hctx = npy_get_context();
+    int i, n = method->nin + method->nout;
+    HPy *params = (HPy *)alloca(n*3*sizeof(HPy));
+    for (i=0; i < n; i++) {
+        PARAM_DTYPES(params, n)[i] = HPy_FromPyObject(hctx, (PyObject *)dtypes[i]);
+        PARAM_IN_DESCRS(params, n)[i] = HPy_FromPyObject(hctx, (PyObject *)given_descrs[i]);
+        PARAM_OUT_DESCRS(params, n)[i] = HPy_NULL;
+    }
+    HPy h_meth = HPy_FromPyObject(hctx, (PyObject *)method);
+    NPY_CASTING res = target(hctx, h_meth, PARAM_DTYPES(params, n),
+            PARAM_IN_DESCRS(params, n), PARAM_OUT_DESCRS(params, n),
+            view_offset);
+    HPy_Close(hctx, h_meth);
+
+    for (i=0; i < n; i++) {
+        HPy_Close(hctx, PARAM_DTYPES(params, n)[i]);
+        HPy_Close(hctx, PARAM_IN_DESCRS(params, n)[i]);
+        loop_descrs[i] = (PyArray_Descr *) HPy_AsPyObject(hctx, PARAM_OUT_DESCRS(params, n)[i]);
+        HPy_Close(hctx, PARAM_OUT_DESCRS(params, n)[i]);
+    }
+    return res;
+}
+#undef PARAM_DTYPES
+#undef PARAM_IN_DESCRS
+#undef PARAM_OUT_DESCRS
 
 
 PyMethodDef boundarraymethod_methods[] = {

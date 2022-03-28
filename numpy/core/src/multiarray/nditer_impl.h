@@ -24,6 +24,8 @@
 #include "lowlevel_strided_loops.h"
 #include "dtype_transfer.h"
 
+#include "nditer_hpy.h"
+
 /********** ITERATOR CONSTRUCTION TIMING **************/
 #define NPY_IT_CONSTRUCTION_TIMING 0
 
@@ -217,13 +219,13 @@ typedef npy_int16 npyiter_opitflags;
         (iter->iterindex)
 #define NIT_PERM(iter)  ((npy_int8 *)( \
         &(iter)->iter_flexdata + NIT_PERM_OFFSET()))
-#define NIT_DTYPES(iter) ((PyArray_Descr **)( \
+#define NIT_DTYPES(iter) ((HPy *)( \
         &(iter)->iter_flexdata + NIT_DTYPES_OFFSET(itflags, ndim, nop)))
 #define NIT_RESETDATAPTR(iter) ((char **)( \
         &(iter)->iter_flexdata + NIT_RESETDATAPTR_OFFSET(itflags, ndim, nop)))
 #define NIT_BASEOFFSETS(iter) ((npy_intp *)( \
         &(iter)->iter_flexdata + NIT_BASEOFFSETS_OFFSET(itflags, ndim, nop)))
-#define NIT_OPERANDS(iter) ((PyArrayObject **)( \
+#define NIT_OPERANDS(iter) ((HPy *)( \
         &(iter)->iter_flexdata + NIT_OPERANDS_OFFSET(itflags, ndim, nop)))
 #define NIT_OPITFLAGS(iter) ((npyiter_opitflags *)( \
         &(iter)->iter_flexdata + NIT_OPITFLAGS_OFFSET(itflags, ndim, nop)))
@@ -231,6 +233,10 @@ typedef npy_int16 npyiter_opitflags;
         &(iter)->iter_flexdata + NIT_BUFFERDATA_OFFSET(itflags, ndim, nop)))
 #define NIT_AXISDATA(iter) ((NpyIter_AxisData *)( \
         &(iter)->iter_flexdata + NIT_AXISDATA_OFFSET(itflags, ndim, nop)))
+#define NIT_PY_OPERANDS(iter) ((PyArrayObject **)( \
+        &(iter)->iter_flexdata + NIT_OPERANDS_OFFSET(itflags, ndim, nop)))
+#define NIT_PY_DTYPES(iter) ((PyArray_Descr **)( \
+        &(iter)->iter_flexdata + NIT_DTYPES_OFFSET(itflags, ndim, nop)))
 
 /* Internal-only BUFFERDATA MEMBER ACCESS */
 
@@ -355,5 +361,15 @@ NPY_NO_EXPORT int
 npyiter_copy_to_buffers(NpyIter *iter, char **prev_dataptrs);
 NPY_NO_EXPORT void
 npyiter_clear_buffers(NpyIter *iter);
+
+/* functions migrated to HPy */
+NPY_NO_EXPORT int
+hnpyiter_allocate_buffers(HPyContext *ctx, NpyIter *iter, char **errmsg);
+NPY_NO_EXPORT int
+hnpyiter_copy_to_buffers(HPyContext *ctx, NpyIter *iter, char **prev_dataptrs);
+NPY_NO_EXPORT int
+hnpyiter_copy_from_buffers(HPyContext *ctx, NpyIter *iter);
+NPY_NO_EXPORT void
+hnpyiter_clear_buffers(HPyContext *ctx, NpyIter *iter);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_IMPL_H_ */

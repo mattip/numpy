@@ -8,6 +8,9 @@ extern NPY_NO_EXPORT npy_intp REQUIRED_STR_LEN[];
 NPY_NO_EXPORT PyObject *
 PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to);
 
+NPY_NO_EXPORT HPy
+HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to);
+
 NPY_NO_EXPORT PyObject *
 _get_castingimpl(PyObject *NPY_UNUSED(module), PyObject *args);
 
@@ -38,6 +41,9 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
 
 NPY_NO_EXPORT PyArray_Descr *
 ensure_dtype_nbo(PyArray_Descr *type);
+
+NPY_NO_EXPORT HPy
+hensure_dtype_nbo(HPyContext *ctx, HPy type);
 
 NPY_NO_EXPORT int
 should_use_min_scalar(npy_intp narrs, PyArrayObject **arr,
@@ -72,16 +78,21 @@ PyArray_GetCastInfo(
         PyArray_Descr *from, PyArray_Descr *to, PyArray_DTypeMeta *to_dtype,
         npy_intp *view_offset);
 
+NPY_NO_EXPORT NPY_CASTING
+HPyArray_GetCastInfo(HPyContext *ctx,
+        HPy from, HPy to, HPy to_dtype, npy_intp *view_offset);
+
 NPY_NO_EXPORT int
 PyArray_CheckCastSafety(NPY_CASTING casting,
         PyArray_Descr *from, PyArray_Descr *to, PyArray_DTypeMeta *to_dtype);
 
 NPY_NO_EXPORT NPY_CASTING
 legacy_same_dtype_resolve_descriptors(
-        PyArrayMethodObject *self,
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self),
+        HPy NPY_UNUSED(dtypes[2]),
+        HPy given_descrs[2],
+        HPy loop_descrs[2],
         npy_intp *view_offset);
 
 NPY_NO_EXPORT int
@@ -93,10 +104,11 @@ legacy_cast_get_strided_loop(
 
 NPY_NO_EXPORT NPY_CASTING
 simple_cast_resolve_descriptors(
-        PyArrayMethodObject *self,
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *input_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy self,
+        HPy dtypes[2],
+        HPy given_descrs[2],
+        HPy loop_descrs[2],
         npy_intp *view_offset);
 
 NPY_NO_EXPORT int

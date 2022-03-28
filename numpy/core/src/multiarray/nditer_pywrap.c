@@ -21,6 +21,8 @@
 #include "conversion_utils.h"
 #include "ctors.h"
 
+#include "nditer_hpy.h"
+
 /* Functions not part of the public NumPy C API */
 npy_bool npyiter_has_writeback(NpyIter *iter);
 
@@ -46,6 +48,8 @@ struct NewNpyArrayIterObject_tag {
     char writeflags[NPY_MAXARGS];
 };
 
+HPyType_LEGACY_HELPERS(NewNpyArrayIterObject)
+
 static int npyiter_cache_values(NewNpyArrayIterObject *self)
 {
     NpyIter *iter = self->iter;
@@ -65,7 +69,7 @@ static int npyiter_cache_values(NewNpyArrayIterObject *self)
 
     /* Internal data pointers */
     self->dataptrs = NpyIter_GetDataPtrArray(iter);
-    self->dtypes = NpyIter_GetDescrArray(iter);
+    self->dtypes = HNpyIter_GetDescrArray(iter);
     self->operands = NpyIter_GetOperandArray(iter);
 
     if (NpyIter_HasExternalLoop(iter)) {
@@ -2450,37 +2454,28 @@ static PyGetSetDef npyiter_getsets[] = {
     {NULL, NULL, NULL, NULL, NULL}
 };
 
-NPY_NO_EXPORT PySequenceMethods npyiter_as_sequence = {
-    (lenfunc)npyiter_seq_length,            /*sq_length*/
-    (binaryfunc)NULL,                       /*sq_concat*/
-    (ssizeargfunc)NULL,                     /*sq_repeat*/
-    (ssizeargfunc)npyiter_seq_item,         /*sq_item*/
-    (ssizessizeargfunc)NULL,                /*sq_slice*/
-    (ssizeobjargproc)npyiter_seq_ass_item,  /*sq_ass_item*/
-    (ssizessizeobjargproc)NULL,             /*sq_ass_slice*/
-    (objobjproc)NULL,                       /*sq_contains */
-    (binaryfunc)NULL,                       /*sq_inplace_concat */
-    (ssizeargfunc)NULL,                     /*sq_inplace_repeat */
+NPY_NO_EXPORT PyType_Slot npyiter_slots[] = {
+        {Py_tp_dealloc, npyiter_dealloc},
+        {Py_sq_length, npyiter_seq_length},
+        {Py_sq_item, npyiter_seq_item},
+        {Py_sq_ass_item, npyiter_seq_ass_item},
+        {Py_mp_length, npyiter_seq_length},
+        {Py_mp_subscript, npyiter_subscript},
+        {Py_mp_ass_subscript, npyiter_ass_subscript},
+        {Py_tp_iter, PyObject_SelfIter},
+        {Py_tp_iternext, npyiter_next},
+        {Py_tp_methods, npyiter_methods},
+        {Py_tp_getset, npyiter_getsets},
+        {Py_tp_init, npyiter_init},
+        {Py_tp_new, npyiter_new},
+        {0, NULL}
+};
+NPY_NO_EXPORT HPyType_Spec NpyIter_Type_Spec = {
+    .name = "numpy.nditer",
+    .basicsize = sizeof(NewNpyArrayIterObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy = 1,
+    .legacy_slots = npyiter_slots
 };
 
-NPY_NO_EXPORT PyMappingMethods npyiter_as_mapping = {
-    (lenfunc)npyiter_seq_length,          /*mp_length*/
-    (binaryfunc)npyiter_subscript,        /*mp_subscript*/
-    (objobjargproc)npyiter_ass_subscript, /*mp_ass_subscript*/
-};
-
-NPY_NO_EXPORT PyTypeObject NpyIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.nditer",
-    .tp_basicsize = sizeof(NewNpyArrayIterObject),
-    .tp_dealloc = (destructor)npyiter_dealloc,
-    .tp_as_sequence = &npyiter_as_sequence,
-    .tp_as_mapping = &npyiter_as_mapping,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_iternext = (iternextfunc)npyiter_next,
-    .tp_methods = npyiter_methods,
-    .tp_members = npyiter_members,
-    .tp_getset = npyiter_getsets,
-    .tp_init = (initproc)npyiter_init,
-    .tp_new = npyiter_new,
-};
+NPY_NO_EXPORT PyTypeObject *_NpyIter_Type_p;

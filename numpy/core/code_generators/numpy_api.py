@@ -74,7 +74,7 @@ multiarray_types_api = {
     'PyDatetimeArrType_Type':           (215, None, '&PyDatetimeArrType_Type'),
     'PyTimedeltaArrType_Type':          (216, None, '&PyTimedeltaArrType_Type'),
     'PyHalfArrType_Type':               (217, None, '&PyHalfArrType_Type'),
-    'NpyIter_Type':                     (218,),
+    'NpyIter_Type':                     (218, None, "_NpyIter_Type_p"),
     # End 1.6 API
 }
 

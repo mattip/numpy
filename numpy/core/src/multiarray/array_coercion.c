@@ -824,6 +824,35 @@ find_descriptor_from_array(
 }
 
 /**
+ * Return the correct descriptor given an array object and a DType class.
+ *
+ * This is identical to casting the arrays descriptor/dtype to the new
+ * DType class
+ *
+ * @param arr The array object.
+ * @param DType The DType class to cast to (or NULL for convenience)
+ * @param out_descr The output descriptor will set. The result can be NULL
+ *        when the array is of object dtype and has no elements.
+ *
+ * @return -1 on failure, 0 on success.
+ */
+static int
+h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr)
+{
+    // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
+    enum _dtype_discovery_flags flags = 0;
+    *out_descr = HPy_NULL;
+
+    if (HPy_IsNull(DType)) {
+        *out_descr = HPyArray_GetDescr(ctx, arr);
+        return 0;
+    }
+
+    hpy_abort_not_implemented("h_find_descriptor_from_array");
+    return -1;
+}
+
+/**
  * Given a dtype or DType object, find the correct descriptor to cast the
  * array to.
  *
@@ -860,6 +889,51 @@ PyArray_AdaptDescriptorToArray(PyArrayObject *arr, PyObject *dtype)
         }
     }
     Py_DECREF(new_DType);
+    return new_dtype;
+}
+
+/**
+ * Given a dtype or DType object, find the correct descriptor to cast the
+ * array to.
+ *
+ * This function is identical to normal casting using only the dtype, however,
+ * it supports inspecting the elements when the array has object dtype
+ * (and the given datatype describes a parametric DType class).
+ *
+ * @param arr
+ * @param dtype A dtype instance or class.
+ * @return A concrete dtype instance or HPy_NULL
+ */
+NPY_NO_EXPORT HPy
+HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype)
+{
+    /* If the requested dtype is flexible, adapt it */
+    HPy new_dtype; /* PyArray_Descr *new_dtype */
+    HPy new_DType; /* PyArray_DTypeMeta *new_DType */
+    int res;
+
+    res = HPyArray_ExtractDTypeAndDescriptor(ctx, dtype,
+            &new_dtype, &new_DType);
+    if (res < 0) {
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(new_dtype)) {
+        res = h_find_descriptor_from_array(ctx, arr, new_DType, &new_dtype);
+        if (res < 0) {
+            HPy_Close(ctx, new_DType);
+            return HPy_NULL;
+        }
+        if (HPy_IsNull(new_dtype)) {
+            /* This is an object array but contained no elements, use default */
+            CAPI_WARN("HPyArray_AdaptDescriptorToArray: call to descr meta type slot 'default_descr'");
+            PyArray_DTypeMeta *py_new_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, new_DType);
+            PyObject *py_new_dtype = (PyObject *)NPY_DT_CALL_default_descr(py_new_DType);
+            new_dtype = HPy_FromPyObject(ctx, py_new_dtype);
+            Py_DECREF(py_new_DType);
+            Py_DECREF(py_new_dtype);
+        }
+    }
+    HPy_Close(ctx, new_DType);
     return new_dtype;
 }
 
@@ -1433,15 +1507,16 @@ PyArray_DiscoverDTypeAndShape(
  * @return 1 if this is not a concrete dtype instance 0 otherwise
  */
 static int
-descr_is_legacy_parametric_instance(PyArray_Descr *descr)
+h_descr_is_legacy_parametric_instance(HPyContext *ctx, HPy descr)
 {
-    if (PyDataType_ISUNSIZED(descr)) {
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    if (PyDataType_ISUNSIZED(descr_data)) {
         return 1;
     }
     /* Flexible descr with generic time unit (which can be adapted) */
-    if (PyDataType_ISDATETIME(descr)) {
+    if (PyDataType_ISDATETIME(descr_data)) {
         PyArray_DatetimeMetaData *meta;
-        meta = get_datetime_metadata_from_dtype(descr);
+        meta = h_get_datetime_metadata_from_dtype(ctx, descr_data);
         if (meta->base == NPY_FR_GENERIC) {
             return 1;
         }
@@ -1465,31 +1540,58 @@ NPY_NO_EXPORT int
 PyArray_ExtractDTypeAndDescriptor(PyObject *dtype,
         PyArray_Descr **out_descr, PyArray_DTypeMeta **out_DType)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_out_DType, h_out_descr;
+    HPy h_dtype;
+    int res = 0;
+
     *out_DType = NULL;
     *out_descr = NULL;
 
     if (dtype != NULL) {
-        if (PyObject_TypeCheck(dtype, PyArrayDTypeMeta_Type)) {
-            assert(dtype != (PyObject * )&PyArrayDescr_Type);  /* not np.dtype */
-            *out_DType = (PyArray_DTypeMeta *)dtype;
-            Py_INCREF(*out_DType);
+        h_dtype = HPy_FromPyObject(ctx, dtype);
+
+        res = HPyArray_ExtractDTypeAndDescriptor(ctx, h_dtype, &h_out_descr, &h_out_DType);
+
+        *out_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_out_descr);
+        *out_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_out_DType);
+
+        HPy_Close(ctx, h_dtype);
+        HPy_Close(ctx, h_out_descr);
+        HPy_Close(ctx, h_out_DType);
+    }
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
+        HPy *out_descr, HPy *out_DType)
+{
+    *out_DType = HPy_NULL;
+    *out_descr = HPy_NULL;
+    int res = 0;
+
+    if (!HPy_IsNull(dtype)) {
+        HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
+        if (HPy_TypeCheck(ctx, dtype, h_PyArrayDTypeMeta_Type)) {
+            assert(!HPyGlobal_Is(ctx, dtype, HPyArrayDescr_Type));  /* not np.dtype */
+            *out_DType = HPy_Dup(ctx, dtype);
         }
-        else if (PyObject_TypeCheck((PyObject *)Py_TYPE(dtype),
-                    PyArrayDTypeMeta_Type)) {
-            *out_DType = NPY_DTYPE(dtype);
-            Py_INCREF(*out_DType);
-            if (!descr_is_legacy_parametric_instance((PyArray_Descr *)dtype)) {
-                *out_descr = (PyArray_Descr *)dtype;
-                Py_INCREF(*out_descr);
+        else if (HPy_TypeCheck(ctx, HPy_Type(ctx, dtype),
+                    h_PyArrayDTypeMeta_Type)) {
+            *out_DType = HNPY_DTYPE(ctx, dtype);
+            if (!h_descr_is_legacy_parametric_instance(ctx, dtype)) {
+                *out_descr = HPy_Dup(ctx, dtype);
             }
         }
         else {
-            PyErr_SetString(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "dtype parameter must be a DType instance or class.");
-            return -1;
+            res = -1;
         }
+        HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     }
-    return 0;
+    return res;
 }
 
 

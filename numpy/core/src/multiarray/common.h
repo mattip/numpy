@@ -5,6 +5,7 @@
 #include "numpy/npy_common.h"
 #include "numpy/ndarraytypes.h"
 #include "npy_import.h"
+#include "hpy_utils.h"
 #include <limits.h>
 
 #define error_converting(x)  (((x) == -1) && PyErr_Occurred())

@@ -447,12 +447,23 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
         return 0;
     }
     HPyContext *ctx = npy_get_context();
-    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
-    HPy h_base = HPyArray_GetBase(ctx, h_arr);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+    int res = HPyArray_ResolveWritebackIfCopy(ctx, h_self);
+    HPy_Close(ctx, h_self);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self)
+{
+    if (HPy_IsNull(self)) {
+        return 0;
+    }
+    HPy h_base = HPyArray_GetBase(ctx, self);
 
     if (!HPy_IsNull(h_base)) {
 
-        int flags = HPyArray_FLAGS(ctx, h_arr);
+        int flags = HPyArray_FLAGS(ctx, self);
         if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
             /*
              * WRITEBACKIFCOPY means that base's data
@@ -463,14 +474,16 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
              */
             int retval = 0;
             HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
-            HPyArray_CLEARFLAGS(ctx, h_arr, NPY_ARRAY_WRITEBACKIFCOPY);
+            HPyArray_CLEARFLAGS(ctx, self, NPY_ARRAY_WRITEBACKIFCOPY);
+            capi_warn("HPyArray_ResolveWritebackIfCopy");
             PyObject *base = HPy_AsPyObject(ctx, h_base);
+            PyObject *py_self = HPy_AsPyObject(ctx, self);
             HPy_Close(ctx, h_base);
-            retval = PyArray_CopyAnyInto((PyArrayObject *)base, self);
+            retval = PyArray_CopyAnyInto((PyArrayObject *)base, py_self);
+            Py_DECREF(py_self);
             Py_DECREF(base);
-            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+            HPyArray_SetBase(ctx, self, HPy_NULL);
 
-            HPy_Close(ctx, h_arr);
             if (retval < 0) {
                 /* this should never happen, how did the two copies of data
                  * get out of sync?
@@ -480,7 +493,6 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
             return 1;
         }
     }
-    HPy_Close(ctx, h_arr);
     return 0;
 }
 
@@ -716,6 +728,10 @@ PyArray_CompareString(const char *s1, const char *s2, size_t len)
     return 0;
 }
 
+static const char *might_be_writter_msg =
+        "Numpy has detected that you (may be) writing to an array with\n"
+        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
+        "set the WRITEABLE flag True or make a copy immediately before writing.";
 
 /* Call this from contexts where an array might be written to, but we have no
  * way to tell. (E.g., when converting to a read-write buffer.)
@@ -723,13 +739,9 @@ PyArray_CompareString(const char *s1, const char *s2, size_t len)
 NPY_NO_EXPORT int
 array_might_be_written(PyArrayObject *obj)
 {
-    const char *msg =
-        "Numpy has detected that you (may be) writing to an array with\n"
-        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
-        "set the WRITEABLE flag True or make a copy immediately before writing.";
     if (PyArray_FLAGS(obj) & NPY_ARRAY_WARN_ON_WRITE) {
         capi_warn("array_might_be_written: warning...");
-        if (DEPRECATE(msg) < 0) {
+        if (DEPRECATE(might_be_writter_msg) < 0) {
             return -1;
         }
         /* Only warn once per array */
@@ -764,6 +776,50 @@ PyArray_FailUnlessWriteable(PyArrayObject *obj, const char *name)
         return -1;
     }
     if (array_might_be_written(obj) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+hpy_array_might_be_written(HPyContext *ctx, HPy obj, PyArrayObject *obj_data)
+{
+    const char *msg =
+        "Numpy has detected that you (may be) writing to an array with\n"
+        "overlapping memory from np.broadcast_arrays. If this is intentional\n"
+        "set the WRITEABLE flag True or make a copy immediately before writing.";
+    if (PyArray_FLAGS(obj_data) & NPY_ARRAY_WARN_ON_WRITE) {
+        capi_warn("array_might_be_written: warning...");
+        if (HPY_DEPRECATE(ctx, might_be_writter_msg) < 0) {
+            return -1;
+        }
+        /* Only warn once per array */
+        HPy x = HPy_Dup(ctx, obj);
+        PyArrayObject *x_data = obj_data;
+        while (1) {
+            PyArray_CLEARFLAGS(x_data, NPY_ARRAY_WARN_ON_WRITE);
+            HPy base = HPyArray_BASE(ctx, x, x_data);
+            if (HPy_IsNull(base) || !HPyArray_Check(ctx, base)) {
+                HPy_Close(ctx, base);
+                break;
+            }
+            HPy_Close(ctx, x);
+            x = base;
+            x_data = PyArrayObject_AsStruct(ctx, x);
+        }
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name)
+{
+    PyArrayObject *obj_data = PyArrayObject_AsStruct(ctx, obj);
+    if (!PyArray_ISWRITEABLE(obj_data)) {
+        HPyErr_Format_p(ctx, ctx->h_ValueError, "%s is read-only", name);
+        return -1;
+    }
+    if (hpy_array_might_be_written(ctx, obj, obj_data) < 0) {
         return -1;
     }
     return 0;

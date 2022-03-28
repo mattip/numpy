@@ -100,13 +100,15 @@ generic_wrapped_legacy_loop(PyArrayMethod_Context *NPY_UNUSED(context),
  * to support properly.  So we simply set an error that should never be seen.
  */
 NPY_NO_EXPORT NPY_CASTING
-wrapped_legacy_resolve_descriptors(PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[]),
-        PyArray_Descr *NPY_UNUSED(given_descrs[]),
-        PyArray_Descr *NPY_UNUSED(loop_descrs[]),
+wrapped_legacy_resolve_descriptors(
+        HPyContext *ctx,
+        HPy NPY_UNUSED(method), /* (struct PyArrayMethodObject_tag *) */
+        HPy *NPY_UNUSED(dtypes), /* PyArray_DTypeMeta **dtypes */
+        HPy *NPY_UNUSED(given_descrs), /* PyArray_Descr **given_descrs */
+        HPy *NPY_UNUSED(loop_descrs), /* PyArray_Descr **loop_descrs */
         npy_intp *NPY_UNUSED(view_offset))
 {
-    PyErr_SetString(PyExc_RuntimeError,
+    HPyErr_SetString(ctx, ctx->h_RuntimeError,
             "cannot use legacy wrapping ArrayMethod without calling the ufunc "
             "itself.  If this error is hit, the solution will be to port the "
             "legacy ufunc loop implementation to the new API.");
@@ -119,38 +121,38 @@ wrapped_legacy_resolve_descriptors(PyArrayMethodObject *NPY_UNUSED(self),
  */
 static NPY_CASTING
 simple_legacy_resolve_descriptors(
-        PyArrayMethodObject *method,
-        PyArray_DTypeMeta **dtypes,
-        PyArray_Descr **given_descrs,
-        PyArray_Descr **output_descrs,
-        npy_intp *NPY_UNUSED(view_offset))
+        HPyContext *ctx,
+        HPy method, /* PyArrayMethodObject *method */
+        HPy *dtypes, /* PyArray_DTypeMeta **dtypes */
+        HPy *given_descrs, /* PyArray_Descr **given_descrs */
+        HPy *output_descrs, /* PyArray_Descr **output_descrs */
+        npy_intp *view_offset)
 {
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(ctx, method);
     int i = 0;
-    int nin = method->nin;
-    int nout = method->nout;
+    int nin = method_data->nin;
+    int nout = method_data->nout;
 
-    if (nin == 2 && nout == 1 && given_descrs[2] != NULL
-            && dtypes[0] == dtypes[2]) {
+    if (nin == 2 && nout == 1 && !HPy_IsNull(given_descrs[2])
+            && HPy_Is(ctx, dtypes[0], dtypes[2])) {
         /*
          * Could be a reduction, which requires `descr[0] is descr[2]`
          * (identity) at least currently. This is because `op[0] is op[2]`.
          * (If the output descriptor is not passed, the below works.)
          */
-        output_descrs[2] = ensure_dtype_nbo(given_descrs[2]);
-        if (output_descrs[2] == NULL) {
-            Py_CLEAR(output_descrs[2]);
+        output_descrs[2] = hensure_dtype_nbo(ctx, given_descrs[2]);
+        if (HPy_IsNull(output_descrs[2])) {
+            HPy_Close(ctx, output_descrs[2]);
             return -1;
         }
-        Py_INCREF(output_descrs[2]);
-        output_descrs[0] = output_descrs[2];
-        if (dtypes[1] == dtypes[2]) {
+        output_descrs[0] = HPy_Dup(ctx, output_descrs[2]);
+        if (HPy_Is(ctx, dtypes[1], dtypes[2])) {
             /* Same for the second one (accumulation is stricter) */
-            Py_INCREF(output_descrs[2]);
-            output_descrs[1] = output_descrs[2];
+            output_descrs[1] = HPy_Dup(ctx, output_descrs[2]);
         }
         else {
-            output_descrs[1] = ensure_dtype_nbo(given_descrs[1]);
-            if (output_descrs[1] == NULL) {
+            output_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[1]);
+            if (HPy_IsNull(output_descrs[1])) {
                 i = 2;
                 goto fail;
             }
@@ -159,18 +161,21 @@ simple_legacy_resolve_descriptors(
     }
 
     for (; i < nin + nout; i++) {
-        if (given_descrs[i] != NULL) {
-            output_descrs[i] = ensure_dtype_nbo(given_descrs[i]);
+        if (!HPy_IsNull(given_descrs[i])) {
+            output_descrs[i] = hensure_dtype_nbo(ctx, given_descrs[i]);
         }
-        else if (dtypes[i] == dtypes[0] && i > 0) {
+        else if (HPy_Is(ctx, dtypes[i], dtypes[0]) && i > 0) {
             /* Preserve metadata from the first operand if same dtype */
-            Py_INCREF(output_descrs[0]);
-            output_descrs[i] = output_descrs[0];
+            output_descrs[i] = HPy_Dup(ctx, output_descrs[0]);
         }
         else {
-            output_descrs[i] = NPY_DT_CALL_default_descr(dtypes[i]);
+            CAPI_WARN("simple_legacy_resolve_descriptors");
+            PyArray_Descr *tmp = NPY_DT_CALL_default_descr(
+                    PyArray_DTypeMeta_AsStruct(ctx, dtypes[i]));
+            output_descrs[i] = HPy_FromPyObject(ctx, (PyObject *)tmp);
+            Py_DECREF(tmp);
         }
-        if (output_descrs[i] == NULL) {
+        if (HPy_IsNull(output_descrs[i])) {
             goto fail;
         }
     }
@@ -179,7 +184,8 @@ simple_legacy_resolve_descriptors(
 
   fail:
     for (; i >= 0; i--) {
-        Py_CLEAR(output_descrs[i]);
+        HPy_Close(ctx, output_descrs[i]);
+        output_descrs[i] = HPy_NULL;
     }
     return -1;
 }

@@ -116,6 +116,9 @@ IsAligned(PyArrayObject *ap);
 NPY_NO_EXPORT int
 IsUintAligned(PyArrayObject *ap);
 
+NPY_NO_EXPORT int
+HIsUintAligned(HPyContext *ctx, HPy arr, PyArrayObject *arr_data);
+
 /* Returns 1 if the arrays have overlapping data, 0 otherwise */
 NPY_NO_EXPORT int
 arrays_overlap(PyArrayObject *arr1, PyArrayObject *arr2);

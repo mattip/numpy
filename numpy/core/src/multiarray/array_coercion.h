@@ -25,6 +25,9 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value);
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_AdaptDescriptorToArray(PyArrayObject *arr, PyObject *dtype);
 
+NPY_NO_EXPORT HPy
+HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype);
+
 NPY_NO_EXPORT int
 PyArray_DiscoverDTypeAndShape(
         PyObject *obj, int max_dims,
@@ -36,6 +39,10 @@ PyArray_DiscoverDTypeAndShape(
 NPY_NO_EXPORT int
 PyArray_ExtractDTypeAndDescriptor(PyObject *dtype,
         PyArray_Descr **out_descr, PyArray_DTypeMeta **out_DType);
+
+NPY_NO_EXPORT int
+HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
+        HPy *out_descr, HPy *out_DType);
 
 NPY_NO_EXPORT PyObject *
 _discover_array_parameters(PyObject *NPY_UNUSED(self),
