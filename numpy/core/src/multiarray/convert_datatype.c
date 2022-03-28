@@ -745,10 +745,8 @@ HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
         HPy_Close(ctx, meth);
         return -1;
     }
-    // TODO HPY LABS PORT: HACK: CAST
-    CAPI_WARN("PyArrayMethodObject cast");
-    PyArrayMethodObject *castingimpl = (PyArrayMethodObject *)((void*) meth._i);
-
+    
+    PyArrayMethodObject *castingimpl = PyArrayMethodObject_AsStruct(ctx, meth);
     if (PyArray_MinCastSafety(castingimpl->casting, casting) == casting) {
         /* No need to check using `castingimpl.resolve_descriptors()` */
         HPy_Close(ctx, meth);
