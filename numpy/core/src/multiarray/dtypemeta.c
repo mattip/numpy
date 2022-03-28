@@ -27,8 +27,11 @@ dtypemeta_dealloc(PyArray_DTypeMeta *self) {
 
     Py_XDECREF(self->scalar_type);
     Py_XDECREF(self->singleton);
-    Py_XDECREF(NPY_DT_SLOTS(self)->castingimpls);
-    NPY_DT_SLOTS(self)->castingimpls = NULL;
+
+    HPyContext *ctx = npy_get_context();
+    HPy h = HPy_FromPyObject(ctx, (PyObject*) self);
+    HPyField_Store(ctx, h, &NPY_DT_SLOTS(self)->castingimpls, HPy_NULL);
+    HPy_Close(ctx, h);
     PyMem_Free(self->dt_slots);
     PyType_Type.tp_dealloc((PyObject *) self);
 }
@@ -590,10 +593,12 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
 
     PyArray_DTypeMeta *new_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_new_dtype_type);
 
-    dt_slots->castingimpls = PyDict_New();
-    if (dt_slots->castingimpls == NULL) {
+    HPy h_castingimpls = HPyDict_New(ctx);
+    if (HPy_IsNull(h_castingimpls)) {
         goto cleanup;
     }
+    HPyField_Store(ctx, h_new_dtype_type, &dt_slots->castingimpls, h_castingimpls);
+    HPy_Close(ctx, h_castingimpls);
 
     /*
      * Fill DTypeMeta information that varies between DTypes, any variable

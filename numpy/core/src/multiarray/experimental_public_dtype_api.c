@@ -245,10 +245,11 @@ PyArrayInitDTypeMeta_FromSpec(
     }
 
     /* Ensure cast dict is defined (not sure we have to do it here) */
-    NPY_DT_SLOTS(DType)->castingimpls = PyDict_New();
-    if (NPY_DT_SLOTS(DType)->castingimpls == NULL) {
-        return -1;
-    }
+    hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
+    // NPY_DT_SLOTS(DType)->castingimpls = PyDict_New();
+    // if (NPY_DT_SLOTS(DType)->castingimpls == NULL) {
+    //     return -1;
+    // }
     /*
      * And now, register all the casts that are currently defined!
      */

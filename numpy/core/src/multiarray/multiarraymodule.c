@@ -4986,6 +4986,18 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
+    // HPY HACK:
+    /* Store the context so legacy functions and extensions can access it */
+    assert(numpy_global_ctx == NULL);
+    numpy_global_ctx = ctx;
+    s = PyCapsule_New((void *)ctx, NULL, NULL);
+    if (s == NULL) {
+        goto err;
+    }
+    PyDict_SetItemString(d, "_HPY_CONTEXT", s);
+    Py_DECREF(s);
+
+
     if (PyType_Ready(&PyUFunc_Type) < 0) {
         goto err;
     }
@@ -5260,16 +5272,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 #endif
-
-    /* Store the context so legacy functions and extensions can access it */
-    assert(numpy_global_ctx == NULL);
-    numpy_global_ctx = ctx;
-    s = PyCapsule_New((void *)ctx, NULL, NULL);
-    if (s == NULL) {
-        goto err;
-    }
-    PyDict_SetItemString(d, "_HPY_CONTEXT", s);
-    Py_DECREF(s);
 
     // HPY TODO: this is a temporary solution to mimic the static types and global state:
     init_hpy_global_state(ctx);

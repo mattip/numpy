@@ -804,10 +804,16 @@ get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
     if (PyType_Ready((PyTypeObject *)&PyArray_SFloatDType) < 0) {
         return NULL;
     }
-    NPY_DT_SLOTS(&PyArray_SFloatDType)->castingimpls = PyDict_New();
-    if (NPY_DT_SLOTS(&PyArray_SFloatDType)->castingimpls == NULL) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_dtype = HPy_FromPyObject(ctx, &PyArray_SFloatDType);
+    HPy h_castingimpls = HPyDict_New(ctx);
+    if (HPy_IsNull(h_castingimpls)) {
+        HPy_Close(ctx, h_dtype);
         return NULL;
     }
+    HPyField_Store(ctx, h_dtype, &NPY_DT_SLOTS(&PyArray_SFloatDType)->castingimpls, h_castingimpls);
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_castingimpls);
 
     PyObject *o = PyObject_Init(
             (PyObject *)&SFloatSingleton, (PyTypeObject *)&PyArray_SFloatDType);

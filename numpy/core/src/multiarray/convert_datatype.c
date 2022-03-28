@@ -74,7 +74,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
         res = NPY_DT_SLOTS(from)->within_dtype_castingimpl;
     }
     else {
-        res = PyDict_GetItemWithError(NPY_DT_SLOTS(from)->castingimpls, (PyObject *)to);
+        res = PyDict_GetItemWithError(DTYPE_SLOTS_CASTINGIMPL(from), (PyObject *)to);
     }
     if (res != NULL || PyErr_Occurred()) {
         Py_XINCREF(res);
@@ -120,7 +120,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
             if (castfunc == NULL) {
                 PyErr_Clear();
                 /* Remember that this cast is not possible */
-                if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+                if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
                             (PyObject *) to, Py_None) < 0) {
                     return NULL;
                 }
@@ -149,7 +149,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
         Py_DECREF(res);
         return NULL;
     }
-    if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
                 (PyObject *)to, res) < 0) {
         Py_DECREF(res);
         return NULL;
@@ -168,8 +168,7 @@ HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
         res = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->within_dtype_castingimpl);
     }
     else {
-        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
-        HPy tmp = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->castingimpls);
+        HPy tmp = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, from, from_data);
         res = HPy_GetItem(ctx, tmp, to);
         HPy_Close(ctx, tmp);
     }
@@ -2565,14 +2564,14 @@ PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth)
 
         return 0;
     }
-    if (PyDict_Contains(NPY_DT_SLOTS(meth->dtypes[0])->castingimpls,
+    if (PyDict_Contains(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
             (PyObject *)meth->dtypes[1])) {
         PyErr_Format(PyExc_RuntimeError,
                 "A cast was already added for %S -> %S. (method: %s)",
                 meth->dtypes[0], meth->dtypes[1], meth->method->name);
         return -1;
     }
-    if (PyDict_SetItem(NPY_DT_SLOTS(meth->dtypes[0])->castingimpls,
+    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
             (PyObject *)meth->dtypes[1], (PyObject *)meth->method) < 0) {
         return -1;
     }

@@ -1057,7 +1057,7 @@ get_all_cast_information(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
         PyObject *to_dtype, *cast_obj;
         Py_ssize_t pos = 0;
 
-        while (PyDict_Next(NPY_DT_SLOTS(from_dtype)->castingimpls,
+        while (PyDict_Next(DTYPE_SLOTS_CASTINGIMPL(from_dtype),
                            &pos, &to_dtype, &cast_obj)) {
             if (cast_obj == Py_None) {
                 continue;
