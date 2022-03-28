@@ -2679,6 +2679,16 @@ _dec_src_ref_nop(
 }
 
 static int
+_hdec_src_ref_nop(HPyContext *hctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context),
+        char *const *NPY_UNUSED(args), const npy_intp *NPY_UNUSED(dimensions),
+        const npy_intp *NPY_UNUSED(strides), NpyAuxData *NPY_UNUSED(auxdata))
+{
+    /* NOP */
+    return 0;
+}
+
+static int
 _strided_to_null_dec_src_ref_reference(
         PyArrayMethod_Context *NPY_UNUSED(context),
         char *const *args, const npy_intp *dimensions,
@@ -2830,6 +2840,18 @@ typedef struct {
     char *to_buffer;
 } _multistep_castdata;
 
+typedef struct {
+    NpyAuxData base;
+    /* Information for main cast */
+    HNPY_cast_info main;
+    /* Information for input preparation cast */
+    HNPY_cast_info from;
+    /* Information for output finalization cast */
+    HNPY_cast_info to;
+    char *from_buffer;
+    char *to_buffer;
+} _hmultistep_castdata;
+
 
 /* zero-padded data copy function */
 static void
@@ -2844,6 +2866,13 @@ _multistep_cast_auxdata_free(NpyAuxData *auxdata)
         NPY_cast_info_xfree(&data->to);
     }
     PyMem_Free(data);
+}
+
+/* zero-padded data copy function */
+static void
+_hmultistep_cast_auxdata_free(HPyContext *ctx, NpyAuxData *auxdata)
+{
+    hpy_abort_not_implemented("_hmultistep_cast_auxdata_free");
 }
 
 
@@ -2923,6 +2952,13 @@ _multistep_cast_auxdata_clone_int(_multistep_castdata *castdata, int move_info)
 
   fail:
     NPY_AUXDATA_FREE((NpyAuxData *)newdata);
+    return NULL;
+}
+
+static NpyAuxData *
+_hmultistep_cast_auxdata_clone_int(HPyContext *ctx, _multistep_castdata *castdata, int move_info)
+{
+    hpy_abort_not_implemented("_hmultistep_cast_auxdata_clone_int");
     return NULL;
 }
 
@@ -3006,6 +3042,16 @@ _strided_to_strided_multistep_cast(
     return 0;
 }
 
+static int
+_hstrided_to_strided_multistep_cast(HPyContext *hctx,
+        /* The context is always stored explicitly in auxdata */
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        const npy_intp *dimensions, const npy_intp *strides,
+        NpyAuxData *auxdata)
+{
+    hpy_abort_not_implemented("_hstrided_to_strided_multistep_cast");
+}
+
 
 /*
  * Initialize most of a cast-info structure, this step does not fetch the
@@ -3036,10 +3082,10 @@ init_cast_info(
 
     PyArray_DTypeMeta *dtypes[2] = {NPY_DTYPE(src_dtype), NPY_DTYPE(dst_dtype)};
     PyArray_Descr *in_descr[2] = {src_dtype, dst_dtype};
+    *casting = resolve_descriptors_trampoline(cast_info->context.method->resolve_descriptors,
+            cast_info->context.method,
+            dtypes, in_descr, cast_info->descriptors, view_offset);
 
-    *casting = cast_info->context.method->resolve_descriptors(
-            cast_info->context.method, dtypes,
-            in_descr, cast_info->descriptors, view_offset);
     if (NPY_UNLIKELY(*casting < 0)) {
         if (!PyErr_Occurred()) {
             PyErr_Format(PyExc_TypeError,
@@ -3101,27 +3147,29 @@ h_init_cast_info(HPyContext *ctx,
     HNPY_cast_info_init(ctx, cast_info);
     cast_info->auxdata = NULL;
 
-    cast_info->context.caller = NULL;
-    cast_info->context.method = (PyArrayMethodObject *)HPy_AsPyObject(ctx, meth);
-    HPy_Close(ctx, meth);
+    cast_info->context.caller = HPy_NULL;
+    cast_info->context.method = meth;
 
-    CAPI_WARN("h_init_cast_info: uses legacy NPY_cast_info");
-    PyArray_Descr *in_descr[2] = {
-            (PyArray_Descr *)HPy_AsPyObject(ctx, src_dtype),
-            (PyArray_Descr *)HPy_AsPyObject(ctx, dst_dtype)};
+//    CAPI_WARN("h_init_cast_info: uses legacy NPY_cast_info");
+//    PyArray_Descr *in_descr[2] = {
+//            (PyArray_Descr *)HPy_AsPyObject(ctx, src_dtype),
+//            (PyArray_Descr *)HPy_AsPyObject(ctx, dst_dtype)};
+    HPy in_descr[2] = {src_dtype, dst_dtype};
 
-    PyArray_DTypeMeta *dtypes[2] = {
-            (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, src_dtype_meta),
-            (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dst_dtype_meta)};
+//    PyArray_DTypeMeta *dtypes[2] = {
+//            (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, src_dtype_meta),
+//            (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dst_dtype_meta)};
+    HPy dtypes[2] = {src_dtype_meta, dst_dtype_meta};
 
-    *casting = cast_info->context.method->resolve_descriptors(
+    PyArrayMethodObject *meth_data = PyArrayMethodObject_AsStruct(ctx, meth);
+    *casting = meth_data->resolve_descriptors(ctx,
             cast_info->context.method, dtypes,
             in_descr, cast_info->descriptors, view_offset);
 
-    Py_DECREF(in_descr[0]);
-    Py_DECREF(in_descr[1]);
-    Py_DECREF(dtypes[0]);
-    Py_DECREF(dtypes[1]);
+//    Py_DECREF(in_descr[0]);
+//    Py_DECREF(in_descr[1]);
+//    Py_DECREF(dtypes[0]);
+//    Py_DECREF(dtypes[1]);
 
     if (NPY_UNLIKELY(*casting < 0)) {
         if (!HPyErr_Occurred(ctx)) {
@@ -3134,15 +3182,20 @@ h_init_cast_info(HPyContext *ctx,
         return -1;
     }
 
-    cast_info_descr_0 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[0]);
-    cast_info_descr_1 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[1]);
-
-    assert(HPyArray_DescrCheck(ctx, cast_info_descr_0));
-    assert(HPyArray_DescrCheck(ctx, cast_info_descr_1));
-
+//    cast_info_descr_0 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[0]);
+//    cast_info_descr_1 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[1]);
+//
+//    assert(HPyArray_DescrCheck(ctx, cast_info_descr_0));
+//    assert(HPyArray_DescrCheck(ctx, cast_info_descr_1));
+//
+//    if (!main_step && NPY_UNLIKELY(
+//            !HPy_Is(ctx, src_dtype, cast_info_descr_0) ||
+//            !HPy_Is(ctx, dst_dtype, cast_info_descr_1))) {
+    assert(HPyArray_DescrCheck(ctx, cast_info->descriptors[0]));
+    assert(HPyArray_DescrCheck(ctx, cast_info->descriptors[1]));
     if (!main_step && NPY_UNLIKELY(
-            !HPy_Is(ctx, src_dtype, cast_info_descr_0) ||
-            !HPy_Is(ctx, dst_dtype, cast_info_descr_1))) {
+            !HPy_Is(ctx, src_dtype, cast_info->descriptors[0]) ||
+            !HPy_Is(ctx, dst_dtype, cast_info->descriptors[1]))) {
         /*
          * We currently do not resolve recursively, but require a non
          * main cast (within the same DType) to be done in a single step.
@@ -3187,6 +3240,16 @@ _clear_cast_info_after_get_loop_failure(NPY_cast_info *cast_info)
     /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
     cast_info->func = &_dec_src_ref_nop;
     NPY_cast_info_xfree(cast_info);
+}
+
+static void
+_hclear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_info)
+{
+    /* As public API we could choose to clear auxdata != NULL */
+    assert(cast_info->auxdata == NULL);
+    /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
+    cast_info->func = &_hdec_src_ref_nop;
+    HNPY_cast_info_xfree(ctx, cast_info);
 }
 
 
@@ -3404,14 +3467,12 @@ h_define_cast_for_descrs(HPyContext *ctx,
      *       deleted in any case.
      */
     int must_wrap = (!aligned &&
-        (cast_info->context.method->flags & NPY_METH_SUPPORTS_UNALIGNED) == 0);
+        (PyArrayMethodObject_AsStruct(ctx, cast_info->context.method)->flags & NPY_METH_SUPPORTS_UNALIGNED) == 0);
 
     /*
      * Wrap the input with an additional cast if necessary.
      */
-    HPy cast_info_descr_0 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[0]);
-    if (NPY_UNLIKELY(!HPy_Is(ctx, src_dtype, cast_info_descr_0) || must_wrap)) {
-        HPy_Close(ctx, cast_info_descr_0);
+    if (NPY_UNLIKELY(!HPy_Is(ctx, src_dtype, cast_info->descriptors[0]) || must_wrap)) {
         // TODO HPY LABS PORT: cut off
         hpy_abort_not_implemented("h_define_cast_for_descrs: branch 0");
 //        NPY_CASTING from_casting = -1;
@@ -3449,13 +3510,10 @@ h_define_cast_for_descrs(HPyContext *ctx,
 //            move_references = 1;  /* main cast has to clear the buffer */
 //        }
     }
-    HPy_Close(ctx, cast_info_descr_0);
     /*
      * Wrap the output with an additional cast if necessary.
      */
-    HPy cast_info_descr_1 = HPy_FromPyObject(ctx, (PyObject *)cast_info->descriptors[1]);
-    if (NPY_UNLIKELY(!HPy_Is(ctx, dst_dtype, cast_info_descr_1) || must_wrap)) {
-        HPy_Close(ctx, cast_info_descr_1);
+    if (NPY_UNLIKELY(!HPy_Is(ctx, dst_dtype, cast_info->descriptors[1]) || must_wrap)) {
         // TODO HPY LABS PORT: cut off
         hpy_abort_not_implemented("h_define_cast_for_descrs: branch 1");
 //        NPY_CASTING to_casting = -1;
@@ -3496,16 +3554,15 @@ h_define_cast_for_descrs(HPyContext *ctx,
 //            }
 //        }
     }
-    HPy_Close(ctx, cast_info_descr_1);
 
     /* Fetch the main cast function (with updated values) */
-    PyArrayMethod_Context *context = &cast_info->context;
+    HPyArrayMethod_Context *context = &cast_info->context;
     npy_intp strides[2] = {src_stride, dst_stride};
     NPY_ARRAYMETHOD_FLAGS flags;
-    if (context->method->get_strided_loop(
+    if (PyArrayMethodObject_AsStruct(ctx, context->method)->get_strided_loop(
             context, aligned, move_references, strides,
             &cast_info->func, &cast_info->auxdata, &flags) < 0) {
-        _clear_cast_info_after_get_loop_failure(cast_info);
+        _hclear_cast_info_after_get_loop_failure(ctx, cast_info);
         goto fail;
     }
 
@@ -3517,13 +3574,12 @@ h_define_cast_for_descrs(HPyContext *ctx,
     }
     /* The full cast passed in is only the "main" step, copy cast_info there */
     HNPY_cast_info_move(ctx, &castdata.main, cast_info);
-    CAPI_WARN("h_define_cast_for_descrs: using legacy NPY_cast_info");
-    cast_info->descriptors[0] = (PyArray_Descr *)HPy_AsPyObject(ctx, src_dtype);
-    cast_info->descriptors[1] = (PyArray_Descr *)HPy_AsPyObject(ctx, dst_dtype);
-    cast_info->context.method = NULL;
+    cast_info->descriptors[0] = src_dtype;
+    cast_info->descriptors[1] = dst_dtype;
+    cast_info->context.method = HPy_NULL;
 
-    cast_info->func = &_strided_to_strided_multistep_cast;
-    cast_info->auxdata = _multistep_cast_auxdata_clone_int(&castdata, 1);
+    cast_info->func = &_hstrided_to_strided_multistep_cast;
+    cast_info->auxdata = _hmultistep_cast_auxdata_clone_int(ctx, &castdata, 1);
     if (cast_info->auxdata == NULL) {
         HPyErr_NoMemory(ctx);
         goto fail;

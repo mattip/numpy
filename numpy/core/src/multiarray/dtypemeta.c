@@ -28,6 +28,7 @@ dtypemeta_dealloc(PyArray_DTypeMeta *self) {
     Py_XDECREF(self->scalar_type);
     Py_XDECREF(self->singleton);
     Py_XDECREF(NPY_DT_SLOTS(self)->castingimpls);
+    NPY_DT_SLOTS(self)->castingimpls = NULL;
     PyMem_Free(self->dt_slots);
     PyType_Type.tp_dealloc((PyObject *) self);
 }

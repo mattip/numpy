@@ -203,7 +203,7 @@ HPyArray_GetDTypeTransferFunction(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             HPy src_dtype, HPy dst_dtype,
                             int move_references,
-                            NPY_cast_info *cast_info,
+                            HNPY_cast_info *cast_info,
                             int *out_needs_api);
 NPY_NO_EXPORT int
 get_fields_transfer_function(int aligned,

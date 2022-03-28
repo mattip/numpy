@@ -2731,7 +2731,7 @@ hnpyiter_clear_buffers(HPyContext *ctx, NpyIter *iter)
          * a well defined state (either NULL or owning the reference).
          * Only we implement cleanup
          */
-        PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtypes[iop]);
+        PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtypes[iop]);
         if (!PyDataType_REFCHK(py_dtype) ||
                 !(op_itflags[iop]&NPY_OP_ITFLAG_USINGBUFFER)) {
             continue;

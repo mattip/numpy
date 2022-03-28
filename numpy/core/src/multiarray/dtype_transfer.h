@@ -29,14 +29,14 @@ typedef struct {
 /*
  * HPy version of NPY_cast_info
  */
-//typedef struct {
-//    PyArrayMethod_StridedLoop *func;
-//    NpyAuxData *auxdata;
-//    HPyArrayMethod_Context context;
-//    /* Storage to be linked from "context" */
-//    HPy descriptors[2];
-//} HNPY_cast_info;
-typedef NPY_cast_info HNPY_cast_info;
+typedef struct {
+    HPyArrayMethod_StridedLoop *func;
+    NpyAuxData *auxdata;
+    HPyArrayMethod_Context context;
+    /* Storage to be linked from "context" */
+    HPy descriptors[2];
+} HNPY_cast_info;
+//typedef NPY_cast_info HNPY_cast_info;
 
 /*
  * Create a new cast-info struct with cast_info->context.descriptors linked.
@@ -62,9 +62,15 @@ NPY_cast_info_init(NPY_cast_info *cast_info)
 static NPY_INLINE void
 HNPY_cast_info_init(HPyContext *ctx, HNPY_cast_info *cast_info)
 {
-    // TODO HPY LABS PORT: migrate HNPY_cast_info and this function
-    CAPI_WARN("HNPY_cast_info_init");
-    NPY_cast_info_init(cast_info);
+    cast_info->func = NULL;  /* mark as uninitialized. */
+    /*
+     * Support for auxdata being unchanged, in the future, we might add
+     * a scratch space to `NPY_cast_info` and link to that instead.
+     */
+    cast_info->auxdata = NULL;
+    // TODO HPY LABS PORT: do we need to dup all handles ??
+    cast_info->context.descriptors = cast_info->descriptors;
+    cast_info->context.caller = HPy_NULL;
 }
 
 
@@ -90,9 +96,15 @@ NPY_cast_info_xfree(NPY_cast_info *cast_info)
 static NPY_INLINE void
 HNPY_cast_info_xfree(HPyContext *ctx, HNPY_cast_info *cast_info)
 {
-    // TODO HPY LABS PORT: migrate HNPY_cast_info and this function
-    CAPI_WARN("HNPY_cast_info_xfree");
-    NPY_cast_info_xfree(cast_info);
+    if (cast_info->func == NULL) {
+        return;
+    }
+    assert(cast_info->context.descriptors == cast_info->descriptors);
+    NPY_AUXDATA_FREE(cast_info->auxdata);
+    HPy_Close(ctx, cast_info->descriptors[0]);
+    HPy_Close(ctx, cast_info->descriptors[1]);
+    HPy_Close(ctx, cast_info->context.method);
+    cast_info->func = NULL;
 }
 
 
@@ -113,9 +125,11 @@ NPY_cast_info_move(NPY_cast_info *cast_info, NPY_cast_info *original)
 static NPY_INLINE void
 HNPY_cast_info_move(HPyContext *ctx, HNPY_cast_info *cast_info, HNPY_cast_info *original)
 {
-    // TODO HPY LABS PORT: migrate HNPY_cast_info and this function
-    CAPI_WARN("HNPY_cast_info_move");
-    NPY_cast_info_move(cast_info, original);
+    *cast_info = *original;
+    /* Fix internal pointer: */
+    cast_info->context.descriptors = cast_info->descriptors;
+    /* Mark original to not be cleaned up: */
+    original->func = NULL;
 }
 
 /*

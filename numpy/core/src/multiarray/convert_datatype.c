@@ -472,7 +472,7 @@ _get_cast_safety_from_castingimpl(PyArrayMethodObject *castingimpl,
     PyArray_Descr *out_descrs[2];
 
     *view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = castingimpl->resolve_descriptors(
+    NPY_CASTING casting = resolve_descriptors_trampoline(castingimpl->resolve_descriptors,
             castingimpl, dtypes, descrs, out_descrs, view_offset);
     if (casting < 0) {
         return -1;
@@ -528,6 +528,73 @@ _get_cast_safety_from_castingimpl(PyArrayMethodObject *castingimpl,
     return casting;
 }
 
+static NPY_CASTING
+_hget_cast_safety_from_castingimpl(HPyContext *hctx, HPy castingimpl,
+        HPy dtypes[2], HPy from, HPy to,
+        npy_intp *view_offset)
+{
+    HPy descrs[2] = {from, to};
+    HPy out_descrs[2];
+    PyArrayMethodObject *castingimpl_data = PyArrayMethodObject_AsStruct(hctx, castingimpl);
+
+    *view_offset = NPY_MIN_INTP;
+    NPY_CASTING casting = castingimpl_data->resolve_descriptors(hctx,
+            castingimpl, dtypes, descrs, out_descrs, view_offset);
+    if (casting < 0) {
+        return -1;
+    }
+    /* The returned descriptors may not match, requiring a second check */
+    if (!HPy_Is(hctx, out_descrs[0], descrs[0])) {
+        npy_intp from_offset = NPY_MIN_INTP;
+        NPY_CASTING from_casting = HPyArray_GetCastInfo(hctx,
+                descrs[0], out_descrs[0], HPy_NULL, &from_offset);
+        casting = PyArray_MinCastSafety(casting, from_casting);
+        if (from_offset != *view_offset) {
+            /* `view_offset` differs: The multi-step cast cannot be a view. */
+            *view_offset = NPY_MIN_INTP;
+        }
+        if (casting < 0) {
+            goto finish;
+        }
+    }
+    if (!HPy_IsNull(descrs[1]) && !HPy_Is(hctx, out_descrs[1], descrs[1])) {
+        npy_intp from_offset = NPY_MIN_INTP;
+        NPY_CASTING from_casting = HPyArray_GetCastInfo(hctx,
+                descrs[1], out_descrs[1], HPy_NULL, &from_offset);
+        casting = PyArray_MinCastSafety(casting, from_casting);
+        if (from_offset != *view_offset) {
+            /* `view_offset` differs: The multi-step cast cannot be a view. */
+            *view_offset = NPY_MIN_INTP;
+        }
+        if (casting < 0) {
+            goto finish;
+        }
+    }
+
+  finish:
+    HPy_Close(hctx, out_descrs[0]);
+    HPy_Close(hctx, out_descrs[1]);
+    /*
+     * Check for less harmful non-standard returns.  The following two returns
+     * should never happen:
+     * 1. No-casting must imply a view offset of 0.
+     * 2. Equivalent-casting + 0 view offset is (usually) the definition
+     *    of a "no" cast.  However, changing the order of fields can also
+     *    create descriptors that are not equivalent but views.
+     * Note that unsafe casts can have a view offset.  For example, in
+     * principle, casting `<i8` to `<i4` is a cast with 0 offset.
+     */
+    if (*view_offset != 0) {
+        assert(casting != NPY_NO_CASTING);
+    }
+    else {
+        assert(casting != NPY_EQUIV_CASTING
+               || (PyDataType_HASFIELDS(PyArray_Descr_AsStruct(hctx, from)) &&
+                   PyDataType_HASFIELDS(PyArray_Descr_AsStruct(hctx, to))));
+    }
+    return casting;
+}
+
 
 /**
  * Given two dtype instances, find the correct casting safety.
@@ -565,6 +632,40 @@ PyArray_GetCastInfo(
     NPY_CASTING casting = _get_cast_safety_from_castingimpl(castingimpl,
             dtypes, from, to, view_offset);
     Py_DECREF(meth);
+
+    return casting;
+}
+
+NPY_NO_EXPORT NPY_CASTING
+HPyArray_GetCastInfo(HPyContext *ctx,
+        HPy from, HPy to, HPy to_dtype,
+        npy_intp *view_offset)
+{
+    if (!HPy_IsNull(to)) {
+        to_dtype = HNPY_DTYPE(ctx, to);
+    }
+    HPy from_meta = HNPY_DTYPE(ctx, from);
+    HPy meth = HPyArray_GetCastingImpl(ctx, from_meta, to_dtype);
+    HPy_Close(ctx, from_meta);
+    if (HPy_IsNull(meth)) {
+        if (!HPy_IsNull(to)) {
+            HPy_Close(ctx, to_dtype);
+        }
+        return -1;
+    }
+    if (HPy_Is(ctx, meth, ctx->h_None)) {
+        HPy_Close(ctx, meth);
+        return -1;
+    }
+
+    HPy dtypes[2] = {HNPY_DTYPE(ctx, from), to_dtype};
+    NPY_CASTING casting = _hget_cast_safety_from_castingimpl(ctx, meth,
+            dtypes, from, to, view_offset);
+    HPy_Close(ctx, dtypes[0]);
+    if (!HPy_IsNull(to)) {
+        HPy_Close(ctx, to_dtype);
+    }
+    HPy_Close(ctx, meth);
 
     return casting;
 }
@@ -1088,6 +1189,20 @@ ensure_dtype_nbo(PyArray_Descr *type)
     }
 }
 
+NPY_NO_EXPORT HPy
+hensure_dtype_nbo(HPyContext *ctx, HPy type)
+{
+    if (PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, type)->byteorder)) {
+        return HPy_Dup(ctx, type);
+    }
+    else {
+        hpy_abort_not_implemented("hensure_dtype_nbo");
+        // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
+        // return PyArray_DescrNewByteorder(type, NPY_NATIVE);
+        return HPy_NULL;
+    }
+}
+
 
 /**
  * This function should possibly become public API eventually.  At this
@@ -1135,7 +1250,7 @@ PyArray_CastDescrToDType(PyArray_Descr *descr, PyArray_DTypeMeta *given_DType)
 
     PyArrayMethodObject *meth = (PyArrayMethodObject *)tmp;
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = meth->resolve_descriptors(
+    NPY_CASTING casting = resolve_descriptors_trampoline(meth->resolve_descriptors,
             meth, dtypes, given_descrs, loop_descrs, &view_offset);
     Py_DECREF(tmp);
     if (casting < 0) {
@@ -2450,36 +2565,36 @@ PyArray_AddCastingImplementation_FromSpec(PyArrayMethod_Spec *spec, int private)
 
 NPY_NO_EXPORT NPY_CASTING
 legacy_same_dtype_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), /* PyArrayMethodObject *method */
+        HPy NPY_UNUSED(dtypes[2]), /* PyArray_DTypeMeta *dtypes[2] */
+        HPy given_descrs[2], /* PyArray_Descr *given_descrs[2] */
+        HPy loop_descrs[2], /* PyArray_Descr *output_descrs[2] */
         npy_intp *view_offset)
 {
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
 
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = ensure_dtype_nbo(loop_descrs[0]);
-        if (loop_descrs[1] == NULL) {
-            Py_DECREF(loop_descrs[0]);
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, loop_descrs[0]);
+        if (HPy_IsNull(loop_descrs[1])) {
+            HPy_Close(ctx, loop_descrs[0]);
             return -1;
         }
     }
     else {
-        Py_INCREF(given_descrs[1]);
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
 
     /* this function only makes sense for non-flexible legacy dtypes: */
-    assert(loop_descrs[0]->elsize == loop_descrs[1]->elsize);
+    assert(PyArray_Descr_AsStruct(ctx, loop_descrs[0])->elsize ==
+            PyArray_Descr_AsStruct(ctx, loop_descrs[1])->elsize);
 
     /*
      * Legacy dtypes (except datetime) only have byte-order and elsize as
      * storage parameters.
      */
-    if (PyDataType_ISNOTSWAPPED(loop_descrs[0]) ==
-                PyDataType_ISNOTSWAPPED(loop_descrs[1])) {
+    if (PyDataType_ISNOTSWAPPED(PyArray_Descr_AsStruct(ctx, loop_descrs[0])) ==
+                PyDataType_ISNOTSWAPPED(PyArray_Descr_AsStruct(ctx, loop_descrs[1]))) {
         *view_offset = 0;
         return NPY_NO_CASTING;
     }
@@ -2517,34 +2632,45 @@ legacy_cast_get_strided_loop(
  */
 NPY_NO_EXPORT NPY_CASTING
 simple_cast_resolve_descriptors(
+        HPyContext *ctx,
+        HPy self,
+        HPy dtypes[2],
+        HPy given_descrs[2],
+        HPy loop_descrs[2],
+        npy_intp *view_offset)
+{
+    /*
         PyArrayMethodObject *self,
         PyArray_DTypeMeta *dtypes[2],
         PyArray_Descr *given_descrs[2],
         PyArray_Descr *loop_descrs[2],
-        npy_intp *view_offset)
-{
-    assert(NPY_DT_is_legacy(dtypes[0]) && NPY_DT_is_legacy(dtypes[1]));
+     */
+    assert(NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, dtypes[0]))
+            && NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, dtypes[1])));
 
-    loop_descrs[0] = ensure_dtype_nbo(given_descrs[0]);
-    if (loop_descrs[0] == NULL) {
+    loop_descrs[0] = hensure_dtype_nbo(ctx, given_descrs[0]);
+    if (HPy_IsNull(loop_descrs[0])) {
         return -1;
     }
-    if (given_descrs[1] != NULL) {
-        loop_descrs[1] = ensure_dtype_nbo(given_descrs[1]);
-        if (loop_descrs[1] == NULL) {
-            Py_DECREF(loop_descrs[0]);
+    if (!HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[1]);
+        if (HPy_IsNull(loop_descrs[1])) {
+            HPy_Close(ctx, loop_descrs[0]);
             return -1;
         }
     }
     else {
-        loop_descrs[1] = NPY_DT_CALL_default_descr(dtypes[1]);
+        hpy_abort_not_implemented("simple_cast_resolve_descriptors");
+        // loop_descrs[1] = NPY_DT_CALL_default_descr(dtypes[1]);
+        loop_descrs[1] = HPy_NULL;
     }
 
-    if (self->casting != NPY_NO_CASTING) {
-        return self->casting;
+    PyArrayMethodObject *data = PyArrayMethodObject_AsStruct(ctx, self);
+    if (data->casting != NPY_NO_CASTING) {
+        return data->casting;
     }
-    if (PyDataType_ISNOTSWAPPED(loop_descrs[0]) ==
-            PyDataType_ISNOTSWAPPED(loop_descrs[1])) {
+    if (PyDataType_ISNOTSWAPPED(PyArray_Descr_AsStruct(ctx, loop_descrs[0])) ==
+            PyDataType_ISNOTSWAPPED(PyArray_Descr_AsStruct(ctx, loop_descrs[1]))) {
         *view_offset = 0;
         return NPY_NO_CASTING;
     }

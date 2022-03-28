@@ -597,8 +597,11 @@ boundarraymethod__resolve_descripors(
     }
 
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = self->method->resolve_descriptors(
-            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
+    // TODO HPY LABS PORT
+    hpy_abort_not_implemented("boundarraymethod__resolve_descripors");
+//    NPY_CASTING casting = self->method->resolve_descriptors(
+//            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
+    NPY_CASTING casting = NPY_NO_CASTING;
 
     if (casting < 0 && PyErr_Occurred()) {
         return NULL;
@@ -756,8 +759,10 @@ boundarraymethod__simple_strided_call(
     }
 
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = self->method->resolve_descriptors(
-            self->method, self->dtypes, descrs, out_descrs, &view_offset);
+    hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
+//    NPY_CASTING casting = self->method->resolve_descriptors(
+//            self->method, self->dtypes, descrs, out_descrs, &view_offset);
+    NPY_CASTING casting = NPY_NO_CASTING;
 
     if (casting < 0) {
         PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
@@ -935,6 +940,45 @@ PyArrayMethod_GetMaskedStridedLoop(
     *out_loop = generic_masked_strided_loop;
     return 0;
 }
+
+#define PARAM_DTYPES(p, n) (p)
+#define PARAM_IN_DESCRS(p, n) ((p)+(n))
+#define PARAM_OUT_DESCRS(p, n) ((p)+(n)*2)
+
+NPY_NO_EXPORT NPY_CASTING
+resolve_descriptors_trampoline(
+        h_resolve_descriptors_function target,
+        struct PyArrayMethodObject_tag *method,
+        PyArray_DTypeMeta **dtypes,
+        PyArray_Descr **given_descrs,
+        PyArray_Descr **loop_descrs,
+        npy_intp *view_offset)
+{
+    HPyContext *hctx = npy_get_context();
+    int i, n = method->nin + method->nout;
+    HPy *params = (HPy *)alloca(n*3*sizeof(HPy));
+    for (i=0; i < n; i++) {
+        PARAM_DTYPES(params, n)[i] = HPy_FromPyObject(hctx, (PyObject *)dtypes[i]);
+        PARAM_IN_DESCRS(params, n)[i] = HPy_FromPyObject(hctx, (PyObject *)given_descrs[i]);
+        PARAM_OUT_DESCRS(params, n)[i] = HPy_NULL;
+    }
+    HPy h_meth = HPy_FromPyObject(hctx, (PyObject *)method);
+    NPY_CASTING res = target(hctx, h_meth, PARAM_DTYPES(params, n),
+            PARAM_IN_DESCRS(params, n), PARAM_OUT_DESCRS(params, n),
+            view_offset);
+    HPy_Close(hctx, h_meth);
+
+    for (i=0; i < n; i++) {
+        HPy_Close(hctx, PARAM_DTYPES(params, n)[i]);
+        HPy_Close(hctx, PARAM_IN_DESCRS(params, n)[i]);
+        loop_descrs[i] = (PyArray_Descr *) HPy_AsPyObject(hctx, PARAM_OUT_DESCRS(params, n)[i]);
+        HPy_Close(hctx, PARAM_OUT_DESCRS(params, n)[i]);
+    }
+    return res;
+}
+#undef PARAM_DTYPES
+#undef PARAM_IN_DESCRS
+#undef PARAM_OUT_DESCRS
 
 
 PyMethodDef boundarraymethod_methods[] = {
