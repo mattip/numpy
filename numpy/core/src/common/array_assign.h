@@ -42,6 +42,12 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
                         PyArrayObject *wheremask,
                         NPY_CASTING casting);
 
+NPY_NO_EXPORT int
+HPyArray_AssignRawScalar(HPyContext *ctx, HPy h_dst,
+                        HPy h_src_dtype, char *src_data,
+                        HPy h_wheremask,
+                        NPY_CASTING casting);
+
 /******** LOW-LEVEL SCALAR TO ARRAY ASSIGNMENT ********/
 
 /*

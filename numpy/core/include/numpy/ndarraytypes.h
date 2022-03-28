@@ -1569,15 +1569,18 @@ PyArrayNeighborhoodIter_Next2D(PyArrayNeighborhoodIterObject* iter);
                                NPY_ARRAY_F_CONTIGUOUS : 0))
 
 static NPY_INLINE HPy
-HPyArray_GetDescr(HPyContext *ctx, HPy arr)
+HPyArray_DESCR(HPyContext *ctx, HPy arr, const PyArrayObject *arr_data)
 {
-    return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_descr);
+    if (HPyField_IsNull(((PyArrayObject_fields *)arr_data)->f_descr)) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, arr, ((PyArrayObject_fields *)arr_data)->f_descr);
 }
 
 static NPY_INLINE HPy
-HPyArray_DESCR(HPyContext *ctx, HPy arr, const PyArrayObject *arr_data)
+HPyArray_GetDescr(HPyContext *ctx, HPy arr)
 {
-    return HPyField_Load(ctx, arr, ((PyArrayObject_fields *)arr_data)->f_descr);
+    return HPyArray_DESCR(ctx, arr, PyArrayObject_AsStruct(ctx, arr));
 }
 
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *

@@ -118,4 +118,8 @@ NPY_NO_EXPORT npy_bool
 HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
         NPY_CASTING casting);
 
+NPY_NO_EXPORT npy_bool
+hpy_can_cast_scalar_to(HPyContext *ctx, HPy scal_type, char *scal_data,
+                    HPy to, NPY_CASTING casting);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERT_DATATYPE_H_ */

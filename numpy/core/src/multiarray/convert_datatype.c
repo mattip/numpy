@@ -31,6 +31,9 @@
 #include "usertypes.h"
 #include "dtype_transfer.h"
 
+// added by HPy porting:
+#include "arraytypes.h"
+
 
 /*
  * Required length of string when converting from unsigned integer type.
@@ -745,7 +748,7 @@ HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
         HPy_Close(ctx, meth);
         return -1;
     }
-    
+
     PyArrayMethodObject *castingimpl = PyArrayMethodObject_AsStruct(ctx, meth);
     if (PyArray_MinCastSafety(castingimpl->casting, casting) == casting) {
         /* No need to check using `castingimpl.resolve_descriptors()` */
@@ -1050,6 +1053,84 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
 #endif
     npy_bool ret = PyArray_CanCastTypeTo(dtype, to, casting);
     Py_DECREF(dtype);
+    return ret;
+}
+
+/*
+ * NOTE: This function uses value based casting logic for scalars. It will
+ *       require updates when we phase out value-based-casting.
+ */
+NPY_NO_EXPORT npy_bool
+hpy_can_cast_scalar_to(HPyContext *ctx, HPy scal_type, char *scal_data,
+                    HPy to, NPY_CASTING casting)
+{
+    /*
+     * If the two dtypes are actually references to the same object
+     * or if casting type is forced unsafe then always OK.
+     *
+     * TODO: Assuming that unsafe casting always works is not actually correct
+     */
+    if (HPy_Is(ctx, scal_type, to) || casting == NPY_UNSAFE_CASTING ) {
+        return 1;
+    }
+
+    int valid = HPyArray_CheckCastSafety(ctx, casting, scal_type, to, HPyArray_DTYPE(ctx, to));
+    if (valid == 1) {
+        /* This is definitely a valid cast. */
+        return 1;
+    }
+    if (valid < 0) {
+        /* Probably must return 0, but just keep trying for now. */
+        HPyErr_Clear(ctx);
+    }
+
+    PyArray_Descr *scal_type_data = PyArray_Descr_AsStruct(ctx, scal_type);
+    /*
+     * If the scalar isn't a number, value-based casting cannot kick in and
+     * we must not attempt it.
+     * (Additional fast-checks would be possible, but probably unnecessary.)
+     */
+    if (!PyTypeNum_ISNUMBER(scal_type_data->type_num)) {
+        return 0;
+    }
+
+    /*
+     * At this point we have to check value-based casting.
+     */
+    int is_small_unsigned = 0, type_num;
+    /* An aligned memory buffer large enough to hold any builtin numeric type */
+    npy_longlong value[4];
+
+    int swap = !PyArray_ISNBO(scal_type_data->byteorder);
+    CAPI_WARN("Not clear what scal_type_data->f->copyswap may call...");
+    scal_type_data->f->copyswap(&value, scal_data, swap, NULL);
+
+    type_num = min_scalar_type_num((char *)&value, scal_type_data->type_num,
+                                    &is_small_unsigned);
+
+    /*
+     * If we've got a small unsigned scalar, and the 'to' type
+     * is not unsigned, then make it signed to allow the value
+     * to be cast more appropriately.
+     */
+    PyArray_Descr *to_data = PyArray_Descr_AsStruct(ctx, to);
+    if (is_small_unsigned && !(PyTypeNum_ISUNSIGNED(to_data->type_num))) {
+        type_num = type_num_unsigned_to_signed(type_num);
+    }
+
+    HPy dtype = HPyArray_DescrFromType(ctx, type_num);
+    if (HPy_IsNull(dtype)) {
+        return 0;
+    }
+#if 0
+    printf("min scalar cast ");
+    PyObject_Print(dtype, stdout, 0);
+    printf(" to ");
+    PyObject_Print(to, stdout, 0);
+    printf("\n");
+#endif
+    npy_bool ret = HPyArray_CanCastTypeTo(ctx, dtype, to, casting);
+    HPy_Close(ctx, dtype);
     return ret;
 }
 

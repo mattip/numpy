@@ -25,6 +25,11 @@
 #include "array_assign.h"
 #include "dtype_transfer.h"
 
+// HPy includes
+#include "multiarraymodule.h"
+#include "arrayobject.h"
+#include "convert_datatype.h"
+
 /*
  * Assigns the scalar value to every element of the destination raw array.
  *
@@ -262,6 +267,126 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
     }
 
     if (wheremask == NULL) {
+        /* A straightforward value assignment */
+        /* Do the assignment with raw array iteration */
+        if (raw_array_assign_scalar(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
+                src_dtype, src_data) < 0) {
+            goto fail;
+        }
+    }
+    else {
+        npy_intp wheremask_strides[NPY_MAXDIMS];
+
+        /* Broadcast the wheremask to 'dst' for raw iteration */
+        if (broadcast_strides(PyArray_NDIM(dst), PyArray_DIMS(dst),
+                    PyArray_NDIM(wheremask), PyArray_DIMS(wheremask),
+                    PyArray_STRIDES(wheremask), "where mask",
+                    wheremask_strides) < 0) {
+            goto fail;
+        }
+
+        /* Do the masked assignment with raw array iteration */
+        if (raw_array_wheremasked_assign_scalar(
+                PyArray_NDIM(dst), PyArray_DIMS(dst),
+                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
+                src_dtype, src_data,
+                PyArray_DESCR(wheremask), PyArray_DATA(wheremask),
+                wheremask_strides) < 0) {
+            goto fail;
+        }
+    }
+
+    if (allocated_src_data) {
+        PyArray_free(src_data);
+    }
+
+    return 0;
+
+fail:
+    if (allocated_src_data) {
+        PyArray_free(src_data);
+    }
+
+    return -1;
+}
+
+NPY_NO_EXPORT int
+HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
+                        /*PyArray_Descr*/HPy h_src_dtype, char *src_data,
+                        /*PyArrayObject*/HPy h_wheremask,
+                        NPY_CASTING casting)
+{
+    int allocated_src_data = 0;
+    npy_longlong scalarbuffer[4];
+
+    if (HPyArray_FailUnlessWriteable(ctx, h_dst, "assignment destination") < 0) {
+        return -1;
+    }
+
+    PyArray_Descr *src_dtype = PyArray_Descr_AsStruct(ctx, h_src_dtype);
+    HPy h_dst_dtype = HPyArray_GetDescr(ctx, h_dst);
+    PyArray_Descr *dst_dtype = PyArray_Descr_AsStruct(ctx, h_dst_dtype);
+
+    /* Check the casting rule */
+    if (!hpy_can_cast_scalar_to(ctx, h_src_dtype, src_data, h_dst_dtype, casting)) {
+        CAPI_WARN("npy_set_invalid_cast_error");
+        npy_set_invalid_cast_error(
+                src_dtype, dst_dtype, casting, NPY_TRUE);
+        return -1;
+    }
+
+    /*
+     * Make a copy of the src data if it's a different dtype than 'dst'
+     * or isn't aligned, and the destination we're copying to has
+     * more than one element. To avoid having to manage object lifetimes,
+     * we also skip this if 'dst' has an object dtype.
+     */
+    PyArrayObject *dst = PyArrayObject_AsStruct(ctx, h_dst);
+    if ((!HPyArray_EquivTypes(ctx, h_dst_dtype, h_src_dtype) ||
+            !(npy_is_aligned(src_data, npy_uint_alignment(src_dtype->elsize)) &&
+              npy_is_aligned(src_data, src_dtype->alignment))) &&
+                    HPyArray_SIZE(dst) > 1 &&
+                    !HPyDataType_REFCHK(ctx, h_dst_dtype)) {
+        char *tmp_src_data;
+
+        /*
+         * Use a static buffer to store the aligned/cast version,
+         * or allocate some memory if more space is needed.
+         */
+        PyArray_Descr *dst_dtype = PyArray_Descr_AsStruct(ctx, h_dst_dtype);
+        if ((int)sizeof(scalarbuffer) >= dst_dtype->elsize) {
+            tmp_src_data = (char *)&scalarbuffer[0];
+        }
+        else {
+            CAPI_WARN("PyArray_malloc");
+            tmp_src_data = PyArray_malloc(dst_dtype->elsize);
+            if (tmp_src_data == NULL) {
+                HPyErr_NoMemory(ctx);
+                goto fail;
+            }
+            allocated_src_data = 1;
+        }
+
+        if (PyDataType_FLAGCHK(dst_dtype, NPY_NEEDS_INIT)) {
+            memset(tmp_src_data, 0, dst_dtype->elsize);
+        }
+
+        CAPI_WARN("PyArray_CastRawArrays");
+        if (PyArray_CastRawArrays(1, src_data, tmp_src_data, 0, 0,
+                            src_dtype, PyArray_DESCR(dst), 0) != NPY_SUCCEED) {
+            src_data = tmp_src_data;
+            goto fail;
+        }
+
+        /* Replace src_data/src_dtype */
+        src_data = tmp_src_data;
+        src_dtype = PyArray_DESCR(dst);
+    }
+
+    CAPI_WARN("HPyArray_AssignRawScalar: TODO reminder");
+    PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
+    if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
         if (raw_array_assign_scalar(PyArray_NDIM(dst), PyArray_DIMS(dst),
