@@ -3,6 +3,16 @@
 
 #include "numpy/ndarraytypes.h"
 
+/* declare alloca() */
+#if defined(_MSC_VER)
+# include <malloc.h>   /* for alloca() */
+#else
+# include <stdint.h>
+# if (defined (__SVR4) && defined (__sun)) || defined(_AIX) || defined(__hpux)
+#  include <alloca.h>
+# endif
+#endif
+
 #define HPy_SETREF(ctx, op, op2) \
     do {                         \
         HPy _h_tmp = (op);       \
