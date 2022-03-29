@@ -4592,7 +4592,7 @@ PyArray_DescrFromType(int type)
 NPY_NO_EXPORT int
 set_typeinfo(HPyContext *ctx, HPy h_dict)
 {
-    HPy h_s, h_infodict, h_max, h_min;
+    HPy h_s, h_infodict, h_max, h_min, h_type;
     int i;
 
     PyArray_Descr *dtype;
@@ -4762,14 +4762,16 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     @minType@ min@Name@ = @min@;
     h_max = HPy_BuildValue(ctx, "@cx@", max@Name@);
     h_min = HPy_BuildValue(ctx, "@cn@", min@Name@);
+    h_type = HPy_FromPyObject(ctx, (PyObject *)&Py@Name@ArrType_Type);
     h_s = PyArray_typeinforanged(ctx,
         NPY_@name@LTR, NPY_@name@, NPY_BITSOF_@uname@, _ALIGN(@type@),
         h_max,
         h_min,
-        HPy_FromPyObject(ctx, (PyObject *)&Py@Name@ArrType_Type)
+        h_type
     );
     HPy_Close(ctx, h_max);
     HPy_Close(ctx, h_min);
+    HPy_Close(ctx, h_type);
     @maxClose@ max@Name@);
     @minClose@ min@Name@);
     if (HPy_IsNull(h_s)) {
@@ -4796,10 +4798,12 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      * #Name = Half, Float, Double, LongDouble,
      *         CFloat, CDouble, CLongDouble#
      */
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_Py@Name@ArrType_Type_p);
     h_s = PyArray_typeinfo(ctx,
         NPY_@name@LTR, NPY_@name@, NPY_BITSOF_@name@,
-        _ALIGN(@type@), HPy_FromPyObject(ctx, (PyObject *)_Py@Name@ArrType_Type_p)
+        _ALIGN(@type@), h_type
     );
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4812,12 +4816,13 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     }
 
     /**end repeat**/
-
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyObjectArrType_Type_p);
     h_s = PyArray_typeinfo(ctx,
         NPY_OBJECTLTR, NPY_OBJECT, sizeof(PyObject *) * CHAR_BIT,
         _ALIGN(PyObject *),
-        HPy_FromPyObject(ctx, (PyObject *)_PyObjectArrType_Type_p)
+        h_type
     );
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4828,10 +4833,12 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyStringArrType_Type_p);
     h_s = PyArray_typeinfo(ctx,
         NPY_STRINGLTR, NPY_STRING, 0, _ALIGN(char),
-        HPy_FromPyObject(ctx, (PyObject *)_PyStringArrType_Type_p)
+        h_type
     );
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4842,10 +4849,12 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyUnicodeArrType_Type_p);
     h_s = PyArray_typeinfo(ctx,
         NPY_UNICODELTR, NPY_UNICODE, 0, _ALIGN(npy_ucs4),
-        HPy_FromPyObject(ctx, (PyObject *)_PyUnicodeArrType_Type_p)
+        h_type
     );
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4856,10 +4865,12 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         HPy_Close(ctx, h_infodict);
         return -1;
     }
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyVoidArrType_Type_p);
     h_s = PyArray_typeinfo(ctx,
         NPY_VOIDLTR, NPY_VOID, 0, _ALIGN(char),
-        HPy_FromPyObject(ctx, (PyObject *)_PyVoidArrType_Type_p)
+        h_type
     );
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4872,15 +4883,17 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     }
     h_max = HPyLong_FromLong(ctx, NPY_MAX_DATETIME);
     h_min = HPyLong_FromLong(ctx, NPY_MIN_DATETIME);
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyDatetimeArrType_Type_p);
     h_s = PyArray_typeinforanged(ctx,
         NPY_DATETIMELTR, NPY_DATETIME, NPY_BITSOF_DATETIME,
         _ALIGN(npy_datetime),
         h_max,
         h_min,
-        HPy_FromPyObject(ctx, (PyObject *)_PyDatetimeArrType_Type_p)
+        h_type
     );
     HPy_Close(ctx, h_max);
     HPy_Close(ctx, h_min);
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4893,15 +4906,17 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     }
     h_max = HPyLong_FromLong(ctx, NPY_MAX_TIMEDELTA);
     h_min = HPyLong_FromLong(ctx, NPY_MIN_TIMEDELTA);
+    h_type = HPy_FromPyObject(ctx, (PyObject *)_PyTimedeltaArrType_Type_p);
     h_s = PyArray_typeinforanged(ctx,
         NPY_TIMEDELTALTR, NPY_TIMEDELTA, NPY_BITSOF_TIMEDELTA,
         _ALIGN(npy_timedelta),
         h_max,
         h_min,
-        HPy_FromPyObject(ctx, (PyObject *)_PyTimedeltaArrType_Type_p)
+        h_type
     );
     HPy_Close(ctx, h_max);
     HPy_Close(ctx, h_min);
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(h_s)) {
         HPy_Close(ctx, h_infodict);
         return -1;
@@ -4915,11 +4930,14 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
 
 #define SETTYPE(name)                                   \
     Py_INCREF(&Py##name##ArrType_Type);                 \
+    h_type = HPy_FromPyObject(ctx, (PyObject *)&Py##name##ArrType_Type); \
     if (HPy_SetItem_s(ctx, h_infodict, #name,           \
-            HPy_FromPyObject(ctx, (PyObject *)&Py##name##ArrType_Type)) < 0) { \
+            h_type) < 0) { \
         HPy_Close(ctx, h_infodict);                     \
+        HPy_Close(ctx, h_type);                         \
         return -1;                                      \
-    }
+    }                                                   \
+    HPy_Close(ctx, h_type);
 
     SETTYPE(Generic);
     SETTYPE(Number);
