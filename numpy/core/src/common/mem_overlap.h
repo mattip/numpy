@@ -39,6 +39,10 @@ solve_may_share_memory(PyArrayObject *a, PyArrayObject *b,
                        Py_ssize_t max_work);
 
 NPY_VISIBILITY_HIDDEN mem_overlap_t
+hpy_solve_may_share_memory(HPyContext *ctx, HPy a, HPy b,
+                       HPy_ssize_t max_work);
+
+NPY_VISIBILITY_HIDDEN mem_overlap_t
 solve_may_have_internal_overlap(PyArrayObject *a, Py_ssize_t max_work);
 
 NPY_VISIBILITY_HIDDEN void
