@@ -285,7 +285,7 @@ static int _warn_if_cast_exists_already(
         return -1;
     }
     PyObject *cast_impl = PyDict_GetItemWithError(
-            NPY_DT_SLOTS(NPY_DTYPE(descr))->castingimpls, (PyObject *)to_DType);
+            DTYPE_SLOTS_CASTINGIMPL(NPY_DTYPE(descr)), (PyObject *)to_DType);
     Py_DECREF(to_DType);
     if (cast_impl == NULL) {
         if (PyErr_Occurred()) {

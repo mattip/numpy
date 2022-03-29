@@ -54,13 +54,13 @@ typedef struct {
      * The casting implementation (ArrayMethod) to convert between two
      * instances of this DType, stored explicitly for fast access:
      */
-    PyObject *within_dtype_castingimpl;
+    HPyField within_dtype_castingimpl;
     /*
      * Dictionary of ArrayMethods representing most possible casts
      * (structured and object are exceptions).
      * This should potentially become a weak mapping in the future.
      */
-    PyObject *castingimpls;
+    HPyField castingimpls;
 
     /*
      * Storage for `descr->f`, since we may need to allow some customizatoin
@@ -70,7 +70,6 @@ typedef struct {
     PyArray_ArrFuncs f;
 } NPY_DType_Slots;
 
-
 #define NPY_DTYPE(descr) ((PyArray_DTypeMeta *)Py_TYPE(descr))
 #define HNPY_DTYPE(ctx, descr) (HPy_Type(ctx, descr))
 #define NPY_DT_SLOTS(dtype) ((NPY_DType_Slots *)(dtype)->dt_slots)
@@ -78,6 +77,48 @@ typedef struct {
 #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)
 #define NPY_DT_is_abstract(dtype) (((dtype)->flags & NPY_DT_ABSTRACT) != 0)
 #define NPY_DT_is_parametric(dtype) (((dtype)->flags & NPY_DT_PARAMETRIC) != 0)
+
+static inline PyObject* DTYPE_SLOTS_CASTINGIMPL(PyArray_DTypeMeta *meta) {
+    if (HPyField_IsNull(NPY_DT_SLOTS(meta)->castingimpls)) {
+        return NULL;
+    }
+    HPyContext *ctx = npy_get_context();
+    HPy owner = HPy_FromPyObject(ctx, (PyObject*) meta);
+    HPy res = HPyField_Load(ctx, owner, NPY_DT_SLOTS(meta)->castingimpls);
+    PyObject *py_res = HPy_AsPyObject(ctx, res);
+    HPy_Close(ctx, owner);
+    HPy_Close(ctx, res);
+    Py_DECREF(py_res);  // to simulate the borrowed reference...
+    return py_res;
+}
+
+static inline PyObject* DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(PyArray_DTypeMeta *meta) {
+    if (HPyField_IsNull(NPY_DT_SLOTS(meta)->within_dtype_castingimpl)) {
+        return NULL;
+    }
+    HPyContext *ctx = npy_get_context();
+    HPy owner = HPy_FromPyObject(ctx, (PyObject*) meta);
+    HPy res = HPyField_Load(ctx, owner, NPY_DT_SLOTS(meta)->within_dtype_castingimpl);
+    PyObject *py_res = HPy_AsPyObject(ctx, res);
+    HPy_Close(ctx, owner);
+    HPy_Close(ctx, res);
+    Py_DECREF(py_res);  // to simulate the borrowed reference...
+    return py_res;
+}
+
+static inline HPy HPY_DTYPE_SLOTS_CASTINGIMPL(HPyContext *ctx, HPy h_meta, PyArray_DTypeMeta *meta) {
+    if (HPyField_IsNull(NPY_DT_SLOTS(meta)->castingimpls)) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, h_meta, NPY_DT_SLOTS(meta)->castingimpls);
+}
+
+static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy h_meta, PyArray_DTypeMeta *meta) {
+    if (HPyField_IsNull(NPY_DT_SLOTS(meta)->within_dtype_castingimpl)) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, h_meta, NPY_DT_SLOTS(meta)->within_dtype_castingimpl);
+}
 
 /*
  * Macros for convenient classmethod calls, since these require

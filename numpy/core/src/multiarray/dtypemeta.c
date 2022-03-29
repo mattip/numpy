@@ -20,19 +20,6 @@
 
 #include <assert.h>
 
-static void
-dtypemeta_dealloc(PyArray_DTypeMeta *self) {
-    /* Do not accidentally delete a statically defined DType: */
-    assert(((PyTypeObject *)self)->tp_flags & Py_TPFLAGS_HEAPTYPE);
-
-    Py_XDECREF(self->scalar_type);
-    Py_XDECREF(self->singleton);
-    Py_XDECREF(NPY_DT_SLOTS(self)->castingimpls);
-    NPY_DT_SLOTS(self)->castingimpls = NULL;
-    PyMem_Free(self->dt_slots);
-    PyType_Type.tp_dealloc((PyObject *) self);
-}
-
 static PyObject *
 dtypemeta_new(PyTypeObject *NPY_UNUSED(type),
         PyObject *NPY_UNUSED(args), PyObject *NPY_UNUSED(kwds))
@@ -72,7 +59,7 @@ dtypemeta_is_gc(PyObject *dtype_class)
 }
 
 HPyDef_SLOT(DTypeMeta_traverse, DTypeMeta_traverse_impl, HPy_tp_traverse)
-static int DTypeMeta_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg) {
+static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg) {
     // HPY TODO: implement
     /*
      * We have to traverse the base class (if it is a HeapType).
@@ -87,6 +74,11 @@ static int DTypeMeta_traverse_impl(void *self, HPyFunc_visitproc visit, void *ar
     // Py_VISIT(type->singleton);
     // Py_VISIT(type->scalar_type);
     // return PyType_Type.tp_traverse((PyObject *)type, visit, arg);
+    PyArray_DTypeMeta *self = (PyArray_DTypeMeta*) self_p;
+    if (NPY_DT_SLOTS(self)) {
+        HPy_VISIT(&NPY_DT_SLOTS(self)->castingimpls);
+        HPy_VISIT(&NPY_DT_SLOTS(self)->within_dtype_castingimpl);
+    }
     return 0;
 }
 
@@ -589,11 +581,14 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
 
     PyArray_DTypeMeta *new_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_new_dtype_type);
+    new_dtype_data->dt_slots = dt_slots;
 
-    dt_slots->castingimpls = PyDict_New();
-    if (dt_slots->castingimpls == NULL) {
+    HPy h_castingimpls = HPyDict_New(ctx);
+    if (HPy_IsNull(h_castingimpls)) {
         goto cleanup;
     }
+    HPyField_Store(ctx, h_new_dtype_type, &dt_slots->castingimpls, h_castingimpls);
+    HPy_Close(ctx, h_castingimpls);
 
     /*
      * Fill DTypeMeta information that varies between DTypes, any variable
@@ -603,7 +598,6 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     Py_INCREF(descr->typeobj);
     new_dtype_data->scalar_type = descr->typeobj;
     new_dtype_data->type_num = descr->type_num;
-    new_dtype_data->dt_slots = dt_slots;
     new_dtype_data->flags = NPY_DT_LEGACY;
     dt_slots->f = *(descr->f);
 

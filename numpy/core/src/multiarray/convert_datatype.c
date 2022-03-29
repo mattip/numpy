@@ -71,10 +71,10 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
     PyObject *res;
     if (from == to) {
-        res = NPY_DT_SLOTS(from)->within_dtype_castingimpl;
+        res = DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(from);
     }
     else {
-        res = PyDict_GetItemWithError(NPY_DT_SLOTS(from)->castingimpls, (PyObject *)to);
+        res = PyDict_GetItemWithError(DTYPE_SLOTS_CASTINGIMPL(from), (PyObject *)to);
     }
     if (res != NULL || PyErr_Occurred()) {
         Py_XINCREF(res);
@@ -120,7 +120,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
             if (castfunc == NULL) {
                 PyErr_Clear();
                 /* Remember that this cast is not possible */
-                if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+                if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
                             (PyObject *) to, Py_None) < 0) {
                     return NULL;
                 }
@@ -149,7 +149,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
         Py_DECREF(res);
         return NULL;
     }
-    if (PyDict_SetItem(NPY_DT_SLOTS(from)->castingimpls,
+    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
                 (PyObject *)to, res) < 0) {
         Py_DECREF(res);
         return NULL;
@@ -161,15 +161,12 @@ NPY_NO_EXPORT HPy
 HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
 {
     PyArray_DTypeMeta *from_data = PyArray_DTypeMeta_AsStruct(ctx, from);
-    PyArray_DTypeMeta *to_data = PyArray_DTypeMeta_AsStruct(ctx, to);
     HPy res;
     if (HPy_Is(ctx, from, to)) {
-        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
-        res = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->within_dtype_castingimpl);
+        res = HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(ctx, from, from_data);
     }
     else {
-        CAPI_WARN("HPyArray_GetCastingImpl: using PyArray_DTypeMeta slots");
-        HPy tmp = HPy_FromPyObject(ctx, NPY_DT_SLOTS(from_data)->castingimpls);
+        HPy tmp = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, from, from_data);
         res = HPy_GetItem(ctx, tmp, to);
         HPy_Close(ctx, tmp);
     }
@@ -728,6 +725,48 @@ PyArray_CheckCastSafety(NPY_CASTING casting,
 }
 
 
+NPY_NO_EXPORT int
+HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
+        HPy h_from, HPy h_to, HPy h_to_dtype_in)
+{
+    HPy h_to_dtype;
+    if (HPy_IsNull(h_to)) {
+        h_to_dtype = HPy_Type(ctx, h_to);
+    } else {
+        h_to_dtype = HPy_Dup(ctx, h_to_dtype_in);
+    }
+    HPy h_from_dtype = HPy_Type(ctx, h_from);
+    HPy meth = HPyArray_GetCastingImpl(ctx, h_from_dtype, h_to_dtype);
+    HPy_Close(ctx, h_from_dtype);
+    if (HPy_IsNull(meth)) {
+        return -1;
+    }
+    if (HPy_Is(ctx, meth, ctx->h_None)) {
+        HPy_Close(ctx, meth);
+        return -1;
+    }
+    
+    PyArrayMethodObject *castingimpl = PyArrayMethodObject_AsStruct(ctx, meth);
+    if (PyArray_MinCastSafety(castingimpl->casting, casting) == casting) {
+        /* No need to check using `castingimpl.resolve_descriptors()` */
+        HPy_Close(ctx, meth);
+        return 1;
+    }
+
+    hpy_abort_not_implemented("HPyArray_CheckCastSafety: generic code path");
+    // PyArray_DTypeMeta *dtypes[2] = {PyArray_DTypeMeta_AsStruct(ctx, h_from_dtype), PyArray_DTypeMeta_AsStruct(ctx, h_to_dtype)};
+    // npy_intp view_offset;
+    // NPY_CASTING safety = _get_cast_safety_from_castingimpl(castingimpl,
+    //         dtypes, PyArray_Descr_AsStruct(ctx, h_from), PyArray_Descr_AsStruct(ctx, h_to), &view_offset);
+    // Py_DECREF(meth);
+    // /* If casting is the smaller (or equal) safety we match */
+    // if (safety < 0) {
+    //     return -1;
+    // }
+    // return PyArray_MinCastSafety(safety, casting) == casting;
+}
+
+
 /*NUMPY_API
  *Check the type coercion rules.
  */
@@ -921,12 +960,8 @@ HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
         to = NULL;  /* consider mainly S0 and U0 as S and U */
     }
 
-    capi_warn("HPyArray_CanCastTypeTo -> PyArray_CheckCastSafety");
     HPy to_meta = HPy_Type(ctx, h_to);
-    int is_valid = PyArray_CheckCastSafety(casting,
-            PyArray_Descr_AsStruct(ctx, h_from), 
-            PyArray_Descr_AsStruct(ctx, h_to),
-            PyArray_DTypeMeta_AsStruct(ctx, to_meta));
+    int is_valid = HPyArray_CheckCastSafety(ctx, casting, h_from, h_to, to_meta);
     HPy_Close(ctx, to_meta);
     /* Clear any errors and consider this unsafe (should likely be changed) */
     if (is_valid < 0) {
@@ -2513,26 +2548,31 @@ PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth)
                     meth->method->name);
             return -1;
         }
-        if (NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl != NULL) {
+        if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(meth->dtypes[0]) != NULL) {
             PyErr_Format(PyExc_RuntimeError,
                     "A cast was already added for %S -> %S. (method: %s)",
                     meth->dtypes[0], meth->dtypes[1], meth->method->name);
             return -1;
         }
         Py_INCREF(meth->method);
-        NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl = (
-                (PyObject *)meth->method);
+
+        HPyContext *ctx = npy_get_context();
+        HPy owner = HPy_FromPyObject(ctx, meth->dtypes[0]);
+        HPy value = HPy_FromPyObject(ctx, meth->method);
+        HPyField_Store(ctx, owner, &NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl, value);
+        HPy_Close(ctx, owner);
+        HPy_Close(ctx, value);
 
         return 0;
     }
-    if (PyDict_Contains(NPY_DT_SLOTS(meth->dtypes[0])->castingimpls,
+    if (PyDict_Contains(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
             (PyObject *)meth->dtypes[1])) {
         PyErr_Format(PyExc_RuntimeError,
                 "A cast was already added for %S -> %S. (method: %s)",
                 meth->dtypes[0], meth->dtypes[1], meth->method->name);
         return -1;
     }
-    if (PyDict_SetItem(NPY_DT_SLOTS(meth->dtypes[0])->castingimpls,
+    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
             (PyObject *)meth->dtypes[1], (PyObject *)meth->method) < 0) {
         return -1;
     }
