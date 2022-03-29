@@ -20,22 +20,6 @@
 
 #include <assert.h>
 
-static void
-dtypemeta_dealloc(PyArray_DTypeMeta *self) {
-    /* Do not accidentally delete a statically defined DType: */
-    assert(((PyTypeObject *)self)->tp_flags & Py_TPFLAGS_HEAPTYPE);
-
-    Py_XDECREF(self->scalar_type);
-    Py_XDECREF(self->singleton);
-
-    HPyContext *ctx = npy_get_context();
-    HPy h = HPy_FromPyObject(ctx, (PyObject*) self);
-    HPyField_Store(ctx, h, &NPY_DT_SLOTS(self)->castingimpls, HPy_NULL);
-    HPy_Close(ctx, h);
-    PyMem_Free(self->dt_slots);
-    PyType_Type.tp_dealloc((PyObject *) self);
-}
-
 static PyObject *
 dtypemeta_new(PyTypeObject *NPY_UNUSED(type),
         PyObject *NPY_UNUSED(args), PyObject *NPY_UNUSED(kwds))
@@ -75,7 +59,7 @@ dtypemeta_is_gc(PyObject *dtype_class)
 }
 
 HPyDef_SLOT(DTypeMeta_traverse, DTypeMeta_traverse_impl, HPy_tp_traverse)
-static int DTypeMeta_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg) {
+static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg) {
     // HPY TODO: implement
     /*
      * We have to traverse the base class (if it is a HeapType).
@@ -90,6 +74,11 @@ static int DTypeMeta_traverse_impl(void *self, HPyFunc_visitproc visit, void *ar
     // Py_VISIT(type->singleton);
     // Py_VISIT(type->scalar_type);
     // return PyType_Type.tp_traverse((PyObject *)type, visit, arg);
+    PyArray_DTypeMeta *self = (PyArray_DTypeMeta*) self_p;
+    if (NPY_DT_SLOTS(self)) {
+        HPy_VISIT(&NPY_DT_SLOTS(self)->castingimpls);
+        HPy_VISIT(&NPY_DT_SLOTS(self)->within_dtype_castingimpl);
+    }
     return 0;
 }
 
