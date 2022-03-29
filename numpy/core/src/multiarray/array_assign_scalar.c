@@ -104,6 +104,75 @@ fail:
     return -1;
 }
 
+NPY_NO_EXPORT int
+hpy_raw_array_assign_scalar(HPyContext *ctx, int ndim, npy_intp const *shape,
+        HPy h_dst_dtype, PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
+        HPy h_src_dtype, PyArray_Descr *src_dtype, char *src_data)
+{
+    int idim;
+    npy_intp shape_it[NPY_MAXDIMS], dst_strides_it[NPY_MAXDIMS];
+    npy_intp coord[NPY_MAXDIMS];
+
+    int aligned, needs_api = 0;
+
+    NPY_BEGIN_THREADS_DEF;
+
+    /* Check both uint and true alignment */
+    aligned = raw_array_is_aligned(ndim, shape, dst_data, dst_strides,
+                                   npy_uint_alignment(dst_dtype->elsize)) &&
+              raw_array_is_aligned(ndim, shape, dst_data, dst_strides,
+                                   dst_dtype->alignment) &&
+              npy_is_aligned(src_data, npy_uint_alignment(src_dtype->elsize) &&
+              npy_is_aligned(src_data, src_dtype->alignment));
+
+    /* Use raw iteration with no heap allocation */
+    if (PyArray_PrepareOneRawArrayIter(
+                    ndim, shape,
+                    dst_data, dst_strides,
+                    &ndim, shape_it,
+                    &dst_data, dst_strides_it) < 0) {
+        return -1;
+    }
+
+    /* Get the function to do the casting */
+    NPY_cast_info cast_info;
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                        0, dst_strides_it[0],
+                        h_src_dtype, h_dst_dtype,
+                        0,
+                        &cast_info, &needs_api) != NPY_SUCCEED) {
+        return -1;
+    }
+
+    if (!needs_api) {
+        npy_intp nitems = 1, i;
+        for (i = 0; i < ndim; i++) {
+            nitems *= shape_it[i];
+        }
+        NPY_BEGIN_THREADS_THRESHOLDED(nitems);
+    }
+
+    npy_intp strides[2] = {0, dst_strides_it[0]};
+
+    NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
+        /* Process the innermost dimension */
+        char *args[2] = {src_data, dst_data};
+        if (cast_info.func(&cast_info.context,
+                args, &shape_it[0], strides, cast_info.auxdata) < 0) {
+            goto fail;
+        }
+    } NPY_RAW_ITER_ONE_NEXT(idim, ndim, coord,
+                            shape_it, dst_data, dst_strides_it);
+
+    NPY_END_THREADS;
+    NPY_cast_info_xfree(&cast_info);
+    return 0;
+fail:
+    NPY_END_THREADS;
+    NPY_cast_info_xfree(&cast_info);
+    return -1;
+}
+
 /*
  * Assigns the scalar value to every element of the destination raw array
  * where the 'wheremask' value is True.
@@ -384,18 +453,18 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
         src_dtype = PyArray_DESCR(dst);
     }
 
-    CAPI_WARN("HPyArray_AssignRawScalar: TODO reminder");
     PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
     if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
-        if (raw_array_assign_scalar(PyArray_NDIM(dst), PyArray_DIMS(dst),
-                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
-                src_dtype, src_data) < 0) {
+        if (hpy_raw_array_assign_scalar(ctx, PyArray_NDIM(dst), PyArray_DIMS(dst),
+                h_dst_dtype, dst_dtype, PyArray_DATA(dst), PyArray_STRIDES(dst),
+                h_src_dtype, src_dtype, src_data) < 0) {
             goto fail;
         }
     }
     else {
+        CAPI_WARN("non-straightforward value assignment");
         npy_intp wheremask_strides[NPY_MAXDIMS];
 
         /* Broadcast the wheremask to 'dst' for raw iteration */
