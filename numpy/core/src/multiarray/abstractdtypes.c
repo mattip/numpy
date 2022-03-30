@@ -11,12 +11,15 @@
 #include "abstractdtypes.h"
 #include "array_coercion.h"
 #include "common.h"
+#include "arraytypes.h"
 
 
-static NPY_INLINE PyArray_Descr *
-int_default_descriptor(PyArray_DTypeMeta* NPY_UNUSED(cls))
+//static NPY_INLINE PyArray_Descr *
+//int_default_descriptor(PyArray_DTypeMeta* NPY_UNUSED(cls))
+static NPY_INLINE HPy
+int_default_descriptor(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
-    return PyArray_DescrFromType(NPY_LONG);
+    return HPyArray_DescrFromType(ctx, NPY_LONG);
 }
 
 static PyArray_Descr *
@@ -51,10 +54,10 @@ discover_descriptor_from_pyint(
 }
 
 
-static NPY_INLINE PyArray_Descr *
-float_default_descriptor(PyArray_DTypeMeta* NPY_UNUSED(cls))
+static NPY_INLINE HPy
+float_default_descriptor(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
-    return PyArray_DescrFromType(NPY_DOUBLE);
+    return HPyArray_DescrFromType(ctx, NPY_DOUBLE);
 }
 
 
@@ -66,10 +69,10 @@ discover_descriptor_from_pyfloat(
     return PyArray_DescrFromType(NPY_DOUBLE);
 }
 
-static NPY_INLINE PyArray_Descr *
-complex_default_descriptor(PyArray_DTypeMeta* NPY_UNUSED(cls))
+static NPY_INLINE HPy
+complex_default_descriptor(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
-    return PyArray_DescrFromType(NPY_CDOUBLE);
+    return HPyArray_DescrFromType(ctx, NPY_CDOUBLE);
 }
 
 static PyArray_Descr*
@@ -128,7 +131,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     PyArray_DTypeMeta *int_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyIntAbstractDType);
     int_abstract_dtype_data->dt_slots = &pyintabstractdtype_slots;
     int_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
-    int_abstract_dtype_data->scalar_type = &PyLong_Type;
+    HPyField_Store(ctx, h_PyArray_PyIntAbstractDType, &int_abstract_dtype_data->scalar_type, ctx->h_LongType);
     PyArray_PyIntAbstractDType = (PyArray_DTypeMeta *) HPy_AsPyObject(ctx, h_PyArray_PyIntAbstractDType);
     HPy_Close(ctx, h_PyArray_PyIntAbstractDType);
 
@@ -140,7 +143,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     PyArray_DTypeMeta *float_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyFloatAbstractDType);
     float_abstract_dtype_data->dt_slots = &pyfloatabstractdtype_slots;
     float_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
-    float_abstract_dtype_data->scalar_type = &PyFloat_Type;
+    HPyField_Store(ctx, h_PyArray_PyFloatAbstractDType, &float_abstract_dtype_data->scalar_type, ctx->h_FloatType);
     PyArray_PyFloatAbstractDType = (PyArray_DTypeMeta *) HPy_AsPyObject(ctx, h_PyArray_PyFloatAbstractDType);
     HPy_Close(ctx, h_PyArray_PyFloatAbstractDType);
 
@@ -152,7 +155,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     PyArray_DTypeMeta *complex_abstract_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_PyComplexAbstractDType);
     complex_abstract_dtype_data->dt_slots = &pycomplexabstractdtype_slots;
     complex_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
-    complex_abstract_dtype_data->scalar_type = &PyComplex_Type;
+    HPyField_Store(ctx, h_PyArray_PyComplexAbstractDType, &complex_abstract_dtype_data->scalar_type, ctx->h_ComplexType);
     PyArray_PyComplexAbstractDType = (PyArray_DTypeMeta *) HPy_AsPyObject(ctx, h_PyArray_PyComplexAbstractDType);
     HPy_Close(ctx, h_PyArray_PyComplexAbstractDType);
 

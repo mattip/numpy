@@ -10,6 +10,8 @@
 
 typedef PyArray_Descr *(discover_descr_from_pyobject_function)(
         PyArray_DTypeMeta *cls, PyObject *obj);
+typedef HPy (hdiscover_descr_from_pyobject_function)(
+        HPyContext *ctx, HPy cls, HPy obj);
 
 /*
  * Before making this public, we should decide whether it should pass
@@ -20,7 +22,8 @@ typedef PyArray_Descr *(discover_descr_from_pyobject_function)(
 typedef int (is_known_scalar_type_function)(
         PyArray_DTypeMeta *cls, PyTypeObject *obj);
 
-typedef PyArray_Descr *(default_descr_function)(PyArray_DTypeMeta *cls);
+// typedef PyArray_Descr *(default_descr_function)(PyArray_DTypeMeta *cls);
+typedef HPy (default_descr_function)(HPyContext *ctx, HPy cls);
 typedef PyArray_DTypeMeta *(common_dtype_function)(
         PyArray_DTypeMeta *dtype1, PyArray_DTypeMeta *dtype2);
 typedef PyArray_Descr *(common_instance_function)(
@@ -40,6 +43,7 @@ typedef PyObject *(getitemfunction)(PyArray_Descr *, char *);
 typedef struct {
     /* DType methods, these could be moved into its own struct */
     discover_descr_from_pyobject_function *discover_descr_from_pyobject;
+    hdiscover_descr_from_pyobject_function *hdiscover_descr_from_pyobject;
     is_known_scalar_type_function *is_known_scalar_type;
     default_descr_function *default_descr;
     common_dtype_function *common_dtype;
@@ -73,6 +77,7 @@ typedef struct {
 #define NPY_DTYPE(descr) ((PyArray_DTypeMeta *)Py_TYPE(descr))
 #define HNPY_DTYPE(ctx, descr) (HPy_Type(ctx, descr))
 #define NPY_DT_SLOTS(dtype) ((NPY_DType_Slots *)(dtype)->dt_slots)
+#define HNPY_DT_SLOTS(ctx, dtype) ((NPY_DType_Slots *)(PyArray_DTypeMeta_AsStruct(ctx, dtype)->dt_slots))
 
 #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)
 #define NPY_DT_is_abstract(dtype) (((dtype)->flags & NPY_DT_ABSTRACT) != 0)
@@ -113,12 +118,21 @@ static inline HPy HPY_DTYPE_SLOTS_CASTINGIMPL(HPyContext *ctx, HPy h_meta, PyArr
     return HPyField_Load(ctx, h_meta, NPY_DT_SLOTS(meta)->castingimpls);
 }
 
+static inline HPy HPY_DTYPE_SLOTS_CASTINGIMPL0(HPyContext *ctx, HPy h_meta) {
+    NPY_DType_Slots *slots = HNPY_DT_SLOTS(ctx, h_meta);
+    if (HPyField_IsNull(slots->castingimpls)) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, h_meta, slots->castingimpls);
+}
+
 static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy h_meta, PyArray_DTypeMeta *meta) {
     if (HPyField_IsNull(NPY_DT_SLOTS(meta)->within_dtype_castingimpl)) {
         return HPy_NULL;
     }
     return HPyField_Load(ctx, h_meta, NPY_DT_SLOTS(meta)->within_dtype_castingimpl);
 }
+
 
 /*
  * Macros for convenient classmethod calls, since these require
@@ -128,11 +142,15 @@ static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy 
  */
 #define NPY_DT_CALL_discover_descr_from_pyobject(dtype, obj)  \
     NPY_DT_SLOTS(dtype)->discover_descr_from_pyobject(dtype, obj)
+#define HNPY_DT_CALL_discover_descr_from_pyobject(ctx, dtype, obj)  \
+    HNPY_DT_SLOTS(ctx, dtype)->hdiscover_descr_from_pyobject(ctx, dtype, obj)
 #define NPY_DT_CALL_is_known_scalar_type(dtype, obj)  \
     (NPY_DT_SLOTS(dtype)->is_known_scalar_type != NULL  \
         && NPY_DT_SLOTS(dtype)->is_known_scalar_type(dtype, obj))
 #define NPY_DT_CALL_default_descr(dtype)  \
-    NPY_DT_SLOTS(dtype)->default_descr(dtype)
+    default_descr_function_trampoline(dtype)
+#define HNPY_DT_CALL_default_descr(ctx, dtype)  \
+    HNPY_DT_SLOTS(ctx, dtype)->default_descr(ctx, dtype)
 #define NPY_DT_CALL_common_dtype(dtype, other)  \
     NPY_DT_SLOTS(dtype)->common_dtype(dtype, other)
 #define NPY_DT_CALL_getitem(descr, data_ptr)  \
@@ -156,6 +174,30 @@ PyArray_DTypeFromTypeNum(int typenum)
     return dtype;
 }
 
+static NPY_INLINE PyObject *
+dtypemeta_get_castingimpls(PyArray_DTypeMeta *cls)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_cls = HPy_FromPyObject(ctx, (PyObject *)cls);
+    HPy h_castingimpls = HPyField_Load(ctx, h_cls, HNPY_DT_SLOTS(ctx, h_cls)->castingimpls);
+    PyObject *res = HPy_AsPyObject(ctx, h_castingimpls);
+    HPy_Close(ctx, h_castingimpls);
+    HPy_Close(ctx, h_cls);
+    return res;
+}
+
+static NPY_INLINE PyArray_Descr *
+dtypemeta_get_singleton(PyArray_DTypeMeta *meta)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_meta = HPy_FromPyObject(ctx, (PyObject *)meta);
+    HPy h_singleton = HPyField_Load(ctx, h_meta, meta->singleton);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_singleton);
+    HPy_Close(ctx, h_meta);
+    HPy_Close(ctx, h_singleton);
+    Py_DECREF(res);  // to simulate the borrowed reference...
+    return res;
+}
 
 NPY_NO_EXPORT int
 python_builtins_are_known_scalar_types(
@@ -163,6 +205,9 @@ python_builtins_are_known_scalar_types(
 
 NPY_NO_EXPORT int
 dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *dtypem);
+
+NPY_NO_EXPORT PyArray_Descr *
+default_descr_function_trampoline(PyArray_DTypeMeta *cls);
 
 extern NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;

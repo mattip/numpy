@@ -46,33 +46,38 @@ discover_as_default(PyArray_DTypeMeta *cls, PyObject *NPY_UNUSED(obj))
 }
 
 
-static PyArray_Descr *
-use_new_as_default(PyArray_DTypeMeta *self)
+//static PyArray_Descr *
+//use_new_as_default(PyArray_DTypeMeta *self)
+static HPy
+use_new_as_default(HPyContext *ctx, HPy self)
 {
-    PyObject *res = PyObject_CallObject((PyObject *)self, NULL);
-    if (res == NULL) {
-        return NULL;
+    HPy res = HPy_CallTupleDict(ctx, self, HPy_NULL, HPy_NULL);
+    if (HPy_IsNull(res)) {
+        return HPy_NULL;
     }
     /*
      * Lets not trust that the DType is implemented correctly
      * TODO: Should probably do an exact type-check (at least unless this is
      *       an abstract DType).
      */
-    if (!PyArray_DescrCheck(res)) {
-        PyErr_Format(PyExc_RuntimeError,
+    if (!HPyArray_DescrCheck(ctx, res)) {
+        // TODO HPY LABS PORT: PyErr_Format
+        // PyErr_Format(PyExc_RuntimeError,
+        //        "Instantiating %S did not return a dtype instance, this is "
+        //        "invalid (especially without a custom `default_descr()`).", self);
+
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Instantiating %S did not return a dtype instance, this is "
-                "invalid (especially without a custom `default_descr()`).",
-                self);
-        Py_DECREF(res);
-        return NULL;
+                "invalid (especially without a custom `default_descr()`).");
+        HPy_Close(ctx, res);
+        return HPy_NULL;
     }
-    PyArray_Descr *descr = (PyArray_Descr *)res;
     /*
      * Should probably do some more sanity checks here on the descriptor
      * to ensure the user is not being naughty. But in the end, we have
      * only limited control anyway.
      */
-    return descr;
+    return res;
 }
 
 
@@ -230,22 +235,22 @@ PyArrayInitDTypeMeta_FromSpec(
     /*
      * Handle the scalar type mapping.
      */
-    Py_INCREF(spec->typeobj);
-    DType->scalar_type = spec->typeobj;
-    if (PyType_GetFlags(spec->typeobj) & Py_TPFLAGS_HEAPTYPE) {
-        if (PyObject_SetAttrString((PyObject *)DType->scalar_type,
-                "__associated_array_dtype__", (PyObject *)DType) < 0) {
-            Py_DECREF(DType);
-            return -1;
-        }
-    }
-    if (_PyArray_MapPyTypeToDType(DType, DType->scalar_type, 0) < 0) {
-        Py_DECREF(DType);
-        return -1;
-    }
+    hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
+    // Py_INCREF(spec->typeobj);
+    // DType->scalar_type = spec->typeobj;
+    // if (PyType_GetFlags(spec->typeobj) & Py_TPFLAGS_HEAPTYPE) {
+    //     if (PyObject_SetAttrString((PyObject *)DType->scalar_type,
+    //             "__associated_array_dtype__", (PyObject *)DType) < 0) {
+    //         Py_DECREF(DType);
+    //         return -1;
+    //     }
+    // }
+    // if (_PyArray_MapPyTypeToDType(DType, DType->scalar_type, 0) < 0) {
+    //     Py_DECREF(DType);
+    //     return -1;
+    // }
 
     /* Ensure cast dict is defined (not sure we have to do it here) */
-    hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
     // NPY_DT_SLOTS(DType)->castingimpls = PyDict_New();
     // if (NPY_DT_SLOTS(DType)->castingimpls == NULL) {
     //     return -1;

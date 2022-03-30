@@ -5023,10 +5023,10 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyArray_DTypeMeta *pyarry_descr_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArrayDescr_Type);
     pyarry_descr_data->type_num = -1;
     pyarry_descr_data->flags = NPY_DT_ABSTRACT;
-    pyarry_descr_data->singleton = NULL;
-    pyarry_descr_data->scalar_type = NULL;
+    pyarry_descr_data->singleton = HPyField_NULL;
+    pyarry_descr_data->scalar_type = HPyField_NULL;
 
-    // HPY TODO: storing the types to globals to support legacy code, and HPy code w/o module state
+    // TODO HPY LABS PORT: storing the types to globals to support legacy code, and HPy code w/o module state
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
     PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
 

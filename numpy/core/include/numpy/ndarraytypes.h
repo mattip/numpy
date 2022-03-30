@@ -2067,12 +2067,12 @@ typedef void (PyDataMem_EventHookFunc)(void *inp, void *outp, size_t size,
          * parametric legacy DTypes (bytes, string, void, datetime) this
          * may be a pointer to the *prototype* instance?
          */
-        PyArray_Descr *singleton;
+        HPyField singleton; /* PyArray_Descr *singleton */
         /* Copy of the legacy DTypes type number, usually invalid. */
         int type_num;
 
         /* The type object of the scalar instances (may be NULL?) */
-        PyTypeObject *scalar_type;
+        HPyField scalar_type; /* PyTypeObject *scalar_type */
         /*
          * DType flags to signal legacy, parametric, or
          * abstract.  But plenty of space for additional information/flags.

@@ -160,9 +160,9 @@
  */
 typedef struct {
     PyHeapTypeObject super;
-    PyArray_Descr *singleton;
+    HPyField singleton;
     int type_num;
-    PyTypeObject *scalar_type;
+    HPyField scalar_type;
     npy_uint64 flags;
     void *dt_slots;
     void *reserved[3];
@@ -396,9 +396,17 @@ typedef PyArray_Descr *__get_default_descr(
 static NPY_INLINE PyArray_Descr *
 PyArray_GetDefaultDescr(PyArray_DTypeMeta *DType)
 {
-    if (DType->singleton != NULL) {
-        Py_INCREF(DType->singleton);
-        return DType->singleton;
+    HPyContext *ctx = npy_get_context();
+    PyArray_Descr *res;
+    HPy h_dtype = HPy_FromPyObject(ctx, (PyObject *)DType);
+    PyArray_DTypeMeta *h_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_dtype);
+    HPy h_singleton = HPyField_Load(ctx, h_dtype, h_dtype_data->singleton);
+    HPy_Close(ctx, h_dtype);
+
+    if (!HPy_IsNull(h_singleton)) {
+        res = (PyArray_Descr *) HPy_AsPyObject(ctx, h_singleton);
+        HPy_Close(ctx, h_singleton);
+        return res;
     }
     return _PyArray_GetDefaultDescr(DType);
 }

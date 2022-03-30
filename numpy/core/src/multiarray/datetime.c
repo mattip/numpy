@@ -4093,6 +4093,7 @@ string_to_datetime_cast_get_loop(
 NPY_NO_EXPORT int
 PyArray_InitializeDatetimeCasts()
 {
+    HPyContext *ctx = npy_get_context();
     int result = -1;
 
     PyType_Slot slots[3];
@@ -4181,12 +4182,16 @@ PyArray_InitializeDatetimeCasts()
         NPY_CASTING to_timedelta_casting = NPY_UNSAFE_CASTING;
         if (PyTypeNum_ISINTEGER(num) || num == NPY_BOOL) {
             /* timedelta casts like int64 right now... */
-            if (PyTypeNum_ISUNSIGNED(num) && tmp->singleton->elsize == 8) {
+            HPy h_tmp = HPy_FromPyObject(ctx, (PyObject *)tmp);
+            HPy h_singleton = HPyField_Load(ctx, h_tmp, PyArray_DTypeMeta_AsStruct(ctx, h_tmp)->singleton);
+            if (PyTypeNum_ISUNSIGNED(num) && PyArray_Descr_AsStruct(ctx, h_singleton)->elsize == 8) {
                 to_timedelta_casting = NPY_SAME_KIND_CASTING;
             }
             else {
                 to_timedelta_casting = NPY_SAFE_CASTING;
             }
+            HPy_Close(ctx, h_singleton);
+            HPy_Close(ctx, h_tmp);
         }
         if (PyArray_AddLegacyWrapping_CastingImpl(
                 tmp, timedelta, to_timedelta_casting) < 0) {

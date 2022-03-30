@@ -169,11 +169,7 @@ simple_legacy_resolve_descriptors(
             output_descrs[i] = HPy_Dup(ctx, output_descrs[0]);
         }
         else {
-            CAPI_WARN("simple_legacy_resolve_descriptors");
-            PyArray_Descr *tmp = NPY_DT_CALL_default_descr(
-                    PyArray_DTypeMeta_AsStruct(ctx, dtypes[i]));
-            output_descrs[i] = HPy_FromPyObject(ctx, (PyObject *)tmp);
-            Py_DECREF(tmp);
+            output_descrs[i] = HNPY_DT_CALL_default_descr(ctx, dtypes[i]);
         }
         if (HPy_IsNull(output_descrs[i])) {
             goto fail;
@@ -280,7 +276,7 @@ PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
     }
 
     for (int i = 0; i < ufunc->nin+ufunc->nout; i++) {
-        if (signature[i]->singleton->flags & (
+        if (dtypemeta_get_singleton(signature[i])->flags & (
                 NPY_ITEM_REFCOUNT | NPY_ITEM_IS_POINTER | NPY_NEEDS_PYAPI)) {
             flags |= NPY_METH_REQUIRES_PYAPI;
         }
