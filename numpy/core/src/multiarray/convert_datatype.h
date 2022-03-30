@@ -68,7 +68,7 @@ NPY_NO_EXPORT int
 PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth);
 
 NPY_NO_EXPORT int
-HPyArray_AddCastingImplementation(HPyContext *ctx, PyBoundArrayMethodObject *meth);
+HPyArray_AddCastingImplementation(HPyContext *ctx, HPy bmeth);
 
 NPY_NO_EXPORT int
 PyArray_AddCastingImplementation_FromSpec(PyArrayMethod_Spec *spec, int private);

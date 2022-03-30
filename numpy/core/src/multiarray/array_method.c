@@ -170,12 +170,12 @@ npy_default_get_strided_loop(
  * @return 0 on success -1 on error.
  */
 static int
-validate_spec(PyArrayMethod_Spec *spec)
+validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
 {
     int nargs = spec->nin + spec->nout;
     /* Check the passed spec for invalid fields/values */
     if (spec->nin < 0 || spec->nout < 0 || nargs > NPY_MAXARGS) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                 "ArrayMethod inputs and outputs must be greater zero and"
                 "not exceed %d. (method: %s)", NPY_MAXARGS, spec->name);
         return -1;
@@ -189,13 +189,14 @@ validate_spec(PyArrayMethod_Spec *spec)
             break;
         default:
             if (spec->casting != -1) {
-                PyErr_Format(PyExc_TypeError,
+                HPyErr_Format_p(ctx, ctx->h_TypeError,
                         "ArrayMethod has invalid casting `%d`. (method: %s)",
                         spec->casting, spec->name);
                 return -1;
             }
     }
 
+    HPy dtypemeta = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
     for (int i = 0; i < nargs; i++) {
         /*
          * Note that we could allow for output dtypes to not be specified
@@ -206,25 +207,37 @@ validate_spec(PyArrayMethod_Spec *spec)
          * hold references.  We probably, eventually, have to implement
          * traversal and trust the GC to deal with it.
          */
-        if (spec->dtypes[i] == NULL) {
-            PyErr_Format(PyExc_TypeError,
+        if (HPy_IsNull(spec->dtypes[i])) {
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "ArrayMethod must provide all input and output DTypes. "
                     "(method: %s)", spec->name);
+            HPy_Close(ctx, dtypemeta);
             return -1;
         }
-        if (!PyObject_TypeCheck(spec->dtypes[i], PyArrayDTypeMeta_Type)) {
-            PyErr_Format(PyExc_TypeError,
-                    "ArrayMethod provided object %R is not a DType."
-                    "(method: %s)", spec->dtypes[i], spec->name);
+        if (!HPy_TypeCheck(ctx, spec->dtypes[i], dtypemeta)) {
+            // TODO HPY LABS PORT: PyErr_Format
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
+                    "ArrayMethod provided object XX is not a DType."
+                    "(method: %s)", spec->name);
+            // PyErr_Format(PyExc_TypeError,
+            //         "ArrayMethod provided object %R is not a DType."
+            //         "(method: %s)", spec->dtypes[i], spec->name);
+            HPy_Close(ctx, dtypemeta);
             return -1;
         }
-        if (NPY_DT_is_abstract(spec->dtypes[i])) {
-            PyErr_Format(PyExc_TypeError,
-                    "abstract DType %S are currently not supported."
-                    "(method: %s)", spec->dtypes[i], spec->name);
+        if (NPY_DT_is_abstract(PyArray_Descr_AsStruct(ctx, spec->dtypes[i]))) {
+            // TODO HPY LABS PORT: PyErr_Format
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
+                    "abstract DType XX are currently not supported."
+                    "(method: %s)", spec->name);
+            // PyErr_Format(PyExc_TypeError,
+            //         "abstract DType %S are currently not supported."
+            //         "(method: %s)", spec->dtypes[i], spec->name);
+            HPy_Close(ctx, dtypemeta);
             return -1;
         }
     }
+    HPy_Close(ctx, dtypemeta);
     return 0;
 }
 
@@ -239,12 +252,11 @@ validate_spec(PyArrayMethod_Spec *spec)
  * @return -1 on error 0 on success
  */
 static int
-fill_arraymethod_from_slots(
-        PyBoundArrayMethodObject *res, PyArrayMethod_Spec *spec,
+fill_arraymethod_from_slots(HPyContext *ctx,
+        HPy res, PyBoundArrayMethodObject *data, PyArrayMethod_Spec *spec,
+        HPy h_meth, PyArrayMethodObject *meth,
         int private)
 {
-    PyArrayMethodObject *meth = res->method;
-
     /* Set the defaults */
     meth->get_strided_loop = &npy_default_get_strided_loop;
     meth->resolve_descriptors = &default_resolve_descriptors;
@@ -287,7 +299,7 @@ fill_arraymethod_from_slots(
             default:
                 break;
         }
-        PyErr_Format(PyExc_RuntimeError,
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError,
                 "invalid slot number %d to ArrayMethod: %s",
                 slot->slot, spec->name);
         return -1;
@@ -296,35 +308,40 @@ fill_arraymethod_from_slots(
     /* Check whether the slots are valid: */
     if (meth->resolve_descriptors == &default_resolve_descriptors) {
         if (spec->casting == -1) {
-            PyErr_Format(PyExc_TypeError,
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "Cannot set casting to -1 (invalid) when not providing "
                     "the default `resolve_descriptors` function. "
                     "(method: %s)", spec->name);
             return -1;
         }
         for (int i = 0; i < meth->nin + meth->nout; i++) {
-            if (res->dtypes[i] == NULL) {
+            if (HPyField_IsNull(data->dtypes[i])) {
                 if (i < meth->nin) {
-                    PyErr_Format(PyExc_TypeError,
+                    HPyErr_Format_p(ctx, ctx->h_TypeError,
                             "All input DTypes must be specified when using "
                             "the default `resolve_descriptors` function. "
                             "(method: %s)", spec->name);
                     return -1;
                 }
                 else if (meth->nin == 0) {
-                    PyErr_Format(PyExc_TypeError,
+                    HPyErr_Format_p(ctx, ctx->h_TypeError,
                             "Must specify output DTypes or use custom "
                             "`resolve_descriptors` when there are no inputs. "
                             "(method: %s)", spec->name);
                     return -1;
                 }
             }
-            if (i >= meth->nin && NPY_DT_is_parametric(res->dtypes[i])) {
-                PyErr_Format(PyExc_TypeError,
-                        "must provide a `resolve_descriptors` function if any "
-                        "output DType is parametric. (method: %s)",
-                        spec->name);
-                return -1;
+            if (i >= meth->nin) {
+                HPy h_descr = HPyField_Load(ctx, res, data->dtypes[i]);
+                if (NPY_DT_is_parametric(PyArray_DTypeMeta_AsStruct(ctx, h_descr))) {
+                    HPy_Close(ctx, h_descr);
+                    HPyErr_Format_p(ctx, ctx->h_TypeError,
+                            "must provide a `resolve_descriptors` function if any "
+                            "output DType is parametric. (method: %s)",
+                            spec->name);
+                    return -1;
+                }
+                HPy_Close(ctx, h_descr);
             }
         }
     }
@@ -335,7 +352,7 @@ fill_arraymethod_from_slots(
 
     /* Check whether the provided loops make sense. */
     if (meth->strided_loop == NULL) {
-        PyErr_Format(PyExc_TypeError,
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "Must provide a strided inner loop function. (method: %s)",
                 spec->name);
         return -1;
@@ -345,14 +362,14 @@ fill_arraymethod_from_slots(
     }
     if (meth->unaligned_contiguous_loop != NULL &&
             meth->unaligned_strided_loop == NULL) {
-        PyErr_Format(PyExc_TypeError,
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "Must provide unaligned strided inner loop when providing "
                 "a contiguous version. (method: %s)", spec->name);
         return -1;
     }
     if ((meth->unaligned_strided_loop == NULL) !=
             !(meth->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
-        PyErr_Format(PyExc_TypeError,
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "Must provide unaligned strided inner loop when providing "
                 "a contiguous version. (method: %s)", spec->name);
         return -1;
@@ -371,14 +388,16 @@ fill_arraymethod_from_slots(
 NPY_NO_EXPORT PyObject *
 PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec)
 {
-    for (int i = 0; i < spec->nin + spec->nout; i++) {
-        if (!PyObject_TypeCheck(spec->dtypes[i], PyArrayDTypeMeta_Type)) {
-            PyErr_SetString(PyExc_RuntimeError,
-                    "ArrayMethod spec contained a non DType.");
-            return NULL;
-        }
-    }
-    return (PyObject *)PyArrayMethod_FromSpec_int(spec, 0);
+    hpy_abort_not_implemented("PyArrayMethod_FromSpec");
+    return NULL;
+//    for (int i = 0; i < spec->nin + spec->nout; i++) {
+//        if (!PyObject_TypeCheck(spec->dtypes[i], PyArrayDTypeMeta_Type)) {
+//            PyErr_SetString(PyExc_RuntimeError,
+//                    "ArrayMethod spec contained a non DType.");
+//            return NULL;
+//        }
+//    }
+//    return (PyObject *)PyArrayMethod_FromSpec_int(spec, 0);
 }
 
 
@@ -398,62 +417,88 @@ PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec)
 NPY_NO_EXPORT PyBoundArrayMethodObject *
 PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_res = HPyArrayMethod_FromSpec_int(ctx, spec, private);
+    PyBoundArrayMethodObject *res = (PyBoundArrayMethodObject *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    return res;
+}
+
+//NPY_NO_EXPORT PyBoundArrayMethodObject *
+//PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private)
+NPY_NO_EXPORT HPy
+HPyArrayMethod_FromSpec_int(HPyContext *ctx, PyArrayMethod_Spec *spec, int private)
+{
     int nargs = spec->nin + spec->nout;
 
     if (spec->name == NULL) {
         spec->name = "<unknown>";
     }
 
-    if (validate_spec(spec) < 0) {
-        return NULL;
+    if (validate_spec(ctx, spec) < 0) {
+        return HPy_NULL;
     }
 
-    PyBoundArrayMethodObject *res;
-    res = PyObject_New(PyBoundArrayMethodObject, &PyBoundArrayMethod_Type);
-    if (res == NULL) {
-        return NULL;
-    }
-    res->method = NULL;
+    HPy bound_array_method_type = HPyGlobal_Load(ctx, HPyBoundArrayMethod_Type);
 
-    res->dtypes = PyMem_Malloc(sizeof(PyArray_DTypeMeta *) * nargs);
-    if (res->dtypes == NULL) {
-        Py_DECREF(res);
-        PyErr_NoMemory();
-        return NULL;
+    PyBoundArrayMethodObject *data;
+    HPy res = HPy_New(ctx, bound_array_method_type, &data);
+    HPy_Close(ctx, bound_array_method_type);
+    if (HPy_IsNull(res)) {
+        return HPy_NULL;
+    }
+    data->method = HPyField_NULL;
+    data->nargs = nargs;
+    // TODO: HPY LABS PORT: PyMem_Malloc
+    data->dtypes = calloc(nargs, sizeof(HPy));
+    if (data->dtypes == NULL) {
+        HPy_Close(ctx, res);
+        HPyErr_NoMemory(ctx);
+        return HPy_NULL;
     }
     for (int i = 0; i < nargs ; i++) {
-        Py_XINCREF(spec->dtypes[i]);
-        res->dtypes[i] = spec->dtypes[i];
+        if (!HPy_IsNull(spec->dtypes[i])) {
+            HPyField_Store(ctx, res, &data->dtypes[i], spec->dtypes[i]);
+        } else {
+            data->dtypes[i] = HPyField_NULL;
+        }
     }
-
-    res->method = PyObject_New(PyArrayMethodObject, PyArrayMethod_Type);
-    if (res->method == NULL) {
-        Py_DECREF(res);
-        PyErr_NoMemory();
-        return NULL;
+    HPy array_method_type = HPyGlobal_Load(ctx, HPyArrayMethod_Type);
+    PyArrayMethodObject *method_data;
+    HPy method = HPy_New(ctx, array_method_type, &method_data);
+    HPy_Close(ctx, array_method_type);
+    if (HPy_IsNull(method)) {
+        HPy_Close(ctx, res);
+        HPyErr_NoMemory(ctx);
+        return HPy_NULL;
     }
-    memset((char *)(res->method) + sizeof(PyObject), 0,
-           sizeof(PyArrayMethodObject) - sizeof(PyObject));
+//    memset((char *)(res->method) + sizeof(PyObject), 0,
+//           sizeof(PyArrayMethodObject) - sizeof(PyObject));
 
-    res->method->nin = spec->nin;
-    res->method->nout = spec->nout;
-    res->method->flags = spec->flags;
-    res->method->casting = spec->casting;
-    if (fill_arraymethod_from_slots(res, spec, private) < 0) {
-        Py_DECREF(res);
-        return NULL;
+    method_data->nin = spec->nin;
+    method_data->nout = spec->nout;
+    method_data->flags = spec->flags;
+    method_data->casting = spec->casting;
+    if (fill_arraymethod_from_slots(ctx, res, data, spec, method,
+            method_data, private) < 0) {
+        HPy_Close(ctx, res);
+        HPy_Close(ctx, method);
+        return HPy_NULL;
     }
 
     Py_ssize_t length = strlen(spec->name);
     // TODO HPY LABS PORT: PyMem_Malloc
     // res->method->name = PyMem_Malloc(length + 1);
-    res->method->name = malloc(length + 1);
-    if (res->method->name == NULL) {
-        Py_DECREF(res);
-        PyErr_NoMemory();
-        return NULL;
+    method_data->name = malloc(length + 1);
+    if (method_data->name == NULL) {
+        HPy_Close(ctx, res);
+        HPy_Close(ctx, method);
+        HPyErr_NoMemory(ctx);
+        return HPy_NULL;
     }
-    strcpy(res->method->name, spec->name);
+    strcpy(method_data->name, spec->name);
+    HPyField_Store(ctx, res, &data->method, method);
+    HPy_Close(ctx, method);
 
     return res;
 }
@@ -503,40 +548,49 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec = {
 };
 
 
-static PyObject *
-boundarraymethod_repr(PyBoundArrayMethodObject *self)
+HPyDef_SLOT(boundarraymethod_repr, boundarraymethod_repr_impl, HPy_tp_repr)
+static HPy
+boundarraymethod_repr_impl(HPyContext *ctx, HPy self)
 {
-    int nargs = self->method->nin + self->method->nout;
-    PyObject *dtypes = PyArray_TupleFromItems(
-            nargs, (PyObject **)self->dtypes, 0);
-    if (dtypes == NULL) {
-        return NULL;
+    PyBoundArrayMethodObject *data = PyBoundArrayMethodObject_AsStruct(ctx, self);
+    int nargs = data->nargs;
+    HPy dtypes = HPyArray_TupleFromFields(ctx,
+            nargs, self, data->dtypes, 0);
+    if (HPy_IsNull(dtypes)) {
+        return HPy_NULL;
     }
-    PyObject *repr = PyUnicode_FromFormat(
-                        "<np._BoundArrayMethod `%s` for dtypes %S>",
-                        self->method->name, dtypes);
-    Py_DECREF(dtypes);
+    // TODO HPY LABS PORT: PyUnicode_FromFormat
+    // HPy repr = HPyUnicode_FromString(
+    //                     "<np._BoundArrayMethod `%s` for dtypes %S>",
+    //                     self->method->name, dtypes);
+    HPy repr = HPyUnicode_FromString(ctx,
+                        "<np._BoundArrayMethod `%s` for dtypes %S>");
+    HPy_Close(ctx, dtypes);
     return repr;
 }
 
 
-static void
-boundarraymethod_dealloc(PyObject *self)
+HPyDef_SLOT(boundarraymethod_traverse, boundarraymethod_traverse_impl, HPy_tp_traverse)
+static int
+boundarraymethod_traverse_impl(void *object, HPyFunc_visitproc visit, void *arg)
 {
-    PyBoundArrayMethodObject *meth;
-    meth = ((PyBoundArrayMethodObject *)self);
-    int nargs = meth->method->nin + meth->method->nout;
-
+    PyBoundArrayMethodObject *meth = (PyBoundArrayMethodObject *) object;
+    int nargs = meth->nargs;
     for (int i = 0; i < nargs; i++) {
-        Py_XDECREF(meth->dtypes[i]);
+        HPy_VISIT(&meth->dtypes[i]);
     }
-    PyMem_Free(meth->dtypes);
-
-    Py_XDECREF(meth->method);
-
-    Py_TYPE(self)->tp_free(self);
+    HPy_VISIT(&meth->method);
+    return 0;
 }
 
+HPyDef_SLOT(boundarraymethod_destroy, boundarraymethod_destroy_impl, HPy_tp_destroy)
+static void
+boundarraymethod_destroy_impl(void *object)
+{
+    PyBoundArrayMethodObject *meth = (PyBoundArrayMethodObject *) object;
+    // TODO: HPY LABS PORT: PyMem_Free
+    free(meth->dtypes);
+}
 
 /*
  * Calls resolve_descriptors() and returns the casting level, the resolved
@@ -549,135 +603,140 @@ boundarraymethod_dealloc(PyObject *self)
  * TODO: This function is not public API, and certain code paths will need
  *       changes and especially testing if they were to be made public.
  */
-static PyObject *
-boundarraymethod__resolve_descripors(
-        PyBoundArrayMethodObject *self, PyObject *descr_tuple)
+//    {"_resolve_descriptors", (PyCFunction)boundarraymethod__resolve_descripors,
+//     METH_O, "Resolve the given dtypes."},
+HPyDef_METH(boundarraymethod__resolve_descripors, "_resolve_descriptors", boundarraymethod__resolve_descripors_impl, HPyFunc_O, .doc="Resolve the given dtypes.")
+static HPy
+boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
+        HPy self, HPy descr_tuple)
 {
-    int nin = self->method->nin;
-    int nout = self->method->nout;
-
-    PyArray_Descr *given_descrs[NPY_MAXARGS];
-    PyArray_Descr *loop_descrs[NPY_MAXARGS];
-
-    if (!PyTuple_CheckExact(descr_tuple) ||
-            PyTuple_Size(descr_tuple) != nin + nout) {
-        PyErr_Format(PyExc_TypeError,
-                "_resolve_descriptors() takes exactly one tuple with as many "
-                "elements as the method takes arguments (%d+%d).", nin, nout);
-        return NULL;
-    }
-
-    for (int i = 0; i < nin + nout; i++) {
-        PyObject *tmp = PyTuple_GetItem(descr_tuple, i);
-        if (tmp == NULL) {
-            return NULL;
-        }
-        else if (tmp == Py_None) {
-            if (i < nin) {
-                PyErr_SetString(PyExc_TypeError,
-                        "only output dtypes may be omitted (set to None).");
-                return NULL;
-            }
-            given_descrs[i] = NULL;
-        }
-        else if (PyArray_DescrCheck(tmp)) {
-            if (Py_TYPE(tmp) != (PyTypeObject *)self->dtypes[i]) {
-                PyErr_Format(PyExc_TypeError,
-                        "input dtype %S was not an exact instance of the bound "
-                        "DType class %S.", tmp, self->dtypes[i]);
-                return NULL;
-            }
-            given_descrs[i] = (PyArray_Descr *)tmp;
-        }
-        else {
-            PyErr_SetString(PyExc_TypeError,
-                    "dtype tuple can only contain dtype instances or None.");
-            return NULL;
-        }
-    }
-
-    npy_intp view_offset = NPY_MIN_INTP;
+    // PyBoundArrayMethodObject *self, PyObject *descr_tuple)
     // TODO HPY LABS PORT
     hpy_abort_not_implemented("boundarraymethod__resolve_descripors");
-//    NPY_CASTING casting = self->method->resolve_descriptors(
-//            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
-    NPY_CASTING casting = NPY_NO_CASTING;
-
-    if (casting < 0 && PyErr_Occurred()) {
-        return NULL;
-    }
-    else if (casting < 0) {
-        return Py_BuildValue("iO", casting, Py_None, Py_None);
-    }
-
-    PyObject *result_tuple = PyTuple_New(nin + nout);
-    if (result_tuple == NULL) {
-        return NULL;
-    }
-    for (int i = 0; i < nin + nout; i++) {
-        /* transfer ownership to the tuple. */
-        PyTuple_SET_ITEM(result_tuple, i, (PyObject *)loop_descrs[i]);
-    }
-
-    PyObject *view_offset_obj;
-    if (view_offset == NPY_MIN_INTP) {
-        Py_INCREF(Py_None);
-        view_offset_obj = Py_None;
-    }
-    else {
-        view_offset_obj = PyLong_FromSsize_t(view_offset);
-        if (view_offset_obj == NULL) {
-            Py_DECREF(result_tuple);
-            return NULL;
-        }
-    }
-
-    /*
-     * The casting flags should be the most generic casting level.
-     * If no input is parametric, it must match exactly.
-     *
-     * (Note that these checks are only debugging checks.)
-     */
-    int parametric = 0;
-    for (int i = 0; i < nin + nout; i++) {
-        if (NPY_DT_is_parametric(self->dtypes[i])) {
-            parametric = 1;
-            break;
-        }
-    }
-    if (self->method->casting != -1) {
-        NPY_CASTING cast = casting;
-        if (self->method->casting !=
-                PyArray_MinCastSafety(cast, self->method->casting)) {
-            PyErr_Format(PyExc_RuntimeError,
-                    "resolve_descriptors cast level did not match stored one. "
-                    "(set level is %d, got %d for method %s)",
-                    self->method->casting, cast, self->method->name);
-            Py_DECREF(result_tuple);
-            Py_DECREF(view_offset_obj);
-            return NULL;
-        }
-        if (!parametric) {
-            /*
-             * Non-parametric can only mismatch if it switches from equiv to no
-             * (e.g. due to byteorder changes).
-             */
-            if (cast != self->method->casting &&
-                    self->method->casting != NPY_EQUIV_CASTING) {
-                PyErr_Format(PyExc_RuntimeError,
-                        "resolve_descriptors cast level changed even though "
-                        "the cast is non-parametric where the only possible "
-                        "change should be from equivalent to no casting. "
-                        "(set level is %d, got %d for method %s)",
-                        self->method->casting, cast, self->method->name);
-                Py_DECREF(result_tuple);
-                Py_DECREF(view_offset_obj);
-                return NULL;
-            }
-        }
-    }
-
-    return Py_BuildValue("iNN", casting, result_tuple, view_offset_obj);
+    return HPy_NULL;
+//    int nin = self->method->nin;
+//    int nout = self->method->nout;
+//
+//    PyArray_Descr *given_descrs[NPY_MAXARGS];
+//    PyArray_Descr *loop_descrs[NPY_MAXARGS];
+//
+//    if (!PyTuple_CheckExact(descr_tuple) ||
+//            PyTuple_Size(descr_tuple) != nin + nout) {
+//        PyErr_Format(PyExc_TypeError,
+//                "_resolve_descriptors() takes exactly one tuple with as many "
+//                "elements as the method takes arguments (%d+%d).", nin, nout);
+//        return NULL;
+//    }
+//
+//    for (int i = 0; i < nin + nout; i++) {
+//        PyObject *tmp = PyTuple_GetItem(descr_tuple, i);
+//        if (tmp == NULL) {
+//            return NULL;
+//        }
+//        else if (tmp == Py_None) {
+//            if (i < nin) {
+//                PyErr_SetString(PyExc_TypeError,
+//                        "only output dtypes may be omitted (set to None).");
+//                return NULL;
+//            }
+//            given_descrs[i] = NULL;
+//        }
+//        else if (PyArray_DescrCheck(tmp)) {
+//            if (Py_TYPE(tmp) != (PyTypeObject *)self->dtypes[i]) {
+//                PyErr_Format(PyExc_TypeError,
+//                        "input dtype %S was not an exact instance of the bound "
+//                        "DType class %S.", tmp, self->dtypes[i]);
+//                return NULL;
+//            }
+//            given_descrs[i] = (PyArray_Descr *)tmp;
+//        }
+//        else {
+//            PyErr_SetString(PyExc_TypeError,
+//                    "dtype tuple can only contain dtype instances or None.");
+//            return NULL;
+//        }
+//    }
+//
+//    npy_intp view_offset = NPY_MIN_INTP;
+////    NPY_CASTING casting = self->method->resolve_descriptors(
+////            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
+//    NPY_CASTING casting = NPY_NO_CASTING;
+//
+//    if (casting < 0 && PyErr_Occurred()) {
+//        return NULL;
+//    }
+//    else if (casting < 0) {
+//        return Py_BuildValue("iO", casting, Py_None, Py_None);
+//    }
+//
+//    PyObject *result_tuple = PyTuple_New(nin + nout);
+//    if (result_tuple == NULL) {
+//        return NULL;
+//    }
+//    for (int i = 0; i < nin + nout; i++) {
+//        /* transfer ownership to the tuple. */
+//        PyTuple_SET_ITEM(result_tuple, i, (PyObject *)loop_descrs[i]);
+//    }
+//
+//    PyObject *view_offset_obj;
+//    if (view_offset == NPY_MIN_INTP) {
+//        Py_INCREF(Py_None);
+//        view_offset_obj = Py_None;
+//    }
+//    else {
+//        view_offset_obj = PyLong_FromSsize_t(view_offset);
+//        if (view_offset_obj == NULL) {
+//            Py_DECREF(result_tuple);
+//            return NULL;
+//        }
+//    }
+//
+//    /*
+//     * The casting flags should be the most generic casting level.
+//     * If no input is parametric, it must match exactly.
+//     *
+//     * (Note that these checks are only debugging checks.)
+//     */
+//    int parametric = 0;
+//    for (int i = 0; i < nin + nout; i++) {
+//        if (NPY_DT_is_parametric(self->dtypes[i])) {
+//            parametric = 1;
+//            break;
+//        }
+//    }
+//    if (self->method->casting != -1) {
+//        NPY_CASTING cast = casting;
+//        if (self->method->casting !=
+//                PyArray_MinCastSafety(cast, self->method->casting)) {
+//            PyErr_Format(PyExc_RuntimeError,
+//                    "resolve_descriptors cast level did not match stored one. "
+//                    "(set level is %d, got %d for method %s)",
+//                    self->method->casting, cast, self->method->name);
+//            Py_DECREF(result_tuple);
+//            Py_DECREF(view_offset_obj);
+//            return NULL;
+//        }
+//        if (!parametric) {
+//            /*
+//             * Non-parametric can only mismatch if it switches from equiv to no
+//             * (e.g. due to byteorder changes).
+//             */
+//            if (cast != self->method->casting &&
+//                    self->method->casting != NPY_EQUIV_CASTING) {
+//                PyErr_Format(PyExc_RuntimeError,
+//                        "resolve_descriptors cast level changed even though "
+//                        "the cast is non-parametric where the only possible "
+//                        "change should be from equivalent to no casting. "
+//                        "(set level is %d, got %d for method %s)",
+//                        self->method->casting, cast, self->method->name);
+//                Py_DECREF(result_tuple);
+//                Py_DECREF(view_offset_obj);
+//                return NULL;
+//            }
+//        }
+//    }
+//
+//    return Py_BuildValue("iNN", casting, result_tuple, view_offset_obj);
 }
 
 
@@ -685,134 +744,139 @@ boundarraymethod__resolve_descripors(
  * TODO: This function is not public API, and certain code paths will need
  *       changes and especially testing if they were to be made public.
  */
-static PyObject *
-boundarraymethod__simple_strided_call(
-        PyBoundArrayMethodObject *self, PyObject *arr_tuple)
+HPyDef_METH(boundarraymethod__simple_strided_call, "", boundarraymethod__simple_strided_call_impl, HPyFunc_O, .doc="call on 1-d inputs and pre-allocated outputs (single call).")
+static HPy
+boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
+        HPy self, HPy arr_tuple)
 {
-    PyArrayObject *arrays[NPY_MAXARGS];
-    PyArray_Descr *descrs[NPY_MAXARGS];
-    PyArray_Descr *out_descrs[NPY_MAXARGS];
-    Py_ssize_t length = -1;
-    int aligned = 1;
-    char *args[NPY_MAXARGS];
-    npy_intp strides[NPY_MAXARGS];
-    int nin = self->method->nin;
-    int nout = self->method->nout;
-
-    if (!PyTuple_CheckExact(arr_tuple) ||
-            PyTuple_Size(arr_tuple) != nin + nout) {
-        PyErr_Format(PyExc_TypeError,
-                "_simple_strided_call() takes exactly one tuple with as many "
-                "arrays as the method takes arguments (%d+%d).", nin, nout);
-        return NULL;
-    }
-
-    for (int i = 0; i < nin + nout; i++) {
-        PyObject *tmp = PyTuple_GetItem(arr_tuple, i);
-        if (tmp == NULL) {
-            return NULL;
-        }
-        else if (!PyArray_CheckExact(tmp)) {
-            PyErr_SetString(PyExc_TypeError,
-                    "All inputs must be NumPy arrays.");
-            return NULL;
-        }
-        arrays[i] = (PyArrayObject *)tmp;
-        descrs[i] = PyArray_DESCR(arrays[i]);
-
-        /* Check that the input is compatible with a simple method call. */
-        if (Py_TYPE(descrs[i]) != (PyTypeObject *)self->dtypes[i]) {
-            PyErr_Format(PyExc_TypeError,
-                    "input dtype %S was not an exact instance of the bound "
-                    "DType class %S.", descrs[i], self->dtypes[i]);
-            return NULL;
-        }
-        if (PyArray_NDIM(arrays[i]) != 1) {
-            PyErr_SetString(PyExc_ValueError,
-                    "All arrays must be one dimensional.");
-            return NULL;
-        }
-        if (i == 0) {
-            length = PyArray_SIZE(arrays[i]);
-        }
-        else if (PyArray_SIZE(arrays[i]) != length) {
-            PyErr_SetString(PyExc_ValueError,
-                    "All arrays must have the same length.");
-            return NULL;
-        }
-        if (i >= nin) {
-            if (PyArray_FailUnlessWriteable(
-                    arrays[i], "_simple_strided_call() output") < 0) {
-                return NULL;
-            }
-        }
-
-        args[i] = PyArray_BYTES(arrays[i]);
-        strides[i] = PyArray_STRIDES(arrays[i])[0];
-        /* TODO: We may need to distinguish aligned and itemsize-aligned */
-        aligned &= PyArray_ISALIGNED(arrays[i]);
-    }
-    if (!aligned && !(self->method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
-        PyErr_SetString(PyExc_ValueError,
-                "method does not support unaligned input.");
-        return NULL;
-    }
-
-    npy_intp view_offset = NPY_MIN_INTP;
+    // PyBoundArrayMethodObject *self, PyObject *arr_tuple
+    // TODO HPY LABS PORT
     hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
-//    NPY_CASTING casting = self->method->resolve_descriptors(
-//            self->method, self->dtypes, descrs, out_descrs, &view_offset);
-    NPY_CASTING casting = NPY_NO_CASTING;
-
-    if (casting < 0) {
-        PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
-        PyErr_Fetch(&err_type, &err_value, &err_traceback);
-        PyErr_SetString(PyExc_TypeError,
-                "cannot perform method call with the given dtypes.");
-        npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
-        return NULL;
-    }
-
-    int dtypes_were_adapted = 0;
-    for (int i = 0; i < nin + nout; i++) {
-        /* NOTE: This check is probably much stricter than necessary... */
-        dtypes_were_adapted |= descrs[i] != out_descrs[i];
-        Py_DECREF(out_descrs[i]);
-    }
-    if (dtypes_were_adapted) {
-        PyErr_SetString(PyExc_TypeError,
-                "_simple_strided_call(): requires dtypes to not require a cast "
-                "(must match exactly with `_resolve_descriptors()`).");
-        return NULL;
-    }
-
-    PyArrayMethod_Context context = {
-            .caller = NULL,
-            .method = self->method,
-            .descriptors = descrs,
-    };
-    PyArrayMethod_StridedLoop *strided_loop = NULL;
-    NpyAuxData *loop_data = NULL;
-    NPY_ARRAYMETHOD_FLAGS flags = 0;
-
-    if (self->method->get_strided_loop(
-            &context, aligned, 0, strides,
-            &strided_loop, &loop_data, &flags) < 0) {
-        return NULL;
-    }
-
-    /*
-     * TODO: Add floating point error checks if requested and
-     *       possibly release GIL if allowed by the flags.
-     */
-    int res = strided_loop(&context, args, &length, strides, loop_data);
-    if (loop_data != NULL) {
-        loop_data->free(loop_data);
-    }
-    if (res < 0) {
-        return NULL;
-    }
-    Py_RETURN_NONE;
+    return HPy_NULL;
+//    PyArrayObject *arrays[NPY_MAXARGS];
+//    PyArray_Descr *descrs[NPY_MAXARGS];
+//    PyArray_Descr *out_descrs[NPY_MAXARGS];
+//    Py_ssize_t length = -1;
+//    int aligned = 1;
+//    char *args[NPY_MAXARGS];
+//    npy_intp strides[NPY_MAXARGS];
+//    int nin = self->method->nin;
+//    int nout = self->method->nout;
+//
+//    if (!PyTuple_CheckExact(arr_tuple) ||
+//            PyTuple_Size(arr_tuple) != nin + nout) {
+//        PyErr_Format(PyExc_TypeError,
+//                "_simple_strided_call() takes exactly one tuple with as many "
+//                "arrays as the method takes arguments (%d+%d).", nin, nout);
+//        return NULL;
+//    }
+//
+//    for (int i = 0; i < nin + nout; i++) {
+//        PyObject *tmp = PyTuple_GetItem(arr_tuple, i);
+//        if (tmp == NULL) {
+//            return NULL;
+//        }
+//        else if (!PyArray_CheckExact(tmp)) {
+//            PyErr_SetString(PyExc_TypeError,
+//                    "All inputs must be NumPy arrays.");
+//            return NULL;
+//        }
+//        arrays[i] = (PyArrayObject *)tmp;
+//        descrs[i] = PyArray_DESCR(arrays[i]);
+//
+//        /* Check that the input is compatible with a simple method call. */
+//        if (Py_TYPE(descrs[i]) != (PyTypeObject *)self->dtypes[i]) {
+//            PyErr_Format(PyExc_TypeError,
+//                    "input dtype %S was not an exact instance of the bound "
+//                    "DType class %S.", descrs[i], self->dtypes[i]);
+//            return NULL;
+//        }
+//        if (PyArray_NDIM(arrays[i]) != 1) {
+//            PyErr_SetString(PyExc_ValueError,
+//                    "All arrays must be one dimensional.");
+//            return NULL;
+//        }
+//        if (i == 0) {
+//            length = PyArray_SIZE(arrays[i]);
+//        }
+//        else if (PyArray_SIZE(arrays[i]) != length) {
+//            PyErr_SetString(PyExc_ValueError,
+//                    "All arrays must have the same length.");
+//            return NULL;
+//        }
+//        if (i >= nin) {
+//            if (PyArray_FailUnlessWriteable(
+//                    arrays[i], "_simple_strided_call() output") < 0) {
+//                return NULL;
+//            }
+//        }
+//
+//        args[i] = PyArray_BYTES(arrays[i]);
+//        strides[i] = PyArray_STRIDES(arrays[i])[0];
+//        /* TODO: We may need to distinguish aligned and itemsize-aligned */
+//        aligned &= PyArray_ISALIGNED(arrays[i]);
+//    }
+//    if (!aligned && !(self->method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
+//        PyErr_SetString(PyExc_ValueError,
+//                "method does not support unaligned input.");
+//        return NULL;
+//    }
+//
+//    npy_intp view_offset = NPY_MIN_INTP;
+//    hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
+////    NPY_CASTING casting = self->method->resolve_descriptors(
+////            self->method, self->dtypes, descrs, out_descrs, &view_offset);
+//    NPY_CASTING casting = NPY_NO_CASTING;
+//
+//    if (casting < 0) {
+//        PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
+//        PyErr_Fetch(&err_type, &err_value, &err_traceback);
+//        PyErr_SetString(PyExc_TypeError,
+//                "cannot perform method call with the given dtypes.");
+//        npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
+//        return NULL;
+//    }
+//
+//    int dtypes_were_adapted = 0;
+//    for (int i = 0; i < nin + nout; i++) {
+//        /* NOTE: This check is probably much stricter than necessary... */
+//        dtypes_were_adapted |= descrs[i] != out_descrs[i];
+//        Py_DECREF(out_descrs[i]);
+//    }
+//    if (dtypes_were_adapted) {
+//        PyErr_SetString(PyExc_TypeError,
+//                "_simple_strided_call(): requires dtypes to not require a cast "
+//                "(must match exactly with `_resolve_descriptors()`).");
+//        return NULL;
+//    }
+//
+//    PyArrayMethod_Context context = {
+//            .caller = NULL,
+//            .method = self->method,
+//            .descriptors = descrs,
+//    };
+//    PyArrayMethod_StridedLoop *strided_loop = NULL;
+//    NpyAuxData *loop_data = NULL;
+//    NPY_ARRAYMETHOD_FLAGS flags = 0;
+//
+//    if (self->method->get_strided_loop(
+//            &context, aligned, 0, strides,
+//            &strided_loop, &loop_data, &flags) < 0) {
+//        return NULL;
+//    }
+//
+//    /*
+//     * TODO: Add floating point error checks if requested and
+//     *       possibly release GIL if allowed by the flags.
+//     */
+//    int res = strided_loop(&context, args, &length, strides, loop_data);
+//    if (loop_data != NULL) {
+//        loop_data->free(loop_data);
+//    }
+//    if (res < 0) {
+//        return NULL;
+//    }
+//    Py_RETURN_NONE;
 }
 
 
@@ -981,37 +1045,46 @@ resolve_descriptors_trampoline(
 #undef PARAM_OUT_DESCRS
 
 
-PyMethodDef boundarraymethod_methods[] = {
-    {"_resolve_descriptors", (PyCFunction)boundarraymethod__resolve_descripors,
-     METH_O, "Resolve the given dtypes."},
-    {"_simple_strided_call", (PyCFunction)boundarraymethod__simple_strided_call,
-     METH_O, "call on 1-d inputs and pre-allocated outputs (single call)."},
-    {NULL, 0, 0, NULL},
-};
-
-
-static PyObject *
-boundarraymethod__supports_unaligned(PyBoundArrayMethodObject *self)
+HPyDef_GET(boundarraymethod__supports_unaligned, "_supports_unaligned",
+        boundarraymethod__supports_unaligned_impl,
+        .doc = "whether the method supports unaligned inputs/outputs.")
+static HPy
+boundarraymethod__supports_unaligned_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ptr))
 {
-    return PyBool_FromLong(self->method->flags & NPY_METH_SUPPORTS_UNALIGNED);
+    PyBoundArrayMethodObject *data;
+    HPy h_method = HPyField_Load(ctx, self, data->method);
+    HPy res = HPyBool_FromLong(ctx,
+            PyArrayMethodObject_AsStruct(ctx, h_method)->flags & NPY_METH_SUPPORTS_UNALIGNED);
+    HPy_Close(ctx, h_method);
+    return res;
 }
 
-
-PyGetSetDef boundarraymethods_getters[] = {
-    {"_supports_unaligned",
-     (getter)boundarraymethod__supports_unaligned, NULL,
-     "whether the method supports unaligned inputs/outputs.", NULL},
-    {NULL, NULL, NULL, NULL, NULL},
+static HPyDef *boundarraymethod_defines[] = {
+        &boundarraymethod_traverse,
+        &boundarraymethod_destroy,
+        &boundarraymethod__supports_unaligned,
+        &boundarraymethod_repr,
+        &boundarraymethod__resolve_descripors,
+        &boundarraymethod__simple_strided_call,
+        NULL
 };
 
+//NPY_NO_EXPORT PyTypeObject PyBoundArrayMethod_Type = {
+//    PyVarObject_HEAD_INIT(NULL, 0)
+//    .tp_name = "numpy._BoundArrayMethod",
+//    .tp_basicsize = sizeof(PyBoundArrayMethodObject),
+//    .tp_flags = Py_TPFLAGS_DEFAULT,
+//    .tp_repr = (reprfunc)boundarraymethod_repr,
+//    .tp_dealloc = boundarraymethod_dealloc,
+//    .tp_methods = boundarraymethod_methods,
+//    .tp_getset = boundarraymethods_getters,
+//};
+NPY_NO_EXPORT PyTypeObject *PyBoundArrayMethod_Type;
+NPY_NO_EXPORT HPyGlobal HPyBoundArrayMethod_Type;
 
-NPY_NO_EXPORT PyTypeObject PyBoundArrayMethod_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy._BoundArrayMethod",
-    .tp_basicsize = sizeof(PyBoundArrayMethodObject),
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_repr = (reprfunc)boundarraymethod_repr,
-    .tp_dealloc = boundarraymethod_dealloc,
-    .tp_methods = boundarraymethod_methods,
-    .tp_getset = boundarraymethods_getters,
+NPY_NO_EXPORT HPyType_Spec PyBoundArrayMethod_Type_Spec = {
+    .name = "numpy._BoundArrayMethod",
+    .basicsize = sizeof(PyBoundArrayMethodObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .defines = boundarraymethod_defines,
 };

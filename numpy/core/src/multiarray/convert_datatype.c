@@ -188,29 +188,32 @@ HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
 static PyObject *
 PyArray_GetBoundCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
-    PyObject *method = PyArray_GetCastingImpl(from, to);
-    if (method == NULL || method == Py_None) {
-        return method;
-    }
-
-    /* TODO: Create better way to wrap method into bound method */
-    PyBoundArrayMethodObject *res;
-    res = PyObject_New(PyBoundArrayMethodObject, &PyBoundArrayMethod_Type);
-    if (res == NULL) {
-        return NULL;
-    }
-    res->method = (PyArrayMethodObject *)method;
-    res->dtypes = PyMem_Malloc(2 * sizeof(PyArray_DTypeMeta *));
-    if (res->dtypes == NULL) {
-        Py_DECREF(res);
-        return NULL;
-    }
-    Py_INCREF(from);
-    res->dtypes[0] = from;
-    Py_INCREF(to);
-    res->dtypes[1] = to;
-
-    return (PyObject *)res;
+    // TODO HPY LABS PORT
+    hpy_abort_not_implemented("PyArray_GetBoundCastingImpl");
+    return NULL;
+//    PyObject *method = PyArray_GetCastingImpl(from, to);
+//    if (method == NULL || method == Py_None) {
+//        return method;
+//    }
+//
+//    /* TODO: Create better way to wrap method into bound method */
+//    PyBoundArrayMethodObject *res;
+//    res = PyObject_New(PyBoundArrayMethodObject, PyBoundArrayMethod_Type);
+//    if (res == NULL) {
+//        return NULL;
+//    }
+//    res->method = (PyArrayMethodObject *)method;
+//    res->dtypes = PyMem_Malloc(2 * sizeof(PyArray_DTypeMeta *));
+//    if (res->dtypes == NULL) {
+//        Py_DECREF(res);
+//        return NULL;
+//    }
+//    Py_INCREF(from);
+//    res->dtypes[0] = from;
+//    Py_INCREF(to);
+//    res->dtypes[1] = to;
+//
+//    return (PyObject *)res;
 }
 
 
@@ -2453,34 +2456,38 @@ PyArray_ConvertToCommonType(PyObject *op, int *retn)
 NPY_NO_EXPORT int
 PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth)
 {
-    return HPyArray_AddCastingImplementation(npy_get_context(), meth);
+    HPyContext *ctx = npy_get_context();
+    HPy h_meth = HPy_FromPyObject(ctx, (PyObject *)meth);
+    int res = HPyArray_AddCastingImplementation(ctx, h_meth);
+    HPy_Close(ctx, h_meth);
+    return res;
 }
 
-// TODO HPY LABS PORT: fully migrate once PyBoundArrayMethodObject is an HPy type
 NPY_NO_EXPORT int
-HPyArray_AddCastingImplementation(HPyContext *ctx, PyBoundArrayMethodObject *meth)
+HPyArray_AddCastingImplementation(HPyContext *ctx, HPy bmeth)
 {
-    CAPI_WARN("HPyArray_AddCastingImplementation: usage of legacy PyBoundArrayMethodObject");
-    if (meth->method->nin != 1 || meth->method->nout != 1) {
+    PyBoundArrayMethodObject *bmeth_data = PyBoundArrayMethodObject_AsStruct(ctx, bmeth);
+    HPy h_method = HPyField_Load(ctx, bmeth, bmeth_data->method);
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(ctx, h_method);
+    if (method_data->nin != 1 || method_data->nout != 1) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
                 "A cast must have one input and one output.");
         return -1;
     }
     HPy h_castingimpls = HPy_NULL;
-    HPy h_method = HPy_FromPyObject(ctx, (PyObject *)meth->method);
-    HPy h_dtype = HPy_FromPyObject(ctx, (PyObject *)meth->dtypes[0]);
-    HPy h_dtype1 = HPy_FromPyObject(ctx, (PyObject *)meth->dtypes[1]);
+    HPy h_dtype = HPyField_Load(ctx, bmeth, bmeth_data->dtypes[0]);
+    HPy h_dtype1 = HPyField_Load(ctx, bmeth, bmeth_data->dtypes[1]);
     if (HPy_Is(ctx, h_dtype, h_dtype1)) {
         /*
          * The method casting between instances of the same dtype is special,
          * since it is common, it is stored explicitly (currently) and must
          * obey additional constraints to ensure convenient casting.
          */
-        if (!(meth->method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
+        if (!(method_data->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
             HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "A cast where input and output DType (class) are identical "
                     "must currently support unaligned data. (method: %s)",
-                    meth->method->name);
+                    method_data->name);
             goto fail;
         }
         if (!HPyField_IsNull(HNPY_DT_SLOTS(ctx, h_dtype)->within_dtype_castingimpl)) {
@@ -2493,11 +2500,7 @@ HPyArray_AddCastingImplementation(HPyContext *ctx, PyBoundArrayMethodObject *met
             goto fail;
         }
 
-        HPyContext *ctx = npy_get_context();
-        HPy owner = HPy_FromPyObject(ctx, (PyObject *)meth->dtypes[0]);
-        HPyField_Store(ctx, owner, &NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl, h_method);
-        HPy_Close(ctx, owner);
-
+        HPyField_Store(ctx, h_dtype, &HNPY_DT_SLOTS(ctx, h_dtype)->within_dtype_castingimpl, h_method);
         goto success;
     }
     h_castingimpls = HPY_DTYPE_SLOTS_CASTINGIMPL0(ctx, h_dtype);

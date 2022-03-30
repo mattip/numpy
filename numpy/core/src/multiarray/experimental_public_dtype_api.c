@@ -236,70 +236,70 @@ PyArrayInitDTypeMeta_FromSpec(
      * Handle the scalar type mapping.
      */
     hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
-    // Py_INCREF(spec->typeobj);
-    // DType->scalar_type = spec->typeobj;
-    // if (PyType_GetFlags(spec->typeobj) & Py_TPFLAGS_HEAPTYPE) {
-    //     if (PyObject_SetAttrString((PyObject *)DType->scalar_type,
-    //             "__associated_array_dtype__", (PyObject *)DType) < 0) {
-    //         Py_DECREF(DType);
-    //         return -1;
-    //     }
-    // }
-    // if (_PyArray_MapPyTypeToDType(DType, DType->scalar_type, 0) < 0) {
-    //     Py_DECREF(DType);
-    //     return -1;
-    // }
-
-    /* Ensure cast dict is defined (not sure we have to do it here) */
-    // NPY_DT_SLOTS(DType)->castingimpls = PyDict_New();
-    // if (NPY_DT_SLOTS(DType)->castingimpls == NULL) {
-    //     return -1;
-    // }
-    /*
-     * And now, register all the casts that are currently defined!
-     */
-    PyArrayMethod_Spec **next_meth_spec = spec->casts;
-    while (1) {
-        PyArrayMethod_Spec *meth_spec = *next_meth_spec;
-        next_meth_spec++;
-        if (meth_spec == NULL) {
-            break;
-        }
-        /*
-         * The user doesn't know the name of DType yet, so we have to fill it
-         * in for them!
-         */
-        for (int i=0; i < meth_spec->nin + meth_spec->nout; i++) {
-            if (meth_spec->dtypes[i] == NULL) {
-                meth_spec->dtypes[i] = DType;
-            }
-        }
-        /* Register the cast! */
-        int res = PyArray_AddCastingImplementation_FromSpec(meth_spec, 0);
-
-        /* Also clean up again, so nobody can get bad ideas... */
-        for (int i=0; i < meth_spec->nin + meth_spec->nout; i++) {
-            if (meth_spec->dtypes[i] == DType) {
-                meth_spec->dtypes[i] = NULL;
-            }
-        }
-
-        if (res < 0) {
-            return -1;
-        }
-    }
-
-    if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(DType) == NULL) {
-        /*
-         * We expect this for now. We should have a default for DType that
-         * only supports simple copy (and possibly byte-order assuming that
-         * they swap the full itemsize).
-         */
-        PyErr_SetString(PyExc_RuntimeError,
-                "DType must provide a function to cast (or just copy) between "
-                "its own instances!");
-        return -1;
-    }
+//    Py_INCREF(spec->typeobj);
+//    DType->scalar_type = spec->typeobj;
+//    if (PyType_GetFlags(spec->typeobj) & Py_TPFLAGS_HEAPTYPE) {
+//        if (PyObject_SetAttrString((PyObject *)DType->scalar_type,
+//                "__associated_array_dtype__", (PyObject *)DType) < 0) {
+//            Py_DECREF(DType);
+//            return -1;
+//        }
+//    }
+//    if (_PyArray_MapPyTypeToDType(DType, DType->scalar_type, 0) < 0) {
+//        Py_DECREF(DType);
+//        return -1;
+//    }
+//
+//    /* Ensure cast dict is defined (not sure we have to do it here) */
+//    NPY_DT_SLOTS(DType)->castingimpls = PyDict_New();
+//    if (NPY_DT_SLOTS(DType)->castingimpls == NULL) {
+//        return -1;
+//    }
+//    /*
+//     * And now, register all the casts that are currently defined!
+//     */
+//    PyArrayMethod_Spec **next_meth_spec = spec->casts;
+//    while (1) {
+//        PyArrayMethod_Spec *meth_spec = *next_meth_spec;
+//        next_meth_spec++;
+//        if (meth_spec == NULL) {
+//            break;
+//        }
+//        /*
+//         * The user doesn't know the name of DType yet, so we have to fill it
+//         * in for them!
+//         */
+//        for (int i=0; i < meth_spec->nin + meth_spec->nout; i++) {
+//            if (meth_spec->dtypes[i] == NULL) {
+//                meth_spec->dtypes[i] = DType;
+//            }
+//        }
+//        /* Register the cast! */
+//        int res = PyArray_AddCastingImplementation_FromSpec(meth_spec, 0);
+//
+//        /* Also clean up again, so nobody can get bad ideas... */
+//        for (int i=0; i < meth_spec->nin + meth_spec->nout; i++) {
+//            if (meth_spec->dtypes[i] == DType) {
+//                meth_spec->dtypes[i] = NULL;
+//            }
+//        }
+//
+//        if (res < 0) {
+//            return -1;
+//        }
+//    }
+//
+//    if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(DType) == NULL) {
+//        /*
+//         * We expect this for now. We should have a default for DType that
+//         * only supports simple copy (and possibly byte-order assuming that
+//         * they swap the full itemsize).
+//         */
+//        PyErr_SetString(PyExc_RuntimeError,
+//                "DType must provide a function to cast (or just copy) between "
+//                "its own instances!");
+//        return -1;
+//    }
 
     /* And finally, we have to register all the casts! */
     return 0;
@@ -313,29 +313,32 @@ PyUFunc_AddLoop(PyUFuncObject *ufunc, PyObject *info, int ignore_duplicate);
 static int
 PyUFunc_AddLoopFromSpec(PyObject *ufunc, PyArrayMethod_Spec *spec)
 {
-    if (!PyObject_TypeCheck(ufunc, &PyUFunc_Type)) {
-        PyErr_SetString(PyExc_TypeError,
-                "ufunc object passed is not a ufunc!");
-        return -1;
-    }
-    PyBoundArrayMethodObject *bmeth =
-            (PyBoundArrayMethodObject *)PyArrayMethod_FromSpec(spec);
-    if (bmeth == NULL) {
-        return -1;
-    }
-    int nargs = bmeth->method->nin + bmeth->method->nout;
-    PyObject *dtypes = PyArray_TupleFromItems(
-            nargs, (PyObject **)bmeth->dtypes, 1);
-    if (dtypes == NULL) {
-        return -1;
-    }
-    PyObject *info = PyTuple_Pack(2, dtypes, bmeth->method);
-    Py_DECREF(bmeth);
-    Py_DECREF(dtypes);
-    if (info == NULL) {
-        return -1;
-    }
-    return PyUFunc_AddLoop((PyUFuncObject *)ufunc, info, 0);
+    // TODO HPY LABS PORT
+    hpy_abort_not_implemented("PyUFunc_AddLoopFromSpec");
+    return -1;
+//    if (!PyObject_TypeCheck(ufunc, &PyUFunc_Type)) {
+//        PyErr_SetString(PyExc_TypeError,
+//                "ufunc object passed is not a ufunc!");
+//        return -1;
+//    }
+//    PyBoundArrayMethodObject *bmeth =
+//            (PyBoundArrayMethodObject *)PyArrayMethod_FromSpec(spec);
+//    if (bmeth == NULL) {
+//        return -1;
+//    }
+//    int nargs = bmeth->method->nin + bmeth->method->nout;
+//    PyObject *dtypes = PyArray_TupleFromItems(
+//            nargs, (PyObject **)bmeth->dtypes, 1);
+//    if (dtypes == NULL) {
+//        return -1;
+//    }
+//    PyObject *info = PyTuple_Pack(2, dtypes, bmeth->method);
+//    Py_DECREF(bmeth);
+//    Py_DECREF(dtypes);
+//    if (info == NULL) {
+//        return -1;
+//    }
+//    return PyUFunc_AddLoop((PyUFuncObject *)ufunc, info, 0);
 }
 
 /*

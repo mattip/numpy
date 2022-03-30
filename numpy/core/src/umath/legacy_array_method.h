@@ -10,6 +10,9 @@ NPY_NO_EXPORT PyArrayMethodObject *
 PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *signature[]);
 
+NPY_NO_EXPORT HPy
+HPyArray_NewLegacyWrappingArrayMethod(HPyContext *ctx, PyUFuncObject *ufunc,
+        HPy signature[]);
 
 
 /*

@@ -733,8 +733,11 @@ init_ufuncs(void) {
     if (bmeth == NULL) {
         return -1;
     }
-    int res = add_loop("multiply",
-            bmeth->dtypes, (PyObject *)bmeth->method);
+    hpy_abort_not_implemented("init_ufuncs");
+    int res = -1;
+    // TODO HPY LABS PORT
+//    int res = add_loop("multiply",
+//            bmeth->dtypes, (PyObject *)bmeth->method);
     Py_DECREF(bmeth);
     if (res < 0) {
         return -1;
@@ -751,8 +754,9 @@ init_ufuncs(void) {
     if (bmeth == NULL) {
         return -1;
     }
-    res = add_loop("add",
-            bmeth->dtypes, (PyObject *)bmeth->method);
+    // TODO HPY LABS PORT
+//    res = add_loop("add",
+//            bmeth->dtypes, (PyObject *)bmeth->method);
     Py_DECREF(bmeth);
     if (res < 0) {
         return -1;

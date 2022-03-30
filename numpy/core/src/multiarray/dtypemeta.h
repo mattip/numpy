@@ -186,6 +186,13 @@ dtypemeta_get_castingimpls(PyArray_DTypeMeta *cls)
     return res;
 }
 
+static NPY_INLINE HPy
+hdtypemeta_get_singleton(HPyContext *ctx, HPy h_meta)
+{
+    PyArray_DTypeMeta *data = PyArray_DTypeMeta_AsStruct(ctx, h_meta);
+    return HPyField_Load(ctx, h_meta, data->singleton);
+}
+
 static NPY_INLINE PyArray_Descr *
 dtypemeta_get_singleton(PyArray_DTypeMeta *meta)
 {
