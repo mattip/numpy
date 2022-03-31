@@ -4991,6 +4991,54 @@ static HPyDef *array_module_hpy_methods[] = {
     NULL
 };
 
+static HPyGlobal *module_globals[] = {
+    &HPyArrayDescr_Type,
+    &HPyArray_Type,
+    &HPyArrayDTypeMeta_Type,
+    &HPyArrayMethod_Type,
+    &HPyBoundArrayMethod_Type,
+    &hpy_n_ops.add,
+    &hpy_n_ops.subtract,
+    &hpy_n_ops.multiply,
+    &hpy_n_ops.divide,
+    &hpy_n_ops.remainder,
+    &hpy_n_ops.divmod,
+    &hpy_n_ops.power,
+    &hpy_n_ops.square,
+    &hpy_n_ops.reciprocal,
+    &hpy_n_ops._ones_like,
+    &hpy_n_ops.sqrt,
+    &hpy_n_ops.cbrt,
+    &hpy_n_ops.negative,
+    &hpy_n_ops.positive,
+    &hpy_n_ops.absolute,
+    &hpy_n_ops.invert,
+    &hpy_n_ops.left_shift,
+    &hpy_n_ops.right_shift,
+    &hpy_n_ops.bitwise_and,
+    &hpy_n_ops.bitwise_or,
+    &hpy_n_ops.bitwise_xor,
+    &hpy_n_ops.less,
+    &hpy_n_ops.less_equal,
+    &hpy_n_ops.equal,
+    &hpy_n_ops.not_equal,
+    &hpy_n_ops.greater,
+    &hpy_n_ops.greater_equal,
+    &hpy_n_ops.floor_divide,
+    &hpy_n_ops.true_divide,
+    &hpy_n_ops.logical_or,
+    &hpy_n_ops.logical_and,
+    &hpy_n_ops.floor,
+    &hpy_n_ops.ceil,
+    &hpy_n_ops.maximum,
+    &hpy_n_ops.minimum,
+    &hpy_n_ops.rint,
+    &hpy_n_ops.conjugate,
+    &hpy_n_ops.matmul,
+    &hpy_n_ops.clip,
+    NULL
+};
+
 static HPyModuleDef moduledef = {
     /* HPY TODO: Unclear if a dotted name is legit in .m_name, but universal
      * mode requires it.
@@ -5000,14 +5048,7 @@ static HPyModuleDef moduledef = {
     .size = -1,
     .legacy_methods = array_module_methods,
     .defines = array_module_hpy_methods,
-    .globals = {
-            &HPyArrayDescr_Type,
-            &HPyArray_Type,
-            &HPyArrayDTypeMeta_Type,
-            &HPyArrayMethod_Type,
-            &HPyBoundArrayMethod_Type,
-            NULL
-    }
+    .globals = module_globals,
 };
 
 /* Initialization function for the module */
@@ -5326,7 +5367,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (initumath(m) != 0) {
+    if (initumath(ctx, m, h_d) != 0) {
         goto err;
     }
     /*

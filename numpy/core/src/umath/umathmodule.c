@@ -234,7 +234,7 @@ intern_strings(void)
 
 /* Setup the umath part of the module */
 
-int initumath(PyObject *m)
+int initumath(HPyContext *ctx, PyObject *m, HPy module_dict)
 {
     PyObject *d, *s, *s2;
     int UFUNC_FLOATING_POINT_SUPPORT = 1;
@@ -295,7 +295,7 @@ int initumath(PyObject *m)
     s2 = PyDict_GetItemString(d, "remainder");
     /* Setup the array object's numerical structures with appropriate
        ufuncs in d*/
-    _PyArray_SetNumericOps(d);
+    _PyArray_SetNumericOps(ctx, module_dict);
 
     PyDict_SetItemString(d, "conj", s);
     PyDict_SetItemString(d, "mod", s2);
