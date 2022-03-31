@@ -1051,7 +1051,7 @@ HPyDef_GET(boundarraymethod__supports_unaligned, "_supports_unaligned",
 static HPy
 boundarraymethod__supports_unaligned_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ptr))
 {
-    PyBoundArrayMethodObject *data;
+    PyBoundArrayMethodObject *data = PyBoundArrayMethodObject_AsStruct(ctx, self);
     HPy h_method = HPyField_Load(ctx, self, data->method);
     HPy res = HPyBool_FromLong(ctx,
             PyArrayMethodObject_AsStruct(ctx, h_method)->flags & NPY_METH_SUPPORTS_UNALIGNED);
