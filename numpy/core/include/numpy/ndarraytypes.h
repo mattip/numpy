@@ -13,6 +13,9 @@ extern "C" {
 #endif
 
 #include "hpy.h"
+#include <execinfo.h>
+#include <stdio.h>
+
 extern NPY_NO_EXPORT HPyContext *numpy_global_ctx;
 static NPY_INLINE HPyContext *
 npy_get_context(void)
@@ -20,14 +23,33 @@ npy_get_context(void)
     assert(numpy_global_ctx != NULL);
     return numpy_global_ctx;
 }
+
+static NPY_INLINE
+void _print_stack() {
+    const char *trace_limit_s = getenv("CAPI_WARN_STACKTRACE");
+    if (!trace_limit_s)
+        return;
+    int trace_limit = atoi(trace_limit_s);
+    void* callstack[128];
+    int i, frames = backtrace(callstack, trace_limit);
+    char** strs = backtrace_symbols(callstack, frames);
+    for (i = 0; i < frames; ++i) {
+        printf("%s\n", strs[i]);
+    }
+    free(strs);
+    printf("----\n\n");
+}
+
 static NPY_INLINE
 void capi_warn(const char *where) {
-        printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
+    printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
+    _print_stack();
 }
 
 static NPY_INLINE
 void capi_warn0(const char *caller_name, const char *file, int lineno) {
-        printf("DEBUG WARNING: (%s:%d) leaving to CPython API in %s\n", file, lineno, caller_name);
+    printf("DEBUG WARNING: (%s:%d) leaving to CPython API in %s\n", file, lineno, caller_name);
+    _print_stack();
 }
 
 #define CAPI_WARN(_x) capi_warn0(_x, __FILE__, __LINE__)

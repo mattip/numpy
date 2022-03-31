@@ -18,7 +18,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
-#include "hpy.h"
 
 #include <numpy/npy_common.h>
 #include "numpy/arrayobject.h"
@@ -76,6 +75,10 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "textreading/readtext.h"  /* _readtext_from_file_object */
 
 #include "npy_dlpack.h"
+
+// Added for HPy port:
+#include "hpy.h"
+#include "scalarapi.h"
 
 /*
  *****************************************************************************
@@ -146,6 +149,31 @@ PyArray_GetPriority(PyObject *obj, double default_)
 
     priority = PyFloat_AsDouble(ret);
     Py_DECREF(ret);
+    return priority;
+}
+
+NPY_NO_EXPORT double
+HPyArray_GetPriority(HPyContext *ctx, HPy obj, double default_)
+{
+    double priority = NPY_PRIORITY;
+
+    if (HPyArray_CheckExact(ctx, obj)) {
+        return priority;
+    }
+    else if (HPyArray_CheckAnyScalarExact(ctx, obj)) {
+        return NPY_SCALAR_PRIORITY;
+    }
+
+    HPy ret = HPyArray_LookupSpecial_OnInstance(ctx, obj, "__array_priority__");
+    if (HPy_IsNull(ret)) {
+        if (HPyErr_Occurred(ctx)) {
+            HPyErr_Clear(ctx); /* TODO[gh-14801]: propagate crashes during attribute access? */
+        }
+        return default_;
+    }
+
+    priority = HPyFloat_AsDouble(ctx, ret);
+    HPy_Close(ctx, ret);
     return priority;
 }
 

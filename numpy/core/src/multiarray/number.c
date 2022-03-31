@@ -266,16 +266,18 @@ array_add(PyObject *m1, PyObject *m2)
 {
     PyObject *res;
 
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_add, array_add);
-    if (try_binary_elide(m1, m2, &array_inplace_add, &res, 1)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.add);
+    hpy_abort_not_implemented("array_add...");
+    // BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_add, array_add);
+    // if (try_binary_elide(m1, m2, &array_inplace_add, &res, 1)) {
+    //     return res;
+    // }
+    // return PyArray_GenericBinaryFunction(m1, m2, n_ops.add);
 }
 
 NPY_NO_EXPORT PyObject *
 array_subtract(PyObject *m1, PyObject *m2)
 {
+    CAPI_WARN("array_subtract");
     PyObject *res;
 
     BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_subtract, array_subtract);
@@ -493,6 +495,7 @@ fast_scalar_power(PyObject *o1, PyObject *o2, int inplace,
 NPY_NO_EXPORT PyObject *
 array_power(PyObject *a1, PyObject *o2, PyObject *modulo)
 {
+    CAPI_WARN("array_power");
     PyObject *value = NULL;
 
     if (modulo != Py_None) {
@@ -641,12 +644,22 @@ array_bitwise_xor(PyObject *m1, PyObject *m2)
     return PyArray_GenericBinaryFunction(m1, m2, n_ops.bitwise_xor);
 }
 
-NPY_NO_EXPORT PyObject *
-array_inplace_add(PyArrayObject *m1, PyObject *m2)
-{
-    INPLACE_GIVE_UP_IF_NEEDED(
-            m1, m2, nb_inplace_add, array_inplace_add);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.add);
+HPyDef_SLOT(array_inplace_add, array_inplace_add_impl, HPy_nb_inplace_add)
+HPy array_inplace_add_impl(HPyContext *ctx, /*PyArrayObject*/HPy m1, /*PyObject*/HPy m2)
+{    
+    // If m2's nb_inplace_add != array_inplace_add => give up
+    HPY_INPLACE_GIVE_UP_IF_NEEDED(
+            ctx, m1, m2, &array_inplace_add);
+
+    CAPI_WARN("array_inplace_add");
+    PyObject *py_m1 = HPy_AsPyObject(ctx, m1);
+    PyObject *py_m2 = HPy_AsPyObject(ctx, m2);
+    PyObject *res = PyArray_GenericInplaceBinaryFunction(py_m1, py_m2, n_ops.add);
+    Py_DECREF(py_m1);
+    Py_DECREF(py_m2);
+    HPy h_res = HPy_FromPyObject(ctx, res);
+    Py_DECREF(res);
+    return h_res;
 }
 
 NPY_NO_EXPORT PyObject *
@@ -742,6 +755,7 @@ array_floor_divide(PyObject *m1, PyObject *m2)
 NPY_NO_EXPORT PyObject *
 array_true_divide(PyObject *m1, PyObject *m2)
 {
+    CAPI_WARN("array_true_divide");
     PyObject *res;
     PyArrayObject *a1 = (PyArrayObject *)m1;
 

@@ -1454,6 +1454,7 @@ fail:
 NPY_NO_EXPORT PyObject *
 array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
+    CAPI_WARN("array_richcompare");
     PyArrayObject *array_other;
     PyObject *obj_self = (PyObject *)self;
     PyObject *result = NULL;
@@ -1928,7 +1929,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_float, (unaryfunc)array_float},
     {Py_nb_index, (unaryfunc)array_index},
 
-    {Py_nb_inplace_add, (binaryfunc)array_inplace_add},
     {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
     {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
     {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
@@ -1968,6 +1968,7 @@ static HPyDef *array_defines[] = {
     &array_new,
     &array_traverse,
     &array_finalize,
+    &array_inplace_add,
     NULL,
 };
 

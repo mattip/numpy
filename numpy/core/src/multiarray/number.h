@@ -97,8 +97,7 @@ array_bitwise_or(PyObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_bitwise_xor(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT PyObject *
-array_inplace_add(PyArrayObject *m1, PyObject *m2);
+NPY_NO_EXPORT HPyDef array_inplace_add;
 
 NPY_NO_EXPORT PyObject *
 array_inplace_subtract(PyArrayObject *m1, PyObject *m2);

@@ -197,6 +197,25 @@ PyArray_CheckAnyScalarExact(PyObject * obj)
     return is_anyscalar_exact(obj);
 }
 
+NPY_NO_EXPORT int
+HPyArray_CheckAnyScalarExact(HPyContext *ctx, HPy obj)
+{
+    if (HPy_IsNull(obj)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "obj is NULL in PyArray_CheckAnyScalarExact");
+        return 0;
+    }
+    return hpy_is_anyscalar_exact(ctx, obj);
+}
+
+NPY_NO_EXPORT int
+HPyArray_CheckTypeAnyScalarExact(HPy type)
+{
+    // At some callsites of PyArray_CheckAnyScalarExact the type is already available
+    // and it would be a suboptimal to query for it again
+    return hpy_is_type_anyscalar_exact(type);
+}
+
 /*NUMPY_API
  * Convert to c-type
  *
