@@ -46,18 +46,23 @@ sfloat_is_known_scalar_type(PyArray_DTypeMeta *NPY_UNUSED(cls), PyTypeObject *ty
 }
 
 
-static PyArray_Descr *
-sfloat_default_descr(PyArray_DTypeMeta *NPY_UNUSED(cls))
+static HPy
+sfloat_default_descr(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
-    Py_INCREF(&SFloatSingleton);
-    return (PyArray_Descr *)&SFloatSingleton;
+    return HPy_FromPyObject(ctx, (PyObject *)&SFloatSingleton);
 }
 
 
 static PyArray_Descr *
 sfloat_discover_from_pyobject(PyArray_DTypeMeta *cls, PyObject *NPY_UNUSED(obj))
 {
-    return sfloat_default_descr(cls);
+    HPyContext *ctx = npy_get_context();
+    HPy h_cls = HPy_FromPyObject(ctx, cls);
+    HPy h_res = sfloat_default_descr(ctx, h_cls);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_cls);
+    HPy_Close(ctx, h_res);
+    return res;
 }
 
 
@@ -240,7 +245,7 @@ static PyArray_DTypeMeta PyArray_SFloatDType = {{{
         .tp_basicsize = sizeof(PyArray_SFloatDescr),
     }},
     .type_num = -1,
-    .scalar_type = NULL,
+    .scalar_type = HPyField_NULL,
     .flags = NPY_DT_PARAMETRIC,
     .dt_slots = &sfloat_slots,
 };
@@ -728,8 +733,11 @@ init_ufuncs(void) {
     if (bmeth == NULL) {
         return -1;
     }
-    int res = add_loop("multiply",
-            bmeth->dtypes, (PyObject *)bmeth->method);
+    hpy_abort_not_implemented("init_ufuncs");
+    int res = -1;
+    // TODO HPY LABS PORT
+//    int res = add_loop("multiply",
+//            bmeth->dtypes, (PyObject *)bmeth->method);
     Py_DECREF(bmeth);
     if (res < 0) {
         return -1;
@@ -746,8 +754,9 @@ init_ufuncs(void) {
     if (bmeth == NULL) {
         return -1;
     }
-    res = add_loop("add",
-            bmeth->dtypes, (PyObject *)bmeth->method);
+    // TODO HPY LABS PORT
+//    res = add_loop("add",
+//            bmeth->dtypes, (PyObject *)bmeth->method);
     Py_DECREF(bmeth);
     if (res < 0) {
         return -1;

@@ -382,6 +382,52 @@ PyArray_TupleFromItems(int n, PyObject *const *items, int make_null_none)
     return tuple;
 }
 
+/*
+ * HPy version of PyArray_TupleFromItems
+ */
+static NPY_INLINE HPy
+HPyArray_TupleFromItems(HPyContext *ctx, int n, HPy const *items, int make_null_none)
+{
+    HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, n);
+    if (HPyTupleBuilder_IsNull(builder)) {
+        return HPy_NULL;
+    }
+    for (int i = 0; i < n; i ++) {
+        HPy tmp;
+        if (!make_null_none || !HPy_IsNull(items[i])) {
+            tmp = items[i];
+        }
+        else {
+            tmp = ctx->h_None;
+        }
+        HPyTupleBuilder_Set(ctx, builder, i, tmp);
+    }
+    return HPyTupleBuilder_Build(ctx, builder);
+}
+
+/*
+ * HPy version of PyArray_TupleFromItems
+ */
+static NPY_INLINE HPy
+HPyArray_TupleFromFields(HPyContext *ctx, int n, HPy fields_owner, HPyField const *items, int make_null_none)
+{
+    HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, n);
+    if (HPyTupleBuilder_IsNull(builder)) {
+        return HPy_NULL;
+    }
+    for (int i = 0; i < n; i ++) {
+        if (!make_null_none || !HPyField_IsNull(items[i])) {
+            HPy tmp = HPyField_Load(ctx, fields_owner, items[i]);
+            HPyTupleBuilder_Set(ctx, builder, i, tmp);
+            HPy_Close(ctx, tmp);
+        }
+        else {
+            HPyTupleBuilder_Set(ctx, builder, i, ctx->h_None);
+        }
+    }
+    return HPyTupleBuilder_Build(ctx, builder);
+}
+
 
 #include "ucsnarrow.h"
 

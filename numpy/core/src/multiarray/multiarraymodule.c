@@ -4977,6 +4977,7 @@ static HPyModuleDef moduledef = {
             &HPyArray_Type,
             &HPyArrayDTypeMeta_Type,
             &HPyArrayMethod_Type,
+            &HPyBoundArrayMethod_Type,
             NULL
     }
 };
@@ -5063,10 +5064,10 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyArray_DTypeMeta *pyarry_descr_data = PyArray_DTypeMeta_AsStruct(ctx, h_PyArrayDescr_Type);
     pyarry_descr_data->type_num = -1;
     pyarry_descr_data->flags = NPY_DT_ABSTRACT;
-    pyarry_descr_data->singleton = NULL;
-    pyarry_descr_data->scalar_type = NULL;
+    pyarry_descr_data->singleton = HPyField_NULL;
+    pyarry_descr_data->scalar_type = HPyField_NULL;
 
-    // HPY TODO: storing the types to globals to support legacy code, and HPy code w/o module state
+    // TODO HPY LABS PORT: storing the types to globals to support legacy code, and HPy code w/o module state
     _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
     PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
 
@@ -5272,9 +5273,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPyGlobal_Store(ctx, &HPyArrayMethod_Type, h_array_method_type);
     HPy_Close(ctx, h_array_method_type);
 
-    if (PyType_Ready(&PyBoundArrayMethod_Type) < 0) {
+    HPy h_bound_array_method_type = HPyType_FromSpec(ctx, &PyBoundArrayMethod_Type_Spec, NULL);
+    if (HPy_IsNull(h_bound_array_method_type)) {
         goto err;
     }
+    PyBoundArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_bound_array_method_type);
+    HPyGlobal_Store(ctx, &HPyBoundArrayMethod_Type, h_bound_array_method_type);
+    HPy_Close(ctx, h_bound_array_method_type);
+
     if (initialize_and_map_pytypes_to_dtypes(ctx) < 0) {
         goto err;
     }

@@ -17,6 +17,7 @@
 #include "scalartypes.h"
 #include "convert_datatype.h"
 #include "usertypes.h"
+#include "descriptor.h"
 
 #include <assert.h>
 
@@ -60,7 +61,6 @@ dtypemeta_is_gc(PyObject *dtype_class)
 
 HPyDef_SLOT(DTypeMeta_traverse, DTypeMeta_traverse_impl, HPy_tp_traverse)
 static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg) {
-    // HPY TODO: implement
     /*
      * We have to traverse the base class (if it is a HeapType).
      * PyType_Type will handle this logic for us.
@@ -68,54 +68,66 @@ static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *
      * in the future when we implement HeapTypes (python/dynamically
      * defined types). It should be revised at that time.
      */
-    // HPY TODO: actually implement...
-    // assert(0);
+    // TODO HPY LABS PORT: enable assertion
     // assert(!NPY_DT_is_legacy(type) && (PyTypeObject *)type != &PyArrayDescr_Type);
-    // Py_VISIT(type->singleton);
-    // Py_VISIT(type->scalar_type);
-    // return PyType_Type.tp_traverse((PyObject *)type, visit, arg);
     PyArray_DTypeMeta *self = (PyArray_DTypeMeta*) self_p;
-    if (NPY_DT_SLOTS(self)) {
-        HPy_VISIT(&NPY_DT_SLOTS(self)->castingimpls);
-        HPy_VISIT(&NPY_DT_SLOTS(self)->within_dtype_castingimpl);
+    HPy_VISIT(&self->singleton);
+    HPy_VISIT(&self->scalar_type);
+    NPY_DType_Slots *slots = NPY_DT_SLOTS(self);
+    if (slots) {
+        HPy_VISIT(&slots->castingimpls);
+        HPy_VISIT(&slots->within_dtype_castingimpl);
     }
+    // return PyType_Type.tp_traverse((PyObject *)type, visit, arg);
     return 0;
 }
 
-
-static PyObject *
-legacy_dtype_default_new(PyArray_DTypeMeta *self,
-        PyObject *args, PyObject *kwargs)
-{
-    /* TODO: This should allow endianness and possibly metadata */
-    if (NPY_DT_is_parametric(self)) {
-        /* reject parametric ones since we would need to get unit, etc. info */
-        PyErr_Format(PyExc_TypeError,
-                "Preliminary-API: Flexible/Parametric legacy DType '%S' can "
-                "only be instantiated using `np.dtype(...)`", self);
-        return NULL;
-    }
-
-    if (PyTuple_GET_SIZE(args) != 0 ||
-                (kwargs != NULL && PyDict_Size(kwargs))) {
-        PyErr_Format(PyExc_TypeError,
-                "currently only the no-argument instantiation is supported; "
-                "use `np.dtype` instead.");
-        return NULL;
-    }
-    Py_INCREF(self->singleton);
-    return (PyObject *)self->singleton;
+HPyDef_SLOT(DTypeMeta_destroy, DTypeMeta_destroy_impl, HPy_tp_destroy)
+static void DTypeMeta_destroy_impl(void *self) {
+    PyArray_DTypeMeta *data = (PyArray_DTypeMeta *) self;
+    PyMem_Free(data->dt_slots);
 }
 
 
-static PyArray_Descr *
+
+HPyDef_SLOT(legacy_dtype_default_new, legacy_dtype_default_new_impl, HPy_tp_new)
+static HPy
+legacy_dtype_default_new_impl(HPyContext *ctx, HPy h_self,
+        HPy *args, HPy_ssize_t nargs, HPy kwargs)
+{
+    /* TODO: This should allow endianness and possibly metadata */
+    PyArray_DTypeMeta *self = PyArray_DTypeMeta_AsStruct(ctx, h_self);
+    if (NPY_DT_is_parametric(self)) {
+        /* reject parametric ones since we would need to get unit, etc. info */
+        // TODO HPY LABS PORT: PyErr_Format
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "Preliminary-API: Flexible/Parametric legacy DType '%S' can "
+                "only be instantiated using `np.dtype(...)`");
+        return HPy_NULL;
+    }
+
+    if (nargs != 0 ||
+                (!HPy_IsNull(kwargs) && HPy_Length(ctx, kwargs))) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "currently only the no-argument instantiation is supported; "
+                "use `np.dtype` instead.");
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, h_self, self->singleton);
+}
+
+
+//static PyArray_Descr *
+//nonparametric_discover_descr_from_pyobject(
+//        PyArray_DTypeMeta *cls, PyObject *obj)
+static HPy
 nonparametric_discover_descr_from_pyobject(
-        PyArray_DTypeMeta *cls, PyObject *obj)
+        HPyContext *ctx, HPy cls, HPy obj)
 {
     /* If the object is of the correct scalar type return our singleton */
-    assert(!NPY_DT_is_parametric(cls));
-    Py_INCREF(cls->singleton);
-    return cls->singleton;
+    PyArray_DTypeMeta *cls_data = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    assert(!NPY_DT_is_parametric(cls_data));
+    return HPyField_Load(ctx, cls, cls_data->singleton);
 }
 
 
@@ -200,49 +212,61 @@ discover_datetime_and_timedelta_from_pyobject(
 }
 
 
-static PyArray_Descr *
-nonparametric_default_descr(PyArray_DTypeMeta *cls)
+static HPy
+nonparametric_default_descr(HPyContext *ctx, HPy cls)
 {
-    Py_INCREF(cls->singleton);
-    return cls->singleton;
+    PyArray_DTypeMeta *cls_data = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    return HPyField_Load(ctx, cls, cls_data->singleton);
 }
 
 
 /* Ensure a copy of the singleton (just in case we do adapt it somewhere) */
-static PyArray_Descr *
-datetime_and_timedelta_default_descr(PyArray_DTypeMeta *cls)
+static HPy
+datetime_and_timedelta_default_descr(HPyContext *ctx, HPy cls)
 {
-    return PyArray_DescrNew(cls->singleton);
+    PyArray_DTypeMeta *cls_data = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    HPy h_singleton = HPyField_Load(ctx, cls, cls_data->singleton);
+    HPy res = HPyArray_DescrNew(ctx, h_singleton);
+    HPy_Close(ctx, h_singleton);
+    return res;
 }
 
 
-static PyArray_Descr *
-void_default_descr(PyArray_DTypeMeta *cls)
+static HPy
+void_default_descr(HPyContext *ctx, HPy cls)
 {
-    PyArray_Descr *res = PyArray_DescrNew(cls->singleton);
-    if (res == NULL) {
-        return NULL;
+    PyArray_DTypeMeta *cls_data = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    HPy res = HPyField_Load(ctx, cls, cls_data->singleton);
+    if (HPy_IsNull(res)) {
+        return HPy_NULL;
     }
     /*
      * The legacy behaviour for `np.array([], dtype="V")` is to use "V8".
      * This is because `[]` uses `float64` as dtype, and then that is used
      * for the size of the requested void.
      */
-    res->elsize = 8;
+    PyArray_Descr_AsStruct(ctx, res)->elsize = 8;
     return res;
 }
 
-static PyArray_Descr *
-string_and_unicode_default_descr(PyArray_DTypeMeta *cls)
+static HPy
+string_and_unicode_default_descr(HPyContext *ctx, HPy cls)
 {
-    PyArray_Descr *res = PyArray_DescrNewFromType(cls->type_num);
-    if (res == NULL) {
-        return NULL;
+    PyArray_DTypeMeta *cls_data = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    HPy res;
+    PyArray_Descr *py_res;
+
+    CAPI_WARN("string_and_unicode_default_descr: call to PyArray_DescrNewFromType");
+    py_res = PyArray_DescrNewFromType(cls_data->type_num);
+    if (py_res == NULL) {
+        return HPy_NULL;
     }
-    res->elsize = 1;
-    if (cls->type_num == NPY_UNICODE) {
-        res->elsize *= 4;
+    py_res->elsize = 1;
+    if (cls_data->type_num == NPY_UNICODE) {
+        py_res->elsize *= 4;
     }
+    res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    Py_DECREF(py_res);
     return res;
 }
 
@@ -451,17 +475,57 @@ object_common_dtype(
     return cls;
 }
 
-static PyType_Slot new_dtype_legacy_slots[] = {
-    {Py_tp_new, legacy_dtype_default_new},
-    { 0 },
+static HPyDef *new_dtype_legacy_defines[] = {
+    &legacy_dtype_default_new,
+    NULL
 };
 static HPyType_Spec New_PyArrayDescr_spec_prototype = {
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
-    .legacy_slots = new_dtype_legacy_slots,
+    .defines = new_dtype_legacy_defines,
     .legacy = true,
 };
 
+
+NPY_NO_EXPORT PyArray_Descr *
+default_descr_function_trampoline(PyArray_DTypeMeta *cls)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_cls = HPy_FromPyObject(ctx, (PyObject *)cls);
+    HPy h_res = HNPY_DT_CALL_default_descr(ctx, h_cls);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_cls);
+    return res;
+}
+
+PyArray_Descr *
+discover_descr_from_pyobject_function_trampoline(PyArray_DTypeMeta *cls, PyObject *obj)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_cls = HPy_FromPyObject(ctx, (PyObject *)cls);
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_res = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, h_cls, h_obj);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_cls);
+    return res;
+}
+
+HPy
+hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy obj)
+{
+    CAPI_WARN("hdiscover_descr_from_pyobject_function_trampoline: calling to legacy function");
+    PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, cls);
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyArray_Descr *py_res = NPY_DT_CALL_discover_descr_from_pyobject(py_cls, py_obj);
+    HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    Py_XDECREF(py_res);
+    Py_XDECREF(py_obj);
+    Py_XDECREF(py_cls);
+    return res;
+}
 
 /**
  * This function takes a PyArray_Descr and replaces its base class with
@@ -594,16 +658,20 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
      * Fill DTypeMeta information that varies between DTypes, any variable
      * type information would need to be set before PyType_Ready().
      */
-    new_dtype_data->singleton = descr;
-    Py_INCREF(descr->typeobj);
-    new_dtype_data->scalar_type = descr->typeobj;
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject *)descr);
+    HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->singleton, h_descr);
+    HPy_Close(ctx, h_descr);
+    HPy h_typeobj = HPy_FromPyObject(ctx, (PyObject *)descr->typeobj);
+    HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->scalar_type, h_typeobj);
+    HPy_Close(ctx, h_typeobj);
     new_dtype_data->type_num = descr->type_num;
     new_dtype_data->flags = NPY_DT_LEGACY;
     dt_slots->f = *(descr->f);
 
     /* Set default functions (correct for most dtypes, override below) */
     dt_slots->default_descr = nonparametric_default_descr;
-    dt_slots->discover_descr_from_pyobject = (
+    dt_slots->discover_descr_from_pyobject = discover_descr_from_pyobject_function_trampoline;
+    dt_slots->hdiscover_descr_from_pyobject = (
             nonparametric_discover_descr_from_pyobject);
     dt_slots->is_known_scalar_type = python_builtins_are_known_scalar_types;
     dt_slots->common_dtype = default_builtin_common_dtype;
@@ -626,6 +694,8 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
         dt_slots->default_descr = datetime_and_timedelta_default_descr;
         dt_slots->discover_descr_from_pyobject = (
                 discover_datetime_and_timedelta_from_pyobject);
+        dt_slots->hdiscover_descr_from_pyobject = (
+                hdiscover_descr_from_pyobject_function_trampoline);
         dt_slots->common_dtype = datetime_common_dtype;
         dt_slots->common_instance = datetime_type_promotion;
         if (descr->type_num == NPY_DATETIME) {
@@ -638,6 +708,8 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
             dt_slots->default_descr = void_default_descr;
             dt_slots->discover_descr_from_pyobject = (
                     void_discover_descr_from_pyobject);
+            dt_slots->hdiscover_descr_from_pyobject = (
+                    hdiscover_descr_from_pyobject_function_trampoline);
             dt_slots->common_instance = void_common_instance;
         }
         else {
@@ -645,6 +717,8 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
             dt_slots->is_known_scalar_type = string_known_scalar_types;
             dt_slots->discover_descr_from_pyobject = (
                     string_discover_descr_from_pyobject);
+            dt_slots->hdiscover_descr_from_pyobject = (
+                    hdiscover_descr_from_pyobject_function_trampoline);
             dt_slots->common_dtype = string_unicode_common_dtype;
             dt_slots->common_instance = string_unicode_common_instance;
         }
@@ -706,8 +780,9 @@ NPY_NO_EXPORT PyType_Slot PyArrayDTypeMeta_Type_legacy_slots[] = {
     {0, 0},
 };
 
-NPY_NO_EXPORT HPyDef *PyArrayDTypeMeta_Type_slots[] = {
+NPY_NO_EXPORT HPyDef *PyArrayDTypeMeta_Type_defines[] = {
     &DTypeMeta_traverse,
+    &DTypeMeta_destroy,
     0,
 };
 
@@ -718,7 +793,6 @@ NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec = {
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)",
     .legacy = true,
-    .defines = PyArrayDTypeMeta_Type_slots,
+    .defines = PyArrayDTypeMeta_Type_defines,
     .legacy_slots = &PyArrayDTypeMeta_Type_legacy_slots,
-    // HPY TODO: .tp_traverse = (traverseproc)dtypemeta_traverse,
 };

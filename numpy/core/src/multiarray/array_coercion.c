@@ -257,7 +257,15 @@ discover_dtype_from_pyobject(
          * handle the scalar-type.  (Even if it cannot handle here it may be
          * asked to attempt to do so later, if no other matching DType exists.)
          */
-        if ((Py_TYPE(obj) == fixed_DType->scalar_type) ||
+        HPyContext *ctx = npy_get_context();
+        HPy h_fixed_DType = HPy_FromPyObject(ctx, (PyObject *)fixed_DType);
+        HPy h_scalar_type = HPyField_Load(ctx, h_fixed_DType, PyArray_DTypeMeta_AsStruct(ctx, h_fixed_DType)->scalar_type);
+        PyTypeObject *scalar_type = (PyTypeObject *)HPy_AsPyObject(ctx, h_scalar_type);
+        int is_scalar_type = Py_TYPE(obj) == scalar_type;
+        Py_DECREF(scalar_type);
+        HPy_Close(ctx, h_scalar_type);
+        HPy_Close(ctx, h_fixed_DType);
+        if (is_scalar_type ||
                 NPY_DT_CALL_is_known_scalar_type(fixed_DType, Py_TYPE(obj))) {
             Py_INCREF(fixed_DType);
             return fixed_DType;

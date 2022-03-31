@@ -541,7 +541,7 @@ _make_new_typetup(
                 Py_SETREF(*out_typetup, NULL);
                 return -1;
             }
-            item = (PyObject *)signature[i]->singleton;
+            item = (PyObject *)dtypemeta_get_singleton(signature[i]);
         }
         Py_INCREF(item);
         PyTuple_SET_ITEM(*out_typetup, i, item);

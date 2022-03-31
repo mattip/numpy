@@ -4301,6 +4301,7 @@ _get_dtype(PyObject *dtype_obj) {
             return NULL;
         }
         PyArray_DTypeMeta *out = NPY_DTYPE(descr);
+        PyArray_Descr *singleton = dtypemeta_get_singleton(out);
         if (NPY_UNLIKELY(!NPY_DT_is_legacy(out))) {
             /* TODO: this path was unreachable when added. */
             PyErr_SetString(PyExc_TypeError,
@@ -4310,9 +4311,9 @@ _get_dtype(PyObject *dtype_obj) {
             Py_DECREF(descr);
             return NULL;
         }
-        else if (NPY_UNLIKELY(out->singleton != descr)) {
+        else if (NPY_UNLIKELY(singleton != descr)) {
             /* This does not warn about `metadata`, but units is important. */
-            if (!PyArray_EquivTypes(out->singleton, descr)) {
+            if (!PyArray_EquivTypes(singleton, descr)) {
                 /* Deprecated NumPy 1.21.2 (was an accidental error in 1.21) */
                 if (DEPRECATE(
                         "The `dtype` and `signature` arguments to "

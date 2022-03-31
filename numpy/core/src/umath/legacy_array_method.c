@@ -16,6 +16,7 @@
 #include "dtype_transfer.h"
 #include "legacy_array_method.h"
 #include "dtypemeta.h"
+#include "../multiarray/hpy_utils.h"
 
 
 typedef struct {
@@ -169,11 +170,7 @@ simple_legacy_resolve_descriptors(
             output_descrs[i] = HPy_Dup(ctx, output_descrs[0]);
         }
         else {
-            CAPI_WARN("simple_legacy_resolve_descriptors");
-            PyArray_Descr *tmp = NPY_DT_CALL_default_descr(
-                    PyArray_DTypeMeta_AsStruct(ctx, dtypes[i]));
-            output_descrs[i] = HPy_FromPyObject(ctx, (PyObject *)tmp);
-            Py_DECREF(tmp);
+            output_descrs[i] = HNPY_DT_CALL_default_descr(ctx, dtypes[i]);
         }
         if (HPy_IsNull(output_descrs[i])) {
             goto fail;
@@ -249,6 +246,22 @@ NPY_NO_EXPORT PyArrayMethodObject *
 PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *signature[])
 {
+    HPyContext *ctx = npy_get_context();
+    int nargs = ufunc->nin+ufunc->nout;
+    HPy *h_signature = HPy_FromPyObjectArray(ctx, (PyObject **)signature, nargs);
+    HPy h_res = HPyArray_NewLegacyWrappingArrayMethod(ctx, ufunc, h_signature);
+    PyArrayMethodObject *res = (PyArrayMethodObject *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_CloseAndFreeArray(ctx, h_signature, nargs);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_NewLegacyWrappingArrayMethod(HPyContext *ctx, PyUFuncObject *ufunc,
+        HPy signature[])
+{
+    // PyArray_DTypeMeta *signature[]
+#define DATA(ctx, h) PyArray_DTypeMeta_AsStruct(ctx, h)
     char method_name[101];
     const char *name = ufunc->name ? ufunc->name : "<unknown>";
     snprintf(method_name, 100, "legacy_ufunc_wrapper_for_%s", name);
@@ -260,9 +273,9 @@ PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
     int any_output_flexible = 0;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
     if (ufunc->nargs == 3 &&
-            signature[0]->type_num == NPY_BOOL &&
-            signature[1]->type_num == NPY_BOOL &&
-            signature[2]->type_num == NPY_BOOL && (
+            DATA(ctx, signature[0])->type_num == NPY_BOOL &&
+            DATA(ctx, signature[1])->type_num == NPY_BOOL &&
+            DATA(ctx, signature[2])->type_num == NPY_BOOL && (
                 strcmp(ufunc->name, "logical_or") == 0 ||
                 strcmp(ufunc->name, "logical_and") == 0 ||
                 strcmp(ufunc->name, "logical_xor") == 0)) {
@@ -280,11 +293,13 @@ PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
     }
 
     for (int i = 0; i < ufunc->nin+ufunc->nout; i++) {
-        if (signature[i]->singleton->flags & (
+        HPy h_singleton = hdtypemeta_get_singleton(ctx, signature[i]);
+        if (PyArray_Descr_AsStruct(ctx, h_singleton)->flags & (
                 NPY_ITEM_REFCOUNT | NPY_ITEM_IS_POINTER | NPY_NEEDS_PYAPI)) {
             flags |= NPY_METH_REQUIRES_PYAPI;
         }
-        if (NPY_DT_is_parametric(signature[i])) {
+        HPy_Close(ctx, h_singleton);
+        if (NPY_DT_is_parametric(DATA(ctx, signature[i]))) {
             any_output_flexible = 1;
         }
     }
@@ -309,12 +324,13 @@ PyArray_NewLegacyWrappingArrayMethod(PyUFuncObject *ufunc,
         .casting = NPY_NO_CASTING,
     };
 
-    PyBoundArrayMethodObject *bound_res = PyArrayMethod_FromSpec_int(&spec, 1);
-    if (bound_res == NULL) {
-        return NULL;
+    HPy bound_res = HPyArrayMethod_FromSpec_int(ctx, &spec, 1);
+    if (HPy_IsNull(bound_res)) {
+        return HPy_NULL;
     }
-    PyArrayMethodObject *res = bound_res->method;
-    Py_INCREF(res);
-    Py_DECREF(bound_res);
+    PyBoundArrayMethodObject *bound_res_data = PyBoundArrayMethodObject_AsStruct(ctx, bound_res);
+    // PyArrayMethodObject *res
+    HPy res = HPyField_Load(ctx, bound_res, bound_res_data->method);
+    HPy_Close(ctx, bound_res);
     return res;
 }

@@ -2529,8 +2529,14 @@ arraydescr_new(PyTypeObject *subtype,
             }
             PyObject_Init((PyObject *)descr, subtype);
             descr->f = &NPY_DT_SLOTS(DType)->f;
-            Py_XINCREF(DType->scalar_type);
-            descr->typeobj = DType->scalar_type;
+            //Py_XINCREF(DType->scalar_type);
+            HPyContext *ctx = npy_get_context();
+            HPy h_DType = HPy_FromPyObject(ctx,(PyObject *)DType);
+            PyArray_DTypeMeta *h_DType_data = PyArray_DTypeMeta_AsStruct(ctx, h_DType);
+            HPy h_scalar_type = HPyField_Load(ctx, h_DType, h_DType_data->scalar_type);
+            HPy_Close(ctx, h_DType);
+            descr->typeobj = (PyObject *)HPy_AsPyObject(ctx, h_scalar_type);
+            HPy_Close(ctx, h_scalar_type);
             descr->type_num = DType->type_num;
             descr->flags = NPY_USE_GETITEM|NPY_USE_SETITEM;
             descr->byteorder = '|';  /* If DType uses it, let it override */

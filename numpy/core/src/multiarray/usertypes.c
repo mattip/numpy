@@ -481,7 +481,15 @@ legacy_userdtype_common_dtype_function(
      */
 
     /* Convert the 'kind' char into a scalar kind */
-    switch (cls->singleton->kind) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_cls = HPy_FromPyObject(ctx, (PyObject *)cls);
+    HPy h_other = HPy_FromPyObject(ctx, (PyObject *)other);
+    HPy h_cls_singleton = HPyField_Load(ctx, h_cls, cls->singleton);
+    HPy h_other_singleton = HPyField_Load(ctx, h_other, other->singleton);
+
+    PyArray_Descr *h_cls_singleton_data = PyArray_Descr_AsStruct(ctx, h_cls_singleton);
+    PyArray_Descr *h_other_singleton_data = PyArray_Descr_AsStruct(ctx, h_other_singleton);
+    switch (h_cls_singleton_data->kind) {
         case 'b':
             skind1 = NPY_BOOL_SCALAR;
             break;
@@ -498,7 +506,7 @@ legacy_userdtype_common_dtype_function(
             skind1 = NPY_COMPLEX_SCALAR;
             break;
     }
-    switch (other->singleton->kind) {
+    switch (h_other_singleton_data->kind) {
         case 'b':
             skind2 = NPY_BOOL_SCALAR;
             break;
@@ -515,6 +523,11 @@ legacy_userdtype_common_dtype_function(
             skind2 = NPY_COMPLEX_SCALAR;
             break;
     }
+
+    HPy_Close(ctx, h_cls);
+    HPy_Close(ctx, h_other);
+    HPy_Close(ctx, h_cls_singleton);
+    HPy_Close(ctx, h_other_singleton);
 
     /* If both are scalars, there may be a promotion possible */
     if (skind1 != NPY_NOSCALAR && skind2 != NPY_NOSCALAR) {
@@ -568,15 +581,17 @@ PyArray_AddLegacyWrapping_CastingImpl(
         PyArray_DTypeMeta *from, PyArray_DTypeMeta *to, NPY_CASTING casting)
 {
     if (casting < 0) {
+        PyArray_Descr *from_singleton = dtypemeta_get_singleton(from);
+        PyArray_Descr *to_singleton = dtypemeta_get_singleton(to);
         if (from == to) {
             casting = NPY_NO_CASTING;
         }
         else if (PyArray_LegacyCanCastTypeTo(
-                from->singleton, to->singleton, NPY_SAFE_CASTING)) {
+                from_singleton, to_singleton, NPY_SAFE_CASTING)) {
             casting = NPY_SAFE_CASTING;
         }
         else if (PyArray_LegacyCanCastTypeTo(
-                from->singleton, to->singleton, NPY_SAME_KIND_CASTING)) {
+                from_singleton, to_singleton, NPY_SAME_KIND_CASTING)) {
             casting = NPY_SAME_KIND_CASTING;
         }
         else {

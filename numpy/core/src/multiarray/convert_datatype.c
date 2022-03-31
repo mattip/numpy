@@ -72,91 +72,14 @@ PyArray_GetObjectToGenericCastingImpl(void);
 NPY_NO_EXPORT PyObject *
 PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
-    PyObject *res;
-    if (from == to) {
-        res = DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(from);
-    }
-    else {
-        res = PyDict_GetItemWithError(DTYPE_SLOTS_CASTINGIMPL(from), (PyObject *)to);
-    }
-    if (res != NULL || PyErr_Occurred()) {
-        Py_XINCREF(res);
-        return res;
-    }
-    /*
-     * The following code looks up CastingImpl based on the fact that anything
-     * can be cast to and from objects or structured (void) dtypes.
-     *
-     * The last part adds casts dynamically based on legacy definition
-     */
-    if (from->type_num == NPY_OBJECT) {
-        res = PyArray_GetObjectToGenericCastingImpl();
-    }
-    else if (to->type_num == NPY_OBJECT) {
-        res = PyArray_GetGenericToObjectCastingImpl();
-    }
-    else if (from->type_num == NPY_VOID) {
-        res = PyArray_GetVoidToGenericCastingImpl();
-    }
-    else if (to->type_num == NPY_VOID) {
-        res = PyArray_GetGenericToVoidCastingImpl();
-    }
-    else if (from->type_num < NPY_NTYPES && to->type_num < NPY_NTYPES) {
-        /* All builtin dtypes have their casts explicitly defined. */
-        PyErr_Format(PyExc_RuntimeError,
-                "builtin cast from %S to %S not found, this should not "
-                "be possible.", from, to);
-        return NULL;
-    }
-    else {
-        if (NPY_DT_is_parametric(from) || NPY_DT_is_parametric(to)) {
-            Py_RETURN_NONE;
-        }
-        /* Reject non-legacy dtypes (they need to use the new API) */
-        if (!NPY_DT_is_legacy(from) || !NPY_DT_is_legacy(to)) {
-            Py_RETURN_NONE;
-        }
-        if (from != to) {
-            /* A cast function must have been registered */
-            PyArray_VectorUnaryFunc *castfunc = PyArray_GetCastFunc(
-                    from->singleton, to->type_num);
-            if (castfunc == NULL) {
-                PyErr_Clear();
-                /* Remember that this cast is not possible */
-                if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
-                            (PyObject *) to, Py_None) < 0) {
-                    return NULL;
-                }
-                Py_RETURN_NONE;
-            }
-        }
-
-        /* PyArray_AddLegacyWrapping_CastingImpl find the correct casting level: */
-        /*
-         * TODO: Possibly move this to the cast registration time. But if we do
-         *       that, we have to also update the cast when the casting safety
-         *       is registered.
-         */
-        if (PyArray_AddLegacyWrapping_CastingImpl(from, to, -1) < 0) {
-            return NULL;
-        }
-        return PyArray_GetCastingImpl(from, to);
-    }
-
-    if (res == NULL) {
-        return NULL;
-    }
-    if (from == to) {
-        PyErr_Format(PyExc_RuntimeError,
-                "Internal NumPy error, within-DType cast missing for %S!", from);
-        Py_DECREF(res);
-        return NULL;
-    }
-    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(from),
-                (PyObject *)to, res) < 0) {
-        Py_DECREF(res);
-        return NULL;
-    }
+    HPyContext *ctx = npy_get_context();
+    HPy h_from = HPy_FromPyObject(ctx, (PyObject *)from);
+    HPy h_to = HPy_FromPyObject(ctx, (PyObject *)to);
+    HPy h_res = HPyArray_GetCastingImpl(ctx, h_from, h_to);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_to);
+    HPy_Close(ctx, h_from);
     return res;
 }
 
@@ -268,29 +191,32 @@ HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
 static PyObject *
 PyArray_GetBoundCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
-    PyObject *method = PyArray_GetCastingImpl(from, to);
-    if (method == NULL || method == Py_None) {
-        return method;
-    }
-
-    /* TODO: Create better way to wrap method into bound method */
-    PyBoundArrayMethodObject *res;
-    res = PyObject_New(PyBoundArrayMethodObject, &PyBoundArrayMethod_Type);
-    if (res == NULL) {
-        return NULL;
-    }
-    res->method = (PyArrayMethodObject *)method;
-    res->dtypes = PyMem_Malloc(2 * sizeof(PyArray_DTypeMeta *));
-    if (res->dtypes == NULL) {
-        Py_DECREF(res);
-        return NULL;
-    }
-    Py_INCREF(from);
-    res->dtypes[0] = from;
-    Py_INCREF(to);
-    res->dtypes[1] = to;
-
-    return (PyObject *)res;
+    // TODO HPY LABS PORT
+    hpy_abort_not_implemented("PyArray_GetBoundCastingImpl");
+    return NULL;
+//    PyObject *method = PyArray_GetCastingImpl(from, to);
+//    if (method == NULL || method == Py_None) {
+//        return method;
+//    }
+//
+//    /* TODO: Create better way to wrap method into bound method */
+//    PyBoundArrayMethodObject *res;
+//    res = PyObject_New(PyBoundArrayMethodObject, PyBoundArrayMethod_Type);
+//    if (res == NULL) {
+//        return NULL;
+//    }
+//    res->method = (PyArrayMethodObject *)method;
+//    res->dtypes = PyMem_Malloc(2 * sizeof(PyArray_DTypeMeta *));
+//    if (res->dtypes == NULL) {
+//        Py_DECREF(res);
+//        return NULL;
+//    }
+//    Py_INCREF(from);
+//    res->dtypes[0] = from;
+//    Py_INCREF(to);
+//    res->dtypes[1] = to;
+//
+//    return (PyObject *)res;
 }
 
 
@@ -2611,53 +2537,80 @@ PyArray_ConvertToCommonType(PyObject *op, int *retn)
 NPY_NO_EXPORT int
 PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth)
 {
-    if (meth->method->nin != 1 || meth->method->nout != 1) {
-        PyErr_SetString(PyExc_TypeError,
+    HPyContext *ctx = npy_get_context();
+    HPy h_meth = HPy_FromPyObject(ctx, (PyObject *)meth);
+    int res = HPyArray_AddCastingImplementation(ctx, h_meth);
+    HPy_Close(ctx, h_meth);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyArray_AddCastingImplementation(HPyContext *ctx, HPy bmeth)
+{
+    PyBoundArrayMethodObject *bmeth_data = PyBoundArrayMethodObject_AsStruct(ctx, bmeth);
+    HPy h_method = HPyField_Load(ctx, bmeth, bmeth_data->method);
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(ctx, h_method);
+    if (method_data->nin != 1 || method_data->nout != 1) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "A cast must have one input and one output.");
         return -1;
     }
-    if (meth->dtypes[0] == meth->dtypes[1]) {
+    HPy h_castingimpls = HPy_NULL;
+    HPy h_dtype = HPyField_Load(ctx, bmeth, bmeth_data->dtypes[0]);
+    HPy h_dtype1 = HPyField_Load(ctx, bmeth, bmeth_data->dtypes[1]);
+    if (HPy_Is(ctx, h_dtype, h_dtype1)) {
         /*
          * The method casting between instances of the same dtype is special,
          * since it is common, it is stored explicitly (currently) and must
          * obey additional constraints to ensure convenient casting.
          */
-        if (!(meth->method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
-            PyErr_Format(PyExc_TypeError,
+        if (!(method_data->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "A cast where input and output DType (class) are identical "
                     "must currently support unaligned data. (method: %s)",
-                    meth->method->name);
-            return -1;
+                    method_data->name);
+            goto fail;
         }
-        if (DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(meth->dtypes[0]) != NULL) {
-            PyErr_Format(PyExc_RuntimeError,
-                    "A cast was already added for %S -> %S. (method: %s)",
-                    meth->dtypes[0], meth->dtypes[1], meth->method->name);
-            return -1;
+        if (!HPyField_IsNull(HNPY_DT_SLOTS(ctx, h_dtype)->within_dtype_castingimpl)) {
+            // TODO HPY LABS PORT: PyErr_Format
+            // HPyErr_SetString(ctx, ctx->h_TypeError,
+            //        "A cast was already added for %S -> %S. (method: %s)",
+            //        meth->dtypes[0], meth->dtypes[1], meth->method->name);
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "A cast was already added for %S -> %S. (method: %s)");
+            goto fail;
         }
-        Py_INCREF(meth->method);
 
-        HPyContext *ctx = npy_get_context();
-        HPy owner = HPy_FromPyObject(ctx, meth->dtypes[0]);
-        HPy value = HPy_FromPyObject(ctx, meth->method);
-        HPyField_Store(ctx, owner, &NPY_DT_SLOTS(meth->dtypes[0])->within_dtype_castingimpl, value);
-        HPy_Close(ctx, owner);
-        HPy_Close(ctx, value);
+        HPyField_Store(ctx, h_dtype, &HNPY_DT_SLOTS(ctx, h_dtype)->within_dtype_castingimpl, h_method);
+        goto success;
+    }
+    h_castingimpls = HPY_DTYPE_SLOTS_CASTINGIMPL0(ctx, h_dtype);
+    int c = HPy_Contains(ctx, h_castingimpls, h_dtype1);
+    if (c) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                 "A cast was already added for %S -> %S. (method: %s)");
+        // PyErr_Format(PyExc_RuntimeError,
+        //         "A cast was already added for %S -> %S. (method: %s)",
+        //         meth->dtypes[0], meth->dtypes[1], meth->method->name);
+        goto fail;
+    }
+    if (HPy_SetItem(ctx, h_castingimpls, h_dtype1, h_method) < 0) {
+        goto fail;
+    }
 
-        return 0;
-    }
-    if (PyDict_Contains(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
-            (PyObject *)meth->dtypes[1])) {
-        PyErr_Format(PyExc_RuntimeError,
-                "A cast was already added for %S -> %S. (method: %s)",
-                meth->dtypes[0], meth->dtypes[1], meth->method->name);
-        return -1;
-    }
-    if (PyDict_SetItem(DTYPE_SLOTS_CASTINGIMPL(meth->dtypes[0]),
-            (PyObject *)meth->dtypes[1], (PyObject *)meth->method) < 0) {
-        return -1;
-    }
+success:
+    HPy_Close(ctx, h_method);
+    HPy_Close(ctx, h_castingimpls);
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_dtype1);
     return 0;
+
+fail:
+    HPy_Close(ctx, h_method);
+    HPy_Close(ctx, h_castingimpls);
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_dtype1);
+    return -1;
 }
 
 /**
@@ -2869,8 +2822,12 @@ complex_to_noncomplex_get_loop(
 static int
 add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_from = HPy_FromPyObject(ctx, (PyObject *)from);
+    HPy h_to = HPy_FromPyObject(ctx, (PyObject *)to);
+
     PyType_Slot slots[7];
-    PyArray_DTypeMeta *dtypes[2] = {from, to};
+    HPy dtypes[2] = {h_from, h_to}; /* PyArray_DTypeMeta *dtypes[2] */
     PyArrayMethod_Spec spec = {
             .name = "numeric_cast",
             .nin = 1,
@@ -2880,8 +2837,11 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
             .dtypes = dtypes,
     };
 
-    npy_intp from_itemsize = from->singleton->elsize;
-    npy_intp to_itemsize = to->singleton->elsize;
+    HPy h_from_singleton = HPyField_Load(ctx, h_from, PyArray_DTypeMeta_AsStruct(ctx, h_from)->singleton);
+    HPy h_to_singleton = HPyField_Load(ctx, h_to, PyArray_DTypeMeta_AsStruct(ctx, h_to)->singleton);
+
+    npy_intp from_itemsize = PyArray_Descr_AsStruct(ctx, h_from_singleton)->elsize;
+    npy_intp to_itemsize = PyArray_Descr_AsStruct(ctx, h_to_singleton)->elsize;
 
     slots[0].slot = NPY_METH_resolve_descriptors;
     slots[0].pfunc = &simple_cast_resolve_descriptors;
@@ -2919,8 +2879,11 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 
     assert(slots[1].pfunc && slots[2].pfunc && slots[3].pfunc && slots[4].pfunc);
 
+    PyArray_Descr *h_from_singleton_data = PyArray_Descr_AsStruct(ctx, h_from_singleton);
+    PyArray_Descr *h_to_singleton_data = PyArray_Descr_AsStruct(ctx, h_to_singleton);
+
     /* Find the correct casting level, and special case no-cast */
-    if (dtypes[0]->singleton->kind == dtypes[1]->singleton->kind
+    if (h_from_singleton_data->kind == h_to_singleton_data->kind
             && from_itemsize == to_itemsize) {
         spec.casting = NPY_EQUIV_CASTING;
 
@@ -2938,16 +2901,25 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
     else if (_npy_can_cast_safely_table[from->type_num][to->type_num]) {
         spec.casting = NPY_SAFE_CASTING;
     }
-    else if (dtype_kind_to_ordering(dtypes[0]->singleton->kind) <=
-             dtype_kind_to_ordering(dtypes[1]->singleton->kind)) {
+    else if (dtype_kind_to_ordering(h_from_singleton_data->kind) <=
+             dtype_kind_to_ordering(h_to_singleton_data->kind)) {
         spec.casting = NPY_SAME_KIND_CASTING;
     }
     else {
         spec.casting = NPY_UNSAFE_CASTING;
     }
 
+    HPy_Close(ctx, h_from_singleton);
+    HPy_Close(ctx, h_to_singleton);
+
     /* Create a bound method, unbind and store it */
-    return PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+
+    /* 'h_to', 'h_from' are used in the spec */
+    HPy_Close(ctx, h_to);
+    HPy_Close(ctx, h_from);
+
+    return res;
 }
 
 
@@ -3109,7 +3081,10 @@ add_other_to_and_from_string_cast(
      * to define the correct string length. Right now we use a generic function
      * for this.
      */
-    PyArray_DTypeMeta *dtypes[2] = {other, string};
+    HPyContext *ctx = npy_get_context();
+    HPy h_other = HPy_FromPyObject(ctx, (PyObject *)other);
+    HPy h_string = HPy_FromPyObject(ctx, (PyObject *)string);
+    HPy dtypes[2] = {h_other, h_string}; /* PyArray_DTypeMeta *dtypes[2] */
     PyType_Slot slots[] = {
             {NPY_METH_get_loop, &legacy_cast_get_strided_loop},
             {NPY_METH_resolve_descriptors, &cast_to_string_resolve_descriptors},
@@ -3130,7 +3105,10 @@ add_other_to_and_from_string_cast(
         spec.casting = NPY_UNSAFE_CASTING;
     }
 
-    return PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    HPy_Close(ctx, h_other);
+    HPy_Close(ctx, h_string);
+    return res;
 }
 
 
@@ -3227,6 +3205,8 @@ PyArray_InitializeStringCasts(void)
     PyArray_DTypeMeta *string = PyArray_DTypeFromTypeNum(NPY_STRING);
     PyArray_DTypeMeta *unicode = PyArray_DTypeFromTypeNum(NPY_UNICODE);
     PyArray_DTypeMeta *other_dt = NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy h_tmp = HPy_NULL;
 
     /* Add most casts as legacy ones */
     for (int other = 0; other < NPY_NTYPES; other++) {
@@ -3248,7 +3228,7 @@ PyArray_InitializeStringCasts(void)
     }
 
     /* string<->string and unicode<->unicode have their own specialized casts */
-    PyArray_DTypeMeta *dtypes[2];
+    HPy dtypes[2]; /* PyArray_DTypeMeta *dtypes[2] */
     PyType_Slot slots[] = {
             {NPY_METH_get_loop, &string_to_string_get_loop},
             {NPY_METH_resolve_descriptors, &string_to_string_resolve_descriptors},
@@ -3265,20 +3245,24 @@ PyArray_InitializeStringCasts(void)
             .slots = slots,
     };
 
-    dtypes[0] = string;
-    dtypes[1] = string;
+    h_tmp = HPy_FromPyObject(ctx, (PyObject *)string);
+    dtypes[0] = h_tmp;
+    dtypes[1] = h_tmp;
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
         goto finish;
     }
+    HPy_Close(ctx, h_tmp);
 
-    dtypes[0] = unicode;
-    dtypes[1] = unicode;
+    h_tmp = HPy_FromPyObject(ctx, (PyObject *)unicode);
+    dtypes[0] = h_tmp;
+    dtypes[1] = h_tmp;
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
         goto finish;
     }
 
     result = 0;
   finish:
+    HPy_Close(ctx, h_tmp);
     Py_DECREF(string);
     Py_DECREF(unicode);
     Py_XDECREF(other_dt);
@@ -4133,8 +4117,10 @@ object_to_object_get_loop(
 static int
 PyArray_InitializeObjectToObjectCast(void)
 {
+    HPyContext *ctx = npy_get_context();
     PyArray_DTypeMeta *Object = PyArray_DTypeFromTypeNum(NPY_OBJECT);
-    PyArray_DTypeMeta *dtypes[2] = {Object, Object};
+    HPy h_Object = HPy_FromPyObject(ctx, (PyObject *)Object);
+    HPy dtypes[2] = {h_Object, h_Object}; /* PyArray_DTypeMeta *dtypes[2] */
     PyType_Slot slots[] = {
             {NPY_METH_get_loop, &object_to_object_get_loop},
             {0, NULL}};

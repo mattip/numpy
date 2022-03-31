@@ -172,7 +172,7 @@ typedef struct {
     int nin, nout;
     NPY_CASTING casting;
     NPY_ARRAYMETHOD_FLAGS flags;
-    PyArray_DTypeMeta **dtypes;
+    HPy *dtypes; /* PyArray_DTypeMeta **dtypes */
     PyType_Slot *slots;
 } PyArrayMethod_Spec;
 
@@ -224,16 +224,20 @@ HPyType_LEGACY_HELPERS(PyArrayMethodObject)
  * on the `ArrayMethod` itself.
  */
 typedef struct {
-    PyObject_HEAD
-    PyArray_DTypeMeta **dtypes;
-    PyArrayMethodObject *method;
+    HPyField *dtypes; /* PyArray_DTypeMeta **dtypes */
+    HPyField method; /* PyArrayMethodObject *method */
+    int nargs; /* method->nin + method->nout */
 } PyBoundArrayMethodObject;
+
+HPyType_HELPERS(PyBoundArrayMethodObject)
 
 
 extern NPY_NO_EXPORT PyTypeObject *PyArrayMethod_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayMethod_Type;
-extern NPY_NO_EXPORT PyTypeObject PyBoundArrayMethod_Type;
+extern NPY_NO_EXPORT PyTypeObject *PyBoundArrayMethod_Type;
+extern NPY_NO_EXPORT HPyType_Spec PyBoundArrayMethod_Type_Spec;
+extern NPY_NO_EXPORT HPyGlobal HPyBoundArrayMethod_Type;
 
 /*
  * SLOTS IDs For the ArrayMethod creation, one public, the IDs are fixed.
@@ -280,6 +284,9 @@ PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec);
  */
 NPY_NO_EXPORT PyBoundArrayMethodObject *
 PyArrayMethod_FromSpec_int(PyArrayMethod_Spec *spec, int private);
+
+NPY_NO_EXPORT HPy
+HPyArrayMethod_FromSpec_int(HPyContext *ctx, PyArrayMethod_Spec *spec, int private);
 
 NPY_NO_EXPORT NPY_CASTING
 resolve_descriptors_trampoline(
