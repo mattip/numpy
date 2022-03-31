@@ -440,8 +440,8 @@ fail:
 }
 
 NPY_NO_EXPORT int
-HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
-                    HPy h_wheremask,
+HPyArray_AssignArray(HPyContext *ctx, /*PyArrayObject*/HPy h_dst, /*PyArrayObject*/HPy h_src,
+                    /*PyArrayObject*/HPy h_wheremask,
                     NPY_CASTING casting)
 {
     PyArrayObject *src = PyArrayObject_AsStruct(ctx, h_src);
@@ -452,10 +452,9 @@ HPyArray_AssignArray(HPyContext *ctx, HPy h_dst, HPy h_src,
 
     /* Use array_assign_scalar if 'src' NDIM is 0 */
     if (PyArray_NDIM(src) == 0) {
-        capi_warn("HPyArray_AssignArray: PyArray_AssignRawScalar");
-        return PyArray_AssignRawScalar(
-                            dst, PyArray_DESCR(src), PyArray_DATA(src),
-                            PyArrayObject_AsStruct(ctx, h_wheremask), casting);
+        return HPyArray_AssignRawScalar(ctx,
+                            h_dst, HPyArray_DESCR(ctx, h_src, src), PyArray_DATA(src),
+                            h_wheremask, casting);
     }
     
     HPy h_src_descr = HPyArray_DESCR(ctx, h_src, src);

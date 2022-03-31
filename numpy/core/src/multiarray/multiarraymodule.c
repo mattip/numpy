@@ -1521,6 +1521,46 @@ PyArray_EquivTypes(PyArray_Descr *type1, PyArray_Descr *type2)
     return PyArray_MinCastSafety(safety, NPY_NO_CASTING) == NPY_NO_CASTING;
 }
 
+NPY_NO_EXPORT unsigned char
+HPyArray_EquivTypes(HPyContext *ctx, /*PyArray_Descr*/HPy type1, /*PyArray_Descr*/HPy type2)
+{
+    if (HPy_Is(ctx, type1, type2)) {
+        return 1;
+    }
+
+    HPy type1_type = HPy_Type(ctx, type1);
+    HPy type1_type_type = HPy_Type(ctx, type1_type);
+    if (HPy_Is(ctx, type1_type_type, ctx->h_TypeType)) {
+        /*
+         * 2021-12-17: This case is nonsense and should be removed eventually!
+         *
+         * boost::python has/had a bug effectively using EquivTypes with
+         * `type(arbitrary_obj)`.  That is clearly wrong as that cannot be a
+         * `PyArray_Descr *`.  We assume that `type(type(type(arbitrary_obj))`
+         * is always in practice `type` (this is the type of the metaclass),
+         * but for our descriptors, `type(type(descr))` is DTypeMeta.
+         *
+         * In that case, we just return False.  There is a possibility that
+         * this actually _worked_ effectively (returning 1 sometimes).
+         * We ignore that possibility for simplicity; it really is not our bug.
+         */
+        return 0;
+    }
+
+    /*
+     * Do not use PyArray_CanCastTypeTo because it supports legacy flexible
+     * dtypes as input.
+     */
+    npy_intp view_offset;
+    NPY_CASTING safety = HPyArray_GetCastInfo(ctx, type1, type2, HPy_NULL, &view_offset);
+    if (safety < 0) {
+        HPyErr_Clear(ctx);
+        return 0;
+    }
+    /* If casting is "no casting" this dtypes are considered equivalent. */
+    return PyArray_MinCastSafety(safety, NPY_NO_CASTING) == NPY_NO_CASTING;
+}
+
 
 /*NUMPY_API*/
 NPY_NO_EXPORT unsigned char
