@@ -225,7 +225,7 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             HPy_Close(ctx, dtypemeta);
             return -1;
         }
-        if (NPY_DT_is_abstract(PyArray_Descr_AsStruct(ctx, spec->dtypes[i]))) {
+        if (NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, spec->dtypes[i]))) {
             // TODO HPY LABS PORT: PyErr_Format
             HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "abstract DType XX are currently not supported."
