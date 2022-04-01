@@ -1780,6 +1780,21 @@ PyArray_TYPE(const PyArrayObject *arr)
 }
 
 static NPY_INLINE int
+HPyArray_TYPE(HPyContext *ctx, HPy h_arr, const PyArrayObject *arr)
+{
+    HPy descr = HPyArray_DESCR(ctx, h_arr, arr);
+    int result = PyArray_Descr_AsStruct(ctx, descr)->type_num;
+    HPy_Close(ctx, descr);
+    return result;
+}
+
+static NPY_INLINE int
+HPyArray_GetType(HPyContext *ctx, HPy h_arr)
+{
+    return HPyArray_TYPE(ctx, h_arr, PyArrayObject_AsStruct(ctx, h_arr));
+}
+
+static NPY_INLINE int
 PyArray_CHKFLAGS(const PyArrayObject *arr, int flags)
 {
     return (PyArray_FLAGS(arr) & flags) == flags;
@@ -1954,6 +1969,26 @@ PyArray_HANDLER(PyArrayObject *arr)
 #define PyArray_ISEXTENDED(obj) PyTypeNum_ISEXTENDED(PyArray_TYPE(obj))
 #define PyArray_ISOBJECT(obj) PyTypeNum_ISOBJECT(PyArray_TYPE(obj))
 #define PyArray_HASFIELDS(obj) PyDataType_HASFIELDS(PyArray_DESCR(obj))
+
+#define _PyArray_ISX(ctx, obj, X)                                   \
+    HPy type = HPy_Type(ctx, obj);                                  \
+    bool result = PyTypeNum_IS##X(HPyArray_GetType(ctx, obj));      \
+    HPy_Close(ctx, type);                                           \
+    return result;
+
+static inline bool HPyArray_ISOBJECT(HPyContext *ctx, HPy obj) {
+    _PyArray_ISX(ctx, obj, OBJECT);
+}
+
+static inline bool HPyArray_ISINTEGER(HPyContext *ctx, HPy obj) {
+    _PyArray_ISX(ctx, obj, INTEGER);
+}
+
+static inline bool HPyArray_ISFLOAT(HPyContext *ctx, HPy obj) {
+    _PyArray_ISX(ctx, obj, FLOAT);
+}
+
+#undef _PyArray_ISX
 
     /*
      * FIXME: This should check for a flag on the data-type that

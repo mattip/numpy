@@ -120,8 +120,7 @@ NPY_NO_EXPORT PyObject *
 array_inplace_matrix_multiply(
         PyArrayObject *NPY_UNUSED(m1), PyObject *NPY_UNUSED(m2));
 
-NPY_NO_EXPORT PyObject *
-array_power(PyObject *a1, PyObject *o2, PyObject *modulo);
+NPY_NO_EXPORT extern HPyDef array_power;
 
 NPY_NO_EXPORT PyObject *
 array_positive(PyArrayObject *m1);
@@ -150,7 +149,7 @@ array_bitwise_or(PyObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_bitwise_xor(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT HPyDef array_inplace_add;
+NPY_NO_EXPORT extern HPyDef array_inplace_add;
 
 NPY_NO_EXPORT PyObject *
 array_inplace_subtract(PyArrayObject *m1, PyObject *m2);

@@ -9,6 +9,7 @@
 
 // included for HPY:
 #include "multiarraymodule.h"
+#include "scalarapi.h"
 
 /*
  * Logic for deciding when binops should return NotImplemented versus when
@@ -184,7 +185,7 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
         HPy_IsNull(self) ||
         HPy_Is(ctx, other_type, self_type) ||
         HPyArray_CheckExact(ctx, other) ||
-        HPyArray_CheckAnyScalarExact(other_type)) {
+        HPyArray_CheckAnyScalarExact(ctx, other_type)) {
         return 0;
     }
     /*
@@ -250,6 +251,14 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
         }                                                               \
     } while (0)
 
+#define TMP_BINOP_GIVE_UP_IF_NEEDED(m1, m2, slot_expr, test_func)       \
+    do {                                                                \
+        if (BINOP_IS_FORWARD(m1, m2, slot_expr, test_func) &&           \
+            binop_should_defer((PyObject*)m1, (PyObject*)m2, 0)) {      \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+    } while (0)
+
 #define INPLACE_GIVE_UP_IF_NEEDED(m1, m2, slot_expr, test_func)         \
     do {                                                                \
         if (BINOP_IS_FORWARD(m1, m2, slot_expr, test_func) &&           \
@@ -260,6 +269,15 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
     } while (0)
 
 
+#define HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, test_hpy_slot)         \
+    do {                                                                \
+        HPy __m2_type = HPy_Type(ctx, m2);                              \
+        if (HPyType_CheckSlot(ctx, __m2_type, test_hpy_slot) &&         \
+            hpy_binop_should_defer(ctx, m1, m2, 0)) {    \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+        HPy_Close(ctx, __m2_type);                                      \
+    } while (0)
 
 #define HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx, m1, m2, test_hpy_slot)       \
     do {                                                                \

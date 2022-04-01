@@ -1913,7 +1913,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
     {Py_nb_divmod, array_divmod},
-    {Py_nb_power, (ternaryfunc)array_power},
     {Py_nb_negative, (unaryfunc)array_negative},
     {Py_nb_positive, (unaryfunc)array_positive},
     {Py_nb_absolute, (unaryfunc)array_absolute},
@@ -1969,6 +1968,7 @@ static HPyDef *array_defines[] = {
     &array_traverse,
     &array_finalize,
     &array_inplace_add,
+    &array_power,
     NULL,
 };
 
