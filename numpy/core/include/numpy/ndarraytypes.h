@@ -1988,6 +1988,22 @@ static inline bool HPyArray_ISFLOAT(HPyContext *ctx, HPy obj) {
     _PyArray_ISX(ctx, obj, FLOAT);
 }
 
+static inline bool HPyArrayDescr_ISOBJECT(PyArray_Descr *descr) {
+    return PyTypeNum_ISOBJECT(descr->type_num);
+}
+
+static inline bool HPyArrayDescr_ISFLOAT(PyArray_Descr *descr) {
+    return PyTypeNum_ISFLOAT(descr->type_num);
+}
+
+static inline bool HPyArrayDescr_ISINTEGER(PyArray_Descr *descr) {
+    return PyTypeNum_ISINTEGER(descr->type_num);
+}
+
+static inline bool HPyArrayDescr_ISCOMPLEX(PyArray_Descr *descr) {
+    return PyTypeNum_ISCOMPLEX(descr->type_num);
+}
+
 #undef _PyArray_ISX
 
     /*

@@ -20,6 +20,9 @@
 #include "common_dtype.h"
 #include "convert_datatype.h"
 
+// Added for HPy:
+#include "arraytypes.h"
+
 /*************************************************************************
  ****************   Implement Number Protocol ****************************
  *************************************************************************/
@@ -244,15 +247,24 @@ PyArray_GenericBinaryFunction(PyObject *m1, PyObject *m2, PyObject *op)
     return PyObject_CallFunctionObjArgs(op, m1, m2, NULL);
 }
 
+static NPY_NO_EXPORT HPy
+__HPyArray_GenericHelper(HPyContext *ctx, HPyGlobal op, size_t n_args, HPy args[]) {
+
+    HPy args_tuple = HPyTuple_FromArray(ctx, args, n_args);
+    HPy callable = HPyGlobal_Load(ctx, op);
+    HPy res = HPy_CallTupleDict(ctx, callable, args_tuple, HPy_NULL);
+    HPy_Close(ctx, args_tuple);
+    HPy_Close(ctx, callable);
+    return res;
+}
+
+#define _HPyArray_GenericHelper(ctx, op, n, ...) \
+    (__HPyArray_GenericHelper(ctx, op, n, (HPy[]){ __VA_ARGS__ }))
+
 NPY_NO_EXPORT HPy
 HPyArray_GenericBinaryFunction(HPyContext *ctx, HPy m1, HPy m2, HPyGlobal op)
 {
-    HPy args = HPyTuple_Pack(ctx, 2, m1, m2);
-    HPy callable = HPyGlobal_Load(ctx, op);
-    HPy res = HPy_CallTupleDict(ctx, callable, args, HPy_NULL);
-    HPy_Close(ctx, args);
-    HPy_Close(ctx, callable);
-    return res;
+    return _HPyArray_GenericHelper(ctx, op, 2, m1, m2);
 }
 
 NPY_NO_EXPORT PyObject *
@@ -260,6 +272,13 @@ PyArray_GenericUnaryFunction(PyArrayObject *m1, PyObject *op)
 {
     return PyObject_CallFunctionObjArgs(op, m1, NULL);
 }
+
+NPY_NO_EXPORT HPy
+HPyArray_GenericUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
+{
+    return _HPyArray_GenericHelper(ctx, op, 1, m1);
+}
+
 
 static PyObject *
 PyArray_GenericInplaceBinaryFunction(PyArrayObject *m1,
@@ -272,18 +291,19 @@ static HPy
 HPyArray_GenericInplaceBinaryFunction(HPyContext *ctx, HPy m1,
                                      HPy m2, HPyGlobal op)
 {
-    HPy args = HPyTuple_Pack(ctx, 3, m1, m2, m1);
-    HPy callable = HPyGlobal_Load(ctx, op);
-    HPy res = HPy_CallTupleDict(ctx, callable, args, HPy_NULL);
-    HPy_Close(ctx, args);
-    HPy_Close(ctx, callable);
-    return res;
+    return _HPyArray_GenericHelper(ctx, op, 3, m1, m2, m1);
 }
 
 static PyObject *
 PyArray_GenericInplaceUnaryFunction(PyArrayObject *m1, PyObject *op)
 {
     return PyObject_CallFunctionObjArgs(op, m1, m1, NULL);
+}
+
+static HPy
+HPyArray_GenericInplaceUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
+{
+    return _HPyArray_GenericHelper(ctx, op, 2, m1, m1);
 }
 
 NPY_NO_EXPORT PyObject *
@@ -459,45 +479,46 @@ fast_scalar_power(HPyContext *ctx, HPy h_o1, HPy h_o2, int inplace,
     double exponent;
     NPY_SCALARKIND kind;   /* NPY_NOSCALAR is not scalar */
 
-    if (!HPyArray_Check(ctx, h_o1) ||
-        HPyArray_ISOBJECT(ctx, h_o1)) {
+    if (!HPyArray_Check(ctx, h_o1)) {
         /* no fast operation found */
         return -1;
     }
     PyArrayObject *o1 = PyArrayObject_AsStruct(ctx, h_o1);
+    HPy h_o1_descr = HPyArray_DESCR(ctx, h_o1, o1);
+    PyArray_Descr *o1_descr = PyArray_Descr_AsStruct(ctx, h_o1_descr);
+    if (HPyArrayDescr_ISOBJECT(o1_descr)) {
+        /* no fast operation found */
+        return -1;
+    }
+    
     if ((kind=is_scalar_with_conversion(ctx, h_o2, &exponent))>0) {
-        CAPI_WARN("fast_scalar_power: is_scalar_with_conversion branch");
         PyArrayObject *a1 = (PyArrayObject *)o1;
-        PyObject *fastop = NULL;
-        if (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) {
+        HPyGlobal fastop;
+        if (HPyArrayDescr_ISFLOAT(o1_descr) || HPyArrayDescr_ISCOMPLEX(o1_descr)) {
             if (exponent == 1.0) {
-                fastop = N_OPS_GET(positive);
+                fastop = hpy_n_ops.positive;
             }
             else if (exponent == -1.0) {
-                fastop = N_OPS_GET(reciprocal);
+                fastop = hpy_n_ops.reciprocal;
             }
             else if (exponent ==  0.0) {
-                fastop = N_OPS_GET(_ones_like);
+                fastop = hpy_n_ops._ones_like;
             }
             else if (exponent ==  0.5) {
-                fastop = N_OPS_GET(sqrt);
+                fastop = hpy_n_ops.sqrt;
             }
             else if (exponent ==  2.0) {
-                fastop = N_OPS_GET(square);
+                fastop = hpy_n_ops.square;
             }
             else {
                 return -1;
             }
 
             if (inplace || can_elide_temp_unary(a1)) {
-                PyObject *tmp = PyArray_GenericInplaceUnaryFunction(a1, fastop);
-                *value = HPy_FromPyObject(ctx, tmp);
-                Py_DECREF(tmp);
+                *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
             }
             else {
-                PyObject *tmp = PyArray_GenericUnaryFunction(a1, fastop);
-                *value = HPy_FromPyObject(ctx, tmp);
-                Py_DECREF(tmp);
+                *value = HPyArray_GenericUnaryFunction(ctx, h_o1, fastop);
             }
             return 0;
         }
@@ -507,30 +528,25 @@ fast_scalar_power(HPyContext *ctx, HPy h_o1, HPy h_o2, int inplace,
          *  (thus, the input should be up-cast)
          */
         else if (exponent == 2.0) {
-            fastop = N_OPS_GET(square);
+            fastop = hpy_n_ops.square;
             if (inplace) {
-                PyObject *tmp = PyArray_GenericInplaceUnaryFunction(a1, fastop);
-                *value = HPy_FromPyObject(ctx, tmp);
-                Py_DECREF(tmp);
+                *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
             }
             else {
                 /* We only special-case the FLOAT_SCALAR and integer types */
-                if (kind == NPY_FLOAT_SCALAR && PyArray_ISINTEGER(a1)) {
-                    PyArray_Descr *dtype = PyArray_DescrFromType(NPY_DOUBLE);
+                if (kind == NPY_FLOAT_SCALAR && HPyArrayDescr_ISINTEGER(o1_descr)) {
+                    HPy h_dtype = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+                    PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
+                    CAPI_WARN("pow with exponent 2.0, FLOAT_SCALAR and integer types needs PyArray_CastToType");
                     a1 = (PyArrayObject *)PyArray_CastToType(a1, dtype,
                             PyArray_ISFORTRAN(a1));
                     if (a1 != NULL) {
                         /* cast always creates a new array */
-                        PyObject *tmp = PyArray_GenericInplaceUnaryFunction(a1, fastop);
-                        *value = HPy_FromPyObject(ctx, tmp);
-                        Py_DECREF(tmp);
-                        Py_DECREF(a1);
+                        *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
                     }
                 }
                 else {
-                    PyObject *tmp = PyArray_GenericUnaryFunction(a1, fastop);
-                    *value = HPy_FromPyObject(ctx, tmp);
-                    Py_DECREF(tmp);
+                    *value = HPyArray_GenericUnaryFunction(ctx, h_o1, fastop);
                 }
             }
             return 0;
