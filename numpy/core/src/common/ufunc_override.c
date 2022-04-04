@@ -17,34 +17,50 @@
 NPY_NO_EXPORT PyObject *
 PyUFuncOverride_GetNonDefaultArrayUfunc(PyObject *obj)
 {
-    static PyObject *ndarray_array_ufunc = NULL;
-    PyObject *cls_array_ufunc;
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    PyObject *res;
+    HPy h_res = HPyUFuncOverride_GetNonDefaultArrayUfunc(ctx, h_obj);
+    res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_res);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyUFuncOverride_GetNonDefaultArrayUfunc(HPyContext *ctx, HPy obj)
+{
+    static HPy ndarray_array_ufunc = HPy_NULL;
+    HPy cls_array_ufunc;
 
     /* On first entry, cache ndarray's __array_ufunc__ */
-    if (ndarray_array_ufunc == NULL) {
-        ndarray_array_ufunc = PyObject_GetAttrString((PyObject *)&PyArray_Type,
+    if (HPy_IsNull(ndarray_array_ufunc)) {
+        HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        ndarray_array_ufunc = HPy_GetAttr_s(ctx, h_array_type,
                                                      "__array_ufunc__");
+        HPy_Close(ctx, h_array_type);
     }
 
     /* Fast return for ndarray */
-    if (PyArray_CheckExact(obj)) {
-        return NULL;
+    if (HPyArray_CheckExact(ctx,  obj)) {
+        return HPy_NULL;
     }
     /*
      * Does the class define __array_ufunc__? (Note that LookupSpecial has fast
      * return for basic python types, so no need to worry about those here)
      */
-    cls_array_ufunc = PyArray_LookupSpecial(obj, "__array_ufunc__");
-    if (cls_array_ufunc == NULL) {
-        if (PyErr_Occurred()) {
-            PyErr_Clear(); /* TODO[gh-14801]: propagate crashes during attribute access? */
+    // TODO HPY LABS PORT: PyArray_LookupSpecial
+    cls_array_ufunc = HPy_GetAttr_s(ctx, obj, "__array_ufunc__");
+    if (HPy_IsNull(cls_array_ufunc)) {
+        if (HPyErr_Occurred(ctx)) {
+            HPyErr_Clear(ctx); /* TODO[gh-14801]: propagate crashes during attribute access? */
         }
-        return NULL;
+        return HPy_NULL;
     }
     /* Ignore if the same as ndarray.__array_ufunc__ */
-    if (cls_array_ufunc == ndarray_array_ufunc) {
-        Py_DECREF(cls_array_ufunc);
-        return NULL;
+    if (HPy_Is(ctx, cls_array_ufunc, ndarray_array_ufunc)) {
+        HPy_Close(ctx, cls_array_ufunc);
+        return HPy_NULL;
     }
     return cls_array_ufunc;
 }

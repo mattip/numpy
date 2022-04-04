@@ -14,6 +14,9 @@
 NPY_NO_EXPORT PyObject *
 PyUFuncOverride_GetNonDefaultArrayUfunc(PyObject *obj);
 
+NPY_NO_EXPORT HPy
+HPyUFuncOverride_GetNonDefaultArrayUfunc(HPyContext *ctx, HPy obj);
+
 /*
  * Check whether an object has __array_ufunc__ defined on its class and it
  * is not the default, i.e., the object is not an ndarray, and its
