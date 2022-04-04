@@ -57,6 +57,10 @@
 #include "legacy_array_method.h"
 #include "abstractdtypes.h"
 
+
+#include "../multiarray/multiarraymodule.h"
+#include "../multiarray/descriptor.h"
+
 /********** PRINTF DEBUG TRACING **************/
 #define NPY_UF_DBG_TRACING 0
 
@@ -3874,6 +3878,7 @@ _not_NoValue(PyObject *obj, PyObject **out)
 
 /* forward declaration */
 static PyArray_DTypeMeta * _get_dtype(PyObject *dtype_obj);
+static HPy _hpy_get_dtype(HPyContext *ctx, HPy dtype_obj);
 
 /*
  * This code handles reduce, reduceat, and accumulate
@@ -4290,30 +4295,46 @@ _check_and_copy_sig_to_signature(
  * or "float64" usually denotes the DType class rather than the instance.)
  */
 static PyArray_DTypeMeta *
-_get_dtype(PyObject *dtype_obj) {
-    if (PyObject_TypeCheck(dtype_obj, PyArrayDTypeMeta_Type)) {
-        Py_INCREF(dtype_obj);
-        return (PyArray_DTypeMeta *)dtype_obj;
+_get_dtype(PyObject *dtype_obj)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_dtype_obj = HPy_FromPyObject(ctx, dtype_obj);
+    HPy h_res = _hpy_get_dtype(ctx, h_dtype_obj);
+    PyArray_DTypeMeta *res = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_dtype_obj);
+    HPy_Close(ctx, h_res);
+    return res;
+}
+
+static HPy
+_hpy_get_dtype(HPyContext *ctx, HPy dtype_obj)
+{
+    HPy out; /* (PyArray_DTypeMeta *) */
+    HPy h_dtypemeta_type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
+    if (HPy_TypeCheck(ctx, dtype_obj, h_dtypemeta_type)) {
+        out = HPy_Dup(ctx, dtype_obj);
     }
     else {
-        PyArray_Descr *descr = NULL;
-        if (!PyArray_DescrConverter(dtype_obj, &descr)) {
-            return NULL;
+        HPy descr = HPy_NULL; /* PyArray_Descr *descr = NULL; */
+        if (!HPyArray_DescrConverter(ctx, dtype_obj, &descr)) {
+            HPy_Close(ctx, h_dtypemeta_type);
+            return HPy_NULL;
         }
-        PyArray_DTypeMeta *out = NPY_DTYPE(descr);
-        PyArray_Descr *singleton = dtypemeta_get_singleton(out);
-        if (NPY_UNLIKELY(!NPY_DT_is_legacy(out))) {
+        out = HNPY_DTYPE(ctx, descr);
+        PyArray_DTypeMeta *out_data = PyArray_DTypeMeta_AsStruct(ctx, out);
+        HPy singleton = hdtypemeta_get_singleton(ctx, out);
+        if (NPY_UNLIKELY(!NPY_DT_is_legacy(out_data))) {
             /* TODO: this path was unreachable when added. */
-            PyErr_SetString(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "Cannot pass a new user DType instance to the `dtype` or "
                     "`signature` arguments of ufuncs. Pass the DType class "
                     "instead.");
-            Py_DECREF(descr);
-            return NULL;
+            HPy_Close(ctx, out);
+            out = HPy_NULL;
         }
-        else if (NPY_UNLIKELY(singleton != descr)) {
+        else if (NPY_UNLIKELY(!HPy_Is(ctx, singleton, descr))) {
             /* This does not warn about `metadata`, but units is important. */
-            if (!PyArray_EquivTypes(singleton, descr)) {
+            if (!HPyArray_EquivTypes(ctx, singleton, descr)) {
                 /* Deprecated NumPy 1.21.2 (was an accidental error in 1.21) */
                 if (DEPRECATE(
                         "The `dtype` and `signature` arguments to "
@@ -4327,15 +4348,16 @@ _get_dtype(PyObject *dtype_obj) {
                         "In the future NumPy may transition to allow providing "
                         "`dtype=` to denote the outputs `dtype` as well. "
                         "(Deprecated NumPy 1.21)") < 0) {
-                    Py_DECREF(descr);
-                    return NULL;
+                    HPy_Close(ctx, out);
+                    out = HPy_NULL;
                 }
             }
         }
-        Py_INCREF(out);
-        Py_DECREF(descr);
-        return out;
+        HPy_Close(ctx, descr);
+        HPy_Close(ctx, singleton);
     }
+    HPy_Close(ctx, h_dtypemeta_type);
+    return out;
 }
 
 
