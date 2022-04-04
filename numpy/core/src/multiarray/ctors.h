@@ -55,6 +55,10 @@ NPY_NO_EXPORT PyObject *
 PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
                 int max_depth, int flags, PyObject *context);
 
+NPY_NO_EXPORT HPy
+HPyArray_FromAny(HPyContext *ctx, HPy h_op, HPy h_newtype, int min_depth,
+                int max_depth, int flags, HPy h_context);
+
 NPY_NO_EXPORT PyObject *
 PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
                      int max_depth, int requires, PyObject *context);

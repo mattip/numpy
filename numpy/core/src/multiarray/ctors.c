@@ -2134,6 +2134,22 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
     return (PyObject *)ret;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_FromAny(HPyContext *ctx, HPy h_op, HPy h_newtype, int min_depth,
+                int max_depth, int flags, HPy h_context)
+{
+    CAPI_WARN("HPyArray_FromAny: call to PyArray_FromAny");
+    PyObject *op = HPy_AsPyObject(ctx, h_op);
+    PyArray_Descr *newtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_newtype);
+    PyObject *context = HPy_AsPyObject(ctx, h_context);
+    PyObject *res = PyArray_FromAny(op, newtype, min_depth, max_depth, flags, context);
+    HPy h_res = HPy_FromPyObject(ctx, res);
+    Py_DECREF(res);
+    Py_DECREF(context);
+    Py_DECREF(op);
+    return h_res;
+}
+
 /*
  * flags is any of
  * NPY_ARRAY_C_CONTIGUOUS (formerly CONTIGUOUS),
@@ -2255,10 +2271,7 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
     }
 
     // HPy obj = HPyArray_CheckFromAny(ctx, op, descr, min_depth, max_depth, requires, context);
-    HPy obj = HPy_FromPyObject(ctx, PyArray_FromAny(
-        HPy_AsPyObject(ctx, op),
-        (PyArray_Descr*) HPy_AsPyObject(ctx, descr),
-        min_depth, max_depth, requires, HPy_AsPyObject(ctx, context)));
+    HPy obj = HPyArray_FromAny(ctx, op, descr, min_depth, max_depth, requires, context);
     if (HPy_IsNull(obj)) {
         return HPy_NULL;
     }
