@@ -3,6 +3,9 @@
 
 #include <numpy/ufuncobject.h>
 
+extern NPY_NO_EXPORT HPyGlobal HPyUFunc_Type;
+extern NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec;
+
 NPY_NO_EXPORT PyObject *
 ufunc_geterr(PyObject *NPY_UNUSED(dummy), PyObject *args);
 

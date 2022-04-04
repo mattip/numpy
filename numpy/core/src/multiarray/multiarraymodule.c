@@ -5108,9 +5108,13 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     Py_DECREF(s);
 
 
-    if (PyType_Ready(&PyUFunc_Type) < 0) {
+    HPy h_PyUFunc_Type = HPyType_FromSpec(ctx, &PyUFunc_Type_Spec, NULL);
+    if (HPy_IsNull(h_PyUFunc_Type)) {
         goto err;
     }
+    _PyUFunc_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyUFunc_Type);
+    HPyGlobal_Store(ctx, &HPyUFunc_Type, h_PyUFunc_Type);
+    HPy_Close(ctx, h_PyUFunc_Type);
 
     HPyType_SpecParam dtypemeta_params[] = {
         { HPyType_SpecParam_Base, ctx->h_TypeType },

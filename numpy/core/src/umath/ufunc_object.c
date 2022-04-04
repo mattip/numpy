@@ -5630,29 +5630,29 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
 #undef _SETCPTR
 
 
-static void
-ufunc_dealloc(PyUFuncObject *ufunc)
-{
-    PyObject_GC_UnTrack((PyObject *)ufunc);
-    PyArray_free(ufunc->core_num_dims);
-    PyArray_free(ufunc->core_dim_ixs);
-    PyArray_free(ufunc->core_dim_sizes);
-    PyArray_free(ufunc->core_dim_flags);
-    PyArray_free(ufunc->core_offsets);
-    PyArray_free(ufunc->core_signature);
-    PyArray_free(ufunc->ptr);
-    PyArray_free(ufunc->op_flags);
-    Py_XDECREF(ufunc->userloops);
-    if (ufunc->identity == PyUFunc_IdentityValue) {
-        Py_DECREF(ufunc->identity_value);
-    }
-    Py_XDECREF(ufunc->obj);
-    Py_XDECREF(ufunc->_loops);
-    if (ufunc->_dispatch_cache != NULL) {
-        PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
-    }
-    PyObject_GC_Del(ufunc);
-}
+//static void
+//ufunc_dealloc(PyUFuncObject *ufunc)
+//{
+//    PyObject_GC_UnTrack((PyObject *)ufunc);
+//    PyArray_free(ufunc->core_num_dims);
+//    PyArray_free(ufunc->core_dim_ixs);
+//    PyArray_free(ufunc->core_dim_sizes);
+//    PyArray_free(ufunc->core_dim_flags);
+//    PyArray_free(ufunc->core_offsets);
+//    PyArray_free(ufunc->core_signature);
+//    PyArray_free(ufunc->ptr);
+//    PyArray_free(ufunc->op_flags);
+//    Py_XDECREF(ufunc->userloops);
+//    if (ufunc->identity == PyUFunc_IdentityValue) {
+//        Py_DECREF(ufunc->identity_value);
+//    }
+//    Py_XDECREF(ufunc->obj);
+//    Py_XDECREF(ufunc->_loops);
+//    if (ufunc->_dispatch_cache != NULL) {
+//        PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
+//    }
+//    PyObject_GC_Del(ufunc);
+//}
 
 static PyObject *
 ufunc_repr(PyUFuncObject *ufunc)
@@ -5660,13 +5660,26 @@ ufunc_repr(PyUFuncObject *ufunc)
     return PyUnicode_FromFormat("<ufunc '%s'>", ufunc->name);
 }
 
+HPyDef_SLOT(ufunc_traverse, ufunc_traverse_impl, HPy_tp_traverse)
 static int
-ufunc_traverse(PyUFuncObject *self, visitproc visit, void *arg)
+ufunc_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg)
 {
-    Py_VISIT(self->obj);
+    PyUFuncObject *self= (PyUFuncObject *)self_p;
+    // TODO HPY LABS PORT: visit once HPyField is used here
+    // Py_VISIT(self->obj);
     if (self->identity == PyUFunc_IdentityValue) {
-        Py_VISIT(self->identity_value);
+        // Py_VISIT(self->identity_value);
+        ;
     }
+    // Py_XDECREF(ufunc->userloops);
+    // if (ufunc->identity == PyUFunc_IdentityValue) {
+    //     Py_DECREF(ufunc->identity_value);
+    // }
+    // Py_XDECREF(ufunc->obj);
+    // Py_XDECREF(ufunc->_loops);
+    // if (ufunc->_dispatch_cache != NULL) {
+    // PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
+    // }
     return 0;
 }
 
@@ -6265,19 +6278,20 @@ _typecharfromnum(int num) {
 }
 
 
-static PyObject *
-ufunc_get_doc(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
+HPyDef_GET(ufunc_get_doc, "__doc__", ufunc_get_doc_impl)
+static HPy
+ufunc_get_doc_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    static PyObject *_sig_formatter;
-    PyObject *doc;
+    static HPy _sig_formatter;
+    HPy doc;
 
-    npy_cache_import(
+    npy_hpy_cache_import(ctx,
         "numpy.core._internal",
         "_ufunc_doc_signature_formatter",
         &_sig_formatter);
 
-    if (_sig_formatter == NULL) {
-        return NULL;
+    if (HPy_IsNull(_sig_formatter)) {
+        return HPy_NULL;
     }
 
     /*
@@ -6285,45 +6299,65 @@ ufunc_get_doc(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
      * introspection on name and nin + nout to automate the first part
      * of it the doc string shouldn't need the calling convention
      */
-    doc = PyObject_CallFunctionObjArgs(_sig_formatter,
-                                       (PyObject *)ufunc, NULL);
-    if (doc == NULL) {
-        return NULL;
+    HPy args = HPyTuple_Pack(ctx, 1, self);
+    if (HPy_IsNull(args)) {
+        return HPy_NULL;
     }
+    doc = HPy_CallTupleDict(ctx, _sig_formatter, args, HPy_NULL);
+    HPy_Close(ctx, args);
+    if (HPy_IsNull(doc)) {
+        return HPy_NULL;
+    }
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     if (ufunc->doc != NULL) {
-        Py_SETREF(doc, PyUnicode_FromFormat("%S\n\n%s", doc, ufunc->doc));
+        HPy_ssize_t n0;
+        const char *s_doc = HPyUnicode_AsUTF8AndSize(ctx, doc, &n0);
+        HPy_ssize_t n1 = strlen(ufunc->doc);
+        char *buf = (char *)malloc((n0 + n1 + 2) * sizeof(char));
+
+        snprintf(buf, n0 + n1 + 2, "%s\n\n%s", s_doc, ufunc->doc);
+
+        HPy_SETREF(ctx, doc, HPyUnicode_FromString(ctx, buf));
+        free(buf);
     }
     return doc;
 }
 
 
-static PyObject *
-ufunc_get_nin(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
+HPyDef_GET(ufunc_get_nin, "nin", ufunc_get_nin_impl)
+static HPy
+ufunc_get_nin_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong(ufunc->nin);
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
+    return HPyLong_FromLong(ctx, ufunc->nin);
 }
 
-static PyObject *
-ufunc_get_nout(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
+HPyDef_GET(ufunc_get_nout, "nout", ufunc_get_nout_impl)
+static HPy
+ufunc_get_nout_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong(ufunc->nout);
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
+    return HPyLong_FromLong(ctx, ufunc->nout);
 }
 
 static PyObject *
 ufunc_get_nargs(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
+    CAPI_WARN("ufunc_get_nargs");
     return PyLong_FromLong(ufunc->nargs);
 }
 
 static PyObject *
 ufunc_get_ntypes(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
+    CAPI_WARN("ufunc_get_ntypes");
     return PyLong_FromLong(ufunc->ntypes);
 }
 
 static PyObject *
 ufunc_get_types(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
+    CAPI_WARN("ufunc_get_types");
     /* return a list with types grouped input->output */
     PyObject *list;
     PyObject *str;
@@ -6355,26 +6389,31 @@ ufunc_get_types(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
     return list;
 }
 
-static PyObject *
-ufunc_get_name(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
+HPyDef_GET(ufunc_get_name, "__name__", ufunc_get_name_impl)
+static HPy
+ufunc_get_name_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    return PyUnicode_FromString(ufunc->name);
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
+    return HPyUnicode_FromString(ctx, ufunc->name);
 }
 
 static PyObject *
 ufunc_get_identity(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
+    CAPI_WARN("ufunc_get_identity");
     npy_bool reorderable;
     return _get_identity(ufunc, &reorderable);
 }
 
-static PyObject *
-ufunc_get_signature(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
+HPyDef_GET(ufunc_get_signature, "signature", ufunc_get_signature_impl)
+static HPy
+ufunc_get_signature_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     if (!ufunc->core_enabled) {
-        Py_RETURN_NONE;
+        return HPy_Dup(ctx, ctx->h_None);
     }
-    return PyUnicode_FromString(ufunc->core_signature);
+    return HPyUnicode_FromString(ctx, ufunc->core_signature);
 }
 
 #undef _typecharfromnum
@@ -6384,15 +6423,6 @@ ufunc_get_signature(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
  * static char *Ufunctype__doc__ = NULL;
  */
 static PyGetSetDef ufunc_getset[] = {
-    {"__doc__",
-        (getter)ufunc_get_doc,
-        NULL, NULL, NULL},
-    {"nin",
-        (getter)ufunc_get_nin,
-        NULL, NULL, NULL},
-    {"nout",
-        (getter)ufunc_get_nout,
-        NULL, NULL, NULL},
     {"nargs",
         (getter)ufunc_get_nargs,
         NULL, NULL, NULL},
@@ -6402,16 +6432,29 @@ static PyGetSetDef ufunc_getset[] = {
     {"types",
         (getter)ufunc_get_types,
         NULL, NULL, NULL},
-    {"__name__",
-        (getter)ufunc_get_name,
-        NULL, NULL, NULL},
     {"identity",
         (getter)ufunc_get_identity,
         NULL, NULL, NULL},
-    {"signature",
-        (getter)ufunc_get_signature,
-        NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL},  /* Sentinel */
+};
+
+static PyType_Slot ufunc_slots[] = {
+        {Py_tp_repr, ufunc_repr},
+        {Py_tp_str, ufunc_repr},
+//        {Py_tp_call, &PyVectorcall_Call},
+        {Py_tp_methods, ufunc_methods},
+        {Py_tp_getset, ufunc_getset},
+        {0}
+};
+
+static HPyDef *ufunc_defines[] = {
+        &ufunc_traverse,
+        &ufunc_get_doc,
+        &ufunc_get_nin,
+        &ufunc_get_nout,
+        &ufunc_get_name,
+        &ufunc_get_signature,
+        NULL
 };
 
 
@@ -6419,21 +6462,17 @@ static PyGetSetDef ufunc_getset[] = {
  ***                        UFUNC TYPE OBJECT                               ***
  *****************************************************************************/
 
-NPY_NO_EXPORT PyTypeObject PyUFunc_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.ufunc",
-    .tp_basicsize = sizeof(PyUFuncObject),
-    .tp_dealloc = (destructor)ufunc_dealloc,
-    .tp_repr = (reprfunc)ufunc_repr,
-    .tp_call = &PyVectorcall_Call,
-    .tp_str = (reprfunc)ufunc_repr,
-    .tp_flags = Py_TPFLAGS_DEFAULT |
-        _Py_TPFLAGS_HAVE_VECTORCALL |
-        Py_TPFLAGS_HAVE_GC,
-    .tp_traverse = (traverseproc)ufunc_traverse,
-    .tp_methods = ufunc_methods,
-    .tp_getset = ufunc_getset,
-    .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
+NPY_NO_EXPORT PyTypeObject *_PyUFunc_Type_p;
+NPY_NO_EXPORT HPyGlobal HPyUFunc_Type;
+
+NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec = {
+    .name = "numpy.ufunc",
+    .basicsize = sizeof(PyUFuncObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .defines = ufunc_defines,
+    // .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
+    .legacy = true,
+    .legacy_slots = ufunc_slots
 };
 
 /* End of code for ufunc objects */
