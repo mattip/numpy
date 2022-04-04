@@ -1938,7 +1938,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
 
     {Py_nb_floor_divide, array_floor_divide},
-    {Py_nb_true_divide, array_true_divide},
     {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
     {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
 
@@ -1969,6 +1968,7 @@ static HPyDef *array_defines[] = {
     &array_inplace_add,
     &array_power,
     &array_subtract,
+    &array_true_divide,
     NULL,
 };
 

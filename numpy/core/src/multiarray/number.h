@@ -180,8 +180,7 @@ array_inplace_bitwise_xor(PyArrayObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_floor_divide(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT PyObject *
-array_true_divide(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_true_divide;
 
 NPY_NO_EXPORT PyObject *
 array_inplace_floor_divide(PyArrayObject *m1, PyObject *m2);

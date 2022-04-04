@@ -805,20 +805,20 @@ array_floor_divide(PyObject *m1, PyObject *m2)
     return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(floor_divide));
 }
 
-NPY_NO_EXPORT PyObject *
-array_true_divide(PyObject *m1, PyObject *m2)
+HPyDef_SLOT(array_true_divide, array_true_divide_impl, HPy_nb_true_divide);
+NPY_NO_EXPORT HPy
+array_true_divide_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
-    CAPI_WARN("array_true_divide");
     PyObject *res;
-    PyArrayObject *a1 = (PyArrayObject *)m1;
 
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_true_divide, array_true_divide);
-    if (PyArray_CheckExact(m1) &&
-            (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) &&
-            try_binary_elide(m1, m2, &array_inplace_true_divide, &res, 0)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(true_divide));
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_true_divide);
+    // We cannot support this hack on HPy:
+    // if (PyArray_CheckExact(m1) &&
+    //         (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) &&
+    //         try_binary_elide(m1, m2, &array_inplace_true_divide, &res, 0)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.true_divide);
 }
 
 NPY_NO_EXPORT PyObject *
