@@ -319,17 +319,16 @@ array_add(PyObject *m1, PyObject *m2)
     // return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(add));
 }
 
-NPY_NO_EXPORT PyObject *
-array_subtract(PyObject *m1, PyObject *m2)
+HPyDef_SLOT(array_subtract, array_subtract_impl, HPy_nb_subtract);
+NPY_NO_EXPORT HPy
+array_subtract_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
-    CAPI_WARN("array_subtract");
-    PyObject *res;
-
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_subtract, array_subtract);
-    if (try_binary_elide(m1, m2, &array_inplace_subtract, &res, 0)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(subtract));
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_subtract);
+    // We cannot support this hack on HPy:
+    // if (try_binary_elide(m1, m2, &array_inplace_subtract, &res, 0)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.subtract);
 }
 
 NPY_NO_EXPORT PyObject *
