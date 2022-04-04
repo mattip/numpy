@@ -21,20 +21,22 @@
 
 #include <assert.h>
 
-static PyObject *
-dtypemeta_new(PyTypeObject *NPY_UNUSED(type),
-        PyObject *NPY_UNUSED(args), PyObject *NPY_UNUSED(kwds))
+HPyDef_SLOT(dtypemeta_new, dtypemeta_new_impl, HPy_tp_new)
+static HPy
+dtypemeta_new_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
+        HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
 {
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "Preliminary-API: Cannot subclass DType.");
-    return NULL;
+    return HPy_NULL;
 }
 
+HPyDef_SLOT(dtypemeta_init, dtypemeta_init_impl, HPy_tp_init)
 static int
-dtypemeta_init(PyTypeObject *NPY_UNUSED(type),
-        PyObject *NPY_UNUSED(args), PyObject *NPY_UNUSED(kwds))
+dtypemeta_init_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
+        HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
 {
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "Preliminary-API: Cannot __init__ DType class.");
     return -1;
 }
@@ -743,46 +745,36 @@ cleanup:
 }
 
 
-static PyObject *
-dtypemeta_get_abstract(PyArray_DTypeMeta *self) {
-    return PyBool_FromLong(NPY_DT_is_abstract(self));
-}
-
-static PyObject *
-dtypemeta_get_parametric(PyArray_DTypeMeta *self) {
-    return PyBool_FromLong(NPY_DT_is_parametric(self));
-}
-
 /*
  * Simple exposed information, defined for each DType (class).
  */
-static PyGetSetDef dtypemeta_getset[] = {
-        {"_abstract", (getter)dtypemeta_get_abstract, NULL, NULL, NULL},
-        {"_parametric", (getter)dtypemeta_get_parametric, NULL, NULL, NULL},
-        {NULL, NULL, NULL, NULL, NULL}
-};
 
-static PyMemberDef dtypemeta_members[] = {
-    {"type",
-        T_OBJECT, offsetof(PyArray_DTypeMeta, scalar_type), READONLY, NULL},
-    {NULL, 0, 0, 0, NULL},
-};
+HPyDef_GET(dtypemeta_get_abstract, "_abstract", dtypemeta_get_abstract_impl)
+static HPy
+dtypemeta_get_abstract_impl(HPyContext *ctx, HPy self, void *ptr) {
+    return HPyBool_FromLong(ctx, NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, self)));
+}
+
+HPyDef_GET(dtypemeta_get_parametric, "_parametric", dtypemeta_get_parametric_impl)
+static HPy
+dtypemeta_get_parametric_impl(HPyContext *ctx, HPy self, void *ptr) {
+    return HPyBool_FromLong(ctx, NPY_DT_is_parametric(PyArray_DTypeMeta_AsStruct(ctx, self)));
+}
+
+HPyDef_MEMBER(dtypemeta_member_type, "type", HPyMember_OBJECT, offsetof(PyArray_DTypeMeta, scalar_type), .readonly=1)
 
 // TODO HPY LABS PORT: global set in module init:
 NPY_NO_EXPORT PyTypeObject *PyArrayDTypeMeta_Type;
 NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;
 
-NPY_NO_EXPORT PyType_Slot PyArrayDTypeMeta_Type_legacy_slots[] = {
-    {Py_tp_getset, dtypemeta_getset},
-    {Py_tp_members, dtypemeta_members},
-    {Py_tp_init, dtypemeta_init},
-    {Py_tp_new, dtypemeta_new},
-    {0, 0},
-};
-
 NPY_NO_EXPORT HPyDef *PyArrayDTypeMeta_Type_defines[] = {
+    &dtypemeta_init,
+    &dtypemeta_new,
     &DTypeMeta_traverse,
     &DTypeMeta_destroy,
+    &dtypemeta_get_abstract,
+    &dtypemeta_get_parametric,
+    &dtypemeta_member_type,
     0,
 };
 
@@ -794,5 +786,4 @@ NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec = {
     .doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)",
     .legacy = true,
     .defines = PyArrayDTypeMeta_Type_defines,
-    .legacy_slots = &PyArrayDTypeMeta_Type_legacy_slots,
 };
