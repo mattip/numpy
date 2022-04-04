@@ -272,6 +272,37 @@ _get_output_array_method(PyObject *obj, PyObject *method,
     return input_method;
 }
 
+static HPy
+_hget_output_array_method(HPyContext *ctx, HPy obj, HPy method,
+                         HPy input_method) {
+    if (!HPy_Is(ctx, obj, ctx->h_None)) {
+        HPy ometh;
+
+        if (HPyArray_CheckExact(ctx, obj)) {
+            /*
+             * No need to wrap regular arrays - None signals to not call
+             * wrap/prepare at all
+             */
+            return HPy_Dup(ctx, ctx->h_None);
+        }
+
+        ometh = HPy_GetAttr(ctx, obj, method);
+        if (HPy_IsNull(ometh)) {
+            HPyErr_Clear(ctx);
+        }
+        else if (!HPyCallable_Check(ctx, ometh)) {
+            HPy_Close(ctx, ometh);
+        }
+        else {
+            /* Use the wrap/prepare method of the output if it's callable */
+            return ometh;
+        }
+    }
+
+    /* Fall back on the input's wrap/prepare */
+    return HPy_Dup(ctx, input_method);
+}
+
 /*
  * This function analyzes the input arguments
  * and determines an appropriate __array_prepare__ function to call
