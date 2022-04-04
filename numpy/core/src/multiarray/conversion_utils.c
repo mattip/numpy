@@ -768,7 +768,7 @@ PyArray_OrderConverter(PyObject *object, NPY_ORDER *val)
         "must be one of 'C', 'F', 'A', or 'K'");
 }
 
-// HPY TODO: NUMPY_API?
+// TODO HPY LABS PORT: NUMPY_API?
 NPY_NO_EXPORT int
 HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val)
 {
@@ -1026,6 +1026,16 @@ PyArray_CastingConverter(PyObject *obj, NPY_CASTING *casting)
             "must be one of 'no', 'equiv', 'safe', "
             "'same_kind', or 'unsafe'");
     return 0;
+}
+
+// TODO HPY LABS PORT: NUMPY_API?
+NPY_NO_EXPORT int
+HPyArray_CastingConverter(HPyContext *ctx, HPy obj, NPY_CASTING *casting)
+{
+    return hpy_string_converter_helper(ctx,
+        obj, (void *)casting, casting_parser, "casting",
+            "must be one of 'no', 'equiv', 'safe', "
+            "'same_kind', or 'unsafe'");
 }
 
 /*****************************
