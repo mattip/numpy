@@ -80,4 +80,10 @@ HPy_DecrefAndFreeArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
     PyMem_RawFree(arr);
 }
 
+static NPY_INLINE int
+HPyBool_Check(HPyContext *ctx, HPy obj)
+{
+    return HPy_TypeCheck(ctx, obj, ctx->h_BoolType);
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
