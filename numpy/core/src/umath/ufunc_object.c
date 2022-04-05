@@ -60,6 +60,9 @@
 
 #include "../multiarray/multiarraymodule.h"
 #include "../multiarray/descriptor.h"
+#include "../multiarray/ctors.h"
+#include "../multiarray/conversion_utils.h"
+#include "../multiarray/arrayobject.h"
 
 /********** PRINTF DEBUG TRACING **************/
 #define NPY_UF_DBG_TRACING 0
