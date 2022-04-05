@@ -99,6 +99,12 @@ typedef struct {
     int out_i;
 } _ufunc_context;
 
+typedef struct {
+    HPy ufunc;
+    ufunc_hpy_full_args args;
+    int out_i;
+} _ufunc_hpy_context;
+
 /* Get the arg tuple to pass in the context argument to __array_wrap__ and
  * __array_prepare__.
  *
@@ -112,6 +118,16 @@ _get_wrap_prepare_args(ufunc_full_args full_args) {
     }
     else {
         return PySequence_Concat(full_args.in, full_args.out);
+    }
+}
+
+static HPy
+_hget_wrap_prepare_args(HPyContext *ctx, ufunc_hpy_full_args full_args) {
+    if (HPy_IsNull(full_args.out)) {
+        return HPy_Dup(ctx, full_args.in);
+    }
+    else {
+        return HPy_Add(ctx, full_args.in, full_args.out);
     }
 }
 
@@ -625,6 +641,64 @@ _apply_array_wrap(
         Py_DECREF(wrap);
         Py_DECREF(obj);
         return NULL;
+    }
+}
+
+static HPy
+_happly_array_wrap(HPyContext *ctx,
+            HPy wrap, HPy /* PyArrayObject* */ obj, _ufunc_hpy_context const *context) {
+    if (HPy_IsNull(wrap)) {
+        /* default behavior */
+        return HPyArray_Return(ctx, obj);
+    }
+    else if (HPy_Is(ctx, wrap, ctx->h_None)) {
+        HPy_Close(ctx, wrap);
+        return obj;
+    }
+    else {
+        HPy res;
+        HPy py_context = HPy_NULL;
+
+        /* Convert the context object to a tuple, if present */
+        if (context == NULL) {
+            py_context = HPy_Dup(ctx, ctx->h_None);
+        }
+        else {
+            HPy args_tup;
+            /* Call the method with appropriate context */
+            args_tup = _hget_wrap_prepare_args(ctx, context->args);
+            if (HPy_IsNull(args_tup)) {
+                goto fail;
+            }
+            py_context = HPy_BuildValue(ctx, "OOi",
+                context->ufunc, args_tup, context->out_i);
+            HPy_Close(ctx, args_tup);
+            if (HPy_IsNull(py_context)) {
+                goto fail;
+            }
+        }
+        /* try __array_wrap__(obj, context) */
+        HPy args = HPyTuple_Pack(ctx, 2, obj, py_context);
+        res = HPy_CallTupleDict(ctx, wrap, args, HPy_NULL);
+        HPy_Close(ctx, args);
+        HPy_Close(ctx, py_context);
+
+        /* try __array_wrap__(obj) if the context argument is not accepted  */
+        if (HPy_IsNull(res) && HPyErr_ExceptionMatches(ctx, ctx->h_TypeError)) {
+            HPyErr_Clear(ctx);
+            args = HPyTuple_Pack(ctx, 2, obj, py_context);
+            res = HPy_CallTupleDict(ctx, wrap, args, HPy_NULL);
+            HPy_Close(ctx, args);
+        }
+        HPy_Close(ctx, wrap);
+        // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
+        HPy_Close(ctx, obj);
+        return res;
+    fail:
+        HPy_Close(ctx, wrap);
+        // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
+        HPy_Close(ctx, obj);
+        return HPy_NULL;
     }
 }
 
