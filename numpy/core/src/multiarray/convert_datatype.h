@@ -49,6 +49,10 @@ NPY_NO_EXPORT int
 should_use_min_scalar(npy_intp narrs, PyArrayObject **arr,
                       npy_intp ndtypes, PyArray_Descr **dtypes);
 
+NPY_NO_EXPORT int
+hshould_use_min_scalar(HPyContext *ctx, npy_intp narrs, HPy *arr,
+                      npy_intp ndtypes, HPy *dtypes);
+
 NPY_NO_EXPORT const char *
 npy_casting_to_string(NPY_CASTING casting);
 
