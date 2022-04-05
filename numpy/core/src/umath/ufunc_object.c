@@ -86,6 +86,12 @@ typedef struct {
                        provided, then this is NULL. */
 } ufunc_full_args;
 
+typedef struct {
+    HPy in;   /* The input arguments to the ufunc, a tuple */
+    HPy out;  /* The output arguments, a tuple. If no non-None outputs are
+                 provided, then this is NULL. */
+} ufunc_hpy_full_args;
+
 /* C representation of the context argument to __array_wrap__ */
 typedef struct {
     PyUFuncObject *ufunc;
