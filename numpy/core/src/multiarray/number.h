@@ -98,8 +98,7 @@ static inline PyObject *_n_ops_get(PyObject **pyobj, HPyGlobal h_global) {
 
 #define N_OPS_GET(name)     _n_ops_get(&n_ops.name, hpy_n_ops.name)
 
-NPY_NO_EXPORT PyObject *
-array_add(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_add;
 
 NPY_NO_EXPORT extern HPyDef array_subtract;
 

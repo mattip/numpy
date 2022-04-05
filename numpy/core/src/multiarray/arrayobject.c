@@ -1908,7 +1908,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_mp_subscript, (binaryfunc)array_subscript},
     {Py_mp_ass_subscript, (objobjargproc)array_assign_subscript},
 
-    {Py_nb_add, array_add},
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
     {Py_nb_divmod, array_divmod},
@@ -1969,6 +1968,7 @@ static HPyDef *array_defines[] = {
     &array_power,
     &array_subtract,
     &array_true_divide,
+    &array_add,
     NULL,
 };
 

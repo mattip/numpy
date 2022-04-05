@@ -306,17 +306,18 @@ HPyArray_GenericInplaceUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
     return _HPyArray_GenericHelper(ctx, op, 2, m1, m1);
 }
 
-NPY_NO_EXPORT PyObject *
-array_add(PyObject *m1, PyObject *m2)
-{
-    PyObject *res;
 
-    hpy_abort_not_implemented("array_add...");
-    // BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_add, array_add);
+
+HPyDef_SLOT(array_add, array_add_impl, HPy_nb_add)
+NPY_NO_EXPORT HPy
+array_add_impl(HPyContext *ctx, HPy m1, HPy m2)
+{
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_add);
+    // We cannot support this hack on HPy
     // if (try_binary_elide(m1, m2, &array_inplace_add, &res, 1)) {
     //     return res;
     // }
-    // return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(add));
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.add);
 }
 
 HPyDef_SLOT(array_subtract, array_subtract_impl, HPy_nb_subtract);
