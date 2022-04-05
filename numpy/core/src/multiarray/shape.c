@@ -292,6 +292,18 @@ PyArray_Newshape(PyArrayObject *self, PyArray_Dims *newdims,
     return (PyObject *)ret;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */self,
+        PyArray_Dims *newdims, NPY_ORDER order)
+{
+    CAPI_WARN("HPyArray_Newshape");
+    PyArrayObject *py_self = (PyArrayObject *)HPy_AsPyObject(ctx, self);
+    PyObject *py_res = PyArray_Newshape(py_self, newdims, order);
+    HPy res = HPy_FromPyObject(ctx, py_res);
+    Py_XDECREF(py_res);
+    Py_XDECREF(py_self);
+    return res;
+}
 
 
 /* For backward compatibility -- Not recommended */
