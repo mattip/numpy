@@ -906,3 +906,29 @@ PyArray_Return(PyArrayObject *mp)
         return (PyObject *)mp;
     }
 }
+
+NPY_NO_EXPORT HPy
+HPyArray_Return(HPyContext *ctx, HPy /* PyArrayObject* */mp)
+{
+    if (HPy_IsNull(mp)) {
+        return HPy_NULL;
+    }
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, mp);
+        return HPy_NULL;
+    }
+    if (!HPyArray_Check(ctx, mp)) {
+        return mp;
+    }
+    if (HPyArray_GetNDim(ctx, mp)) {
+        CAPI_WARN("HPyArray_Return");
+        PyObject *py_ret = PyArray_ToScalar(PyArray_DATA(mp), mp);
+        HPy ret = HPy_FromPyObject(ctx, py_ret);
+        Py_XDECREF(py_ret);
+        HPy_Close(ctx, mp);
+        return ret;
+    }
+    else {
+        return mp;
+    }
+}
