@@ -235,6 +235,60 @@ _find_array_method(PyObject *args, PyObject *method_name)
     return method;
 }
 
+static HPy
+_hfind_array_method(HPyContext *ctx, HPy args, HPy method_name)
+{
+    int i, n_methods;
+    HPy obj;
+    HPy with_method[NPY_MAXARGS], methods[NPY_MAXARGS];
+    HPy method = HPy_NULL;
+
+    n_methods = 0;
+    for (i = 0; i < HPy_Length(ctx, args); i++) {
+        obj = HPy_GetItem_i(ctx, args, i);
+        if (HPyArray_CheckExact(ctx, obj) ||
+                HPyArray_IsAnyScalar(ctx, obj)) {
+            continue;
+        }
+        method = HPy_GetAttr(ctx, obj, method_name);
+        if (!HPy_IsNull(method)) {
+            if (HPyCallable_Check(ctx, method)) {
+                with_method[n_methods] = obj;
+                methods[n_methods] = method;
+                ++n_methods;
+            }
+            else {
+                HPy_Close(ctx, method);
+                method = HPy_NULL;
+            }
+        }
+        else {
+            HPyErr_Clear(ctx);
+        }
+    }
+    if (n_methods > 0) {
+        /* If we have some methods defined, find the one of highest priority */
+        method = methods[0];
+        if (n_methods > 1) {
+            double maxpriority = HPyArray_GetPriority(ctx, with_method[0],
+                                                     NPY_PRIORITY);
+            for (i = 1; i < n_methods; ++i) {
+                double priority = HPyArray_GetPriority(ctx, with_method[i],
+                                                      NPY_PRIORITY);
+                if (priority > maxpriority) {
+                    maxpriority = priority;
+                    HPy_Close(ctx, method);
+                    method = methods[i];
+                }
+                else {
+                    HPy_Close(ctx, methods[i]);
+                }
+            }
+        }
+    }
+    return method;
+}
+
 /*
  * Returns an incref'ed pointer to the proper __array_prepare__/__array_wrap__
  * method for a ufunc output argument, given the output argument `obj`, and the

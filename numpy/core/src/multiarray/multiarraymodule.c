@@ -69,6 +69,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "compiled_base.h"
 #include "mem_overlap.h"
 #include "typeinfo.h"
+#include "scalarapi.h"
 
 #include "get_attr_string.h"
 #include "experimental_public_dtype_api.h"  /* _get_experimental_dtype_api */
@@ -4787,6 +4788,7 @@ setup_scalartypes(HPyContext *ctx, PyObject *NPY_UNUSED(dict))
     }
     // HPY TODO: global variable + local variable to mimick the original global in the SINGLE_INHERIT&co macros
     _PyGenericArrType_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyGenericArrType_Type);
+    HPyGlobal_Store(ctx, &HPyGenericArrType_Type, h_PyGenericArrType_Type);
     HPy_Close(ctx, h_PyGenericArrType_Type);
 
     SINGLE_INHERIT(Number, Generic);
@@ -4997,6 +4999,7 @@ static HPyGlobal *module_globals[] = {
     &HPyArrayDTypeMeta_Type,
     &HPyArrayMethod_Type,
     &HPyBoundArrayMethod_Type,
+    &HPyGenericArrType_Type,
     &hpy_n_ops.add,
     &hpy_n_ops.subtract,
     &hpy_n_ops.multiply,

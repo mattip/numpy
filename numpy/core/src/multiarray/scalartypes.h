@@ -26,6 +26,9 @@ NPY_NO_EXPORT int
 is_anyscalar_exact(PyObject *obj);
 
 NPY_NO_EXPORT int
+hpy_is_anyscalar_exact(HPyContext *ctx, HPy obj);
+
+NPY_NO_EXPORT int
 _typenum_fromtypeobj(PyObject *type, int user);
 
 NPY_NO_EXPORT void *
@@ -115,5 +118,7 @@ NPY_NO_EXPORT PyTypeObject *_PyTimeIntegerArrType_Type_p;
 NPY_NO_EXPORT PyTypeObject *_PyDatetimeArrType_Type_p;
 NPY_NO_EXPORT PyTypeObject *_PyTimedeltaArrType_Type_p;
 NPY_NO_EXPORT PyTypeObject *_PyHalfArrType_Type_p;
+
+extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SCALARTYPES_H_ */

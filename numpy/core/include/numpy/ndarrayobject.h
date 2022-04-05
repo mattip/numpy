@@ -21,6 +21,15 @@ extern "C" {
 #include "__multiarray_api.h"
 
 
+/* TODO HPY LABS PORT: This is a workaround since we don't export the
+ * appropriate HPyGlobals yet in the Numpy API. Once we have our own
+ * Numpy HPy API, we should remove this.
+ * Actual definition is in 'scalartypes.c'. The global is owned by
+ * the multiarray module.
+ */
+extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
+
+
 /* C-API that requires previous API to be defined */
 
 #define PyArray_DescrCheck(op) PyObject_TypeCheck(op, &PyArrayDescr_Type)
@@ -57,6 +66,17 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
     return res;
 }
 
+static NPY_INLINE int
+HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
+{
+    return HPy_TypeCheck(ctx, op, ctx->h_FloatType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_ComplexType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_LongType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_BoolType) ||
+           HPyBytes_Check(ctx, op) ||
+           HPyUnicode_Check(ctx, op);
+}
+
 #define PyArray_HasArrayInterfaceType(op, type, context, out)                 \
         ((((out)=PyArray_FromStructInterface(op)) != Py_NotImplemented) ||    \
          (((out)=PyArray_FromInterface(op)) != Py_NotImplemented) ||          \
@@ -72,8 +92,8 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 #define PyArray_IsScalar(obj, cls)                                            \
         (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
 
-#define HPyArray_IsScalar(ctx, obj, cls)                                            \
-        (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
+#define HPyArray_IsScalar(ctx, obj, cls)                                      \
+        (HPyGlobal_TypeCheck(ctx, obj, HPy##cls##ArrType_Type))
 
 #define PyArray_CheckScalar(m) (PyArray_IsScalar(m, Generic) ||               \
                                 PyArray_IsZeroDim(m))
@@ -88,6 +108,10 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 
 #define PyArray_IsAnyScalar(obj)                                              \
         (PyArray_IsScalar(obj, Generic) || PyArray_IsPythonScalar(obj))
+
+#define HPyArray_IsAnyScalar(ctx, obj)                                        \
+        (HPyArray_IsScalar(ctx, obj, Generic) ||                              \
+         HPyArray_IsPythonScalar(ctx, obj))
 
 #define PyArray_CheckAnyScalar(obj) (PyArray_IsPythonScalar(obj) ||           \
                                      PyArray_CheckScalar(obj))
