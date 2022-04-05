@@ -63,6 +63,7 @@
 #include "../multiarray/ctors.h"
 #include "../multiarray/conversion_utils.h"
 #include "../multiarray/arrayobject.h"
+#include "../multiarray/scalarapi.h"
 
 /********** PRINTF DEBUG TRACING **************/
 #define NPY_UF_DBG_TRACING 0
@@ -133,8 +134,8 @@ _hget_wrap_prepare_args(HPyContext *ctx, ufunc_hpy_full_args full_args) {
 
 /* ---------------------------------------------------------------- */
 
-static PyObject *
-prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc);
+static HPy
+prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc);
 
 static int
 resolve_descriptors(int nop,
@@ -443,6 +444,25 @@ _find_array_prepare(ufunc_full_args args,
     return;
 }
 
+static void
+_hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
+                    HPy *output_prep, int nout)
+{
+    PyObject **py_output_prep = (PyObject **) PyMem_RawCalloc(nout, sizeof(PyObject *));
+    ufunc_full_args py_args;
+    CAPI_WARN("_hfind_array_prepare: call to _find_array_prepare");
+    py_args.in = HPy_AsPyObject(ctx, args.in);
+    py_args.out = HPy_AsPyObject(ctx, args.out);
+
+    _find_array_prepare(py_args, py_output_prep, nout);
+
+    for (int i=0; i < nout; i++) {
+        output_prep[i] = HPy_FromPyObject(ctx, py_output_prep[i]);
+        Py_DECREF(py_output_prep[i]);
+    }
+    PyMem_RawFree(py_output_prep);
+}
+
 #define NPY_UFUNC_DEFAULT_INPUT_FLAGS \
     NPY_ITER_READONLY | \
     NPY_ITER_ALIGNED | \
@@ -533,11 +553,12 @@ _ufunc_setup_flags(PyUFuncObject *ufunc, npy_uint32 op_in_flags,
  * should just have PyArray_Return called.
  */
 static void
-_find_array_wrap(ufunc_full_args args, npy_bool subok,
-                 PyObject **output_wrap, int nin, int nout)
+_hfind_array_wrap(HPyContext *ctx, ufunc_hpy_full_args args, npy_bool subok,
+                 HPy *output_wrap, int nin, int nout)
 {
     int i;
-    PyObject *wrap = NULL;
+    HPy wrap = HPy_NULL;
+    HPy str_array_wrap = HPy_NULL;
 
     /*
      * If a 'subok' parameter is passed and isn't True, don't wrap but put None
@@ -551,7 +572,9 @@ _find_array_wrap(ufunc_full_args args, npy_bool subok,
      * Determine the wrapping function given by the input arrays
      * (could be NULL).
      */
-    wrap = _find_array_method(args.in, npy_um_str_array_wrap);
+    // TODO HPY LABS PORT: used interned string: npy_um_str_array_wrap
+    str_array_wrap = HPyUnicode_FromString(ctx, "__array_wrap__");
+    wrap = _hfind_array_method(ctx, args.in, str_array_wrap);
 
     /*
      * For all the output arrays decide what to do.
@@ -566,27 +589,32 @@ _find_array_wrap(ufunc_full_args args, npy_bool subok,
      * done in that case.
      */
 handle_out:
-    if (args.out == NULL) {
+    if (HPy_IsNull(args.out)) {
         for (i = 0; i < nout; i++) {
-            Py_XINCREF(wrap);
-            output_wrap[i] = wrap;
+            output_wrap[i] = HPy_Dup(ctx, wrap);
         }
     }
     else {
+        if (HPy_IsNull(str_array_wrap)) {
+            str_array_wrap = HPyUnicode_FromString(ctx, "__array_wrap__");
+        }
         for (i = 0; i < nout; i++) {
-            output_wrap[i] = _get_output_array_method(
-                PyTuple_GET_ITEM(args.out, i), npy_um_str_array_wrap, wrap);
+            HPy item = HPy_GetItem_i(ctx, args.out, i);
+            // TODO HPY LABS PORT: used interned string: npy_um_str_array_wrap
+            output_wrap[i] = _hget_output_array_method(ctx, item, str_array_wrap, wrap);
+            HPy_Close(ctx, item);
         }
     }
 
-    Py_XDECREF(wrap);
+    HPy_Close(ctx, wrap);
+    HPy_Close(ctx, str_array_wrap);
 }
 
 
 /*
  * Apply the __array_wrap__ function with the given array and content.
  *
- * Interprets wrap=None and wrap=NULL as intended by _find_array_wrap
+ * Interprets wrap=None and wrap=NULL as intended by _hfind_array_wrap
  *
  * Steals a reference to obj and wrap.
  * Pass context=NULL to indicate there is no context.
@@ -1015,24 +1043,23 @@ fail:
  * an exception and returns -1 on failure.
  */
 static int
-_set_out_array(PyObject *obj, PyArrayObject **store)
+_set_out_array(HPyContext *ctx, HPy obj, HPy *store)
 {
-    if (obj == Py_None) {
+    if (HPy_Is(ctx, obj, ctx->h_None)) {
         /* Translate None to NULL */
         return 0;
     }
-    if (PyArray_Check(obj)) {
+    if (HPyArray_Check(ctx, obj)) {
         /* If it's an array, store it */
-        if (PyArray_FailUnlessWriteable((PyArrayObject *)obj,
+        if (HPyArray_FailUnlessWriteable(ctx, obj,
                                         "output array") < 0) {
             return -1;
         }
-        Py_INCREF(obj);
-        *store = (PyArrayObject *)obj;
+        *store = HPy_Dup(ctx, obj);
 
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "return arrays must be of ArrayType");
+    HPyErr_SetString(ctx, ctx->h_TypeError, "return arrays must be of ArrayType");
 
     return -1;
 }
@@ -1053,28 +1080,28 @@ ufunc_get_name_cstr(PyUFuncObject *ufunc) {
  * Converters for use in parsing of keywords arguments.
  */
 static int
-_subok_converter(PyObject *obj, npy_bool *subok)
+_hpy_subok_converter(HPyContext *ctx, HPy obj, npy_bool *subok)
 {
-    if (PyBool_Check(obj)) {
-        *subok = (obj == Py_True);
+    if (HPyBool_Check(ctx, obj)) {
+        *subok = HPy_Is(ctx, obj, ctx->h_True);
         return NPY_SUCCEED;
     }
     else {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                         "'subok' must be a boolean");
         return NPY_FAIL;
     }
 }
 
 static int
-_keepdims_converter(PyObject *obj, int *keepdims)
+_hpy_keepdims_converter(HPyContext *ctx, HPy obj, int *keepdims)
 {
-    if (PyBool_Check(obj)) {
-        *keepdims = (obj == Py_True);
+    if (HPyBool_Check(ctx, obj)) {
+        *keepdims = HPy_Is(ctx, obj, ctx->h_True);
         return NPY_SUCCEED;
     }
     else {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                         "'keepdims' must be a boolean");
         return NPY_FAIL;
     }
@@ -1104,6 +1131,22 @@ _wheremask_converter(PyObject *obj, PyArrayObject **wheremask)
     }
 }
 
+static int
+_hpy_wheremask_converter(HPyContext *ctx, HPy obj, HPy *wheremask)
+{
+    /*
+     * Optimization: where=True is the same as no where argument.
+     * This lets us document True as the default.
+     */
+    if (HPy_Is(ctx, obj, ctx->h_True)) {
+        return NPY_SUCCEED;
+    }
+    else {
+        hpy_abort_not_implemented("_hpy_wheremask_converter");
+        return NPY_FAIL;
+    }
+}
+
 
 /*
  * Due to the array override, do the actual parameter conversion
@@ -1113,21 +1156,32 @@ _wheremask_converter(PyObject *obj, PyArrayObject **wheremask)
  * however, the caller has to ensure that `out_op[0:nargs]` and `out_whermeask`
  * are NULL initialized.
  */
+//static int
+//convert_ufunc_arguments(PyUFuncObject *ufunc,
+//        ufunc_full_args full_args, PyArrayObject *out_op[],
+//        PyArray_DTypeMeta *out_op_DTypes[],
+//        npy_bool *force_legacy_promotion, npy_bool *allow_legacy_promotion,
+//        PyObject *order_obj, NPY_ORDER *out_order,
+//        PyObject *casting_obj, NPY_CASTING *out_casting,
+//        PyObject *subok_obj, npy_bool *out_subok,
+//        PyObject *where_obj, PyArrayObject **out_wheremask, /* PyArray of bool */
+//        PyObject *keepdims_obj, int *out_keepdims)
 static int
-convert_ufunc_arguments(PyUFuncObject *ufunc,
-        ufunc_full_args full_args, PyArrayObject *out_op[],
-        PyArray_DTypeMeta *out_op_DTypes[],
+hconvert_ufunc_arguments(HPyContext *ctx, HPy h_ufunc,
+        ufunc_hpy_full_args full_args, HPy out_op[],
+        HPy out_op_DTypes[],
         npy_bool *force_legacy_promotion, npy_bool *allow_legacy_promotion,
-        PyObject *order_obj, NPY_ORDER *out_order,
-        PyObject *casting_obj, NPY_CASTING *out_casting,
-        PyObject *subok_obj, npy_bool *out_subok,
-        PyObject *where_obj, PyArrayObject **out_wheremask, /* PyArray of bool */
-        PyObject *keepdims_obj, int *out_keepdims)
+        HPy order_obj, NPY_ORDER *out_order,
+        HPy casting_obj, NPY_CASTING *out_casting,
+        HPy subok_obj, npy_bool *out_subok,
+        HPy where_obj, HPy *out_wheremask, /* PyArray of bool */
+        HPy keepdims_obj, int *out_keepdims)
 {
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, h_ufunc);
     int nin = ufunc->nin;
     int nout = ufunc->nout;
     int nop = ufunc->nargs;
-    PyObject *obj;
+    HPy obj;
 
     /* Convert and fill in input arguments */
     npy_bool all_scalar = NPY_TRUE;
@@ -1135,26 +1189,29 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
     *allow_legacy_promotion = NPY_TRUE;
     *force_legacy_promotion = NPY_FALSE;
     for (int i = 0; i < nin; i++) {
-        obj = PyTuple_GET_ITEM(full_args.in, i);
+        obj = HPy_GetItem_i(ctx, full_args.in, i);
 
-        if (PyArray_Check(obj)) {
-            out_op[i] = (PyArrayObject *)obj;
-            Py_INCREF(out_op[i]);
+        if (HPyArray_Check(ctx, obj)) {
+            /* INCREF */
+            out_op[i] = obj;
         }
         else {
             /* Convert the input to an array and check for special cases */
-            out_op[i] = (PyArrayObject *)PyArray_FromAny(obj, NULL, 0, 0, 0, NULL);
-            if (out_op[i] == NULL) {
+            out_op[i] = HPyArray_FromAny(ctx, obj, HPy_NULL, 0, 0, 0, HPy_NULL);
+            if (HPy_IsNull(out_op[i])) {
                 goto fail;
             }
         }
-        out_op_DTypes[i] = NPY_DTYPE(PyArray_DESCR(out_op[i]));
-        Py_INCREF(out_op_DTypes[i]);
+        HPy tmp = HPyArray_GetDescr(ctx, out_op[i]);
+        out_op_DTypes[i] = HNPY_DTYPE(ctx, tmp);
+        // Py_INCREF(out_op_DTypes[i]);
+        HPy_Close(ctx, tmp);
 
-        if (!NPY_DT_is_legacy(out_op_DTypes[i])) {
+        PyArray_DTypeMeta *out_op_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, out_op_DTypes[i]);
+        if (!NPY_DT_is_legacy(out_op_dtype_data)) {
             *allow_legacy_promotion = NPY_FALSE;
         }
-        if (PyArray_NDIM(out_op[i]) == 0) {
+        if (HPyArray_GetNDim(ctx, out_op[i]) == 0) {
             any_scalar = NPY_TRUE;
         }
         else {
@@ -1174,20 +1231,24 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
          */
     }
     if (*allow_legacy_promotion && (!all_scalar && any_scalar)) {
-        *force_legacy_promotion = should_use_min_scalar(nin, out_op, 0, NULL);
+        *force_legacy_promotion = hshould_use_min_scalar(ctx, nin, out_op, 0, NULL);
     }
 
     /* Convert and fill in output arguments */
     memset(out_op_DTypes + nin, 0, nout * sizeof(*out_op_DTypes));
-    if (full_args.out != NULL) {
+    if (!HPy_IsNull(full_args.out)) {
         for (int i = 0; i < nout; i++) {
-            obj = PyTuple_GET_ITEM(full_args.out, i);
-            if (_set_out_array(obj, out_op + i + nin) < 0) {
+            obj = HPy_GetItem_i(ctx, full_args.out, i);
+            if (_set_out_array(ctx, obj, out_op + i + nin) < 0) {
+                HPy_Close(ctx, obj);
                 goto fail;
             }
-            if (out_op[i] != NULL) {
-                out_op_DTypes[i + nin] = NPY_DTYPE(PyArray_DESCR(out_op[i]));
-                Py_INCREF(out_op_DTypes[i + nin]);
+            HPy_Close(ctx, obj);
+            if (!HPy_IsNull(out_op[i])) {
+                HPy tmp = HPyArray_GetDescr(ctx, out_op[i]);
+                out_op_DTypes[i + nin] = HNPY_DTYPE(ctx, tmp);
+                // Py_INCREF(out_op_DTypes[i + nin]);
+                HPy_Close(ctx, tmp);
             }
         }
     }
@@ -1196,29 +1257,29 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
      * Convert most arguments manually here, since it is easier to handle
      * the ufunc override if we first parse only to objects.
      */
-    if (where_obj && !_wheremask_converter(where_obj, out_wheremask)) {
+    if (!HPy_IsNull(where_obj) && !_hpy_wheremask_converter(ctx, where_obj, out_wheremask)) {
         goto fail;
     }
-    if (keepdims_obj && !_keepdims_converter(keepdims_obj, out_keepdims)) {
+    if (!HPy_IsNull(keepdims_obj) && !_hpy_keepdims_converter(ctx, keepdims_obj, out_keepdims)) {
         goto fail;
     }
-    if (casting_obj && !PyArray_CastingConverter(casting_obj, out_casting)) {
+    if (!HPy_IsNull(casting_obj) && !HPyArray_CastingConverter(ctx, casting_obj, out_casting)) {
         goto fail;
     }
-    if (order_obj && !PyArray_OrderConverter(order_obj, out_order)) {
+    if (!HPy_IsNull(order_obj) && !HPyArray_OrderConverter(ctx, order_obj, out_order)) {
         goto fail;
     }
-    if (subok_obj && !_subok_converter(subok_obj, out_subok)) {
+    if (!HPy_IsNull(subok_obj) && !_hpy_subok_converter(ctx, subok_obj, out_subok)) {
         goto fail;
     }
     return 0;
 
 fail:
     if (out_wheremask != NULL) {
-        Py_XSETREF(*out_wheremask, NULL);
+        HPy_SETREF(ctx, *out_wheremask, HPy_NULL);
     }
     for (int i = 0; i < nop; i++) {
-        Py_XSETREF(out_op[i], NULL);
+        HPy_SETREF(ctx, out_op[i], HPy_NULL);
     }
     return -1;
 }
@@ -4026,6 +4087,58 @@ _set_full_args_out(int nout, PyObject *out_obj, ufunc_full_args *full_args)
     return 0;
 }
 
+static npy_bool
+hpy_tuple_all_none(HPyContext *ctx, HPy tup, HPy_ssize_t n) {
+    npy_intp i;
+    HPy item = HPy_NULL;
+    for (i = 0; i < n; ++i) {
+        HPy_SETREF(ctx, item, HPy_GetItem_i(ctx, tup, i));
+        if (!HPy_Is(ctx, item, ctx->h_None)) {
+            HPy_Close(ctx, item);
+            return NPY_FALSE;
+        }
+    }
+    return NPY_TRUE;
+}
+
+static int
+_hpy_set_full_args_out(HPyContext *ctx, int nout, HPy out_obj, ufunc_hpy_full_args *full_args)
+{
+    if (HPy_Is(ctx, HPy_Type(ctx, out_obj), ctx->h_TupleType)) {
+        HPy_ssize_t n = HPy_Length(ctx, out_obj);
+        if (n != nout) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "The 'out' tuple must have exactly "
+                            "one entry per ufunc output");
+            return -1;
+        }
+        if (hpy_tuple_all_none(ctx, out_obj, n)) {
+            return 0;
+        }
+        else {
+            full_args->out = HPy_Dup(ctx, out_obj);
+        }
+    }
+    else if (nout == 1) {
+        if (HPy_Is(ctx, out_obj, ctx->h_None)) {
+            return 0;
+        }
+        /* Can be an array if it only has one output */
+        full_args->out = HPyTuple_Pack(ctx, 1, out_obj);
+        if (HPy_IsNull(full_args->out)) {
+            return -1;
+        }
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                nout > 1 ? "'out' must be a tuple of arrays" :
+                        "'out' must be an array or a tuple with "
+                        "a single array");
+        return -1;
+    }
+    return 0;
+}
+
 
 /*
  * Convert function which replaces np._NoValue with NULL.
@@ -4429,28 +4542,28 @@ fail:
  * this happens after the array-ufunc override check currently.
  */
 static int
-_check_and_copy_sig_to_signature(
-        PyObject *sig_obj, PyObject *signature_obj, PyObject *dtype,
-        PyObject **out_signature)
+_check_and_copy_sig_to_signature(HPyContext *ctx,
+        HPy sig_obj, HPy signature_obj, HPy dtype,
+        HPy *out_signature)
 {
-    *out_signature = NULL;
-    if (signature_obj != NULL) {
+    *out_signature = HPy_NULL;
+    if (!HPy_IsNull(signature_obj)) {
         *out_signature = signature_obj;
     }
 
-    if (sig_obj != NULL) {
-        if (*out_signature != NULL) {
-            PyErr_SetString(PyExc_TypeError,
+    if (!HPy_IsNull(sig_obj)) {
+        if (!HPy_IsNull(*out_signature)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "cannot specify both 'sig' and 'signature'");
-            *out_signature = NULL;
+            *out_signature = HPy_NULL;
             return -1;
         }
         *out_signature = sig_obj;
     }
 
-    if (dtype != NULL) {
-        if (*out_signature != NULL) {
-            PyErr_SetString(PyExc_TypeError,
+    if (!HPy_IsNull(dtype)) {
+        if (!HPy_IsNull(*out_signature)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "cannot specify both 'signature' and 'dtype'");
             return -1;
         }
@@ -4836,54 +4949,55 @@ hresolve_descriptors(HPyContext *ctx, int nop,
  * @param subok Whether subclasses are allowed
  * @param result_arrays The ufunc result(s).  REFERENCES ARE STOLEN!
  */
-static PyObject *
-replace_with_wrapped_result_and_return(PyUFuncObject *ufunc,
-        ufunc_full_args full_args, npy_bool subok,
-        PyArrayObject *result_arrays[])
+static HPy
+hreplace_with_wrapped_result_and_return(HPyContext *ctx, HPy ufunc,
+        ufunc_hpy_full_args full_args, npy_bool subok,
+        HPy /*PyArrayObject * */ result_arrays[])
 {
-    PyObject *retobj[NPY_MAXARGS];
-    PyObject *wraparr[NPY_MAXARGS];
-    _find_array_wrap(full_args, subok, wraparr, ufunc->nin, ufunc->nout);
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    HPy retobj[NPY_MAXARGS];
+    HPy wraparr[NPY_MAXARGS];
+    _hfind_array_wrap(ctx, full_args, subok, wraparr, ufunc_data->nin, ufunc_data->nout);
 
     /* wrap outputs */
-    for (int i = 0; i < ufunc->nout; i++) {
-        _ufunc_context context;
+    for (int i = 0; i < ufunc_data->nout; i++) {
+        _ufunc_hpy_context context;
 
         context.ufunc = ufunc;
         context.args = full_args;
         context.out_i = i;
 
-        retobj[i] = _apply_array_wrap(wraparr[i], result_arrays[i], &context);
-        result_arrays[i] = NULL;  /* Was DECREF'ed and (probably) wrapped */
-        if (retobj[i] == NULL) {
+        retobj[i] = _happly_array_wrap(ctx, wraparr[i], result_arrays[i], &context);
+        result_arrays[i] = HPy_NULL;  /* Was DECREF'ed and (probably) wrapped */
+        if (HPy_IsNull(retobj[i])) {
             goto fail;
         }
     }
 
-    if (ufunc->nout == 1) {
+    if (ufunc_data->nout == 1) {
         return retobj[0];
     }
     else {
-        PyObject *result = PyTuple_New(ufunc->nout);
-        if (result == NULL) {
-            return NULL;
+        HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, ufunc_data->nout);
+        if (HPyTupleBuilder_IsNull(builder)) {
+            return HPy_NULL;
         }
-        for (int i = 0; i < ufunc->nout; i++) {
-            PyTuple_SET_ITEM(result, i, retobj[i]);
+        for (int i = 0; i < ufunc_data->nout; i++) {
+            HPyTupleBuilder_Set(ctx, builder, i, retobj[i]);
         }
-        return result;
+        return HPyTupleBuilder_Build(ctx, builder);
     }
 
   fail:
-    for (int i = 0; i < ufunc->nout; i++) {
-        if (result_arrays[i] != NULL) {
-            Py_DECREF(result_arrays[i]);
+    for (int i = 0; i < ufunc_data->nout; i++) {
+        if (!HPy_IsNull(result_arrays[i])) {
+            HPy_Close(ctx, result_arrays[i]);
         }
         else {
-            Py_XDECREF(retobj[i]);
+            HPy_Close(ctx, retobj[i]);
         }
     }
-    return NULL;
+    return HPy_NULL;
 }
 
 
@@ -4896,23 +5010,24 @@ replace_with_wrapped_result_and_return(PyUFuncObject *ufunc,
  * If `tp_vectorcall` is not available, the dictionary `kwargs` are unpacked in
  * `ufunc_generic_call` with fairly little overhead.
  */
-static PyObject *
-ufunc_generic_fastcall(PyUFuncObject *ufunc,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames,
+static HPy
+ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
+        HPy const *args, HPy_ssize_t len_args, HPy kwnames,
         npy_bool outer)
 {
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     int errval;
     int nin = ufunc->nin, nout = ufunc->nout, nop = ufunc->nargs;
 
     /* All following variables are cleared in the `fail` error path */
-    ufunc_full_args full_args;
-    PyArrayObject *wheremask = NULL;
+    ufunc_hpy_full_args full_args;
+    HPy wheremask = HPy_NULL; /* PyArrayObject */
 
-    PyArray_DTypeMeta *signature[NPY_MAXARGS];
-    PyArrayObject *operands[NPY_MAXARGS];
-    PyArray_DTypeMeta *operand_DTypes[NPY_MAXARGS];
-    PyArray_Descr *operation_descrs[NPY_MAXARGS];
-    PyObject *output_array_prepare[NPY_MAXARGS];
+    HPy signature[NPY_MAXARGS]; /* PyArray_DTypeMeta * */
+    HPy operands[NPY_MAXARGS]; /* PyArrayObject * */
+    HPy operand_DTypes[NPY_MAXARGS]; /* PyArray_DTypeMeta * */
+    HPy operation_descrs[NPY_MAXARGS]; /* PyArray_Descr * */
+    HPy output_array_prepare[NPY_MAXARGS];
     /* Initialize all arrays (we usually only need a small part) */
     memset(signature, 0, nop * sizeof(*signature));
     memset(operands, 0, nop * sizeof(*operands));
@@ -4930,17 +5045,17 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
 
     /* Check number of arguments */
     if (NPY_UNLIKELY((len_args < nin) || (len_args > nop))) {
-        PyErr_Format(PyExc_TypeError,
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "%s() takes from %d to %d positional arguments but "
                 "%zd were given",
                 ufunc_get_name_cstr(ufunc) , nin, nop, len_args);
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Fetch input arguments. */
-    full_args.in = PyArray_TupleFromItems(ufunc->nin, args, 0);
-    if (full_args.in == NULL) {
-        return NULL;
+    full_args.in = HPyArray_TupleFromItems(ctx, ufunc->nin, args, 0);
+    if (HPy_IsNull(full_args.in)) {
+        return HPy_NULL;
     }
 
     /*
@@ -4951,57 +5066,74 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
     if (out_is_passed_by_position) {
         npy_bool all_none = NPY_TRUE;
 
-        full_args.out = PyTuple_New(nout);
-        if (full_args.out == NULL) {
+        HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, nout);
+        if (HPyTupleBuilder_IsNull(builder)) {
             goto fail;
         }
         for (int i = nin; i < nop; i++) {
-            PyObject *tmp;
+            HPy tmp;
             if (i < (int)len_args) {
                 tmp = args[i];
-                if (tmp != Py_None) {
+                if (all_none && !HPy_Is(ctx, tmp, ctx->h_None)) {
                     all_none = NPY_FALSE;
                 }
             }
             else {
-                tmp = Py_None;
+                /* no dup required since HPyTupleBuilder_Set isn't stealing */
+                tmp = ctx->h_None;
             }
-            Py_INCREF(tmp);
-            PyTuple_SET_ITEM(full_args.out, i-nin, tmp);
+            HPyTupleBuilder_Set(ctx, builder, i-nin, tmp);
         }
         if (all_none) {
-            Py_SETREF(full_args.out, NULL);
+            HPyTupleBuilder_Cancel(ctx, builder);
+            full_args.out = HPy_NULL;
+        } else {
+            full_args.out = HPyTupleBuilder_Build(ctx, builder);
+            if (HPy_IsNull(full_args.out)) {
+                goto fail;
+            }
         }
     }
     else {
-        full_args.out = NULL;
+        full_args.out = HPy_NULL;
     }
 
     /*
      * We have now extracted (but not converted) the input arguments.
      * To simplify overrides, extract all other arguments (as objects only)
      */
-    PyObject *out_obj = NULL, *where_obj = NULL;
-    PyObject *axes_obj = NULL, *axis_obj = NULL;
-    PyObject *keepdims_obj = NULL, *casting_obj = NULL, *order_obj = NULL;
-    PyObject *subok_obj = NULL, *signature_obj = NULL, *sig_obj = NULL;
-    PyObject *dtype_obj = NULL, *extobj = NULL;
+    HPy out_obj = HPy_NULL, where_obj = HPy_NULL;
+    HPy axes_obj = HPy_NULL, axis_obj = HPy_NULL;
+    HPy keepdims_obj = HPy_NULL, casting_obj = HPy_NULL, order_obj = HPy_NULL;
+    HPy subok_obj = HPy_NULL, signature_obj = HPy_NULL, sig_obj = HPy_NULL;
+    HPy dtype_obj = HPy_NULL, extobj = HPy_NULL;
+
 
     /* Skip parsing if there are no keyword arguments, nothing left to do */
-    if (kwnames != NULL) {
+    if (!HPy_IsNull(kwnames)) {
+        CAPI_WARN("ufunc_generic_fastcall: call to npy_parse_arguments");
+        PyObject *py_out_obj = NULL, *py_where_obj = NULL;
+        PyObject *py_axes_obj = NULL, *py_axis_obj = NULL;
+        PyObject *py_keepdims_obj = NULL, *py_casting_obj = NULL, *py_order_obj = NULL;
+        PyObject *py_subok_obj = NULL, *py_signature_obj = NULL, *py_sig_obj = NULL;
+        PyObject *py_dtype_obj = NULL, *py_extobj = NULL;
+
+        PyObject *const *py_args = (PyObject *const *) HPy_AsPyObjectArray(ctx, (HPy *)args, len_args);
+        PyObject *py_kwnames = HPy_AsPyObject(ctx, kwnames);
+
         if (!ufunc->core_enabled) {
             NPY_PREPARE_ARGPARSER;
 
-            if (npy_parse_arguments(ufunc->name, args + len_args, 0, kwnames,
-                    "$out", NULL, &out_obj,
-                    "$where", NULL, &where_obj,
-                    "$casting", NULL, &casting_obj,
-                    "$order", NULL, &order_obj,
-                    "$subok", NULL, &subok_obj,
-                    "$dtype", NULL, &dtype_obj,
-                    "$signature", NULL, &signature_obj,
-                    "$sig", NULL, &sig_obj,
-                    "$extobj", NULL, &extobj,
+            if (npy_parse_arguments(ufunc->name, py_args + len_args, 0, py_kwnames,
+                    "$out", NULL, &py_out_obj,
+                    "$where", NULL, &py_where_obj,
+                    "$casting", NULL, &py_casting_obj,
+                    "$order", NULL, &py_order_obj,
+                    "$subok", NULL, &py_subok_obj,
+                    "$dtype", NULL, &py_dtype_obj,
+                    "$signature", NULL, &py_signature_obj,
+                    "$sig", NULL, &py_sig_obj,
+                    "$extobj", NULL, &py_extobj,
                     NULL, NULL, NULL) < 0) {
                 goto fail;
             }
@@ -5009,37 +5141,64 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
         else {
             NPY_PREPARE_ARGPARSER;
 
-            if (npy_parse_arguments(ufunc->name, args + len_args, 0, kwnames,
-                    "$out", NULL, &out_obj,
-                    "$axes", NULL, &axes_obj,
-                    "$axis", NULL, &axis_obj,
-                    "$keepdims", NULL, &keepdims_obj,
-                    "$casting", NULL, &casting_obj,
-                    "$order", NULL, &order_obj,
-                    "$subok", NULL, &subok_obj,
-                    "$dtype", NULL, &dtype_obj,
-                    "$signature", NULL, &signature_obj,
-                    "$sig", NULL, &sig_obj,
-                    "$extobj", NULL, &extobj,
+            if (npy_parse_arguments(ufunc->name, py_args + len_args, 0, py_kwnames,
+                    "$out", NULL, &py_out_obj,
+                    "$axes", NULL, &py_axes_obj,
+                    "$axis", NULL, &py_axis_obj,
+                    "$keepdims", NULL, &py_keepdims_obj,
+                    "$casting", NULL, &py_casting_obj,
+                    "$order", NULL, &py_order_obj,
+                    "$subok", NULL, &py_subok_obj,
+                    "$dtype", NULL, &py_dtype_obj,
+                    "$signature", NULL, &py_signature_obj,
+                    "$sig", NULL, &py_sig_obj,
+                    "$extobj", NULL, &py_extobj,
                     NULL, NULL, NULL) < 0) {
                 goto fail;
             }
-            if (NPY_UNLIKELY((axes_obj != NULL) && (axis_obj != NULL))) {
-                PyErr_SetString(PyExc_TypeError,
+            if (NPY_UNLIKELY((py_axes_obj != NULL) && (py_axis_obj != NULL))) {
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "cannot specify both 'axis' and 'axes'");
                 goto fail;
             }
         }
+        out_obj = HPy_FromPyObject(ctx, py_out_obj);
+        where_obj = HPy_FromPyObject(ctx, py_where_obj);
+        axes_obj = HPy_FromPyObject(ctx, py_axes_obj);
+        axis_obj = HPy_FromPyObject(ctx, py_axis_obj);
+        keepdims_obj = HPy_FromPyObject(ctx, py_keepdims_obj);
+        casting_obj = HPy_FromPyObject(ctx, py_casting_obj);
+        order_obj = HPy_FromPyObject(ctx, py_order_obj);
+        subok_obj = HPy_FromPyObject(ctx, py_subok_obj);
+        signature_obj = HPy_FromPyObject(ctx, py_signature_obj);
+        sig_obj = HPy_FromPyObject(ctx, py_sig_obj);
+        dtype_obj = HPy_FromPyObject(ctx, py_dtype_obj);
+        extobj = HPy_FromPyObject(ctx, py_extobj);
+
+        Py_XDECREF(py_out_obj);
+        Py_XDECREF(py_where_obj);
+        Py_XDECREF(py_axes_obj);
+        Py_XDECREF(py_axis_obj);
+        Py_XDECREF(py_keepdims_obj);
+        Py_XDECREF(py_casting_obj);
+        Py_XDECREF(py_order_obj);
+        Py_XDECREF(py_subok_obj);
+        Py_XDECREF(py_signature_obj);
+        Py_XDECREF(py_sig_obj);
+        Py_XDECREF(py_dtype_obj);
+        Py_XDECREF(py_extobj);
+        Py_DECREF(py_kwnames);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_args, len_args);
 
         /* Handle `out` arguments passed by keyword */
-        if (out_obj != NULL) {
+        if (!HPy_IsNull(out_obj)) {
             if (out_is_passed_by_position) {
-                PyErr_SetString(PyExc_TypeError,
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "cannot specify 'out' as both a "
                         "positional and keyword argument");
                 goto fail;
             }
-            if (_set_full_args_out(nout, out_obj, &full_args) < 0) {
+            if (_hpy_set_full_args_out(ctx, nout, out_obj, &full_args) < 0) {
                 goto fail;
             }
         }
@@ -5048,7 +5207,7 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
          * was passed, this puts it into `signature_obj` instead (these
          * are borrowed references).
          */
-        if (_check_and_copy_sig_to_signature(
+        if (_check_and_copy_sig_to_signature(ctx,
                 sig_obj, signature_obj, dtype_obj, &signature_obj) < 0) {
             goto fail;
         }
@@ -5062,33 +5221,32 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
         method = "outer";
     }
     /* We now have all the information required to check for Overrides */
-    PyObject *override = NULL;
-    errval = PyUFunc_CheckOverride(ufunc, method,
-            full_args.in, full_args.out,
-            args, len_args, kwnames, &override);
+    HPy override = HPy_NULL;
+    errval = HPyUFunc_CheckOverride(ctx, self, method, full_args.in,
+            full_args.out, args, len_args, kwnames, &override);
     if (errval) {
         goto fail;
     }
-    else if (override) {
-        Py_DECREF(full_args.in);
-        Py_XDECREF(full_args.out);
+    else if (!HPy_IsNull(override)) {
+        HPy_Close(ctx, full_args.in);
+        HPy_Close(ctx, full_args.out);
         return override;
     }
 
     if (outer) {
         /* Outer uses special preparation of inputs (expand dims) */
-        PyObject *new_in = prepare_input_arguments_for_outer(full_args.in, ufunc);
-        if (new_in == NULL) {
+        HPy new_in = prepare_input_arguments_for_outer(ctx, full_args.in, self);
+        if (HPy_IsNull(new_in)) {
             goto fail;
         }
-        Py_SETREF(full_args.in, new_in);
+        HPy_SETREF(ctx, full_args.in, new_in);
     }
 
     /*
      * Parse the passed `dtype` or `signature` into an array containing
      * PyArray_DTypeMeta and/or None.
      */
-    if (_get_fixed_signature(ufunc,
+    if (_get_fixed_signature(ctx, self,
             dtype_obj, signature_obj, signature) < 0) {
         goto fail;
     }
@@ -5099,7 +5257,7 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
     int keepdims = -1;  /* We need to know if it was passed */
     npy_bool force_legacy_promotion;
     npy_bool allow_legacy_promotion;
-    if (convert_ufunc_arguments(ufunc,
+    if (hconvert_ufunc_arguments(ctx, self,
             /* extract operand related information: */
             full_args, operands,
             operand_DTypes, &force_legacy_promotion, &allow_legacy_promotion,
@@ -5120,38 +5278,54 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
      * in the future.  For now, we do it here.  The type resolution step can
      * be shared between the ufunc and gufunc code.
      */
-    PyArrayMethodObject *ufuncimpl = promote_and_get_ufuncimpl(ufunc,
-            operands, signature,
-            operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
+    CAPI_WARN("ufunc_generic_fastcall: call to promote_and_get_ufuncimpl");
+    int nargs = ufunc->nargs;
+    PyArrayObject *const *py_operands = (PyArrayObject *const *)HPy_AsPyObjectArray(ctx, operands, nargs);
+    PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, nargs);
+    PyArray_DTypeMeta **py_operand_DTypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, operand_DTypes, nargs);
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, self);
+    PyArrayMethodObject *py_ufuncimpl = promote_and_get_ufuncimpl(py_ufunc,
+            py_operands, py_signature,
+            py_operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
             NPY_FALSE);
-    if (ufuncimpl == NULL) {
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operand_DTypes, nargs);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, nargs);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, nargs);
+    if (py_ufuncimpl == NULL) {
         goto fail;
     }
+    HPy ufuncimpl = HPy_FromPyObject(ctx, (PyObject *)py_ufuncimpl);
+    Py_DECREF(py_ufuncimpl);
 
     /* Find the correct descriptors for the operation */
-    if (resolve_descriptors(nop, ufunc, ufuncimpl,
+    if (hresolve_descriptors(ctx, nop, self, ufuncimpl,
             operands, operation_descrs, signature, casting) < 0) {
         goto fail;
     }
 
     if (subok) {
-        _find_array_prepare(full_args, output_array_prepare, nout);
+        _hfind_array_prepare(ctx, full_args, output_array_prepare, nout);
     }
 
     /*
      * Do the final preparations and call the inner-loop.
      */
+    errval = 0;
     if (!ufunc->core_enabled) {
-        errval = PyUFunc_GenericFunctionInternal(ufunc, ufuncimpl,
-                operation_descrs, operands, extobj, casting, order,
-                output_array_prepare, full_args,  /* for __array_prepare__ */
-                wheremask);
+        hpy_abort_not_implemented("PyUFunc_GenericFunctionInternal");
+        // TODO HPY LABS PORT
+//        errval = PyUFunc_GenericFunctionInternal(ufunc, ufuncimpl,
+//                operation_descrs, operands, extobj, casting, order,
+//                output_array_prepare, full_args,  /* for __array_prepare__ */
+//                wheremask);
     }
     else {
-        errval = PyUFunc_GeneralizedFunctionInternal(ufunc, ufuncimpl,
-                operation_descrs, operands, extobj, casting, order,
-                /* GUFuncs never (ever) called __array_prepare__! */
-                axis_obj, axes_obj, keepdims);
+        hpy_abort_not_implemented("PyUFunc_GenericFunctionInternal");
+        // TODO HPY LABS PORT
+//        errval = PyUFunc_GeneralizedFunctionInternal(ufunc, ufuncimpl,
+//                operation_descrs, operands, extobj, casting, order,
+//                /* GUFuncs never (ever) called __array_prepare__! */
+//                axis_obj, axes_obj, keepdims);
     }
     if (errval < 0) {
         goto fail;
@@ -5161,40 +5335,63 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
      * Clear all variables which are not needed any further.
      * (From here on, we cannot `goto fail` any more.)
      */
-    Py_XDECREF(wheremask);
+    HPy_Close(ctx, wheremask);
     for (int i = 0; i < nop; i++) {
-        Py_DECREF(signature[i]);
-        Py_XDECREF(operand_DTypes[i]);
-        Py_DECREF(operation_descrs[i]);
+        HPy_Close(ctx, signature[i]);
+        HPy_Close(ctx, operand_DTypes[i]);
+        HPy_Close(ctx, operation_descrs[i]);
         if (i < nin) {
-            Py_DECREF(operands[i]);
+            HPy_Close(ctx, operands[i]);
         }
         else {
-            Py_XDECREF(output_array_prepare[i-nin]);
+            HPy_Close(ctx, output_array_prepare[i-nin]);
         }
     }
     /* The following steals the references to the outputs: */
-    PyObject *result = replace_with_wrapped_result_and_return(ufunc,
+    HPy result = hreplace_with_wrapped_result_and_return(ctx, self,
             full_args, subok, operands+nin);
-    Py_XDECREF(full_args.in);
-    Py_XDECREF(full_args.out);
+    HPy_Close(ctx, full_args.in);
+    HPy_Close(ctx, full_args.out);
 
     return result;
 
 fail:
-    Py_XDECREF(full_args.in);
-    Py_XDECREF(full_args.out);
-    Py_XDECREF(wheremask);
+    HPy_Close(ctx, full_args.in);
+    HPy_Close(ctx, full_args.out);
+    HPy_Close(ctx, wheremask);
     for (int i = 0; i < ufunc->nargs; i++) {
-        Py_XDECREF(operands[i]);
-        Py_XDECREF(signature[i]);
-        Py_XDECREF(operand_DTypes[i]);
-        Py_XDECREF(operation_descrs[i]);
+        HPy_Close(ctx, operands[i]);
+        HPy_Close(ctx, signature[i]);
+        HPy_Close(ctx, operand_DTypes[i]);
+        HPy_Close(ctx, operation_descrs[i]);
         if (i < nout) {
-            Py_XDECREF(output_array_prepare[i]);
+            HPy_Close(ctx, output_array_prepare[i]);
         }
     }
-    return NULL;
+    return HPy_NULL;
+}
+
+static PyObject *
+ufunc_generic_fastcall(PyUFuncObject *ufunc,
+        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames,
+        npy_bool outer)
+{
+    /*
+     * Unlike METH_FASTCALL, `len_args` may have a flag to signal that
+     * args[-1] may be (temporarily) used. So normalize it here.
+     */
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy *h_args = HPy_FromPyObjectArray(ctx, args, len_args);
+    HPy h_kwnames = HPy_FromPyObject(ctx, kwnames);
+    HPy h_res = ufunc_hpy_generic_fastcall(ctx, h_ufunc, h_args, len_args,
+            h_kwnames, outer);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_kwnames);
+    HPy_CloseAndFreeArray(ctx, h_args, len_args);
+    HPy_Close(ctx, h_ufunc);
+    return res;
 }
 
 
@@ -5216,6 +5413,7 @@ ufunc_generic_vectorcall(PyObject *ufunc,
             args, PyVectorcall_NARGS(len_args), kwnames, NPY_FALSE);
 }
 
+typedef PyObject * (*ternaryfunc)(PyObject *, PyObject *, PyObject *);
 
 NPY_NO_EXPORT PyObject *
 ufunc_geterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
@@ -5959,13 +6157,14 @@ ufunc_outer(PyUFuncObject *ufunc,
 }
 
 
-static PyObject *
-prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
+static HPy
+prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
 {
-    PyArrayObject *ap1 = NULL;
-    PyObject *tmp;
-    static PyObject *_numpy_matrix;
-    npy_cache_import("numpy", "matrix", &_numpy_matrix);
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, h_ufunc);
+    HPy ap1 = HPy_NULL; /* PyArrayObject *ap1 */
+    HPy tmp;
+    static HPy _numpy_matrix;
+    npy_hpy_cache_import(ctx, "numpy", "matrix", &_numpy_matrix);
 
     const char *matrix_deprecation_msg = (
             "%s.outer() was passed a numpy matrix as %s argument. "
@@ -5974,45 +6173,52 @@ prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
             "array to retain the old behaviour. You can use `matrix.A` "
             "to achieve this.");
 
-    tmp = PyTuple_GET_ITEM(args, 0);
+    tmp = HPy_GetItem_i(ctx, args, 0);
 
-    if (PyObject_IsInstance(tmp, _numpy_matrix)) {
+    // TODO HPY LABS PORT: PyObject_IsInstance
+    if (HPy_TypeCheck(ctx, tmp, _numpy_matrix)) {
         /* DEPRECATED 2020-05-13, NumPy 1.20 */
-        if (PyErr_WarnFormat(PyExc_DeprecationWarning, 1,
-                matrix_deprecation_msg, ufunc->name, "first") < 0) {
-            return NULL;
+        if (HPyErr_WarnEx(ctx,  ctx->h_DeprecationWarning, matrix_deprecation_msg, 1) < 0) {
+        // TODO HPY LABS PORT: PyErr_WarnFormat
+        // if (PyErr_WarnFormat(PyExc_DeprecationWarning, 1,
+        //         matrix_deprecation_msg, ufunc->name, "first") < 0) {
+            return HPy_NULL;
         }
-        ap1 = (PyArrayObject *) PyArray_FromObject(tmp, NPY_NOTYPE, 0, 0);
+        ap1 = HPyArray_FromObject(ctx, tmp, NPY_NOTYPE, 0, 0);
     }
     else {
-        ap1 = (PyArrayObject *) PyArray_FROM_O(tmp);
+        ap1 = HPyArray_FROM_O(ctx, tmp);
     }
-    if (ap1 == NULL) {
-        return NULL;
+    if (HPy_IsNull(ap1)) {
+        return HPy_NULL;
     }
 
-    PyArrayObject *ap2 = NULL;
-    tmp = PyTuple_GET_ITEM(args, 1);
-    if (PyObject_IsInstance(tmp, _numpy_matrix)) {
+    HPy ap2 = HPy_NULL; /* PyArrayObject *ap2 */
+    HPy_SETREF(ctx, tmp, HPy_GetItem_i(ctx, args, 1));
+    // TODO HPY LABS PORT: PyObject_IsInstance
+    if (HPy_TypeCheck(ctx, tmp, _numpy_matrix)) {
         /* DEPRECATED 2020-05-13, NumPy 1.20 */
-        if (PyErr_WarnFormat(PyExc_DeprecationWarning, 1,
-                matrix_deprecation_msg, ufunc->name, "second") < 0) {
-            Py_DECREF(ap1);
-            return NULL;
+        if (HPyErr_WarnEx(ctx,  ctx->h_DeprecationWarning, matrix_deprecation_msg, 1) < 0) {
+        // TODO HPY LABS PORT: PyErr_WarnFormat
+        // if (PyErr_WarnFormat(PyExc_DeprecationWarning, 1,
+        //        matrix_deprecation_msg, ufunc->name, "second") < 0) {
+            HPy_Close(ctx, ap1);
+            goto fail;
         }
-        ap2 = (PyArrayObject *) PyArray_FromObject(tmp, NPY_NOTYPE, 0, 0);
+        ap2 = HPyArray_FromObject(ctx, tmp, NPY_NOTYPE, 0, 0);
     }
     else {
-        ap2 = (PyArrayObject *) PyArray_FROM_O(tmp);
+        ap2 = HPyArray_FROM_O(ctx, tmp);
     }
-    if (ap2 == NULL) {
-        Py_DECREF(ap1);
-        return NULL;
+    if (HPy_IsNull(ap2)) {
+        goto fail;
     }
     /* Construct new shape from ap1 and ap2 and then reshape */
     PyArray_Dims newdims;
     npy_intp newshape[NPY_MAXDIMS];
-    newdims.len = PyArray_NDIM(ap1) + PyArray_NDIM(ap2);
+
+    int ap1_ndim = HPyArray_GetNDim(ctx, ap1);
+    newdims.len = ap1_ndim + HPyArray_GetNDim(ctx, ap2);
     newdims.ptr = newshape;
 
     if (newdims.len > NPY_MAXDIMS) {
@@ -6025,19 +6231,19 @@ prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
     if (newdims.ptr == NULL) {
         goto fail;
     }
-    memcpy(newshape, PyArray_DIMS(ap1), PyArray_NDIM(ap1) * sizeof(npy_intp));
-    for (int i = PyArray_NDIM(ap1); i < newdims.len; i++) {
+    memcpy(newshape, HPyArray_GetDims(ctx, ap1), ap1_ndim * sizeof(npy_intp));
+    for (int i = ap1_ndim; i < newdims.len; i++) {
         newshape[i] = 1;
     }
 
-    PyArrayObject *ap_new;
-    ap_new = (PyArrayObject *)PyArray_Newshape(ap1, &newdims, NPY_CORDER);
-    if (ap_new == NULL) {
+    HPy ap_new; /* PyArrayObject *ap_new */
+    ap_new = HPyArray_Newshape(ctx, ap1, &newdims, NPY_CORDER);
+    if (HPy_IsNull(ap_new)) {
         goto fail;
     }
-    if (PyArray_NDIM(ap_new) != newdims.len ||
-           !PyArray_CompareLists(PyArray_DIMS(ap_new), newshape, newdims.len)) {
-        PyErr_Format(PyExc_TypeError,
+    if (HPyArray_GetNDim(ctx, ap_new) != newdims.len ||
+           !PyArray_CompareLists(HPyArray_GetDims(ctx, ap_new), newshape, newdims.len)) {
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "%s.outer() called with ndarray-subclass of type '%s' "
                 "which modified its shape after a reshape. `outer()` relies "
                 "on reshaping the inputs and is for example not supported for "
@@ -6045,18 +6251,20 @@ prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
                 "discouraged). "
                 "To work around this issue, please convert the inputs to "
                 "numpy arrays.",
-                ufunc->name, Py_TYPE(ap_new)->tp_name);
-        Py_DECREF(ap_new);
+                ufunc->name, "XXX");
+                // ufunc->name, Py_TYPE(ap_new)->tp_name);
+        HPy_Close(ctx, ap_new);
         goto fail;
     }
 
-    Py_DECREF(ap1);
-    return Py_BuildValue("(NN)", ap_new, ap2);
+    HPy_Close(ctx, ap1);
+    return HPyTuple_Pack(ctx, 2, ap_new, ap2);
 
  fail:
-    Py_XDECREF(ap1);
-    Py_XDECREF(ap2);
-    return NULL;
+    HPy_Close(ctx, tmp);
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    return HPy_NULL;
 }
 
 
@@ -6655,6 +6863,11 @@ ufunc_get_signature_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 }
 
 #undef _typecharfromnum
+
+ufunc_call(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+{
+
+}
 
 /*
  * Docstring is now set from python
