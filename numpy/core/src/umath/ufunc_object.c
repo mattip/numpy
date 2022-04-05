@@ -126,6 +126,11 @@ resolve_descriptors(int nop,
         PyArrayObject *operands[], PyArray_Descr *dtypes[],
         PyArray_DTypeMeta *signature[], NPY_CASTING casting);
 
+static int
+hresolve_descriptors(HPyContext *ctx, int nop,
+        HPy h_ufunc, HPy ufuncimpl,
+        HPy operands[], HPy dtypes[],
+        HPy signature[], NPY_CASTING casting);
 
 /*UFUNC_API*/
 NPY_NO_EXPORT int
@@ -4636,21 +4641,56 @@ resolve_descriptors(int nop,
         PyArrayObject *operands[], PyArray_Descr *dtypes[],
         PyArray_DTypeMeta *signature[], NPY_CASTING casting)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_ufuncimpl = HPy_FromPyObject(ctx, (PyObject *)ufuncimpl);
+    HPy *h_operands = HPy_FromPyObjectArray(ctx, (PyObject **)operands, nop);
+    HPy *h_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)dtypes, nop);
+    HPy *h_signature = HPy_FromPyObjectArray(ctx, (PyObject **)operands, nop);
+
+    int res = hresolve_descriptors(ctx, nop, h_ufunc, h_ufuncimpl, h_operands, h_dtypes, h_signature, casting);
+
+    HPy_Close(ctx, h_ufunc);
+    HPy_Close(ctx, h_ufuncimpl);
+    HPy_CloseAndFreeArray(ctx, h_operands, nop);
+    HPy_CloseAndFreeArray(ctx, h_dtypes, nop);
+    HPy_CloseAndFreeArray(ctx, h_signature, nop);
+
+    return res;
+}
+
+static int
+hresolve_descriptors(HPyContext *ctx, int nop,
+        HPy h_ufunc, HPy ufuncimpl,
+        HPy operands[], HPy dtypes[],
+        HPy signature[], NPY_CASTING casting)
+{
+
+    // PyUFuncObject *ufunc, PyArrayMethodObject *ufuncimpl,
+    // PyArrayObject *operands[], PyArray_Descr *dtypes[],
+    // PyArray_DTypeMeta *signature[], NPY_CASTING casting
     int retval = -1;
-    PyArray_Descr *original_dtypes[NPY_MAXARGS];
+    HPy original_dtypes[NPY_MAXARGS];
 
     for (int i = 0; i < nop; ++i) {
-        if (operands[i] == NULL) {
-            original_dtypes[i] = NULL;
+        if (HPy_IsNull(operands[i])) {
+            original_dtypes[i] = HPy_NULL;
         }
         else {
             /*
              * The dtype may mismatch the signature, in which case we need
              * to make it fit before calling the resolution.
              */
-            PyArray_Descr *descr = PyArray_DTYPE(operands[i]);
-            original_dtypes[i] = PyArray_CastDescrToDType(descr, signature[i]);
-            if (original_dtypes[i] == NULL) {
+            // PyArray_Descr *descr = PyArray_DTYPE(operands[i]);
+            HPy descr = HPyArray_DTYPE(ctx, operands[i]);
+            CAPI_WARN("hresolve_descriptors: call to PyArray_CastDescrToDType");
+            PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
+            PyArray_DTypeMeta *py_sig_i = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, signature[i]);
+            PyArray_Descr *py_res = PyArray_CastDescrToDType(py_descr, py_sig_i);
+            original_dtypes[i] = HPy_FromPyObject(ctx, (PyObject*)py_res);
+            Py_DECREF(py_descr);
+            Py_DECREF(py_sig_i);
+            if (HPy_IsNull(original_dtypes[i])) {
                 nop = i;  /* only this much is initialized */
                 goto finish;
             }
@@ -4659,18 +4699,20 @@ resolve_descriptors(int nop,
 
     NPY_UF_DBG_PRINT("Resolving the descriptors\n");
 
-    if (ufuncimpl->resolve_descriptors != &wrapped_legacy_resolve_descriptors) {
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, h_ufunc);
+    PyArrayMethodObject *ufuncimpl_data = PyArrayMethodObject_AsStruct(ctx, ufuncimpl);
+    if (ufuncimpl_data->resolve_descriptors != &wrapped_legacy_resolve_descriptors) {
         /* The default: use the `ufuncimpl` as nature intended it */
         npy_intp view_offset = NPY_MIN_INTP;  /* currently ignored */
 
-        NPY_CASTING safety = resolve_descriptors_trampoline(ufuncimpl->resolve_descriptors, ufuncimpl,
-                signature, original_dtypes, dtypes, &view_offset);
+        NPY_CASTING safety = ufuncimpl_data->resolve_descriptors(ctx,
+                ufuncimpl, signature, original_dtypes, dtypes, &view_offset);
         if (safety < 0) {
             goto finish;
         }
         if (NPY_UNLIKELY(PyArray_MinCastSafety(safety, casting) != casting)) {
             /* TODO: Currently impossible to reach (specialized unsafe loop) */
-            PyErr_Format(PyExc_TypeError,
+            HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "The ufunc implementation for %s with the given dtype "
                     "signature is not possible under the casting rule %s",
                     ufunc_get_name_cstr(ufunc), npy_casting_to_string(casting));
@@ -4683,12 +4725,14 @@ resolve_descriptors(int nop,
          * Fall-back to legacy resolver using `operands`, used exclusively
          * for datetime64/timedelta64 and custom ufuncs (in pyerfa/astropy).
          */
-        retval = ufunc->type_resolver(ufunc, casting, operands, NULL, dtypes);
+        // TODO HPY LABS PORT: migrate function type PyUFunc_TypeResolutionFunc
+        // retval = ufunc->type_resolver(ufunc, casting, operands, NULL, dtypes);
+        hpy_abort_not_implemented("hresolve_descriptors");
     }
 
   finish:
     for (int i = 0; i < nop; i++) {
-        Py_XDECREF(original_dtypes[i]);
+        HPy_Close(ctx, original_dtypes[i]);
     }
     return retval;
 }
