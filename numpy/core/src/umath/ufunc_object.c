@@ -458,7 +458,7 @@ _hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
 
     for (int i=0; i < nout; i++) {
         output_prep[i] = HPy_FromPyObject(ctx, py_output_prep[i]);
-        Py_DECREF(py_output_prep[i]);
+        Py_XDECREF(py_output_prep[i]);
     }
     PyMem_RawFree(py_output_prep);
 }
@@ -5288,6 +5288,9 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
             py_operands, py_signature,
             py_operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
             NPY_FALSE);
+    for (int i=0; i < nargs; i++) {
+        HPy_SETREF(ctx, signature[i], HPy_FromPyObject(ctx, py_signature[i]));
+    }
     HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operand_DTypes, nargs);
     HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, nargs);
     HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, nargs);
@@ -5295,7 +5298,6 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         goto fail;
     }
     HPy ufuncimpl = HPy_FromPyObject(ctx, (PyObject *)py_ufuncimpl);
-    Py_DECREF(py_ufuncimpl);
 
     /* Find the correct descriptors for the operation */
     if (hresolve_descriptors(ctx, nop, self, ufuncimpl,
@@ -5310,14 +5312,36 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
     /*
      * Do the final preparations and call the inner-loop.
      */
-    errval = 0;
+    errval = -1;
     if (!ufunc->core_enabled) {
-        hpy_abort_not_implemented("PyUFunc_GenericFunctionInternal");
-        // TODO HPY LABS PORT
-//        errval = PyUFunc_GenericFunctionInternal(ufunc, ufuncimpl,
-//                operation_descrs, operands, extobj, casting, order,
-//                output_array_prepare, full_args,  /* for __array_prepare__ */
-//                wheremask);
+        CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GenericFunctionInternal");
+        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, operation_descrs, nop);
+        PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
+        PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
+        PyObject **py_output_array_prepare = HPy_AsPyObjectArray(ctx, output_array_prepare, nout);
+        ufunc_full_args py_full_args = {
+                .in = HPy_AsPyObject(ctx, full_args.in),
+                .out = HPy_AsPyObject(ctx, full_args.out)
+        };
+        PyArrayObject *py_wheremask = (PyArray_Descr *)HPy_AsPyObject(ctx, wheremask);
+        errval = PyUFunc_GenericFunctionInternal(py_ufunc, py_ufuncimpl,
+                py_operation_descrs, py_op, py_extobj, casting, order,
+                py_output_array_prepare, py_full_args,  /* for __array_prepare__ */
+                py_wheremask);
+
+        for(int i=0; i < nop; i++) {
+            HPy_SETREF(ctx, operands[i], HPy_FromPyObject(ctx, (PyObject *)py_op[i]));
+        }
+        for(int i=0; i < nout; i++) {
+            HPy_SETREF(ctx, output_array_prepare[i], HPy_FromPyObject(ctx, py_output_array_prepare[i]));
+        }
+        Py_XDECREF(py_full_args.in);
+        Py_XDECREF(py_full_args.out);
+        Py_XDECREF(py_extobj);
+        HPy_DecrefAndFreeArray(ctx, py_output_array_prepare, nout);
+        HPy_DecrefAndFreeArray(ctx, py_operation_descrs, nop);
+        HPy_DecrefAndFreeArray(ctx, py_op, nop);
+        Py_XDECREF(py_wheremask);
     }
     else {
         hpy_abort_not_implemented("PyUFunc_GenericFunctionInternal");
@@ -5327,6 +5351,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
 //                /* GUFuncs never (ever) called __array_prepare__! */
 //                axis_obj, axes_obj, keepdims);
     }
+    Py_DECREF(py_ufunc);
+    Py_DECREF(py_ufuncimpl);
     if (errval < 0) {
         goto fail;
     }
@@ -6864,9 +6890,36 @@ ufunc_get_signature_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 
 #undef _typecharfromnum
 
-ufunc_call(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+HPyDef_SLOT(ufunc_call, ufunc_call_impl, HPy_tp_call)
+static HPy
+ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
 {
+    HPy_ssize_t nkw = 0;
+    HPy *full_args;
+    HPy kwnames;
+    if (!HPy_IsNull(kw)) {
+        nkw = HPy_Length(ctx, kw);
+        HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, nkw);
+        full_args = (HPy *) calloc(nargs + nkw, sizeof(HPy));
+        memcpy(full_args, args, nargs * sizeof(HPy));
+        kwnames = HPyDict_Keys(ctx, kw);
+        assert(HPy_Length(ctx, kwnames) == nkw);
+        for (HPy_ssize_t i=0; i < nkw; i++) {
+            HPy key = HPy_GetItem_i(ctx, kwnames, i);
+            full_args[nargs + i] = HPy_GetItem(ctx, kw, key);
+            HPy_Close(ctx, key);
+        }
+    } else {
+        full_args = args;
+        kwnames = HPy_NULL;
+    }
 
+    HPy res = ufunc_hpy_generic_fastcall(ctx, self, full_args, nargs, kwnames, NPY_FALSE);
+
+    for (HPy_ssize_t i=0; i < nkw; i++) {
+        HPy_Close(ctx, full_args[nargs + i]);
+    }
+    return res;
 }
 
 /*
@@ -6905,6 +6958,7 @@ static HPyDef *ufunc_defines[] = {
         &ufunc_get_nout,
         &ufunc_get_name,
         &ufunc_get_signature,
+        &ufunc_call,
         NULL
 };
 
