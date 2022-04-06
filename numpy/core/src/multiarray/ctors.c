@@ -2145,7 +2145,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy h_op, HPy h_newtype, int min_depth,
     PyObject *res = PyArray_FromAny(op, newtype, min_depth, max_depth, flags, context);
     HPy h_res = HPy_FromPyObject(ctx, res);
     Py_DECREF(res);
-    Py_DECREF(context);
+    Py_XDECREF(context);
     Py_DECREF(op);
     return h_res;
 }
