@@ -305,4 +305,11 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
         }                                                               \
     } while (0)
 
+#define HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, m1, m2)                      \
+    do {                                                                \
+        if (hpy_binop_should_defer(ctx, m1, m2, 0)) {                   \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+    } while (0)
+
 #endif  /* NUMPY_CORE_SRC_COMMON_BINOP_OVERRIDE_H_ */

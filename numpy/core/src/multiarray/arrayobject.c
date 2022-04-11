@@ -1451,33 +1451,46 @@ fail:
     return NULL;
 }
 
-NPY_NO_EXPORT PyObject *
-array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
+HPyDef_SLOT(array_richcompare_def, hpy_array_richcompare, HPy_tp_richcompare);
+
+PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
-    CAPI_WARN("array_richcompare");
-    PyArrayObject *array_other;
-    PyObject *obj_self = (PyObject *)self;
-    PyObject *result = NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
+    HPy h_other = HPy_FromPyObject(ctx, (PyObject*)other);
+    HPy result = hpy_array_richcompare(ctx, h_self, h_other, (HPy_RichCmpOp) cmp_op);
+    HPy_Close(ctx, h_self);
+    HPy_Close(ctx, h_other);
+    PyObject *res = HPy_AsPyObject(ctx, result);
+    HPy_Close(ctx, result);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy_RichCmpOp cmp_op)
+{
+    HPy result = HPy_NULL;
 
     /* Special case for string arrays (which don't and currently can't have
      * ufunc loops defined, so there's no point in trying).
      */
-    if (PyArray_ISSTRING(self)) {
-        array_other = (PyArrayObject *)PyArray_FromObject(other,
-                                                          NPY_NOTYPE, 0, 0);
-        if (array_other == NULL) {
-            PyErr_Clear();
-            /* Never mind, carry on, see what happens */
-        }
-        else if (!PyArray_ISSTRING(array_other)) {
-            Py_DECREF(array_other);
-            /* Never mind, carry on, see what happens */
-        }
-        else {
-            result = _strings_richcompare(self, array_other, cmp_op, 0);
-            Py_DECREF(array_other);
-            return result;
-        }
+    if (HPyArray_ISSTRING(ctx, self)) {
+        hpy_abort_not_implemented("string arrays in rich compare");
+        // array_other = (PyArrayObject *)PyArray_FromObject(other,
+        //                                                   NPY_NOTYPE, 0, 0);
+        // if (array_other == NULL) {
+        //     PyErr_Clear();
+        //     /* Never mind, carry on, see what happens */
+        // }
+        // else if (!PyArray_ISSTRING(array_other)) {
+        //     Py_DECREF(array_other);
+        //     /* Never mind, carry on, see what happens */
+        // }
+        // else {
+        //     result = _strings_richcompare(self, array_other, cmp_op, 0);
+        //     Py_DECREF(array_other);
+        //     return result;
+        // }
         /* If we reach this point, it means that we are not comparing
          * string-to-string. It's possible that this will still work out,
          * e.g. if the other array is an object array, then both will be cast
@@ -1491,140 +1504,141 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 
     switch (cmp_op) {
     case Py_LT:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, N_OPS_GET(less));
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.less);
         break;
     case Py_LE:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, N_OPS_GET(less_equal));
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.less_equal);
         break;
     case Py_EQ:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
         /*
          * The ufunc does not support void/structured types, so these
          * need to be handled specifically. Only a few cases are supported.
          */
 
-        if (PyArray_TYPE(self) == NPY_VOID) {
-            int _res;
+        if (HPyArray_GetType(ctx, self) == NPY_VOID) {
+            hpy_abort_not_implemented("void arrays in rich compare");
+            // int _res;
 
-            array_other = (PyArrayObject *)PyArray_FROM_O(other);
-            /*
-             * If not successful, indicate that the items cannot be compared
-             * this way.
-             */
-            if (array_other == NULL) {
-                /* 2015-05-07, 1.10 */
-                if (DEPRECATE_silence_error(
-                        "elementwise == comparison failed and returning scalar "
-                        "instead; this will raise an error in the future.") < 0) {
-                    return NULL;
-                }
-                Py_INCREF(Py_NotImplemented);
-                return Py_NotImplemented;
-            }
+            // array_other = (PyArrayObject *)PyArray_FROM_O(other);
+            // /*
+            //  * If not successful, indicate that the items cannot be compared
+            //  * this way.
+            //  */
+            // if (array_other == NULL) {
+            //     /* 2015-05-07, 1.10 */
+            //     if (DEPRECATE_silence_error(
+            //             "elementwise == comparison failed and returning scalar "
+            //             "instead; this will raise an error in the future.") < 0) {
+            //         return NULL;
+            //     }
+            //     Py_INCREF(Py_NotImplemented);
+            //     return Py_NotImplemented;
+            // }
 
-            _res = PyArray_CheckCastSafety(
-                    NPY_EQUIV_CASTING,
-                    PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
-            if (_res < 0) {
-                PyErr_Clear();
-                _res = 0;
-            }
-            if (_res == 0) {
-                /* 2015-05-07, 1.10 */
-                Py_DECREF(array_other);
-                if (DEPRECATE_FUTUREWARNING(
-                        "elementwise == comparison failed and returning scalar "
-                        "instead; this will raise an error or perform "
-                        "elementwise comparison in the future.") < 0) {
-                    return NULL;
-                }
-                Py_INCREF(Py_False);
-                return Py_False;
-            }
-            else {
-                result = _void_compare(self, array_other, cmp_op);
-            }
-            Py_DECREF(array_other);
-            return result;
+            // _res = PyArray_CheckCastSafety(
+            //         NPY_EQUIV_CASTING,
+            //         PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
+            // if (_res < 0) {
+            //     PyErr_Clear();
+            //     _res = 0;
+            // }
+            // if (_res == 0) {
+            //     /* 2015-05-07, 1.10 */
+            //     Py_DECREF(array_other);
+            //     if (DEPRECATE_FUTUREWARNING(
+            //             "elementwise == comparison failed and returning scalar "
+            //             "instead; this will raise an error or perform "
+            //             "elementwise comparison in the future.") < 0) {
+            //         return NULL;
+            //     }
+            //     Py_INCREF(Py_False);
+            //     return Py_False;
+            // }
+            // else {
+            //     result = _void_compare(self, array_other, cmp_op);
+            // }
+            // Py_DECREF(array_other);
+            // return result;
         }
 
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, (PyObject *)other, N_OPS_GET(equal));
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.equal);
         break;
     case Py_NE:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
         /*
          * The ufunc does not support void/structured types, so these
          * need to be handled specifically. Only a few cases are supported.
          */
 
-        if (PyArray_TYPE(self) == NPY_VOID) {
-            int _res;
+        if (HPyArray_GetType(ctx, self) == NPY_VOID) {
+            hpy_abort_not_implemented("void arrays in rich compare");
+            // int _res;
 
-            array_other = (PyArrayObject *)PyArray_FROM_O(other);
-            /*
-             * If not successful, indicate that the items cannot be compared
-             * this way.
-            */
-            if (array_other == NULL) {
-                /* 2015-05-07, 1.10 */
-                if (DEPRECATE_silence_error(
-                        "elementwise != comparison failed and returning scalar "
-                        "instead; this will raise an error in the future.") < 0) {
-                    return NULL;
-                }
-                Py_INCREF(Py_NotImplemented);
-                return Py_NotImplemented;
-            }
+            // array_other = (PyArrayObject *)PyArray_FROM_O(other);
+            // /*
+            //  * If not successful, indicate that the items cannot be compared
+            //  * this way.
+            // */
+            // if (array_other == NULL) {
+            //     /* 2015-05-07, 1.10 */
+            //     if (DEPRECATE_silence_error(
+            //             "elementwise != comparison failed and returning scalar "
+            //             "instead; this will raise an error in the future.") < 0) {
+            //         return NULL;
+            //     }
+            //     Py_INCREF(Py_NotImplemented);
+            //     return Py_NotImplemented;
+            // }
 
-            _res = PyArray_CheckCastSafety(
-                    NPY_EQUIV_CASTING,
-                    PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
-            if (_res < 0) {
-                PyErr_Clear();
-                _res = 0;
-            }
-            if (_res == 0) {
-                /* 2015-05-07, 1.10 */
-                Py_DECREF(array_other);
-                if (DEPRECATE_FUTUREWARNING(
-                        "elementwise != comparison failed and returning scalar "
-                        "instead; this will raise an error or perform "
-                        "elementwise comparison in the future.") < 0) {
-                    return NULL;
-                }
-                Py_INCREF(Py_True);
-                return Py_True;
-            }
-            else {
-                result = _void_compare(self, array_other, cmp_op);
-                Py_DECREF(array_other);
-            }
-            return result;
+            // _res = PyArray_CheckCastSafety(
+            //         NPY_EQUIV_CASTING,
+            //         PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
+            // if (_res < 0) {
+            //     PyErr_Clear();
+            //     _res = 0;
+            // }
+            // if (_res == 0) {
+            //     /* 2015-05-07, 1.10 */
+            //     Py_DECREF(array_other);
+            //     if (DEPRECATE_FUTUREWARNING(
+            //             "elementwise != comparison failed and returning scalar "
+            //             "instead; this will raise an error or perform "
+            //             "elementwise comparison in the future.") < 0) {
+            //         return NULL;
+            //     }
+            //     Py_INCREF(Py_True);
+            //     return Py_True;
+            // }
+            // else {
+            //     result = _void_compare(self, array_other, cmp_op);
+            //     Py_DECREF(array_other);
+            // }
+            // return result;
         }
 
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, (PyObject *)other, N_OPS_GET(not_equal));
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.not_equal);
         break;
     case Py_GT:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, N_OPS_GET(greater));
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.greater);
         break;
     case Py_GE:
-        RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
-        result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, N_OPS_GET(greater_equal));
+        HPY_RICHCMP_GIVE_UP_IF_NEEDED(ctx, self, other);
+        result = HPyArray_GenericBinaryFunction(
+                ctx, self, other, hpy_n_ops.greater_equal);
         break;
     default:
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
-    if (result == NULL) {
+    if (HPy_IsNull(result)) {
         /*
          * 2015-05-14, 1.10; updated 2018-06-18, 1.16.
          *
@@ -1650,7 +1664,8 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
          * However, for backwards compatibility, we cannot yet return arrays,
          * so we raise warnings instead.
          */
-        result = _failed_comparison_workaround(self, other, cmp_op);
+        hpy_abort_not_implemented("richcmp: _failed_comparison_workaround");
+        // result = _failed_comparison_workaround(self, other, cmp_op);
     }
     return result;
 }
@@ -1952,7 +1967,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
-    {Py_tp_richcompare, (richcmpfunc)array_richcompare},
     {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
     {Py_tp_getset, array_getsetlist},
@@ -1969,6 +1983,7 @@ static HPyDef *array_defines[] = {
     &array_subtract,
     &array_true_divide,
     &array_add,
+    &array_richcompare_def,
     NULL,
 };
 

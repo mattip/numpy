@@ -1980,6 +1980,10 @@ static inline bool HPyArray_ISOBJECT(HPyContext *ctx, HPy obj) {
     _PyArray_ISX(ctx, obj, OBJECT);
 }
 
+static inline bool HPyArray_ISSTRING(HPyContext *ctx, HPy obj) {
+    _PyArray_ISX(ctx, obj, STRING);
+}
+
 static inline bool HPyArray_ISINTEGER(HPyContext *ctx, HPy obj) {
     _PyArray_ISX(ctx, obj, INTEGER);
 }
