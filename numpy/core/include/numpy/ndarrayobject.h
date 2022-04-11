@@ -72,6 +72,9 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 #define PyArray_IsScalar(obj, cls)                                            \
         (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
 
+#define HPyArray_IsScalar(ctx, obj, cls)                                            \
+        (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
+
 #define PyArray_CheckScalar(m) (PyArray_IsScalar(m, Generic) ||               \
                                 PyArray_IsZeroDim(m))
 #define PyArray_IsPythonNumber(obj)                                           \

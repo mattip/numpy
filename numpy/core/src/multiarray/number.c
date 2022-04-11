@@ -20,11 +20,15 @@
 #include "common_dtype.h"
 #include "convert_datatype.h"
 
+// Added for HPy:
+#include "arraytypes.h"
+
 /*************************************************************************
  ****************   Implement Number Protocol ****************************
  *************************************************************************/
 
 NPY_NO_EXPORT NumericOps n_ops; /* NB: static objects initialized to zero */
+NPY_NO_EXPORT HPyNumericOps hpy_n_ops; /* NB: static objects initialized to zero */
 
 /*
  * Dictionary can contain any of the numeric operations, by name.
@@ -32,23 +36,24 @@ NPY_NO_EXPORT NumericOps n_ops; /* NB: static objects initialized to zero */
  */
 
 /* FIXME - macro contains a return */
-#define SET(op)   temp = _PyDict_GetItemStringWithError(dict, #op); \
-    if (temp == NULL && PyErr_Occurred()) { \
+// HPY note: we make the assumption that the items are set only once,
+// it seems that this could be called multiple times via API PyArray_SetNumericOps, 
+// but that API is deprecated in numpy and removed here in HPy numpy
+#define SET(op)   temp = HPy_GetItem_s(ctx, dict, #op); \
+    if (HPy_IsNull(temp) && HPyErr_Occurred(ctx)) { \
         return -1; \
     } \
-    else if (temp != NULL) { \
-        if (!(PyCallable_Check(temp))) { \
+    else if (!HPy_IsNull(temp)) { \
+        if (!(HPyCallable_Check(ctx, temp))) { \
             return -1; \
         } \
-        Py_INCREF(temp); \
-        Py_XDECREF(n_ops.op); \
-        n_ops.op = temp; \
+        HPyGlobal_Store(ctx, &hpy_n_ops.op, temp); \
     }
 
 NPY_NO_EXPORT int
-_PyArray_SetNumericOps(PyObject *dict)
+_PyArray_SetNumericOps(HPyContext *ctx, HPy dict)
 {
-    PyObject *temp = NULL;
+    HPy temp = HPy_NULL;
     SET(add);
     SET(subtract);
     SET(multiply);
@@ -103,12 +108,12 @@ PyArray_SetNumericOps(PyObject *dict)
         "instead.") < 0) {
         return -1;
     }
-    return _PyArray_SetNumericOps(dict);
+    hpy_abort_not_implemented("PyArray_SetNumericOps");
 }
 
 /* Note - macro contains goto */
-#define GET(op) if (n_ops.op &&                                         \
-                    (PyDict_SetItemString(dict, #op, n_ops.op)==-1))    \
+#define GET(op) if (N_OPS_GET(op) &&                                         \
+                    (PyDict_SetItemString(dict, #op, N_OPS_GET(op))==-1))    \
         goto fail;
 
 NPY_NO_EXPORT PyObject *
@@ -242,11 +247,38 @@ PyArray_GenericBinaryFunction(PyObject *m1, PyObject *m2, PyObject *op)
     return PyObject_CallFunctionObjArgs(op, m1, m2, NULL);
 }
 
+static NPY_NO_EXPORT HPy
+__HPyArray_GenericHelper(HPyContext *ctx, HPyGlobal op, size_t n_args, HPy args[]) {
+
+    HPy args_tuple = HPyTuple_FromArray(ctx, args, n_args);
+    HPy callable = HPyGlobal_Load(ctx, op);
+    HPy res = HPy_CallTupleDict(ctx, callable, args_tuple, HPy_NULL);
+    HPy_Close(ctx, args_tuple);
+    HPy_Close(ctx, callable);
+    return res;
+}
+
+#define _HPyArray_GenericHelper(ctx, op, n, ...) \
+    (__HPyArray_GenericHelper(ctx, op, n, (HPy[]){ __VA_ARGS__ }))
+
+NPY_NO_EXPORT HPy
+HPyArray_GenericBinaryFunction(HPyContext *ctx, HPy m1, HPy m2, HPyGlobal op)
+{
+    return _HPyArray_GenericHelper(ctx, op, 2, m1, m2);
+}
+
 NPY_NO_EXPORT PyObject *
 PyArray_GenericUnaryFunction(PyArrayObject *m1, PyObject *op)
 {
     return PyObject_CallFunctionObjArgs(op, m1, NULL);
 }
+
+NPY_NO_EXPORT HPy
+HPyArray_GenericUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
+{
+    return _HPyArray_GenericHelper(ctx, op, 1, m1);
+}
+
 
 static PyObject *
 PyArray_GenericInplaceBinaryFunction(PyArrayObject *m1,
@@ -255,34 +287,49 @@ PyArray_GenericInplaceBinaryFunction(PyArrayObject *m1,
     return PyObject_CallFunctionObjArgs(op, m1, m2, m1, NULL);
 }
 
+static HPy
+HPyArray_GenericInplaceBinaryFunction(HPyContext *ctx, HPy m1,
+                                     HPy m2, HPyGlobal op)
+{
+    return _HPyArray_GenericHelper(ctx, op, 3, m1, m2, m1);
+}
+
 static PyObject *
 PyArray_GenericInplaceUnaryFunction(PyArrayObject *m1, PyObject *op)
 {
     return PyObject_CallFunctionObjArgs(op, m1, m1, NULL);
 }
 
-NPY_NO_EXPORT PyObject *
-array_add(PyObject *m1, PyObject *m2)
+static HPy
+HPyArray_GenericInplaceUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
 {
-    PyObject *res;
-
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_add, array_add);
-    if (try_binary_elide(m1, m2, &array_inplace_add, &res, 1)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.add);
+    return _HPyArray_GenericHelper(ctx, op, 2, m1, m1);
 }
 
-NPY_NO_EXPORT PyObject *
-array_subtract(PyObject *m1, PyObject *m2)
-{
-    PyObject *res;
 
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_subtract, array_subtract);
-    if (try_binary_elide(m1, m2, &array_inplace_subtract, &res, 0)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.subtract);
+
+HPyDef_SLOT(array_add, array_add_impl, HPy_nb_add)
+NPY_NO_EXPORT HPy
+array_add_impl(HPyContext *ctx, HPy m1, HPy m2)
+{
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_add);
+    // We cannot support this hack on HPy
+    // if (try_binary_elide(m1, m2, &array_inplace_add, &res, 1)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.add);
+}
+
+HPyDef_SLOT(array_subtract, array_subtract_impl, HPy_nb_subtract);
+NPY_NO_EXPORT HPy
+array_subtract_impl(HPyContext *ctx, HPy m1, HPy m2)
+{
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_subtract);
+    // We cannot support this hack on HPy:
+    // if (try_binary_elide(m1, m2, &array_inplace_subtract, &res, 0)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.subtract);
 }
 
 NPY_NO_EXPORT PyObject *
@@ -294,21 +341,21 @@ array_multiply(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_multiply, &res, 1)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.multiply);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(multiply));
 }
 
 NPY_NO_EXPORT PyObject *
 array_remainder(PyObject *m1, PyObject *m2)
 {
     BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_remainder, array_remainder);
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.remainder);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(remainder));
 }
 
 NPY_NO_EXPORT PyObject *
 array_divmod(PyObject *m1, PyObject *m2)
 {
     BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_divmod, array_divmod);
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.divmod);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(divmod));
 }
 
 /* Need this to be version dependent on account of the slot check */
@@ -316,7 +363,7 @@ NPY_NO_EXPORT PyObject *
 array_matrix_multiply(PyObject *m1, PyObject *m2)
 {
     BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_matrix_multiply, array_matrix_multiply);
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.matmul);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(matmul));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -337,44 +384,52 @@ array_inplace_matrix_multiply(
  * return NPY_NOSCALAR, and out_exponent is undefined.
  */
 static NPY_SCALARKIND
-is_scalar_with_conversion(PyObject *o2, double* out_exponent)
+is_scalar_with_conversion(HPyContext *ctx, HPy h_o2, double* out_exponent)
 {
     PyObject *temp;
     const int optimize_fpexps = 1;
 
-    if (PyLong_Check(o2)) {
-        long tmp = PyLong_AsLong(o2);
+    if (HPy_TypeCheck(ctx, h_o2, ctx->h_LongType)) {
+        long tmp = HPyLong_AsLong(ctx, h_o2);
         if (error_converting(tmp)) {
-            PyErr_Clear();
+            HPyErr_Clear(ctx);
             return NPY_NOSCALAR;
         }
         *out_exponent = (double)tmp;
         return NPY_INTPOS_SCALAR;
     }
 
-    if (optimize_fpexps && PyFloat_Check(o2)) {
-        *out_exponent = PyFloat_AsDouble(o2);
+    if (optimize_fpexps && HPy_TypeCheck(ctx, h_o2, ctx->h_FloatType)) {
+        *out_exponent = HPyFloat_AsDouble(ctx, h_o2);
         return NPY_FLOAT_SCALAR;
     }
 
-    if (PyArray_Check(o2)) {
-        if ((PyArray_NDIM((PyArrayObject *)o2) == 0) &&
-                ((PyArray_ISINTEGER((PyArrayObject *)o2) ||
-                 (optimize_fpexps && PyArray_ISFLOAT((PyArrayObject *)o2))))) {
-            temp = Py_TYPE(o2)->tp_as_number->nb_float(o2);
-            if (temp == NULL) {
-                return NPY_NOSCALAR;
-            }
-            *out_exponent = PyFloat_AsDouble(o2);
-            Py_DECREF(temp);
-            if (PyArray_ISINTEGER((PyArrayObject *)o2)) {
-                return NPY_INTPOS_SCALAR;
-            }
-            else { /* ISFLOAT */
-                return NPY_FLOAT_SCALAR;
-            }
+    CAPI_WARN("is_scalar_with_conversion: array checks");
+    PyArrayObject *o2 = PyArrayObject_AsStruct(ctx, h_o2);
+    if (HPyArray_Check(ctx, h_o2)) {
+        if ((PyArray_NDIM(o2) == 0) &&
+                ((HPyArray_ISINTEGER(ctx, h_o2) ||
+                 (optimize_fpexps && HPyArray_ISFLOAT(ctx, h_o2))))) {
+            // TODO: add HPy_AsFloat?
+            hpy_abort_not_implemented("Py_TYPE(o2)->tp_as_number->nb_float(o2)");
+            // temp = Py_TYPE(o2)->tp_as_number->nb_float(o2);
+            // if (temp == NULL) {
+            //     return NPY_NOSCALAR;
+            // }
+            // *out_exponent = PyFloat_AsDouble(o2);
+            // Py_DECREF(temp);
+            // if (PyArray_ISINTEGER((PyArrayObject *)o2)) {
+            //     return NPY_INTPOS_SCALAR;
+            // }
+            // else { /* ISFLOAT */
+            //     return NPY_FLOAT_SCALAR;
+            // }
         }
     }
+    // CURRENT PROBLEM: PyArray_IsScalar checks PyIntegerArrType_Type
+    // we do not seem to initialize that type??? And definitely we do not
+    // expose HPyGlobals for it
+    // NOTE: do partial porting approach, this looked small, but it isn't!
     else if (PyArray_IsScalar(o2, Integer) ||
                 (optimize_fpexps && PyArray_IsScalar(o2, Floating))) {
         temp = Py_TYPE(o2)->tp_as_number->nb_float(o2);
@@ -391,7 +446,7 @@ is_scalar_with_conversion(PyObject *o2, double* out_exponent)
             return NPY_FLOAT_SCALAR;
         }
     }
-    else if (PyIndex_Check(o2)) {
+    else if (PyIndex_Check((PyObject*) o2)) {
         PyObject* value = PyNumber_Index(o2);
         Py_ssize_t val;
         if (value == NULL) {
@@ -418,42 +473,52 @@ is_scalar_with_conversion(PyObject *o2, double* out_exponent)
  * the result is in value (can be NULL if an error occurred)
  */
 static int
-fast_scalar_power(PyObject *o1, PyObject *o2, int inplace,
-                  PyObject **value)
+fast_scalar_power(HPyContext *ctx, HPy h_o1, HPy h_o2, int inplace,
+                  HPy *value)
 {
     double exponent;
     NPY_SCALARKIND kind;   /* NPY_NOSCALAR is not scalar */
 
-    if (PyArray_Check(o1) &&
-            !PyArray_ISOBJECT((PyArrayObject *)o1) &&
-            ((kind=is_scalar_with_conversion(o2, &exponent))>0)) {
+    if (!HPyArray_Check(ctx, h_o1)) {
+        /* no fast operation found */
+        return -1;
+    }
+    PyArrayObject *o1 = PyArrayObject_AsStruct(ctx, h_o1);
+    HPy h_o1_descr = HPyArray_DESCR(ctx, h_o1, o1);
+    PyArray_Descr *o1_descr = PyArray_Descr_AsStruct(ctx, h_o1_descr);
+    if (HPyArrayDescr_ISOBJECT(o1_descr)) {
+        /* no fast operation found */
+        return -1;
+    }
+    
+    if ((kind=is_scalar_with_conversion(ctx, h_o2, &exponent))>0) {
         PyArrayObject *a1 = (PyArrayObject *)o1;
-        PyObject *fastop = NULL;
-        if (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) {
+        HPyGlobal fastop;
+        if (HPyArrayDescr_ISFLOAT(o1_descr) || HPyArrayDescr_ISCOMPLEX(o1_descr)) {
             if (exponent == 1.0) {
-                fastop = n_ops.positive;
+                fastop = hpy_n_ops.positive;
             }
             else if (exponent == -1.0) {
-                fastop = n_ops.reciprocal;
+                fastop = hpy_n_ops.reciprocal;
             }
             else if (exponent ==  0.0) {
-                fastop = n_ops._ones_like;
+                fastop = hpy_n_ops._ones_like;
             }
             else if (exponent ==  0.5) {
-                fastop = n_ops.sqrt;
+                fastop = hpy_n_ops.sqrt;
             }
             else if (exponent ==  2.0) {
-                fastop = n_ops.square;
+                fastop = hpy_n_ops.square;
             }
             else {
                 return -1;
             }
 
             if (inplace || can_elide_temp_unary(a1)) {
-                *value = PyArray_GenericInplaceUnaryFunction(a1, fastop);
+                *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
             }
             else {
-                *value = PyArray_GenericUnaryFunction(a1, fastop);
+                *value = HPyArray_GenericUnaryFunction(ctx, h_o1, fastop);
             }
             return 0;
         }
@@ -463,24 +528,25 @@ fast_scalar_power(PyObject *o1, PyObject *o2, int inplace,
          *  (thus, the input should be up-cast)
          */
         else if (exponent == 2.0) {
-            fastop = n_ops.square;
+            fastop = hpy_n_ops.square;
             if (inplace) {
-                *value = PyArray_GenericInplaceUnaryFunction(a1, fastop);
+                *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
             }
             else {
                 /* We only special-case the FLOAT_SCALAR and integer types */
-                if (kind == NPY_FLOAT_SCALAR && PyArray_ISINTEGER(a1)) {
-                    PyArray_Descr *dtype = PyArray_DescrFromType(NPY_DOUBLE);
+                if (kind == NPY_FLOAT_SCALAR && HPyArrayDescr_ISINTEGER(o1_descr)) {
+                    HPy h_dtype = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+                    PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
+                    CAPI_WARN("pow with exponent 2.0, FLOAT_SCALAR and integer types needs PyArray_CastToType");
                     a1 = (PyArrayObject *)PyArray_CastToType(a1, dtype,
                             PyArray_ISFORTRAN(a1));
                     if (a1 != NULL) {
                         /* cast always creates a new array */
-                        *value = PyArray_GenericInplaceUnaryFunction(a1, fastop);
-                        Py_DECREF(a1);
+                        *value = HPyArray_GenericInplaceUnaryFunction(ctx, h_o1, fastop);
                     }
                 }
                 else {
-                    *value = PyArray_GenericUnaryFunction(a1, fastop);
+                    *value = HPyArray_GenericUnaryFunction(ctx, h_o1, fastop);
                 }
             }
             return 0;
@@ -490,20 +556,19 @@ fast_scalar_power(PyObject *o1, PyObject *o2, int inplace,
     return -1;
 }
 
-NPY_NO_EXPORT PyObject *
-array_power(PyObject *a1, PyObject *o2, PyObject *modulo)
+HPyDef_SLOT(array_power, array_power_impl, HPy_nb_power);
+static HPy array_power_impl(HPyContext *ctx, HPy a1, HPy o2, HPy modulo)
 {
-    PyObject *value = NULL;
+    HPy value = HPy_NULL;
 
-    if (modulo != Py_None) {
+    if (!HPy_Is(ctx, modulo, ctx->h_None)) {
         /* modular exponentiation is not implemented (gh-8804) */
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
 
-    BINOP_GIVE_UP_IF_NEEDED(a1, o2, nb_power, array_power);
-    if (fast_scalar_power(a1, o2, 0, &value) != 0) {
-        value = PyArray_GenericBinaryFunction(a1, o2, n_ops.power);
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, a1, o2, &array_power);
+    if (fast_scalar_power(ctx, a1, o2, 0, &value) != 0) {
+        value = HPyArray_GenericBinaryFunction(ctx, a1, o2, hpy_n_ops.power);
     }
     return value;
 }
@@ -513,8 +578,8 @@ array_positive(PyArrayObject *m1)
 {
     /*
      * For backwards compatibility, where + just implied a copy,
-     * we cannot just call n_ops.positive.  Instead, we do the following
-     * 1. Try n_ops.positive
+     * we cannot just call N_OPS_GET(positive).  Instead, we do the following
+     * 1. Try N_OPS_GET(positive)
      * 2. If we get an exception, check whether __array_ufunc__ is
      *    overridden; if so, we live in the future and we allow the
      *    TypeError to be passed on.
@@ -522,10 +587,10 @@ array_positive(PyArrayObject *m1)
      */
     PyObject *value;
     if (can_elide_temp_unary(m1)) {
-        value = PyArray_GenericInplaceUnaryFunction(m1, n_ops.positive);
+        value = PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(positive));
     }
     else {
-        value = PyArray_GenericUnaryFunction(m1, n_ops.positive);
+        value = PyArray_GenericUnaryFunction(m1, N_OPS_GET(positive));
     }
     if (value == NULL) {
         /*
@@ -558,27 +623,27 @@ NPY_NO_EXPORT PyObject *
 array_negative(PyArrayObject *m1)
 {
     if (can_elide_temp_unary(m1)) {
-        return PyArray_GenericInplaceUnaryFunction(m1, n_ops.negative);
+        return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(negative));
     }
-    return PyArray_GenericUnaryFunction(m1, n_ops.negative);
+    return PyArray_GenericUnaryFunction(m1, N_OPS_GET(negative));
 }
 
 NPY_NO_EXPORT PyObject *
 array_absolute(PyArrayObject *m1)
 {
     if (can_elide_temp_unary(m1) && !PyArray_ISCOMPLEX(m1)) {
-        return PyArray_GenericInplaceUnaryFunction(m1, n_ops.absolute);
+        return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(absolute));
     }
-    return PyArray_GenericUnaryFunction(m1, n_ops.absolute);
+    return PyArray_GenericUnaryFunction(m1, N_OPS_GET(absolute));
 }
 
 NPY_NO_EXPORT PyObject *
 array_invert(PyArrayObject *m1)
 {
     if (can_elide_temp_unary(m1)) {
-        return PyArray_GenericInplaceUnaryFunction(m1, n_ops.invert);
+        return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(invert));
     }
-    return PyArray_GenericUnaryFunction(m1, n_ops.invert);
+    return PyArray_GenericUnaryFunction(m1, N_OPS_GET(invert));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -590,7 +655,7 @@ array_left_shift(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_left_shift, &res, 0)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.left_shift);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(left_shift));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -602,7 +667,7 @@ array_right_shift(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_right_shift, &res, 0)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.right_shift);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(right_shift));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -614,7 +679,7 @@ array_bitwise_and(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_bitwise_and, &res, 1)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.bitwise_and);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_and));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -626,7 +691,7 @@ array_bitwise_or(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_bitwise_or, &res, 1)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.bitwise_or);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_or));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -638,15 +703,16 @@ array_bitwise_xor(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_bitwise_xor, &res, 1)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.bitwise_xor);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_xor));
 }
 
-NPY_NO_EXPORT PyObject *
-array_inplace_add(PyArrayObject *m1, PyObject *m2)
-{
-    INPLACE_GIVE_UP_IF_NEEDED(
-            m1, m2, nb_inplace_add, array_inplace_add);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.add);
+HPyDef_SLOT(array_inplace_add, array_inplace_add_impl, HPy_nb_inplace_add)
+HPy array_inplace_add_impl(HPyContext *ctx, /*PyArrayObject*/HPy m1, /*PyObject*/HPy m2)
+{    
+    // If m2's nb_inplace_add != array_inplace_add => return NotImplemented
+    HPY_INPLACE_GIVE_UP_IF_NEEDED(
+            ctx, m1, m2, &array_inplace_add);
+    return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, hpy_n_ops.add);
 }
 
 NPY_NO_EXPORT PyObject *
@@ -654,7 +720,7 @@ array_inplace_subtract(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_subtract, array_inplace_subtract);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.subtract);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(subtract));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -662,7 +728,7 @@ array_inplace_multiply(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_multiply, array_inplace_multiply);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.multiply);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(multiply));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -670,7 +736,7 @@ array_inplace_remainder(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_remainder, array_inplace_remainder);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.remainder);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(remainder));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -681,9 +747,10 @@ array_inplace_power(PyArrayObject *a1, PyObject *o2, PyObject *NPY_UNUSED(modulo
 
     INPLACE_GIVE_UP_IF_NEEDED(
             a1, o2, nb_inplace_power, array_inplace_power);
-    if (fast_scalar_power((PyObject *)a1, o2, 1, &value) != 0) {
-        value = PyArray_GenericInplaceBinaryFunction(a1, o2, n_ops.power);
-    }
+    // TODO HPY LABS PORT
+    // if (fast_scalar_power((PyObject *)a1, o2, 1, &value) != 0) {
+        value = PyArray_GenericInplaceBinaryFunction(a1, o2, N_OPS_GET(power));
+    // }
     return value;
 }
 
@@ -692,7 +759,7 @@ array_inplace_left_shift(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_lshift, array_inplace_left_shift);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.left_shift);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(left_shift));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -700,7 +767,7 @@ array_inplace_right_shift(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_rshift, array_inplace_right_shift);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.right_shift);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(right_shift));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -708,7 +775,7 @@ array_inplace_bitwise_and(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_and, array_inplace_bitwise_and);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.bitwise_and);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(bitwise_and));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -716,7 +783,7 @@ array_inplace_bitwise_or(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_or, array_inplace_bitwise_or);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.bitwise_or);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(bitwise_or));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -724,7 +791,7 @@ array_inplace_bitwise_xor(PyArrayObject *m1, PyObject *m2)
 {
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_xor, array_inplace_bitwise_xor);
-    return PyArray_GenericInplaceBinaryFunction(m1, m2, n_ops.bitwise_xor);
+    return PyArray_GenericInplaceBinaryFunction(m1, m2, N_OPS_GET(bitwise_xor));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -736,22 +803,23 @@ array_floor_divide(PyObject *m1, PyObject *m2)
     if (try_binary_elide(m1, m2, &array_inplace_floor_divide, &res, 0)) {
         return res;
     }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.floor_divide);
+    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(floor_divide));
 }
 
-NPY_NO_EXPORT PyObject *
-array_true_divide(PyObject *m1, PyObject *m2)
+HPyDef_SLOT(array_true_divide, array_true_divide_impl, HPy_nb_true_divide);
+NPY_NO_EXPORT HPy
+array_true_divide_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     PyObject *res;
-    PyArrayObject *a1 = (PyArrayObject *)m1;
 
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_true_divide, array_true_divide);
-    if (PyArray_CheckExact(m1) &&
-            (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) &&
-            try_binary_elide(m1, m2, &array_inplace_true_divide, &res, 0)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, n_ops.true_divide);
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_true_divide);
+    // We cannot support this hack on HPy:
+    // if (PyArray_CheckExact(m1) &&
+    //         (PyArray_ISFLOAT(a1) || PyArray_ISCOMPLEX(a1)) &&
+    //         try_binary_elide(m1, m2, &array_inplace_true_divide, &res, 0)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.true_divide);
 }
 
 NPY_NO_EXPORT PyObject *
@@ -760,7 +828,7 @@ array_inplace_floor_divide(PyArrayObject *m1, PyObject *m2)
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_floor_divide, array_inplace_floor_divide);
     return PyArray_GenericInplaceBinaryFunction(m1, m2,
-                                                n_ops.floor_divide);
+                                                N_OPS_GET(floor_divide));
 }
 
 NPY_NO_EXPORT PyObject *
@@ -769,7 +837,7 @@ array_inplace_true_divide(PyArrayObject *m1, PyObject *m2)
     INPLACE_GIVE_UP_IF_NEEDED(
             m1, m2, nb_inplace_true_divide, array_inplace_true_divide);
     return PyArray_GenericInplaceBinaryFunction(m1, m2,
-                                                n_ops.true_divide);
+                                                N_OPS_GET(true_divide));
 }
 
 

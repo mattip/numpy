@@ -1221,7 +1221,7 @@ _void_compare(PyArrayObject *self, PyArrayObject *other, int cmp_op)
         npy_intp result_ndim = PyArray_NDIM(self) > PyArray_NDIM(other) ?
                             PyArray_NDIM(self) : PyArray_NDIM(other);
 
-        op = (cmp_op == Py_EQ ? n_ops.logical_and : n_ops.logical_or);
+        op = (cmp_op == Py_EQ ? N_OPS_GET(logical_and) : N_OPS_GET(logical_or));
         while (PyDict_Next(PyArray_DESCR(self)->fields, &pos, &key, &value)) {
             if (NPY_TITLE_KEY(key, value)) {
                 continue;
@@ -1454,6 +1454,7 @@ fail:
 NPY_NO_EXPORT PyObject *
 array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
+    CAPI_WARN("array_richcompare");
     PyArrayObject *array_other;
     PyObject *obj_self = (PyObject *)self;
     PyObject *result = NULL;
@@ -1492,12 +1493,12 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
     case Py_LT:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, n_ops.less);
+                (PyObject *)self, other, N_OPS_GET(less));
         break;
     case Py_LE:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, n_ops.less_equal);
+                (PyObject *)self, other, N_OPS_GET(less_equal));
         break;
     case Py_EQ:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
@@ -1552,7 +1553,7 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
         }
 
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, (PyObject *)other, n_ops.equal);
+                (PyObject *)self, (PyObject *)other, N_OPS_GET(equal));
         break;
     case Py_NE:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
@@ -1607,17 +1608,17 @@ array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
         }
 
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, (PyObject *)other, n_ops.not_equal);
+                (PyObject *)self, (PyObject *)other, N_OPS_GET(not_equal));
         break;
     case Py_GT:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, n_ops.greater);
+                (PyObject *)self, other, N_OPS_GET(greater));
         break;
     case Py_GE:
         RICHCMP_GIVE_UP_IF_NEEDED(obj_self, other);
         result = PyArray_GenericBinaryFunction(
-                (PyObject *)self, other, n_ops.greater_equal);
+                (PyObject *)self, other, N_OPS_GET(greater_equal));
         break;
     default:
         Py_INCREF(Py_NotImplemented);
@@ -1907,12 +1908,9 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_mp_subscript, (binaryfunc)array_subscript},
     {Py_mp_ass_subscript, (objobjargproc)array_assign_subscript},
 
-    {Py_nb_add, array_add},
-    {Py_nb_subtract, array_subtract},
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
     {Py_nb_divmod, array_divmod},
-    {Py_nb_power, (ternaryfunc)array_power},
     {Py_nb_negative, (unaryfunc)array_negative},
     {Py_nb_positive, (unaryfunc)array_positive},
     {Py_nb_absolute, (unaryfunc)array_absolute},
@@ -1928,7 +1926,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_float, (unaryfunc)array_float},
     {Py_nb_index, (unaryfunc)array_index},
 
-    {Py_nb_inplace_add, (binaryfunc)array_inplace_add},
     {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
     {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
     {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
@@ -1940,7 +1937,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
 
     {Py_nb_floor_divide, array_floor_divide},
-    {Py_nb_true_divide, array_true_divide},
     {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
     {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
 
@@ -1968,6 +1964,11 @@ static HPyDef *array_defines[] = {
     &array_new,
     &array_traverse,
     &array_finalize,
+    &array_inplace_add,
+    &array_power,
+    &array_subtract,
+    &array_true_divide,
+    &array_add,
     NULL,
 };
 

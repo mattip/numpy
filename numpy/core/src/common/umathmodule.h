@@ -9,6 +9,6 @@ get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args));
 
 PyObject * add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args);
 PyObject * ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *NPY_UNUSED(kwds));
-int initumath(PyObject *m);
+int initumath(HPyContext *ctx, PyObject *m, HPy module_dict);
 
 #endif  /* NUMPY_CORE_SRC_COMMON_UMATHMODULE_H_ */

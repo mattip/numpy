@@ -71,6 +71,12 @@ maybe_get_attr(PyObject *obj, char const *name)
     return res;
 }
 
+static NPY_INLINE HPy
+hpy_maybe_get_attr(HPyContext *ctx, HPy obj, char const *name)
+{
+    return HPy_MaybeGetAttr_s(ctx, obj, name);
+}
+
 /*
  * Lookup a special method, following the python approach of looking up
  * on the type object, rather than on the instance itself.
@@ -92,6 +98,18 @@ PyArray_LookupSpecial(PyObject *obj, char const *name)
     return maybe_get_attr((PyObject *)tp, name);
 }
 
+static NPY_INLINE HPy
+HPyArray_LookupSpecial_OnType(HPyContext *ctx, HPy type, char const *name)
+{
+    // HPy variant for callsites that already have the type
+    // /* We do not need to check for special attributes on trivial types */
+    // // In HPy this would mean multiple HPy_Is calls, so probably not faster than hpy_maybe_get_attr
+    // if (_is_basic_python_type(tp)) {
+    //     return NULL;
+    // }
+    return hpy_maybe_get_attr(ctx, type, name);
+}
+
 /*
  * PyArray_LookupSpecial_OnInstance:
  *
@@ -111,6 +129,17 @@ PyArray_LookupSpecial_OnInstance(PyObject *obj, char const *name)
     }
 
     return maybe_get_attr(obj, name);
+}
+
+static NPY_INLINE HPy
+HPyArray_LookupSpecial_OnInstance(HPyContext *ctx, HPy obj, char const *name)
+{
+    // /* We do not need to check for special attributes on trivial types */
+    // // In HPy this would mean multiple HPy_Is calls, so probably not faster than hpy_maybe_get_attr
+    // if (_is_basic_python_type(tp)) {
+    //     return NULL;
+    // }
+    return hpy_maybe_get_attr(ctx, obj, name);
 }
 
 #endif  /* NUMPY_CORE_SRC_COMMON_GET_ATTR_STRING_H_ */

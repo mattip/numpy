@@ -333,24 +333,25 @@ try_binary_elide(PyObject * m1, PyObject * m2,
                  PyObject * (inplace_op)(PyArrayObject * m1, PyObject * m2),
                  PyObject ** res, int commutative)
 {
-    /* set when no elision can be done independent of argument order */
-    int cannot = 0;
-    if (can_elide_temp(m1, m2, &cannot)) {
-        *res = inplace_op((PyArrayObject *)m1, m2);
-#if NPY_ELIDE_DEBUG != 0
-        puts("elided temporary in binary op");
-#endif
-        return 1;
-    }
-    else if (commutative && !cannot) {
-        if (can_elide_temp(m2, m1, &cannot)) {
-            *res = inplace_op((PyArrayObject *)m2, m1);
-#if NPY_ELIDE_DEBUG != 0
-            puts("elided temporary in commutative binary op");
-#endif
-            return 1;
-        }
-    }
+    // We cannot support this hack on HPy
+//     /* set when no elision can be done independent of argument order */
+//     int cannot = 0;
+//     if (can_elide_temp(m1, m2, &cannot)) {
+//         *res = inplace_op((PyArrayObject *)m1, m2);
+// #if NPY_ELIDE_DEBUG != 0
+//         puts("elided temporary in binary op");
+// #endif
+//         return 1;
+//     }
+//     else if (commutative && !cannot) {
+//         if (can_elide_temp(m2, m1, &cannot)) {
+//             *res = inplace_op((PyArrayObject *)m2, m1);
+// #if NPY_ELIDE_DEBUG != 0
+//             puts("elided temporary in commutative binary op");
+// #endif
+//             return 1;
+//         }
+//     }
     *res = NULL;
     return 0;
 }
@@ -359,23 +360,25 @@ try_binary_elide(PyObject * m1, PyObject * m2,
 NPY_NO_EXPORT int
 can_elide_temp_unary(PyArrayObject * m1)
 {
-    int cannot;
-    if (Py_REFCNT(m1) != 1 || !PyArray_CheckExact(m1) ||
-            !PyArray_ISNUMBER(m1) ||
-            !PyArray_CHKFLAGS(m1, NPY_ARRAY_OWNDATA) ||
-            !PyArray_ISWRITEABLE(m1) ||
-            PyArray_NBYTES(m1) < NPY_MIN_ELIDE_BYTES) {
-        return 0;
-    }
-    if (check_callers(&cannot)) {
-#if NPY_ELIDE_DEBUG != 0
-        puts("elided temporary in unary op");
-#endif
-        return 1;
-    }
-    else {
-        return 0;
-    }
+    // HPY PORT: we cannot support this hack on HPY
+    return 0;
+//     int cannot;
+//     if (Py_REFCNT(m1) != 1 || !PyArray_CheckExact(m1) ||
+//             !PyArray_ISNUMBER(m1) ||
+//             !PyArray_CHKFLAGS(m1, NPY_ARRAY_OWNDATA) ||
+//             !PyArray_ISWRITEABLE(m1) ||
+//             PyArray_NBYTES(m1) < NPY_MIN_ELIDE_BYTES) {
+//         return 0;
+//     }
+//     if (check_callers(&cannot)) {
+// #if NPY_ELIDE_DEBUG != 0
+//         puts("elided temporary in unary op");
+// #endif
+//         return 1;
+//     }
+//     else {
+//         return 0;
+//     }
 }
 #else /* unsupported interpreter or missing backtrace */
 NPY_NO_EXPORT int

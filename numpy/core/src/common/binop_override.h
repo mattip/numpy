@@ -7,6 +7,10 @@
 
 #include "get_attr_string.h"
 
+// included for HPY:
+#include "multiarraymodule.h"
+#include "scalarapi.h"
+
 /*
  * Logic for deciding when binops should return NotImplemented versus when
  * they should go ahead and call a ufunc (or similar).
@@ -128,6 +132,7 @@ binop_should_defer(PyObject *self, PyObject *other, int inplace)
      * Classes with __array_ufunc__ are living in the future, and only need to
      * check whether __array_ufunc__ equals None.
      */
+    CAPI_WARN("PyArray_LookupSpecial");
     attr = PyArray_LookupSpecial(other, "__array_ufunc__");
     if (attr != NULL) {
         defer = !inplace && (attr == Py_None);
@@ -147,6 +152,65 @@ binop_should_defer(PyObject *self, PyObject *other, int inplace)
     }
     self_prio = PyArray_GetPriority((PyObject *)self, NPY_SCALAR_PRIORITY);
     other_prio = PyArray_GetPriority((PyObject *)other, NPY_SCALAR_PRIORITY);
+    return self_prio < other_prio;
+}
+
+
+static int
+hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
+{
+    /*
+     * This function assumes that self.__binop__(other) is underway and
+     * implements the rules described above. Python's C API is funny, and
+     * makes it tricky to tell whether a given slot is called for __binop__
+     * ("forward") or __rbinop__ ("reversed"). You are responsible for
+     * determining this before calling this function; it only provides the
+     * logic for forward binop implementations.
+     */
+
+    /*
+     * NB: there's another copy of this code in
+     *    numpy.ma.core.MaskedArray._delegate_binop
+     * which should possibly be updated when this is.
+     */
+
+    double self_prio, other_prio;
+    int defer;
+    /*
+     * attribute check is expensive for scalar operations, avoid if possible
+     */
+    HPy self_type = HPy_Type(ctx, self);
+    HPy other_type = HPy_Type(ctx, other);
+    if (HPy_IsNull(other) ||
+        HPy_IsNull(self) ||
+        HPy_Is(ctx, other_type, self_type) ||
+        HPyArray_CheckExact(ctx, other) ||
+        HPyArray_CheckAnyScalarExact(ctx, other_type)) {
+        return 0;
+    }
+    /*
+     * Classes with __array_ufunc__ are living in the future, and only need to
+     * check whether __array_ufunc__ equals None.
+     */
+    HPy attr = HPyArray_LookupSpecial_OnType(ctx, other_type, "__array_ufunc__");
+    if (!HPy_IsNull(attr)) {
+        defer = !inplace && (HPy_Is(ctx, attr, ctx->h_None));
+        HPy_Close(ctx, attr);
+        return defer;
+    }
+    else if (HPyErr_Occurred(ctx)) {
+        HPyErr_Clear(ctx); /* TODO[gh-14801]: propagate crashes during attribute access? */
+    }
+    /*
+     * Otherwise, we need to check for the legacy __array_priority__. But if
+     * other.__class__ is a subtype of self.__class__, then it's already had
+     * a chance to run, so no need to defer to it.
+     */
+    if(HPyType_IsSubtype(ctx, other_type, self_type)) {
+        return 0;
+    }
+    self_prio = HPyArray_GetPriority(ctx, self, NPY_SCALAR_PRIORITY);
+    other_prio = HPyArray_GetPriority(ctx, other, NPY_SCALAR_PRIORITY);
     return self_prio < other_prio;
 }
 
@@ -187,6 +251,14 @@ binop_should_defer(PyObject *self, PyObject *other, int inplace)
         }                                                               \
     } while (0)
 
+#define TMP_BINOP_GIVE_UP_IF_NEEDED(m1, m2, slot_expr, test_func)       \
+    do {                                                                \
+        if (BINOP_IS_FORWARD(m1, m2, slot_expr, test_func) &&           \
+            binop_should_defer((PyObject*)m1, (PyObject*)m2, 0)) {      \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+    } while (0)
+
 #define INPLACE_GIVE_UP_IF_NEEDED(m1, m2, slot_expr, test_func)         \
     do {                                                                \
         if (BINOP_IS_FORWARD(m1, m2, slot_expr, test_func) &&           \
@@ -194,6 +266,27 @@ binop_should_defer(PyObject *self, PyObject *other, int inplace)
             Py_INCREF(Py_NotImplemented);                               \
             return Py_NotImplemented;                                   \
         }                                                               \
+    } while (0)
+
+
+#define HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, test_hpy_slot)         \
+    do {                                                                \
+        HPy __m2_type = HPy_Type(ctx, m2);                              \
+        if (HPyType_CheckSlot(ctx, __m2_type, test_hpy_slot) &&         \
+            hpy_binop_should_defer(ctx, m1, m2, 0)) {    \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+        HPy_Close(ctx, __m2_type);                                      \
+    } while (0)
+
+#define HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx, m1, m2, test_hpy_slot)       \
+    do {                                                                \
+        HPy __m2_type = HPy_Type(ctx, m2);                              \
+        if (HPyType_CheckSlot(ctx, __m2_type, test_hpy_slot) &&         \
+            hpy_binop_should_defer(ctx, m1, m2, 1)) {    \
+            return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
+        }                                                               \
+        HPy_Close(ctx, __m2_type);                                      \
     } while (0)
 
 /*

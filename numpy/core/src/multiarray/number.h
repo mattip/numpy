@@ -43,13 +43,64 @@ typedef struct {
     PyObject *clip;
 } NumericOps;
 
+typedef struct {
+    HPyGlobal add;
+    HPyGlobal subtract;
+    HPyGlobal multiply;
+    HPyGlobal divide;
+    HPyGlobal remainder;
+    HPyGlobal divmod;
+    HPyGlobal power;
+    HPyGlobal square;
+    HPyGlobal reciprocal;
+    HPyGlobal _ones_like;
+    HPyGlobal sqrt;
+    HPyGlobal cbrt;
+    HPyGlobal negative;
+    HPyGlobal positive;
+    HPyGlobal absolute;
+    HPyGlobal invert;
+    HPyGlobal left_shift;
+    HPyGlobal right_shift;
+    HPyGlobal bitwise_and;
+    HPyGlobal bitwise_xor;
+    HPyGlobal bitwise_or;
+    HPyGlobal less;
+    HPyGlobal less_equal;
+    HPyGlobal equal;
+    HPyGlobal not_equal;
+    HPyGlobal greater;
+    HPyGlobal greater_equal;
+    HPyGlobal floor_divide;
+    HPyGlobal true_divide;
+    HPyGlobal logical_or;
+    HPyGlobal logical_and;
+    HPyGlobal floor;
+    HPyGlobal ceil;
+    HPyGlobal maximum;
+    HPyGlobal minimum;
+    HPyGlobal rint;
+    HPyGlobal conjugate;
+    HPyGlobal matmul;
+    HPyGlobal clip;
+} HPyNumericOps;
+
 extern NPY_NO_EXPORT NumericOps n_ops;
+extern NPY_NO_EXPORT HPyNumericOps hpy_n_ops;
 
-NPY_NO_EXPORT PyObject *
-array_add(PyObject *m1, PyObject *m2);
+static inline PyObject *_n_ops_get(PyObject **pyobj, HPyGlobal h_global) {
+    if (*pyobj == NULL) {
+        HPyContext *ctx = npy_get_context();
+        *pyobj = HPy_AsPyObject(ctx, HPyGlobal_Load(ctx, h_global));
+    }
+    return *pyobj;
+}
 
-NPY_NO_EXPORT PyObject *
-array_subtract(PyObject *m1, PyObject *m2);
+#define N_OPS_GET(name)     _n_ops_get(&n_ops.name, hpy_n_ops.name)
+
+NPY_NO_EXPORT extern HPyDef array_add;
+
+NPY_NO_EXPORT extern HPyDef array_subtract;
 
 NPY_NO_EXPORT PyObject *
 array_multiply(PyObject *m1, PyObject *m2);
@@ -67,8 +118,7 @@ NPY_NO_EXPORT PyObject *
 array_inplace_matrix_multiply(
         PyArrayObject *NPY_UNUSED(m1), PyObject *NPY_UNUSED(m2));
 
-NPY_NO_EXPORT PyObject *
-array_power(PyObject *a1, PyObject *o2, PyObject *modulo);
+NPY_NO_EXPORT extern HPyDef array_power;
 
 NPY_NO_EXPORT PyObject *
 array_positive(PyArrayObject *m1);
@@ -97,8 +147,7 @@ array_bitwise_or(PyObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_bitwise_xor(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT PyObject *
-array_inplace_add(PyArrayObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_inplace_add;
 
 NPY_NO_EXPORT PyObject *
 array_inplace_subtract(PyArrayObject *m1, PyObject *m2);
@@ -130,8 +179,7 @@ array_inplace_bitwise_xor(PyArrayObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_floor_divide(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT PyObject *
-array_true_divide(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_true_divide;
 
 NPY_NO_EXPORT PyObject *
 array_inplace_floor_divide(PyArrayObject *m1, PyObject *m2);
@@ -152,7 +200,7 @@ NPY_NO_EXPORT PyObject *
 array_index(PyArrayObject *v);
 
 NPY_NO_EXPORT int
-_PyArray_SetNumericOps(PyObject *dict);
+_PyArray_SetNumericOps(HPyContext *ctx, HPy dict);
 
 NPY_NO_EXPORT PyObject *
 _PyArray_GetNumericOps(void);
