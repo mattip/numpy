@@ -907,6 +907,11 @@ PyArray_Return(PyArrayObject *mp)
     }
 }
 
+/*
+ * Return either an array or the appropriate Python object if the array
+ * is 0d and matches a Python type.
+ * ATTENTION: does *NOT* steal reference to mp
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Return(HPyContext *ctx, HPy /* PyArrayObject* */mp)
 {
@@ -914,21 +919,20 @@ HPyArray_Return(HPyContext *ctx, HPy /* PyArrayObject* */mp)
         return HPy_NULL;
     }
     if (HPyErr_Occurred(ctx)) {
-        HPy_Close(ctx, mp);
         return HPy_NULL;
     }
     if (!HPyArray_Check(ctx, mp)) {
-        return mp;
+        return HPy_Dup(ctx, mp);
     }
     if (HPyArray_GetNDim(ctx, mp) == 0) {
         CAPI_WARN("HPyArray_Return");
-        PyObject *py_ret = PyArray_ToScalar(PyArray_DATA(mp), mp);
+        PyArrayObject *py_mp = (PyArrayObject *)HPy_AsPyObject(ctx, mp);
+        PyObject *py_ret = PyArray_ToScalar(PyArray_DATA(py_mp), py_mp);
         HPy ret = HPy_FromPyObject(ctx, py_ret);
         Py_XDECREF(py_ret);
-        HPy_Close(ctx, mp);
         return ret;
     }
     else {
-        return mp;
+        return HPy_Dup(ctx, mp);
     }
 }

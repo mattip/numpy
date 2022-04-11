@@ -672,6 +672,13 @@ _apply_array_wrap(
     }
 }
 
+/*
+ * Apply the __array_wrap__ function with the given array and content.
+ *
+ * Interprets wrap=None and wrap=NULL as intended by _hfind_array_wrap
+ *
+ * ATTENTION: does *NOT* steal reference to obj and wrap.
+ */
 static HPy
 _happly_array_wrap(HPyContext *ctx,
             HPy wrap, HPy /* PyArrayObject* */ obj, _ufunc_hpy_context const *context) {
@@ -680,8 +687,7 @@ _happly_array_wrap(HPyContext *ctx,
         return HPyArray_Return(ctx, obj);
     }
     else if (HPy_Is(ctx, wrap, ctx->h_None)) {
-        HPy_Close(ctx, wrap);
-        return obj;
+        return HPy_Dup(ctx, obj);
     }
     else {
         HPy res;
@@ -718,12 +724,10 @@ _happly_array_wrap(HPyContext *ctx,
             res = HPy_CallTupleDict(ctx, wrap, args, HPy_NULL);
             HPy_Close(ctx, args);
         }
-        HPy_Close(ctx, wrap);
         // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
         HPy_Close(ctx, obj);
         return res;
     fail:
-        HPy_Close(ctx, wrap);
         // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
         HPy_Close(ctx, obj);
         return HPy_NULL;
@@ -4968,7 +4972,8 @@ hreplace_with_wrapped_result_and_return(HPyContext *ctx, HPy ufunc,
         context.out_i = i;
 
         retobj[i] = _happly_array_wrap(ctx, wraparr[i], result_arrays[i], &context);
-        result_arrays[i] = HPy_NULL;  /* Was DECREF'ed and (probably) wrapped */
+        HPy_SETREF(ctx, result_arrays[i], HPy_NULL);
+        HPy_SETREF(ctx, wraparr[i], HPy_NULL);
         if (HPy_IsNull(retobj[i])) {
             goto fail;
         }
