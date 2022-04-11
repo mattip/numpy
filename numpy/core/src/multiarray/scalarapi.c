@@ -920,7 +920,7 @@ HPyArray_Return(HPyContext *ctx, HPy /* PyArrayObject* */mp)
     if (!HPyArray_Check(ctx, mp)) {
         return mp;
     }
-    if (HPyArray_GetNDim(ctx, mp)) {
+    if (HPyArray_GetNDim(ctx, mp) == 0) {
         CAPI_WARN("HPyArray_Return");
         PyObject *py_ret = PyArray_ToScalar(PyArray_DATA(mp), mp);
         HPy ret = HPy_FromPyObject(ctx, py_ret);
