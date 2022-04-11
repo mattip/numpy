@@ -34,6 +34,9 @@
 
 #include "binop_override.h"
 
+// Included for HPY:
+#include "number.h"
+
 #define BASEFLAGS Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE
 #define HPY_BASEFLAGS HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE
 #define LEAFFLAGS  Py_TPFLAGS_DEFAULT
@@ -185,6 +188,22 @@ gentype_@name@(PyObject *m1, PyObject *m2)
 {
     BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_@name@, gentype_@name@);
     return PyArray_Type.tp_as_number->nb_@name@(m1, m2);
+}
+
+/**end repeat**/
+
+// HPy variants for those slots that are also ported on the array object:
+// The HPy variants should eventually replace the loop before this
+/**begin repeat
+ *
+ * #name = subtract#
+ */
+HPyDef_SLOT(gentype_hpy_@name@, gentype_hpy_@name@_impl, HPy_nb_@name@)
+static HPy
+gentype_hpy_@name@_impl(HPyContext *ctx, HPy m1, HPy m2)
+{
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &gentype_hpy_@name@);
+    return ((HPyFunc_binaryfunc) array_subtract.slot.impl)(ctx, m1, m2);
 }
 
 /**end repeat**/
@@ -2784,6 +2803,31 @@ static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
     {Py_nb_floor_divide, gentype_floor_divide},\
     {Py_nb_true_divide, gentype_true_divide}
 
+#define GENTYPE_AS_NUMBER_SLOTS2            \
+    {Py_nb_add, gentype_add},               \
+    {Py_nb_multiply, gentype_multiply},     \
+    {Py_nb_remainder, gentype_remainder},   \
+    {Py_nb_divmod, gentype_divmod},         \
+    {Py_nb_power, gentype_power},           \
+    {Py_nb_negative, gentype_negative},     \
+    {Py_nb_positive, gentype_positive},     \
+    {Py_nb_absolute, gentype_absolute},     \
+    {Py_nb_bool, gentype_nonzero_number},   \
+    {Py_nb_invert, gentype_invert},         \
+    {Py_nb_lshift, gentype_lshift},         \
+    {Py_nb_rshift, gentype_rshift},         \
+    {Py_nb_and, gentype_and},               \
+    {Py_nb_xor, gentype_xor},               \
+    {Py_nb_or, gentype_or},                 \
+    {Py_nb_int, gentype_int},               \
+    {Py_nb_float, gentype_float},           \
+    {Py_nb_floor_divide, gentype_floor_divide},\
+    {Py_nb_true_divide, gentype_true_divide}
+
+#define GENTYPE_AS_NUMBER_HPY_SLOTS \
+    &gentype_hpy_subtract
+
+
 static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
     {Py_tp_dealloc, gentype_dealloc},
     {Py_tp_methods, gentype_methods},
@@ -2791,10 +2835,15 @@ static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
     {Py_tp_alloc, gentype_alloc},
     {Py_tp_free, gentype_free},
     {Py_tp_richcompare, gentype_richcompare},
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     // as_mapping:
     {Py_mp_subscript, gen_arrtype_subscript},
     {0},
+};
+
+static HPyDef *PyGenericArrType_Type_hpy_slots[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
 };
 
 static HPyDef *PyGenericArrType_Type_slots[] = {
@@ -2809,6 +2858,7 @@ HPyType_Spec PyGenericArrType_Type_spec = {
     .legacy = true,
     .defines = PyGenericArrType_Type_slots,
     .legacy_slots = &PyGenericArrType_Type_slots_legacy,
+    .defines = PyGenericArrType_Type_hpy_slots,
 };
 
 
@@ -3684,7 +3734,8 @@ NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
 static PyObject *
 @name@_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 
-static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[];
+static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
 
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@" _THIS_SIZE,
@@ -3692,6 +3743,7 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .legacy = true,
     .flags = HPY_BASEFLAGS,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
+    .defines = Py@NAME@ArrType_Type_hpy_defines,
 };
 
 HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
@@ -3725,12 +3777,14 @@ HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
 NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
 
 static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
 
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@" _THIS_SIZE,
     .basicsize = sizeof(Py@NAME@ScalarObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
+    .defines = Py@NAME@ArrType_Type_hpy_defines,
     .legacy = true,
 };
 
@@ -4587,8 +4641,14 @@ static PyType_Slot PyBoolArrType_Type_slots_legacy[] = {
     {0},
 };
 
+/* Not used yet:
+static HPyDef *PyBoolArrType_Type_hpy_defines[] = {
+    0
+};
+*/
+
 static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, byte_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, byte_arrtype_as_buffer},
@@ -4599,8 +4659,13 @@ static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyByteArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, short_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, short_arrtype_as_buffer},
@@ -4611,8 +4676,13 @@ static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyShortArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, int_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, int_arrtype_as_buffer},
@@ -4623,8 +4693,13 @@ static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyIntArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, long_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, long_arrtype_as_buffer},
@@ -4635,8 +4710,13 @@ static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyLongArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, longlong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, longlong_arrtype_as_buffer},
@@ -4647,8 +4727,15 @@ static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
     {0},
 };
 
+/* Not used yet?:
+static HPyDef *PyLongLongtArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+*/
+
 static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, ubyte_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ubyte_arrtype_as_buffer},
@@ -4659,8 +4746,13 @@ static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyUByteArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, ushort_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ushort_arrtype_as_buffer},
@@ -4671,8 +4763,13 @@ static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyUShortArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, uint_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, uint_arrtype_as_buffer},
@@ -4683,8 +4780,13 @@ static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyUIntArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, ulong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ulong_arrtype_as_buffer},
@@ -4695,8 +4797,13 @@ static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyULongArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, ulonglong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ulonglong_arrtype_as_buffer},
@@ -4707,8 +4814,13 @@ static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyULongLongArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyHalfArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, half_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, half_arrtype_as_buffer},
@@ -4719,8 +4831,13 @@ static PyType_Slot PyHalfArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyHalfArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyFloatArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, float_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, float_arrtype_as_buffer},
@@ -4731,8 +4848,13 @@ static PyType_Slot PyFloatArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyFloatArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyDoubleArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, double_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, double_arrtype_as_buffer},
@@ -4742,8 +4864,13 @@ static PyType_Slot PyDoubleArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyDoubleArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyLongDoubleArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, longdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, longdouble_arrtype_as_buffer},
@@ -4758,8 +4885,13 @@ static PyType_Slot PyLongDoubleArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyLongDoubleArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyCFloatArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, cfloat_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, cfloat_arrtype_as_buffer},
@@ -4770,8 +4902,13 @@ static PyType_Slot PyCFloatArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyCFloatArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyCDoubleArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, cdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, cdouble_arrtype_as_buffer},
@@ -4779,8 +4916,13 @@ static PyType_Slot PyCDoubleArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyCDoubleArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
+};
+
 static PyType_Slot PyCLongDoubleArrType_Type_slots_legacy[] = {
-    GENTYPE_AS_NUMBER_SLOTS,
+    GENTYPE_AS_NUMBER_SLOTS2,
     {Py_tp_new, clongdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, clongdouble_arrtype_as_buffer},
@@ -4791,6 +4933,11 @@ static PyType_Slot PyCLongDoubleArrType_Type_slots_legacy[] = {
     {Py_tp_repr, clongdoubletype_repr},
     {Py_tp_str, clongdoubletype_str},
     {0},
+};
+
+static HPyDef *PyCLongDoubleArrType_Type_hpy_defines[] = {
+    GENTYPE_AS_NUMBER_HPY_SLOTS,
+    0
 };
 
 static PyType_Slot PyStringArrType_Type_slots_legacy[] = {
