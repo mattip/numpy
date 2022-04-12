@@ -5313,7 +5313,7 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
             py_operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
             NPY_FALSE);
     for (int i=0; i < nargs; i++) {
-        HPy_SETREF(ctx, signature[i], HPy_FromPyObject(ctx, py_signature[i]));
+        HPy_SETREF(ctx, signature[i], HPy_FromPyObject(ctx, (PyObject*)py_signature[i]));
     }
     HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operand_DTypes, nargs);
     HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, nargs);
@@ -5434,7 +5434,7 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
      */
     HPyContext *ctx = npy_get_context();
     HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
-    HPy *h_args = HPy_FromPyObjectArray(ctx, args, len_args);
+    HPy *h_args = HPy_FromPyObjectArray(ctx, (PyObject **)args, len_args);
     HPy h_kwnames = HPy_FromPyObject(ctx, kwnames);
     HPy h_res = ufunc_hpy_generic_fastcall(ctx, h_ufunc, h_args, len_args,
             h_kwnames, outer);

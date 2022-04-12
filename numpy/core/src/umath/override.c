@@ -224,10 +224,10 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
         PyObject **result)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_ufunc = HPy_FromPyObject(ctx, ufunc);
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
     HPy h_in_args = HPy_FromPyObject(ctx, in_args);
     HPy h_out_args = HPy_FromPyObject(ctx, out_args);
-    HPy const *h_args = HPy_FromPyObjectArray(ctx, args, len_args);
+    HPy const *h_args = (HPy const *)HPy_FromPyObjectArray(ctx, (PyObject **)args, len_args);
     HPy h_kwnames = HPy_FromPyObject(ctx, kwnames);
     HPy h_result;
 
@@ -236,7 +236,7 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
 
     HPy_Close(ctx, h_result);
     HPy_Close(ctx, h_kwnames);
-    HPy_CloseAndFreeArray(ctx, h_args, (HPy_ssize_t)len_args);
+    HPy_CloseAndFreeArray(ctx, (HPy *)h_args, (HPy_ssize_t)len_args);
     HPy_Close(ctx, h_out_args);
     HPy_Close(ctx, h_in_args);
     HPy_Close(ctx, h_ufunc);
