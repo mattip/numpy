@@ -4832,22 +4832,41 @@ resolve_descriptors(int nop,
         PyArrayObject *operands[], PyArray_Descr *dtypes[],
         PyArray_DTypeMeta *signature[], NPY_CASTING casting)
 {
+
+#define PARAM_OPERANDS(p, n) (p)
+#define PARAM_DTYPES(p, n) ((p)+(n))
+#define PARAM_SIGNATURE(p, n) ((p)+(n)*2)
     HPyContext *ctx = npy_get_context();
     HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
     HPy h_ufuncimpl = HPy_FromPyObject(ctx, (PyObject *)ufuncimpl);
-    HPy *h_operands = HPy_FromPyObjectArray(ctx, (PyObject **)operands, nop);
-    HPy *h_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)dtypes, nop);
-    HPy *h_signature = HPy_FromPyObjectArray(ctx, (PyObject **)operands, nop);
+    HPy *params = (HPy *)alloca(nop*3*sizeof(HPy));
 
-    int res = hresolve_descriptors(ctx, nop, h_ufunc, h_ufuncimpl, h_operands, h_dtypes, h_signature, casting);
+    int i;
+    for (i=0; i < nop; i++) {
+        PARAM_OPERANDS(params, nop)[i] = HPy_FromPyObject(ctx, (PyObject *)operands[i]);
+        /* 'dtypes' is an output array */
+        PARAM_DTYPES(params, nop)[i] = HPy_NULL;
+        PARAM_SIGNATURE(params, nop)[i] = HPy_FromPyObject(ctx, (PyObject *)signature[i]);
+    }
+
+    int res = hresolve_descriptors(ctx, nop, h_ufunc, h_ufuncimpl,
+            PARAM_OPERANDS(params, nop), PARAM_DTYPES(params, nop), PARAM_SIGNATURE(params, nop), casting);
 
     HPy_Close(ctx, h_ufunc);
     HPy_Close(ctx, h_ufuncimpl);
-    HPy_CloseAndFreeArray(ctx, h_operands, nop);
-    HPy_CloseAndFreeArray(ctx, h_dtypes, nop);
-    HPy_CloseAndFreeArray(ctx, h_signature, nop);
+    for (i=0; i < nop; i++) {
+        HPy_Close(ctx, PARAM_OPERANDS(params, nop)[i]);
+        /* 'dtypes' is an output array */
+        dtypes[i] = (PyArray_Descr *) HPy_AsPyObject(ctx, PARAM_DTYPES(params, nop)[i]);
+        HPy_Close(ctx, PARAM_DTYPES(params, nop)[i]);
+        HPy_Close(ctx, PARAM_SIGNATURE(params, nop)[i]);
+    }
 
     return res;
+
+#undef PARAM_OPERANDS
+#undef PARAM_DTYPES
+#undef PARAM_SIGNATURE
 }
 
 static int
@@ -5123,8 +5142,10 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         PyObject *py_subok_obj = NULL, *py_signature_obj = NULL, *py_sig_obj = NULL;
         PyObject *py_dtype_obj = NULL, *py_extobj = NULL;
 
-        PyObject *const *py_args = (PyObject *const *) HPy_AsPyObjectArray(ctx, (HPy *)args, len_args);
         PyObject *py_kwnames = HPy_AsPyObject(ctx, kwnames);
+        Py_ssize_t nkw = PyTuple_GET_SIZE(py_kwnames);
+        /* The args array also contains the keyword args after 'len_args' ! */
+        PyObject *const *py_args = (PyObject *const *) HPy_AsPyObjectArray(ctx, (HPy *)args, len_args + nkw);
 
         if (!ufunc->core_enabled) {
             NPY_PREPARE_ARGPARSER;
@@ -5193,7 +5214,7 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         Py_XDECREF(py_dtype_obj);
         Py_XDECREF(py_extobj);
         Py_DECREF(py_kwnames);
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_args, len_args);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_args, len_args + nkw);
 
         /* Handle `out` arguments passed by keyword */
         if (!HPy_IsNull(out_obj)) {
@@ -6907,13 +6928,16 @@ ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
         HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, nkw);
         full_args = (HPy *) calloc(nargs + nkw, sizeof(HPy));
         memcpy(full_args, args, nargs * sizeof(HPy));
-        kwnames = HPyDict_Keys(ctx, kw);
-        assert(HPy_Length(ctx, kwnames) == nkw);
+        HPy keys = HPyDict_Keys(ctx, kw); /* list */
+        assert(HPy_Length(ctx, keys) == nkw);
         for (HPy_ssize_t i=0; i < nkw; i++) {
-            HPy key = HPy_GetItem_i(ctx, kwnames, i);
+            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPyTupleBuilder_Set(ctx, builder, i, key);
             full_args[nargs + i] = HPy_GetItem(ctx, kw, key);
             HPy_Close(ctx, key);
         }
+        HPy_Close(ctx, keys);
+        kwnames = HPyTupleBuilder_Build(ctx, builder);
     } else {
         full_args = args;
         kwnames = HPy_NULL;
@@ -6921,6 +6945,7 @@ ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
 
     HPy res = ufunc_hpy_generic_fastcall(ctx, self, full_args, nargs, kwnames, NPY_FALSE);
 
+    HPy_Close(ctx, kwnames);
     for (HPy_ssize_t i=0; i < nkw; i++) {
         HPy_Close(ctx, full_args[nargs + i]);
     }
