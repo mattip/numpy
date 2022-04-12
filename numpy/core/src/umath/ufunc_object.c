@@ -6212,7 +6212,6 @@ ufunc_outer(PyUFuncObject *ufunc,
 static HPy
 prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
 {
-    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, h_ufunc);
     HPy ap1 = HPy_NULL; /* PyArrayObject *ap1 */
     HPy tmp;
     static HPy _numpy_matrix;
@@ -6274,10 +6273,10 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
     newdims.ptr = newshape;
 
     if (newdims.len > NPY_MAXDIMS) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                 "maximum supported dimension for an ndarray is %d, but "
                 "`%s.outer()` result would have %d.",
-                NPY_MAXDIMS, ufunc->name, newdims.len);
+                NPY_MAXDIMS, PyUFuncObject_AsStruct(ctx, h_ufunc)->name, newdims.len);
         goto fail;
     }
     if (newdims.ptr == NULL) {
@@ -6303,7 +6302,7 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
                 "discouraged). "
                 "To work around this issue, please convert the inputs to "
                 "numpy arrays.",
-                ufunc->name, "XXX");
+                PyUFuncObject_AsStruct(ctx, h_ufunc)->name, "XXX");
                 // ufunc->name, Py_TYPE(ap_new)->tp_name);
         HPy_Close(ctx, ap_new);
         goto fail;
