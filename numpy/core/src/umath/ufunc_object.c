@@ -6997,7 +6997,7 @@ NPY_NO_EXPORT HPyGlobal HPyUFunc_Type;
 NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec = {
     .name = "numpy.ufunc",
     .basicsize = sizeof(PyUFuncObject),
-    .flags = HPy_TPFLAGS_DEFAULT,
+    .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .defines = ufunc_defines,
     // .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
     .legacy = true,
