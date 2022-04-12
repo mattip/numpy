@@ -724,12 +724,8 @@ _happly_array_wrap(HPyContext *ctx,
             res = HPy_CallTupleDict(ctx, wrap, args, HPy_NULL);
             HPy_Close(ctx, args);
         }
-        // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
-        HPy_Close(ctx, obj);
         return res;
     fail:
-        // TODO HPY LABS PORT: that's a bit suspicious; closing an argument
-        HPy_Close(ctx, obj);
         return HPy_NULL;
     }
 }
