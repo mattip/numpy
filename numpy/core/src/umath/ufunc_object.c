@@ -5337,44 +5337,46 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
      * Do the final preparations and call the inner-loop.
      */
     errval = -1;
+    CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GenericFunctionInternal");
+    PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
+    PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, operation_descrs, nop);
+    PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
     if (!ufunc->core_enabled) {
-        CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GenericFunctionInternal");
-        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, operation_descrs, nop);
-        PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
-        PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
         PyObject **py_output_array_prepare = HPy_AsPyObjectArray(ctx, output_array_prepare, nout);
         ufunc_full_args py_full_args = {
                 .in = HPy_AsPyObject(ctx, full_args.in),
                 .out = HPy_AsPyObject(ctx, full_args.out)
         };
-        PyArrayObject *py_wheremask = (PyArray_Descr *)HPy_AsPyObject(ctx, wheremask);
+        PyArrayObject *py_wheremask = (PyArrayObject *)HPy_AsPyObject(ctx, wheremask);
         errval = PyUFunc_GenericFunctionInternal(py_ufunc, py_ufuncimpl,
                 py_operation_descrs, py_op, py_extobj, casting, order,
                 py_output_array_prepare, py_full_args,  /* for __array_prepare__ */
                 py_wheremask);
 
-        for(int i=0; i < nop; i++) {
-            HPy_SETREF(ctx, operands[i], HPy_FromPyObject(ctx, (PyObject *)py_op[i]));
-        }
         for(int i=0; i < nout; i++) {
             HPy_SETREF(ctx, output_array_prepare[i], HPy_FromPyObject(ctx, py_output_array_prepare[i]));
         }
         Py_XDECREF(py_full_args.in);
         Py_XDECREF(py_full_args.out);
-        Py_XDECREF(py_extobj);
         HPy_DecrefAndFreeArray(ctx, py_output_array_prepare, nout);
-        HPy_DecrefAndFreeArray(ctx, py_operation_descrs, nop);
-        HPy_DecrefAndFreeArray(ctx, py_op, nop);
         Py_XDECREF(py_wheremask);
     }
     else {
-        hpy_abort_not_implemented("PyUFunc_GenericFunctionInternal");
-        // TODO HPY LABS PORT
-//        errval = PyUFunc_GeneralizedFunctionInternal(ufunc, ufuncimpl,
-//                operation_descrs, operands, extobj, casting, order,
-//                /* GUFuncs never (ever) called __array_prepare__! */
-//                axis_obj, axes_obj, keepdims);
+        PyObject *py_axis_obj = HPy_AsPyObject(ctx, axis_obj);
+        PyObject *py_axes_obj = HPy_AsPyObject(ctx, axes_obj);
+        errval = PyUFunc_GeneralizedFunctionInternal(py_ufunc, py_ufuncimpl,
+                py_operation_descrs, py_op, py_extobj, casting, order,
+                /* GUFuncs never (ever) called __array_prepare__! */
+                py_axis_obj, py_axes_obj, keepdims);
+        Py_XDECREF(py_axes_obj);
+        Py_XDECREF(py_axis_obj);
     }
+    for(int i=0; i < nop; i++) {
+        HPy_SETREF(ctx, operands[i], HPy_FromPyObject(ctx, (PyObject *)py_op[i]));
+    }
+    Py_XDECREF(py_extobj);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operation_descrs, nop);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_op, nop);
     Py_DECREF(py_ufunc);
     Py_DECREF(py_ufuncimpl);
     if (errval < 0) {
@@ -6973,7 +6975,6 @@ static PyGetSetDef ufunc_getset[] = {
 static PyType_Slot ufunc_slots[] = {
         {Py_tp_repr, ufunc_repr},
         {Py_tp_str, ufunc_repr},
-//        {Py_tp_call, &PyVectorcall_Call},
         {Py_tp_methods, ufunc_methods},
         {Py_tp_getset, ufunc_getset},
         {0}
