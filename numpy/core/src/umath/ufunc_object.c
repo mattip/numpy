@@ -4696,12 +4696,12 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
         return 0;
     }
 
-    hpy_abort_not_implemented("remainder of _get_fixed_signature");
-    return -1;
 
-//    assert(signature_obj != NULL);
-//    /* Fill in specified_types from the tuple or string (signature_obj) */
-//    if (PyTuple_Check(signature_obj)) {
+    assert(!HPy_IsNull(signature_obj));
+    /* Fill in specified_types from the tuple or string (signature_obj) */
+    if (HPyTuple_Check(ctx, signature_obj)) {
+        hpy_abort_not_implemented("_get_fixed_signature: case signature_obj is a tuple");
+        return -1;
 //        Py_ssize_t n = PyTuple_GET_SIZE(signature_obj);
 //        if (n == 1 && nop != 1) {
 //            /*
@@ -4754,67 +4754,65 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
 //                }
 //            }
 //        }
-//    }
-//    else if (PyBytes_Check(signature_obj) || PyUnicode_Check(signature_obj)) {
-//        PyObject *str_object = NULL;
-//
-//        if (PyBytes_Check(signature_obj)) {
-//            str_object = PyUnicode_FromEncodedObject(signature_obj, NULL, NULL);
-//            if (str_object == NULL) {
-//                return -1;
-//            }
-//        }
-//        else {
-//            Py_INCREF(signature_obj);
-//            str_object = signature_obj;
-//        }
-//
-//        Py_ssize_t length;
-//        const char *str = PyUnicode_AsUTF8AndSize(str_object, &length);
-//        if (str == NULL) {
-//            Py_DECREF(str_object);
-//            return -1;
-//        }
-//
-//        if (length != 1 && (length != nin+nout + 2 ||
-//                            str[nin] != '-' || str[nin+1] != '>')) {
-//            PyErr_Format(PyExc_ValueError,
-//                    "a type-string for %s, %d typecode(s) before and %d after "
-//                    "the -> sign", ufunc_get_name_cstr(ufunc), nin, nout);
-//            Py_DECREF(str_object);
-//            return -1;
-//        }
-//        if (length == 1 && nin+nout != 1) {
-//            Py_DECREF(str_object);
-//            if (DEPRECATE("The use of a length 1 string for the ufunc "
-//                          "`signature` is deprecated. Use `dtype` attribute or "
-//                          "pass a tuple with `None`s.") < 0) {
-//                return -1;
-//            }
-//            /* `signature="l"` is the same as `dtype="l"` */
-//            return _get_fixed_signature(ufunc, str_object, NULL, signature);
-//        }
-//        else {
-//            for (int i = 0; i < nin+nout; ++i) {
-//                npy_intp istr = i < nin ? i : i+2;
-//                PyArray_Descr *descr = PyArray_DescrFromType(str[istr]);
-//                if (descr == NULL) {
-//                    Py_DECREF(str_object);
-//                    return -1;
-//                }
-//                signature[i] = NPY_DTYPE(descr);
-//                Py_INCREF(signature[i]);
-//                Py_DECREF(descr);
-//            }
-//            Py_DECREF(str_object);
-//        }
-//    }
-//    else {
-//        PyErr_SetString(PyExc_TypeError,
-//                "the signature object to ufunc must be a string or a tuple.");
-//        return -1;
-//    }
-//    return 0;
+    }
+    else if (HPyBytes_Check(ctx, signature_obj) || HPyUnicode_Check(ctx, signature_obj)) {
+        HPy str_object = HPy_NULL;
+
+        if (HPyBytes_Check(ctx, signature_obj)) {
+            str_object = HPyUnicode_FromEncodedObject(ctx, signature_obj, NULL, NULL);
+            if (HPy_IsNull(str_object)) {
+                return -1;
+            }
+        }
+        else {
+            str_object = HPy_Dup(ctx, signature_obj);
+        }
+
+        HPy_ssize_t length;
+        const char *str = HPyUnicode_AsUTF8AndSize(ctx, str_object, &length);
+        if (str == NULL) {
+            HPy_Close(ctx, str_object);
+            return -1;
+        }
+
+        if (length != 1 && (length != nin+nout + 2 ||
+                            str[nin] != '-' || str[nin+1] != '>')) {
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
+                    "a type-string for %s, %d typecode(s) before and %d after "
+                    "the -> sign", ufunc_get_name_cstr(ufunc), nin, nout);
+            HPy_Close(ctx, str_object);
+            return -1;
+        }
+        if (length == 1 && nin+nout != 1) {
+            HPy_Close(ctx, str_object);
+            if (HPY_DEPRECATE(ctx, "The use of a length 1 string for the ufunc "
+                          "`signature` is deprecated. Use `dtype` attribute or "
+                          "pass a tuple with `None`s.") < 0) {
+                return -1;
+            }
+            /* `signature="l"` is the same as `dtype="l"` */
+            return _get_fixed_signature(ctx, h_ufunc, str_object, HPy_NULL, signature);
+        }
+        else {
+            for (int i = 0; i < nin+nout; ++i) {
+                npy_intp istr = i < nin ? i : i+2;
+                HPy descr = HPyArray_DescrFromType(ctx,  str[istr]); /* (PyArray_Descr *) */
+                if (HPy_IsNull(descr)) {
+                    HPy_Close(ctx, str_object);
+                    return -1;
+                }
+                signature[i] = HNPY_DTYPE(ctx, descr);
+                HPy_Close(ctx, descr);
+            }
+            HPy_Close(ctx, str_object);
+        }
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "the signature object to ufunc must be a string or a tuple.");
+        return -1;
+    }
+    return 0;
 }
 
 
