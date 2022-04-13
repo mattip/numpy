@@ -1816,8 +1816,25 @@ NPY_NO_EXPORT int
 should_use_min_scalar(npy_intp narrs, PyArrayObject **arr,
                       npy_intp ndtypes, PyArray_Descr **dtypes)
 {
-    int use_min_scalar = 0;
+    HPyContext *ctx = npy_get_context();
+    HPy *h_arr = HPy_FromPyObjectArray(ctx, arr, (Py_ssize_t)narrs);
+    HPy *h_dtypes = HPy_FromPyObjectArray(ctx, dtypes, (Py_ssize_t)ndtypes);
+    int res = hshould_use_min_scalar(ctx, narrs, h_arr, ndtypes, h_dtypes);
+    HPy_CloseAndFreeArray(ctx, h_arr, (HPy_ssize_t)narrs);
+    HPy_CloseAndFreeArray(ctx, h_dtypes, (HPy_ssize_t)ndtypes);
+    return res;
+}
 
+NPY_NO_EXPORT int
+hshould_use_min_scalar(HPyContext *ctx, npy_intp narrs, HPy *arr,
+                      npy_intp ndtypes, HPy *dtypes)
+{
+    int use_min_scalar = 0;
+    HPy descr;
+    HPy descr_type;
+
+    PyArrayObject *arr_data;
+    PyArray_Descr *dtypes_data;
     if (narrs > 0) {
         int all_scalars;
         int max_scalar_kind = -1;
@@ -1827,34 +1844,45 @@ should_use_min_scalar(npy_intp narrs, PyArrayObject **arr,
 
         /* Compute the maximum "kinds" and whether everything is scalar */
         for (npy_intp i = 0; i < narrs; ++i) {
-            if (!NPY_DT_is_legacy(NPY_DTYPE(PyArray_DESCR(arr[i])))) {
+            descr = HPyArray_GetDescr(ctx, arr[i]);
+            descr_type = HNPY_DTYPE(ctx, descr);
+
+            if (!NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, descr_type))) {
+                HPy_Close(ctx, descr);
+                HPy_Close(ctx, descr_type);
                 return 0;
             }
-            if (PyArray_NDIM(arr[i]) == 0) {
+            if (HPyArray_GetNDim(ctx, arr[i]) == 0) {
                 int kind = dtype_kind_to_simplified_ordering(
-                                    PyArray_DESCR(arr[i])->kind);
+                                    PyArray_Descr_AsStruct(ctx, descr)->kind);
                 if (kind > max_scalar_kind) {
                     max_scalar_kind = kind;
                 }
             }
             else {
                 int kind = dtype_kind_to_simplified_ordering(
-                                    PyArray_DESCR(arr[i])->kind);
+                                    PyArray_Descr_AsStruct(ctx, descr)->kind);
                 if (kind > max_array_kind) {
                     max_array_kind = kind;
                 }
                 all_scalars = 0;
             }
+            HPy_Close(ctx, descr);
+            HPy_Close(ctx, descr_type);
         }
         /*
          * If the max scalar kind is bigger than the max array kind,
          * finish computing the max array kind
          */
         for (npy_intp i = 0; i < ndtypes; ++i) {
-            if (!NPY_DT_is_legacy(NPY_DTYPE(dtypes[i]))) {
+            descr_type = HNPY_DTYPE(ctx, dtypes[i]);
+            int is_legacy = NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, descr_type));
+            HPy_Close(ctx, descr_type);
+            if (!is_legacy) {
                 return 0;
             }
-            int kind = dtype_kind_to_simplified_ordering(dtypes[i]->kind);
+            int kind = dtype_kind_to_simplified_ordering(
+                    PyArray_Descr_AsStruct(ctx, dtypes[i])->kind);
             if (kind > max_array_kind) {
                 max_array_kind = kind;
             }

@@ -27,6 +27,9 @@ HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...);
 NPY_NO_EXPORT int
 HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected);
 
+NPY_NO_EXPORT int
+HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type);
+
 static NPY_INLINE HPy *
 HPy_FromPyObjectArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
 {
@@ -75,6 +78,12 @@ HPy_DecrefAndFreeArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
         Py_XDECREF(arr[i]);
     }
     PyMem_RawFree(arr);
+}
+
+static NPY_INLINE int
+HPyBool_Check(HPyContext *ctx, HPy obj)
+{
+    return HPy_TypeCheck(ctx, obj, ctx->h_BoolType);
 }
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */

@@ -21,11 +21,27 @@ extern "C" {
 #include "__multiarray_api.h"
 
 
+/* TODO HPY LABS PORT: This is a workaround since we don't export the
+ * appropriate HPyGlobals yet in the Numpy API. Once we have our own
+ * Numpy HPy API, we should remove this.
+ * Actual definition is in 'scalartypes.c'. The global is owned by
+ * the multiarray module.
+ */
+extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
+extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
+extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
+
+/* arraytypes.c */
+NPY_NO_EXPORT HPy HPyArray_DescrFromType(HPyContext *ctx, int type);
+
+/* shape.c */
+NPY_NO_EXPORT HPy HPyArray_Newshape(HPyContext *ctx, HPy self, PyArray_Dims *newdims, NPY_ORDER order);
+
+
 /* C-API that requires previous API to be defined */
 
 #define PyArray_DescrCheck(op) PyObject_TypeCheck(op, &PyArrayDescr_Type)
 
-extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
 static NPY_INLINE int
 HPyArray_DescrCheck(HPyContext *ctx, HPy op)
 {
@@ -38,7 +54,6 @@ HPyArray_DescrCheck(HPyContext *ctx, HPy op)
 #define PyArray_Check(op) PyObject_TypeCheck(op, &PyArray_Type)
 #define PyArray_CheckExact(op) (((PyObject*)(op))->ob_type == &PyArray_Type)
 
-extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
 static NPY_INLINE int
 HPyArray_Check(HPyContext *ctx, HPy op)
 {
@@ -57,6 +72,17 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
     return res;
 }
 
+static NPY_INLINE int
+HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
+{
+    return HPy_TypeCheck(ctx, op, ctx->h_FloatType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_ComplexType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_LongType) ||
+           HPy_TypeCheck(ctx, op, ctx->h_BoolType) ||
+           HPyBytes_Check(ctx, op) ||
+           HPyUnicode_Check(ctx, op);
+}
+
 #define PyArray_HasArrayInterfaceType(op, type, context, out)                 \
         ((((out)=PyArray_FromStructInterface(op)) != Py_NotImplemented) ||    \
          (((out)=PyArray_FromInterface(op)) != Py_NotImplemented) ||          \
@@ -72,8 +98,8 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 #define PyArray_IsScalar(obj, cls)                                            \
         (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
 
-#define HPyArray_IsScalar(ctx, obj, cls)                                            \
-        (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
+#define HPyArray_IsScalar(ctx, obj, cls)                                      \
+        (HPyGlobal_TypeCheck(ctx, obj, HPy##cls##ArrType_Type))
 
 #define PyArray_CheckScalar(m) (PyArray_IsScalar(m, Generic) ||               \
                                 PyArray_IsZeroDim(m))
@@ -88,6 +114,10 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 
 #define PyArray_IsAnyScalar(obj)                                              \
         (PyArray_IsScalar(obj, Generic) || PyArray_IsPythonScalar(obj))
+
+#define HPyArray_IsAnyScalar(ctx, obj)                                        \
+        (HPyArray_IsScalar(ctx, obj, Generic) ||                              \
+         HPyArray_IsPythonScalar(ctx, obj))
 
 #define PyArray_CheckAnyScalar(obj) (PyArray_IsPythonScalar(obj) ||           \
                                      PyArray_CheckScalar(obj))
@@ -106,6 +136,7 @@ HPyArray_CheckExact(HPyContext *ctx, HPy op)
 #define HPyArray_SIZE(m) PyArray_MultiplyList(PyArray_DIMS(m), PyArray_NDIM(m))
 #define PyArray_NBYTES(m) (PyArray_ITEMSIZE(m) * PyArray_SIZE(m))
 #define PyArray_FROM_O(m) PyArray_FromAny(m, NULL, 0, 0, 0, NULL)
+#define HPyArray_FROM_O(ctx, m) HPyArray_FromAny(ctx, m, HPy_NULL, 0, 0, 0, HPy_NULL)
 
 #define PyArray_FROM_OF(m,flags) PyArray_CheckFromAny(m, NULL, 0, 0, flags,   \
                                                       NULL)
@@ -248,6 +279,11 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \
                               max_depth, NPY_ARRAY_BEHAVED | \
                                          NPY_ARRAY_ENSUREARRAY, NULL)
+
+#define HPyArray_FromObject(ctx, op, type, min_depth, max_depth) \
+        HPyArray_FromAny(ctx, op, HPyArray_DescrFromType(ctx, type), min_depth, \
+                              max_depth, NPY_ARRAY_BEHAVED | \
+                                         NPY_ARRAY_ENSUREARRAY, HPy_NULL)
 
 #define PyArray_ContiguousFromObject(op, type, min_depth, max_depth) \
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \

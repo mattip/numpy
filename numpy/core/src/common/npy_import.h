@@ -36,7 +36,7 @@ npy_hpy_cache_import(HPyContext *ctx, const char *module, const char *attr, HPy 
     if (NPY_UNLIKELY(HPy_IsNull(*cache))) {
         HPy mod = HPyImport_ImportModule(ctx, module);
 
-        if (HPy_IsNull(mod)) {
+        if (!HPy_IsNull(mod)) {
             *cache = HPy_GetAttr_s(ctx, mod, attr);
             HPy_Close(ctx, mod);
         }

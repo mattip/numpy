@@ -1725,6 +1725,12 @@ PyArray_DIMS(PyArrayObject *arr)
 }
 
 static NPY_INLINE npy_intp *
+HPyArray_GetDims(HPyContext *ctx, HPy arr)
+{
+    return ((PyArrayObject_fields *) PyArrayObject_AsStruct(ctx, arr))->dimensions;
+}
+
+static NPY_INLINE npy_intp *
 PyArray_STRIDES(PyArrayObject *arr)
 {
     return ((PyArrayObject_fields *)arr)->strides;

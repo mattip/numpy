@@ -2778,6 +2778,7 @@ static PyBufferProcs void_arrtype_as_buffer = {
 
 // HPY TODO: global
 NPY_NO_EXPORT PyTypeObject *_PyGenericArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
 
 static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
 
@@ -2850,7 +2851,6 @@ static HPyDef *PyGenericArrType_Type_slots[] = {
     &gentype_arrtype_getbuffer,
     NULL,
 };
-
 
 HPyType_Spec PyGenericArrType_Type_spec = {
     .name = "numpy.generic",
@@ -3619,6 +3619,7 @@ object_arrtype_call(PyObjectScalarObject *obj, PyObject *args, PyObject *kwds)
 }
 
 NPY_NO_EXPORT PyTypeObject *_PyObjectArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPyObjectArrType_Type;
 
 static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
     {Py_tp_alloc, object_arrtype_alloc},
@@ -3684,6 +3685,7 @@ gen_arrtype_subscript(PyObject *self, PyObject *key)
  * #ex = _,_,_,#
  */
 NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
 
 // HACK HACK HACK: size 100 so that we can have a forward
 // declaration and not worry about the actual length
@@ -3730,6 +3732,7 @@ HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
 #define _THIS_SIZE "256"
 #endif
 NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
 
 static PyObject *
 @name@_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
@@ -3775,6 +3778,7 @@ HPyType_LEGACY_HELPERS(Py@NAME@ScalarObject);
 #endif
 
 NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
 
 static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
 static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];

@@ -41,3 +41,12 @@ HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected)
     HPy_Close(ctx, h_expected);
     return is_dtype;
 }
+
+NPY_NO_EXPORT int
+HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type)
+{
+    HPy h_type = HPyGlobal_Load(ctx, type);
+    int res = HPy_TypeCheck(ctx, obj, h_type);
+    HPy_Close(ctx, h_type);
+    return res;
+}
