@@ -338,10 +338,14 @@ PyArray_CopyObject(PyArrayObject *dest, PyObject *src_object)
 
     if (cache != NULL && !(cache->sequence)) {
         /* The input is an array or array object, so assign directly */
-        assert(cache->converted_obj == src_object);
-        view = (PyArrayObject *)cache->arr_or_sequence;
+        HPyContext *ctx = npy_get_context();
+        PyObject *tmp = HPy_AsPyObject(ctx, cache->converted_obj);
+        assert(tmp == src_object);
+        Py_DECREF(tmp);
+        view = (PyArrayObject *)HPy_AsPyObject(ctx, cache->arr_or_sequence);
         Py_DECREF(dtype);
         ret = PyArray_AssignArray(dest, view, NULL, NPY_UNSAFE_CASTING);
+        Py_DECREF(view);
         npy_free_coercion_cache(cache);
         return ret;
     }

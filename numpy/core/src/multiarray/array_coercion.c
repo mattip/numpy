@@ -568,12 +568,9 @@ update_shape(int curr_ndim, int *max_ndim,
 static int _coercion_cache_num = 0;
 static coercion_cache_obj *_coercion_cache_cache[COERCION_CACHE_CACHE_SIZE];
 
-/*
- * Steals a reference to the object.
- */
 static NPY_INLINE int
-npy_new_coercion_cache(
-        PyObject *converted_obj, PyObject *arr_or_sequence, npy_bool sequence,
+hnpy_new_coercion_cache(HPyContext *ctx,
+        HPy converted_obj, HPy arr_or_sequence, npy_bool sequence,
         coercion_cache_obj ***next_ptr, int ndim)
 {
     coercion_cache_obj *cache;
@@ -585,7 +582,7 @@ npy_new_coercion_cache(
         cache = PyMem_Malloc(sizeof(coercion_cache_obj));
     }
     if (cache == NULL) {
-        Py_DECREF(arr_or_sequence);
+        HPy_Close(ctx, arr_or_sequence);
         PyErr_NoMemory();
         return -1;
     }
@@ -599,6 +596,22 @@ npy_new_coercion_cache(
     return 0;
 }
 
+/*
+ * Steals a reference to the object.
+ */
+static NPY_INLINE int
+npy_new_coercion_cache(
+        PyObject *converted_obj, PyObject *arr_or_sequence, npy_bool sequence,
+        coercion_cache_obj ***next_ptr, int ndim)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_converted_obj = HPy_FromPyObject(ctx, converted_obj);
+    Py_XDECREF(converted_obj); /* the object is stolen */
+    HPy h_arr_or_sequence = HPy_FromPyObject(ctx, arr_or_sequence);
+    Py_XDECREF(arr_or_sequence); /* the object is stolen */
+    return hnpy_new_coercion_cache(ctx, h_converted_obj, h_arr_or_sequence, sequence, next_ptr, ndim);
+}
+
 /**
  * Unlink coercion cache item.
  *
@@ -606,10 +619,10 @@ npy_new_coercion_cache(
  * @return next coercion cache object (or NULL)
  */
 NPY_NO_EXPORT coercion_cache_obj *
-npy_unlink_coercion_cache(coercion_cache_obj *current)
+hnpy_unlink_coercion_cache(HPyContext *ctx, coercion_cache_obj *current)
 {
     coercion_cache_obj *next = current->next;
-    Py_DECREF(current->arr_or_sequence);
+    HPy_Close(ctx, current->arr_or_sequence);
     if (_coercion_cache_num < COERCION_CACHE_CACHE_SIZE) {
         _coercion_cache_cache[_coercion_cache_num] = current;
         _coercion_cache_num++;
@@ -620,12 +633,23 @@ npy_unlink_coercion_cache(coercion_cache_obj *current)
     return next;
 }
 
+NPY_NO_EXPORT coercion_cache_obj *
+npy_unlink_coercion_cache(coercion_cache_obj *current)
+{
+    return hnpy_unlink_coercion_cache(npy_get_context(), current);
+}
+
 NPY_NO_EXPORT void
-npy_free_coercion_cache(coercion_cache_obj *next) {
+hnpy_free_coercion_cache(HPyContext *ctx, coercion_cache_obj *next) {
     /* We only need to check from the last used cache pos */
     while (next != NULL) {
-        next = npy_unlink_coercion_cache(next);
+        next = hnpy_unlink_coercion_cache(ctx, next);
     }
+}
+
+NPY_NO_EXPORT void
+npy_free_coercion_cache(coercion_cache_obj *next) {
+    hnpy_free_coercion_cache(npy_get_context(), next);
 }
 
 #undef COERCION_CACHE_CACHE_SIZE
@@ -1404,16 +1428,20 @@ PyArray_DiscoverDTypeAndShape(
                     current = current->next;
                     continue;
                 }
-                PyArrayObject *arr = (PyArrayObject *)(current->arr_or_sequence);
+                PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
                 assert(PyArray_NDIM(arr) + current->depth >= ndim);
                 if (PyArray_NDIM(arr) != ndim - current->depth) {
                     /* This array is not compatible with the final shape */
                     if (PyArray_SIZE(arr) != 1) {
+                        Py_DECREF(arr);
                         deprecate_single_element_ragged = 0;
                         break;
+                    } else {
+                        Py_DECREF(arr);
                     }
                     deprecate_single_element_ragged = 1;
                 }
+                Py_DECREF(arr);
                 current = current->next;
             }
 

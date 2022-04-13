@@ -544,9 +544,10 @@ PyArray_AssignFromCache_Recursive(
         PyArrayObject *self, const int ndim, coercion_cache_obj **cache)
 {
     /* Consume first cache element by extracting information and freeing it */
-    PyObject *original_obj = (*cache)->converted_obj;
-    PyObject *obj = (*cache)->arr_or_sequence;
-    Py_INCREF(obj);
+    HPyContext *ctx = npy_get_context();
+    PyObject *original_obj = HPy_AsPyObject(ctx, (*cache)->converted_obj);
+    Py_DECREF(original_obj); /* simulating the original behavior (borrowed ref) */
+    PyObject *obj = HPy_AsPyObject(ctx, (*cache)->arr_or_sequence);
     npy_bool sequence = (*cache)->sequence;
     int depth = (*cache)->depth;
     *cache = npy_unlink_coercion_cache(*cache);
@@ -614,8 +615,10 @@ PyArray_AssignFromCache_Recursive(
         for (npy_intp i = 0; i < length; i++) {
             PyObject *value = PySequence_Fast_GET_ITEM(obj, i);
 
-            if (*cache == NULL || (*cache)->converted_obj != value ||
+            PyObject *converted_obj = NULL;
+            if (*cache == NULL || (converted_obj = HPy_AsPyObject(ctx, (*cache)->converted_obj)) != value ||
                         (*cache)->depth != depth + 1) {
+                Py_XDECREF(converted_obj);
                 if (ndim != depth + 1) {
                     PyErr_SetString(PyExc_RuntimeError,
                             "Inconsistent object during array creation? "
@@ -630,6 +633,7 @@ PyArray_AssignFromCache_Recursive(
                 }
             }
             else {
+                Py_XDECREF(converted_obj);
                 PyArrayObject *view;
                 view = (PyArrayObject *)array_item_asarray(self, i);
                 if (view == NULL) {
@@ -2006,10 +2010,13 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
          * There is only a single array-like and it was converted, it
          * may still have the incorrect type, but that is handled below.
          */
-        assert(cache->converted_obj == op);
-        arr = (PyArrayObject *)(cache->arr_or_sequence);
+        PyObject *tmp = HPy_AsPyObject(npy_get_context(), cache->converted_obj);
+        assert(tmp == op);
+        Py_DECREF(tmp);
+        arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), cache->arr_or_sequence);
         /* we may need to cast or assert flags (e.g. copy) */
         PyObject *res = PyArray_FromArray(arr, dtype, flags);
+        Py_DECREF(arr);
         npy_unlink_coercion_cache(cache);
         return res;
     }
@@ -2114,7 +2121,9 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
         return (PyObject *)ret;
     }
     assert(ndim != 0);
-    assert(op == cache->converted_obj);
+    PyObject *tmp = HPy_AsPyObject(npy_get_context(), cache->converted_obj);
+    assert(op == tmp);
+    Py_DECREF(tmp);
 
     /* Decrease the number of dimensions to the detected ones */
     int out_ndim = PyArray_NDIM(ret);

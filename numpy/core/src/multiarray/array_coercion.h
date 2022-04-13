@@ -8,8 +8,8 @@
  * to store somehow. This is a linked list of these objects.
  */
 typedef struct coercion_cache_obj {
-    PyObject *converted_obj;
-    PyObject *arr_or_sequence;
+    HPy converted_obj;
+    HPy arr_or_sequence;
     struct coercion_cache_obj *next;
     npy_bool sequence;
     int depth;  /* the dimension at which this object was found. */
@@ -52,9 +52,13 @@ _discover_array_parameters(PyObject *NPY_UNUSED(self),
 /* Would make sense to inline the freeing functions everywhere */
 /* Frees the coercion cache object recursively. */
 NPY_NO_EXPORT void
+hnpy_free_coercion_cache(HPyContext *ctx, coercion_cache_obj *first);
+NPY_NO_EXPORT void
 npy_free_coercion_cache(coercion_cache_obj *first);
 
 /* unlink a single item and return the next */
+NPY_NO_EXPORT coercion_cache_obj *
+hnpy_unlink_coercion_cache(HPyContext *ctx, coercion_cache_obj *current);
 NPY_NO_EXPORT coercion_cache_obj *
 npy_unlink_coercion_cache(coercion_cache_obj *current);
 
