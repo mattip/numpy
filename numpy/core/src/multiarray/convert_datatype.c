@@ -1265,49 +1265,79 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_CastDescrToDType(PyArray_Descr *descr, PyArray_DTypeMeta *given_DType)
 {
-    if (NPY_DTYPE(descr) == given_DType) {
-        Py_INCREF(descr);
-        return descr;
+    HPyContext *ctx = npy_get_context();
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject *)descr);
+    HPy h_given_DType = HPy_FromPyObject(ctx, (PyObject *)given_DType);
+    HPy h_res = HPyArray_CastDescrToDType(ctx, h_descr, h_given_DType);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_given_DType);
+    HPy_Close(ctx, h_descr);
+    return res;
+}
+
+//NPY_NO_EXPORT PyArray_Descr *
+//PyArray_CastDescrToDType(PyArray_Descr *descr, PyArray_DTypeMeta *given_DType)
+NPY_NO_EXPORT HPy
+HPyArray_CastDescrToDType(HPyContext *ctx, HPy descr, HPy given_DType)
+{
+    HPy res = HPy_NULL;
+    HPy descr_type = HNPY_DTYPE(ctx, descr);
+    if (HPy_Is(ctx, descr_type, given_DType)) {
+        res = HPy_Dup(ctx, descr);
+        goto success;
     }
-    if (!NPY_DT_is_parametric(given_DType)) {
+    PyArray_DTypeMeta *given_DType_data = PyArray_DTypeMeta_AsStruct(ctx, given_DType);
+    if (!NPY_DT_is_parametric(given_DType_data)) {
         /*
          * Don't actually do anything, the default is always the result
          * of any cast.
          */
-        return NPY_DT_CALL_default_descr(given_DType);
+        res = HNPY_DT_CALL_default_descr(ctx, given_DType, given_DType_data);
+        goto success;
     }
-    if (PyObject_TypeCheck((PyObject *)descr, (PyTypeObject *)given_DType)) {
-        Py_INCREF(descr);
-        return descr;
+    if (HPy_TypeCheck(ctx, descr, given_DType)) {
+        res = HPy_Dup(ctx, descr);
+        goto success;
     }
 
-    PyObject *tmp = PyArray_GetCastingImpl(NPY_DTYPE(descr), given_DType);
-    if (tmp == NULL || tmp == Py_None) {
-        Py_XDECREF(tmp);
+    HPy tmp = HPyArray_GetCastingImpl(ctx, descr_type, given_DType);
+    if (HPy_IsNull(tmp) || HPy_Is(ctx, tmp, ctx->h_None)) {
+        HPy_Close(ctx, tmp);
         goto error;
     }
-    PyArray_DTypeMeta *dtypes[2] = {NPY_DTYPE(descr), given_DType};
-    PyArray_Descr *given_descrs[2] = {descr, NULL};
-    PyArray_Descr *loop_descrs[2];
+    HPy dtypes[2] = {descr_type, given_DType}; /* (PyArray_DTypeMeta *) */
+    HPy given_descrs[2] = {descr, HPy_NULL}; /* (PyArray_Descr *) */
+    HPy loop_descrs[2]; /* (PyArray_Descr *) */
 
-    PyArrayMethodObject *meth = (PyArrayMethodObject *)tmp;
+    // PyArrayMethodObject *meth = (PyArrayMethodObject *)tmp;
+    PyArrayMethodObject *meth = PyArrayMethodObject_AsStruct(ctx, tmp);
     npy_intp view_offset = NPY_MIN_INTP;
-    NPY_CASTING casting = resolve_descriptors_trampoline(meth->resolve_descriptors,
-            meth, dtypes, given_descrs, loop_descrs, &view_offset);
-    Py_DECREF(tmp);
+    NPY_CASTING casting = meth->resolve_descriptors(ctx,
+            tmp, dtypes, given_descrs, loop_descrs, &view_offset);
+    HPy_Close(ctx, tmp);
     if (casting < 0) {
         goto error;
     }
-    Py_DECREF(loop_descrs[0]);
-    return loop_descrs[1];
+    HPy_Close(ctx, loop_descrs[0]);
+    res = loop_descrs[1];
+success:
+    HPy_Close(ctx, descr_type);
+    return res;
 
   error:;  /* (; due to compiler limitations) */
-    PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
-    PyErr_Fetch(&err_type, &err_value, &err_traceback);
-    PyErr_Format(PyExc_TypeError,
-            "cannot cast dtype %S to %S.", descr, given_DType);
-    npy_PyErr_ChainExceptionsCause(err_type, err_value, err_traceback);
-    return NULL;
+    HPy_Close(ctx, descr_type);
+    // TODO HPY LABS PORT: PyErr_Fetch
+    // PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
+    // PyErr_Fetch(&err_type, &err_value, &err_traceback);
+    HPyErr_SetString(ctx, ctx->h_TypeError,
+            "cannot cast dtype %S to %S.");
+    // TODO HPY LABS PORT: PyErr_Format
+    // PyErr_Format(PyExc_TypeError,
+    //         "cannot cast dtype %S to %S.", descr, given_DType);
+    // TODO HPY LABS PORT: npy_PyErr_ChainExceptionsCause
+    // npy_PyErr_ChainExceptionsCause(err_type, err_value, err_traceback);
+    return HPy_NULL;
 }
 
 

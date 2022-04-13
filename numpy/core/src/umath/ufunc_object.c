@@ -4886,15 +4886,9 @@ hresolve_descriptors(HPyContext *ctx, int nop,
              * The dtype may mismatch the signature, in which case we need
              * to make it fit before calling the resolution.
              */
-            // PyArray_Descr *descr = PyArray_DTYPE(operands[i]);
             HPy descr = HPyArray_DTYPE(ctx, operands[i]);
-            CAPI_WARN("hresolve_descriptors: call to PyArray_CastDescrToDType");
-            PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
-            PyArray_DTypeMeta *py_sig_i = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, signature[i]);
-            PyArray_Descr *py_res = PyArray_CastDescrToDType(py_descr, py_sig_i);
-            original_dtypes[i] = HPy_FromPyObject(ctx, (PyObject*)py_res);
-            Py_DECREF(py_descr);
-            Py_DECREF(py_sig_i);
+            original_dtypes[i] = HPyArray_CastDescrToDType(ctx, descr, signature[i]);
+            HPy_Close(ctx, descr);
             if (HPy_IsNull(original_dtypes[i])) {
                 nop = i;  /* only this much is initialized */
                 goto finish;

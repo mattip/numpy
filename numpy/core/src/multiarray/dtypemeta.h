@@ -149,8 +149,8 @@ static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy 
         && NPY_DT_SLOTS(dtype)->is_known_scalar_type(dtype, obj))
 #define NPY_DT_CALL_default_descr(dtype)  \
     default_descr_function_trampoline(dtype)
-#define HNPY_DT_CALL_default_descr(ctx, dtype)  \
-    HNPY_DT_SLOTS(ctx, dtype)->default_descr(ctx, dtype)
+#define HNPY_DT_CALL_default_descr(ctx, dtype, dtype_data)  \
+    (((NPY_DType_Slots *)((dtype_data)->dt_slots))->default_descr(ctx, dtype))
 #define NPY_DT_CALL_common_dtype(dtype, other)  \
     NPY_DT_SLOTS(dtype)->common_dtype(dtype, other)
 #define NPY_DT_CALL_getitem(descr, data_ptr)  \
@@ -158,6 +158,11 @@ static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy 
 #define NPY_DT_CALL_setitem(descr, value, data_ptr)  \
     NPY_DT_SLOTS(NPY_DTYPE(descr))->setitem(descr, value, data_ptr)
 
+static NPY_INLINE HPy
+hdtypemeta_call_default_descr(HPyContext *ctx, HPy dtype_meta)
+{
+    return HNPY_DT_SLOTS(ctx, dtype_meta)->default_descr(ctx, dtype_meta);
+}
 /*
  * This function will hopefully be phased out or replaced, but was convenient
  * for incremental implementation of new DTypes based on DTypeMeta.

@@ -170,7 +170,7 @@ simple_legacy_resolve_descriptors(
             output_descrs[i] = HPy_Dup(ctx, output_descrs[0]);
         }
         else {
-            output_descrs[i] = HNPY_DT_CALL_default_descr(ctx, dtypes[i]);
+            output_descrs[i] = hdtypemeta_call_default_descr(ctx, dtypes[i]);
         }
         if (HPy_IsNull(output_descrs[i])) {
             goto fail;

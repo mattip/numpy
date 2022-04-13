@@ -494,7 +494,7 @@ default_descr_function_trampoline(PyArray_DTypeMeta *cls)
 {
     HPyContext *ctx = npy_get_context();
     HPy h_cls = HPy_FromPyObject(ctx, (PyObject *)cls);
-    HPy h_res = HNPY_DT_CALL_default_descr(ctx, h_cls);
+    HPy h_res = hdtypemeta_call_default_descr(ctx, h_cls);
     PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_res);
     HPy_Close(ctx, h_cls);
