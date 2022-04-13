@@ -351,6 +351,7 @@ NPY_TITLE_KEY_check(PyObject *key, PyObject *value)
 #define DEPRECATE(msg) PyErr_WarnEx(PyExc_DeprecationWarning,msg,1)
 #define HPY_DEPRECATE(ctx, msg) HPyErr_WarnEx(ctx,ctx->h_DeprecationWarning,msg,1)
 #define DEPRECATE_FUTUREWARNING(msg) PyErr_WarnEx(PyExc_FutureWarning,msg,1)
+#define HPY_DEPRECATE_FUTUREWARNING(ctx, msg) HPyErr_WarnEx(ctx, ctx->h_FutureWarning,msg,1)
 
 #ifdef __cplusplus
 }
