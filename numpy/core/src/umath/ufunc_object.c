@@ -6936,8 +6936,11 @@ ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
     HPy res = ufunc_hpy_generic_fastcall(ctx, self, full_args, nargs, kwnames, NPY_FALSE);
 
     HPy_Close(ctx, kwnames);
-    for (HPy_ssize_t i=0; i < nkw; i++) {
-        HPy_Close(ctx, full_args[nargs + i]);
+    if (!HPy_IsNull(kw)) {
+        for (HPy_ssize_t i=0; i < nkw; i++) {
+            HPy_Close(ctx, full_args[nargs + i]);
+        }
+        free(full_args);
     }
     return res;
 }
