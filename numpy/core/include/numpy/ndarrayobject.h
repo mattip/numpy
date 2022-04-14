@@ -30,6 +30,7 @@ extern "C" {
 extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
+extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
 
 /* arraytypes.c */
 NPY_NO_EXPORT HPy HPyArray_DescrFromType(HPyContext *ctx, int type);

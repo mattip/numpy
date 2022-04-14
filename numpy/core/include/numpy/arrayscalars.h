@@ -6,6 +6,7 @@ typedef struct {
         PyObject_HEAD
         npy_bool obval;
 } PyBoolScalarObject;
+HPyType_LEGACY_HELPERS(PyBoolScalarObject);
 #endif
 
 
@@ -13,126 +14,146 @@ typedef struct {
         PyObject_HEAD
         signed char obval;
 } PyByteScalarObject;
+HPyType_LEGACY_HELPERS(PyByteScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         short obval;
 } PyShortScalarObject;
+HPyType_LEGACY_HELPERS(PyShortScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         int obval;
 } PyIntScalarObject;
+HPyType_LEGACY_HELPERS(PyIntScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         long obval;
 } PyLongScalarObject;
+HPyType_LEGACY_HELPERS(PyLongScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_longlong obval;
 } PyLongLongScalarObject;
+HPyType_LEGACY_HELPERS(PyLongLongScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         unsigned char obval;
 } PyUByteScalarObject;
+HPyType_LEGACY_HELPERS(PyUByteScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         unsigned short obval;
 } PyUShortScalarObject;
+HPyType_LEGACY_HELPERS(PyUShortScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         unsigned int obval;
 } PyUIntScalarObject;
+HPyType_LEGACY_HELPERS(PyUIntScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         unsigned long obval;
 } PyULongScalarObject;
+HPyType_LEGACY_HELPERS(PyULongScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_ulonglong obval;
 } PyULongLongScalarObject;
+HPyType_LEGACY_HELPERS(PyULongLongScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_half obval;
 } PyHalfScalarObject;
+HPyType_LEGACY_HELPERS(PyHalfScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         float obval;
 } PyFloatScalarObject;
+HPyType_LEGACY_HELPERS(PyFloatScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         double obval;
 } PyDoubleScalarObject;
+HPyType_LEGACY_HELPERS(PyDoubleScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_longdouble obval;
 } PyLongDoubleScalarObject;
+HPyType_LEGACY_HELPERS(PyLongDoubleScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_cfloat obval;
 } PyCFloatScalarObject;
+HPyType_LEGACY_HELPERS(PyCFloatScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_cdouble obval;
 } PyCDoubleScalarObject;
+HPyType_LEGACY_HELPERS(PyCDoubleScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         npy_clongdouble obval;
 } PyCLongDoubleScalarObject;
-
+HPyType_LEGACY_HELPERS(PyCLongDoubleScalarObject);
 
 typedef struct {
         PyObject_HEAD
         PyObject * obval;
 } PyObjectScalarObject;
+HPyType_LEGACY_HELPERS(PyObjectScalarObject);
 
 typedef struct {
         PyObject_HEAD
         npy_datetime obval;
         PyArray_DatetimeMetaData obmeta;
 } PyDatetimeScalarObject;
+HPyType_LEGACY_HELPERS(PyDatetimeScalarObject);
 
 typedef struct {
         PyObject_HEAD
         npy_timedelta obval;
         PyArray_DatetimeMetaData obmeta;
 } PyTimedeltaScalarObject;
+HPyType_LEGACY_HELPERS(PyTimedeltaScalarObject);
 
 
 typedef struct {
         PyObject_HEAD
         char obval;
 } PyScalarObject;
+HPyType_LEGACY_HELPERS(PyScalarObject);
 
 #define PyStringScalarObject PyBytesObject
 typedef struct {
@@ -141,6 +162,7 @@ typedef struct {
         Py_UCS4 *obval;
         char *buffer_fmt;
 } PyUnicodeScalarObject;
+HPyType_LEGACY_HELPERS(PyUnicodeScalarObject);
 
 
 typedef struct {
@@ -151,6 +173,7 @@ typedef struct {
         PyObject *base;
         void *_buffer_info;  /* private buffer info, tagged to allow warning */
 } PyVoidScalarObject;
+HPyType_LEGACY_HELPERS(PyVoidScalarObject);
 
 /* Macros
      Py<Cls><bitsize>ScalarObject
