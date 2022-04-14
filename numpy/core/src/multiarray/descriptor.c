@@ -1391,6 +1391,21 @@ PyArray_DescrNewFromType(int type_num)
     return new;
 }
 
+NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
+HPyArray_DescrNewFromType(HPyContext *ctx, int type_num)
+{
+    HPy old; /* (PyArray_Descr *) */
+    HPy new; /* (PyArray_Descr *) */
+
+    old = HPyArray_DescrFromType(ctx, type_num);
+    if (HPy_IsNull(old)) {
+        return HPy_NULL;
+    }
+    new = HPyArray_DescrNew(ctx, old);
+    HPy_Close(ctx, old);
+    return new;
+}
+
 NPY_NO_EXPORT int
 HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at)
 {

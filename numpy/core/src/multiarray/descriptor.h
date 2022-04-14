@@ -39,6 +39,9 @@ NPY_NO_EXPORT int
 HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at);
 
 NPY_NO_EXPORT HPy
+HPyArray_DescrNewFromType(HPyContext *ctx, int type_num);
+
+NPY_NO_EXPORT HPy
 HPyArray_DescrNew(HPyContext *ctx, HPy h_base);
 
 NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull;

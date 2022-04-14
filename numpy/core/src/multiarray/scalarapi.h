@@ -16,4 +16,7 @@ HPyArray_CheckAnyScalarExact(HPyContext *ctx, HPy obj);
 NPY_NO_EXPORT HPy
 HPyArray_Return(HPyContext *ctx, HPy mp);
 
+NPY_NO_EXPORT HPy
+HPyArray_DescrFromScalar(HPyContext *ctx, HPy sc);
+
 #endif // SCALAR_API_H
