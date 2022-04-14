@@ -22,6 +22,9 @@ _PyArray_MapPyTypeToDType(
 NPY_NO_EXPORT int
 PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value);
 
+NPY_NO_EXPORT int
+HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HPy value);
+
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_AdaptDescriptorToArray(PyArrayObject *arr, PyObject *dtype);
 

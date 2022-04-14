@@ -2,6 +2,7 @@
 #define NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_
 
 #include "hpy.h"
+#include "array_coercion.h"
 
 NPY_NO_EXPORT PyObject *
 PyArray_NewFromDescr(
@@ -134,5 +135,8 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
 NPY_NO_EXPORT HPy
 HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
                      HPy dtype, int subok);
+
+NPY_NO_EXPORT int
+HPyArray_AssignFromCache(HPyContext *ctx, HPy self, coercion_cache_obj *cache);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

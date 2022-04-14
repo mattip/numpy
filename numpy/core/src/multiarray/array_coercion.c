@@ -509,6 +509,18 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     return res;
 }
 
+NPY_NO_EXPORT int
+HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HPy value)
+{
+    CAPI_WARN("HPyArray_Pack: call to PyArray_Pack");
+    PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
+    PyObject *py_value = HPy_AsPyObject(ctx, value);
+    int res = PyArray_Pack(py_descr, item, py_value);
+    Py_DECREF(py_value);
+    Py_DECREF(py_descr);
+    return res;
+}
+
 
 static int
 update_shape(int curr_ndim, int *max_ndim,

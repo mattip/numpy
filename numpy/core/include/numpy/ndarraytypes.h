@@ -1998,6 +1998,10 @@ static inline bool HPyArray_ISFLOAT(HPyContext *ctx, HPy obj) {
     _PyArray_ISX(ctx, obj, FLOAT);
 }
 
+static inline bool HPyArrayDescr_ISSIGNED(PyArray_Descr *descr) {
+    return PyTypeNum_ISSIGNED(descr->type_num);
+}
+
 static inline bool HPyArrayDescr_ISOBJECT(PyArray_Descr *descr) {
     return PyTypeNum_ISOBJECT(descr->type_num);
 }
