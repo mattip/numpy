@@ -5100,12 +5100,12 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Store the context so legacy functions and extensions can access it */
     assert(numpy_global_ctx == NULL);
     numpy_global_ctx = ctx;
-    s = PyCapsule_New((void *)ctx, NULL, NULL);
-    if (s == NULL) {
+    h_s = HPyCapsule_New(ctx, (void *)ctx, NULL, NULL);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_HPY_CONTEXT", s);
-    Py_DECREF(s);
+    HPy_SetItem_s(ctx, h_d, "_HPY_CONTEXT", h_s);
+    HPy_Close(ctx, h_s);
 
 
     HPy h_PyUFunc_Type = HPyType_FromSpec(ctx, &PyUFunc_Type_Spec, NULL);
