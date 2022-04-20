@@ -4478,6 +4478,7 @@ NPY_NO_EXPORT void init_scalartypes_basetypes(HPyContext *ctx)
     _PyArrayScalar_BoolValues[1]->obval = 1;
 
     size_t i = 0;
+    CAPI_WARN("Do not initialize 'scalar_type typeobjects' at all?");
     typeobjects[i++].type = _PyBoolArrType_Type_p;
     typeobjects[i++].type = _PyByteArrType_Type_p;
     typeobjects[i++].type = _PyUByteArrType_Type_p;

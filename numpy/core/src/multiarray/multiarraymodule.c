@@ -4734,7 +4734,7 @@ static struct PyMethodDef array_module_methods[] = {
  *  Thus, we call PyType_Ready on the standard Python Types, here.
  */
 static int
-setup_scalartypes(HPyContext *ctx, PyObject *NPY_UNUSED(dict))
+setup_scalartypes(HPyContext *ctx)
 {
     // HPY TODO: is it really necessary to do this for the builtins,
     // do the comments above this function apply even in HPy case?
@@ -4911,22 +4911,20 @@ cleanup:
 /* place a flag dictionary in d */
 
 static void
-set_flaginfo(PyObject *d)
+set_flaginfo(HPyContext *ctx, HPy d)
 {
-    PyObject *s;
-    PyObject *newd;
+    HPy s;
+    HPy newd = HPyDict_New(ctx);
 
-    newd = PyDict_New();
+#define _addnew(key, val, one)                                \
+    HPy_SetItem_s(ctx, newd, #key, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s);                                        \
+    HPy_SetItem_s(ctx, newd, #one, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s)
 
-#define _addnew(key, val, one)                                       \
-    PyDict_SetItemString(newd, #key, s=PyLong_FromLong(val));    \
-    Py_DECREF(s);                                               \
-    PyDict_SetItemString(newd, #one, s=PyLong_FromLong(val));    \
-    Py_DECREF(s)
-
-#define _addone(key, val)                                            \
-    PyDict_SetItemString(newd, #key, s=PyLong_FromLong(val));    \
-    Py_DECREF(s)
+#define _addone(key, val)                                  \
+    HPy_SetItem_s(ctx, newd, #key, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s)
 
     _addnew(OWNDATA, NPY_ARRAY_OWNDATA, O);
     _addnew(FORTRAN, NPY_ARRAY_F_CONTIGUOUS, F);
@@ -4940,8 +4938,8 @@ set_flaginfo(PyObject *d)
 #undef _addone
 #undef _addnew
 
-    PyDict_SetItemString(d, "_flagdict", newd);
-    Py_DECREF(newd);
+    HPy_SetItem_s(ctx, d, "_flagdict", newd);
+    HPy_Close(ctx, newd);
     return;
 }
 
@@ -5169,7 +5167,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
     HPy_Close(ctx, h_array_type);
 
-    if (setup_scalartypes(ctx, d) < 0) {
+    if (setup_scalartypes(ctx) < 0) {
         goto err;
     }
     // HPY: static descr objects, e.g., BOOL_Descr, have typeobj set to numpy scalar types
@@ -5327,7 +5325,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Business day calendar object */
     PyDict_SetItemString(d, "busdaycalendar",
                             (PyObject *)&NpyBusDayCalendar_Type);
-    set_flaginfo(d);
+    set_flaginfo(ctx, h_d);
 
     /* Create the typeinfo types */
     if (typeinfo_init_structsequences(d) < 0) {
