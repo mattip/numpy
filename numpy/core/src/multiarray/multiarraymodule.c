@@ -5038,6 +5038,7 @@ static HPyGlobal *module_globals[] = {
     &hpy_n_ops.conjugate,
     &hpy_n_ops.matmul,
     &hpy_n_ops.clip,
+    &current_handler,
     NULL
 };
 
@@ -5217,10 +5218,11 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
 
-    NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
-        goto err;
-    }
+    // Ignored for the HPy example port
+    // NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
+    // if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
+    //     goto err;
+    // }
 
     HPy c_api = HPyCapsule_New(ctx, (void *)PyArray_API, NULL, NULL);
     if (HPy_IsNull(c_api)) {
@@ -5327,8 +5329,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy_SetItem_s(ctx, h_d, "flagsobj", h_arrayFlagsType);
 
     /* Business day calendar object */
-    PyDict_SetItemString(d, "busdaycalendar",
-                            (PyObject *)&NpyBusDayCalendar_Type);
+    // Ignored for the HPy example port
+    // PyDict_SetItemString(d, "busdaycalendar",
+    //                         (PyObject *)&NpyBusDayCalendar_Type);
     set_flaginfo(ctx, h_d);
 
     /* Create the typeinfo types */
@@ -5382,8 +5385,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /*
      * Initialize the default PyDataMem_Handler capsule singleton.
      */
-    PyDataMem_DefaultHandler = PyCapsule_New(&default_handler, "mem_handler", NULL);
-    if (PyDataMem_DefaultHandler == NULL) {
+    local_PyDataMem_DefaultHandler = HPyCapsule_New(ctx, &default_handler, "mem_handler", NULL);
+    if (HPy_IsNull(local_PyDataMem_DefaultHandler)) {
         goto err;
     }
 #if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
@@ -5391,10 +5394,12 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
      * Initialize the context-local current handler
      * with the default PyDataMem_Handler capsule.
     */
-    current_handler = HPyContextVar_New(ctx, "current_allocator", HPy_FromPyObject(ctx, PyDataMem_DefaultHandler));
-    if (HPy_IsNull(current_handler)) {
+    HPy h_current_handler = HPyContextVar_New(ctx, "current_allocator", local_PyDataMem_DefaultHandler);
+    if (HPy_IsNull(h_current_handler)) {
         goto err;
     }
+    HPyGlobal_Store(ctx, &current_handler, h_current_handler);
+    HPy_Close(ctx, h_current_handler);
 #endif
 
     // HPY TODO: this is a temporary solution to mimic the static types and global state:
