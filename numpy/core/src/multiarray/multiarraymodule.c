@@ -5055,14 +5055,13 @@ static HPyModuleDef moduledef = {
 /* Initialization function for the module */
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
-    PyObject *m, *d, *s;
+    PyObject *d, *s;
     HPy h_mod, h_d, h_s;
     PyObject *c_api;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
-    m = HPy_AsPyObject(ctx, h_mod);
-    if (!m) {
+    if (HPy_IsNull(h_mod)) {
         return HPy_NULL;
     }
 
@@ -5083,7 +5082,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Initialize access to the PyDateTime API */
     numpy_pydatetime_import();
 
-    if (PyErr_Occurred()) {
+    if (HPyErr_Occurred(ctx)) {
         goto err;
     }
 
@@ -5092,12 +5091,10 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_d)) {
         goto err;
     }
-    d = PyModule_GetDict(m);
+    d = HPy_AsPyObject(ctx, h_d);
     if (!d) {
         goto err;
     }
-    printf("Module dict: %p\n", (void*)h_d._i);
-    printf("Module dict: %p\n", (void*)d);
 
     // HPY HACK:
     /* Store the context so legacy functions and extensions can access it */
@@ -5291,8 +5288,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     Py_DECREF(s);
 
 #define ADDCONST(NAME)                          \
-    h_s = HPyLong_FromLong(ctx, NPY_##NAME);     \
-    HPy_SetItem_s(ctx, h_d, #NAME, h_s);              \
+    h_s = HPyLong_FromLong(ctx, NPY_##NAME);    \
+    HPy_SetItem_s(ctx, h_d, #NAME, h_s);        \
     HPy_Close(ctx, h_s)
 
 
@@ -5406,6 +5403,5 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     HPy_Close(ctx, h_mod);
     HPy_Close(ctx, h_d);
-    Py_DECREF(m);
     return HPy_NULL;
 }
