@@ -83,7 +83,7 @@ import numbers
 
 from numpy.core.multiarray import (
         ndarray, array, dtype, datetime_data, datetime_as_string,
-        busday_offset, busday_count, is_busday, busdaycalendar
+        busday_offset, busday_count, is_busday
         )
 from numpy.core.overrides import set_module
 
@@ -92,7 +92,7 @@ __all__ = ['sctypeDict', 'sctypes',
            'ScalarType', 'obj2sctype', 'cast', 'nbytes', 'sctype2char',
            'maximum_sctype', 'issctype', 'typecodes', 'find_common_type',
            'issubdtype', 'datetime_data', 'datetime_as_string',
-           'busday_offset', 'busday_count', 'is_busday', 'busdaycalendar',
+           'busday_offset', 'busday_count', 'is_busday',
            ]
 
 # we don't need all these imports, but we need to keep them for compatibility

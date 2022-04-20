@@ -4437,6 +4437,7 @@ static HPy _hpy_builtin_descrs[] = {
 // still statically allocated PyObjects, but cannot have dynamically
 // allocated type in their static initializers...
 NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
+    CAPI_WARN("X_Descr.typeobj = _PyXArrType_p");
     /**begin repeat
      *
      * #from = VOID, STRING, UNICODE, BOOL,

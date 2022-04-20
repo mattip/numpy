@@ -114,6 +114,7 @@ PyArray_typeinforanged(
 NPY_NO_EXPORT int
 typeinfo_init_structsequences(PyObject *multiarray_dict)
 {
+    CAPI_WARN("startup: PyStructSequence_InitType2");
     if (PyStructSequence_InitType2(
             &PyArray_typeinfoType, &typeinfo_desc) < 0) {
         return -1;

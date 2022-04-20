@@ -4734,7 +4734,7 @@ static struct PyMethodDef array_module_methods[] = {
  *  Thus, we call PyType_Ready on the standard Python Types, here.
  */
 static int
-setup_scalartypes(HPyContext *ctx, PyObject *NPY_UNUSED(dict))
+setup_scalartypes(HPyContext *ctx)
 {
     // HPY TODO: is it really necessary to do this for the builtins,
     // do the comments above this function apply even in HPy case?
@@ -4911,22 +4911,20 @@ cleanup:
 /* place a flag dictionary in d */
 
 static void
-set_flaginfo(PyObject *d)
+set_flaginfo(HPyContext *ctx, HPy d)
 {
-    PyObject *s;
-    PyObject *newd;
+    HPy s;
+    HPy newd = HPyDict_New(ctx);
 
-    newd = PyDict_New();
+#define _addnew(key, val, one)                                \
+    HPy_SetItem_s(ctx, newd, #key, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s);                                        \
+    HPy_SetItem_s(ctx, newd, #one, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s)
 
-#define _addnew(key, val, one)                                       \
-    PyDict_SetItemString(newd, #key, s=PyLong_FromLong(val));    \
-    Py_DECREF(s);                                               \
-    PyDict_SetItemString(newd, #one, s=PyLong_FromLong(val));    \
-    Py_DECREF(s)
-
-#define _addone(key, val)                                            \
-    PyDict_SetItemString(newd, #key, s=PyLong_FromLong(val));    \
-    Py_DECREF(s)
+#define _addone(key, val)                                  \
+    HPy_SetItem_s(ctx, newd, #key, s=HPyLong_FromLong(ctx, val));    \
+    HPy_Close(ctx, s)
 
     _addnew(OWNDATA, NPY_ARRAY_OWNDATA, O);
     _addnew(FORTRAN, NPY_ARRAY_F_CONTIGUOUS, F);
@@ -4940,8 +4938,8 @@ set_flaginfo(PyObject *d)
 #undef _addone
 #undef _addnew
 
-    PyDict_SetItemString(d, "_flagdict", newd);
-    Py_DECREF(newd);
+    HPy_SetItem_s(ctx, d, "_flagdict", newd);
+    HPy_Close(ctx, newd);
     return;
 }
 
@@ -4956,6 +4954,7 @@ NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_numpy = NULL;
 static int
 intern_strings(void)
 {
+    CAPI_WARN("startup: intern_strings");
     npy_ma_str_array_wrap = PyUnicode_InternFromString("__array_wrap__");
     if (npy_ma_str_array_wrap == NULL) {
         return -1;
@@ -5039,6 +5038,7 @@ static HPyGlobal *module_globals[] = {
     &hpy_n_ops.conjugate,
     &hpy_n_ops.matmul,
     &hpy_n_ops.clip,
+    &current_handler,
     NULL
 };
 
@@ -5057,14 +5057,20 @@ static HPyModuleDef moduledef = {
 /* Initialization function for the module */
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
-    PyObject *m, *d, *s;
+    PyObject *d, *s;
     HPy h_mod, h_d, h_s;
-    PyObject *c_api;
+    HPy result = HPy_NULL;
+    HPy h_array_type = HPy_NULL;
+    HPy h_arrayIterType = HPy_NULL;
+    HPy h_npyiter_type = HPy_NULL;
+    HPy h_arrayMultiIter_type = HPy_NULL;
+    HPy h_PyArrayDescr_Type = HPy_NULL;
+    HPy h_arrayFlagsType = HPy_NULL;
+    HPy local_PyDataMem_DefaultHandler = HPy_NULL;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
-    m = HPy_AsPyObject(ctx, h_mod);
-    if (!m) {
+    if (HPy_IsNull(h_mod)) {
         return HPy_NULL;
     }
 
@@ -5085,16 +5091,16 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Initialize access to the PyDateTime API */
     numpy_pydatetime_import();
 
-    if (PyErr_Occurred()) {
+    if (HPyErr_Occurred(ctx)) {
         goto err;
     }
 
     /* Add some symbolic constants to the module */
-    h_d = HPy_GetAttr_s(ctx, h_mod, "__dict__");
+    h_d = HPyModule_GetDict(ctx, h_mod);
     if (HPy_IsNull(h_d)) {
         goto err;
     }
-    d = PyModule_GetDict(m);
+    d = HPy_AsPyObject(ctx, h_d);
     if (!d) {
         goto err;
     }
@@ -5103,12 +5109,12 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Store the context so legacy functions and extensions can access it */
     assert(numpy_global_ctx == NULL);
     numpy_global_ctx = ctx;
-    s = PyCapsule_New((void *)ctx, NULL, NULL);
-    if (s == NULL) {
+    h_s = HPyCapsule_New(ctx, (void *)ctx, NULL, NULL);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_HPY_CONTEXT", s);
-    Py_DECREF(s);
+    HPy_SetItem_s(ctx, h_d, "_HPY_CONTEXT", h_s);
+    HPy_Close(ctx, h_s);
 
 
     HPy h_PyUFunc_Type = HPyType_FromSpec(ctx, &PyUFunc_Type_Spec, NULL);
@@ -5132,7 +5138,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },
         { 0 }
     };
-    HPy h_PyArrayDescr_Type = HPyType_FromSpec(ctx, &PyArrayDescr_TypeFull_spec, dtype_params);
+    h_PyArrayDescr_Type = HPyType_FromSpec(ctx, &PyArrayDescr_TypeFull_spec, dtype_params);
     if (HPy_IsNull(h_PyArrayDescr_Type)) {
         goto err;
     }
@@ -5150,7 +5156,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPyGlobal_Store(ctx, &HPyArrayDescr_Type, h_PyArrayDescr_Type);
     HPyGlobal_Store(ctx, &HPyArrayDTypeMeta_Type, h_PyArrayDTypeMeta_Type);
 
-    HPy_Close(ctx, h_PyArrayDescr_Type);
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
 
     initialize_casting_tables();
@@ -5160,16 +5165,15 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     //     goto err;
     // }
 
-    HPy h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
+    h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
     if (HPy_IsNull(h_array_type)) {
         goto err;
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
-    HPy_Close(ctx, h_array_type);
 
-    if (setup_scalartypes(ctx, d) < 0) {
+    if (setup_scalartypes(ctx) < 0) {
         goto err;
     }
     // HPY: static descr objects, e.g., BOOL_Descr, have typeobj set to numpy scalar types
@@ -5178,19 +5182,19 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     // HPY: TODO comment on this
     init_scalartypes_basetypes(ctx);
 
-    HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
+    h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
     _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
 
     HPy h_arrayMapIterType = HPyType_FromSpec(ctx, &PyArrayMapIter_Type_Spec, NULL);
-    if (HPy_IsNull(h_arrayIterType)) {
+    if (HPy_IsNull(h_arrayMapIterType)) {
         goto err;
     }
     PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
 
-    HPy h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
+    h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayMultiIter_type)) {
         goto err;
     }
@@ -5202,38 +5206,39 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
 
-    HPy h_npyiter_type = HPyType_FromSpec(ctx, &NpyIter_Type_Spec, NULL);
+    h_npyiter_type = HPyType_FromSpec(ctx, &NpyIter_Type_Spec, NULL);
     if (HPy_IsNull(h_npyiter_type)) {
         goto err;
     }
     _NpyIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_npyiter_type);
 
-    HPy h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
+    h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayFlagsType)) {
         goto err;
     }
     _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
 
-    NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
-        goto err;
-    }
+    // Ignored for the HPy example port
+    // NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
+    // if (PyType_Ready(&NpyBusDayCalendar_Type) < 0) {
+    //     goto err;
+    // }
 
-    c_api = PyCapsule_New((void *)PyArray_API, NULL, NULL);
-    if (c_api == NULL) {
+    HPy c_api = HPyCapsule_New(ctx, (void *)PyArray_API, NULL, NULL);
+    if (HPy_IsNull(c_api)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_ARRAY_API", c_api);
-    Py_DECREF(c_api);
+    HPy_SetItem_s(ctx, h_d, "_ARRAY_API", c_api);
+    HPy_Close(ctx, c_api);
     init_array_api();
 
-    c_api = PyCapsule_New((void *)PyUFunc_API, NULL, NULL);
-    if (c_api == NULL) {
+    c_api = HPyCapsule_New(ctx, (void *)PyUFunc_API, NULL, NULL);
+    if (HPy_IsNull(c_api)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_UFUNC_API", c_api);
-    Py_DECREF(c_api);
-    if (PyErr_Occurred()) {
+    HPy_SetItem_s(ctx, h_d, "_UFUNC_API", c_api);
+    HPy_Close(ctx, c_api);
+    if (HPyErr_Occurred(ctx)) {
         goto err;
     }
 
@@ -5283,16 +5288,16 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     HPy_Close(ctx, h_s);
 
-    s = PyCapsule_New((void *)_datetime_strings, NULL, NULL);
-    if (s == NULL) {
+    h_s = HPyCapsule_New(ctx, (void *)_datetime_strings, NULL, NULL);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    PyDict_SetItemString(d, "DATETIMEUNITS", s);
-    Py_DECREF(s);
+    HPy_SetItem_s(ctx, h_d, "DATETIMEUNITS", h_s);
+    HPy_Close(ctx, h_s);
 
 #define ADDCONST(NAME)                          \
-    h_s = HPyLong_FromLong(ctx, NPY_##NAME);     \
-    HPy_SetItem_s(ctx, h_d, #NAME, h_s);              \
+    h_s = HPyLong_FromLong(ctx, NPY_##NAME);    \
+    HPy_SetItem_s(ctx, h_d, #NAME, h_s);        \
     HPy_Close(ctx, h_s)
 
 
@@ -5316,18 +5321,18 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     ADDCONST(MAY_SHARE_EXACT);
 #undef ADDCONST
 
-    PyDict_SetItemString(d, "ndarray", (PyObject*)&PyArray_Type);
-    PyDict_SetItemString(d, "flatiter", (PyObject *)&PyArrayIter_Type);
-    PyDict_SetItemString(d, "nditer", (PyObject *)&NpyIter_Type);
-    PyDict_SetItemString(d, "broadcast",
-                         (PyObject *)&PyArrayMultiIter_Type);
-    PyDict_SetItemString(d, "dtype", (PyObject *)&PyArrayDescr_Type);
-    PyDict_SetItemString(d, "flagsobj", (PyObject *)&PyArrayFlags_Type);
+    HPy_SetItem_s(ctx, h_d, "ndarray", h_array_type);
+    HPy_SetItem_s(ctx, h_d, "flatiter", h_arrayIterType);
+    HPy_SetItem_s(ctx, h_d, "nditer", h_npyiter_type);
+    HPy_SetItem_s(ctx, h_d, "broadcast", h_arrayMultiIter_type);
+    HPy_SetItem_s(ctx, h_d, "dtype", h_PyArrayDescr_Type);
+    HPy_SetItem_s(ctx, h_d, "flagsobj", h_arrayFlagsType);
 
     /* Business day calendar object */
-    PyDict_SetItemString(d, "busdaycalendar",
-                            (PyObject *)&NpyBusDayCalendar_Type);
-    set_flaginfo(d);
+    // Ignored for the HPy example port
+    // PyDict_SetItemString(d, "busdaycalendar",
+    //                         (PyObject *)&NpyBusDayCalendar_Type);
+    set_flaginfo(ctx, h_d);
 
     /* Create the typeinfo types */
     if (typeinfo_init_structsequences(d) < 0) {
@@ -5338,6 +5343,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
+    CAPI_WARN("startup: set_typeinfo");
     if (set_typeinfo(ctx, d) != 0) {
         goto err;
     }
@@ -5374,14 +5380,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (initumath(ctx, m, h_d) != 0) {
+    if (initumath(ctx, h_mod, h_d) != 0) {
         goto err;
     }
     /*
      * Initialize the default PyDataMem_Handler capsule singleton.
      */
-    PyDataMem_DefaultHandler = PyCapsule_New(&default_handler, "mem_handler", NULL);
-    if (PyDataMem_DefaultHandler == NULL) {
+    local_PyDataMem_DefaultHandler = HPyCapsule_New(ctx, &default_handler, "mem_handler", NULL);
+    if (HPy_IsNull(local_PyDataMem_DefaultHandler)) {
         goto err;
     }
 #if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
@@ -5389,15 +5395,28 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
      * Initialize the context-local current handler
      * with the default PyDataMem_Handler capsule.
     */
-    current_handler = HPyContextVar_New(ctx, "current_allocator", HPy_FromPyObject(ctx, PyDataMem_DefaultHandler));
-    if (HPy_IsNull(current_handler)) {
+    HPy h_current_handler = HPyContextVar_New(ctx, "current_allocator", local_PyDataMem_DefaultHandler);
+    if (HPy_IsNull(h_current_handler)) {
         goto err;
     }
+    HPyGlobal_Store(ctx, &current_handler, h_current_handler);
+    HPy_Close(ctx, h_current_handler);
 #endif
 
     // HPY TODO: this is a temporary solution to mimic the static types and global state:
     init_hpy_global_state(ctx);
-    return h_mod;
+    result = h_mod;
+
+ cleanup:
+    HPy_Close(ctx, h_d);
+    HPy_Close(ctx, h_array_type);
+    HPy_Close(ctx, h_arrayIterType);
+    HPy_Close(ctx, h_npyiter_type);
+    HPy_Close(ctx, h_arrayMultiIter_type);
+    HPy_Close(ctx, h_PyArrayDescr_Type);
+    HPy_Close(ctx, h_arrayFlagsType);
+    HPy_Close(ctx, local_PyDataMem_DefaultHandler);
+    return result;
 
  err:
     if (!HPyErr_Occurred(ctx)) {
@@ -5405,7 +5424,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
                         "cannot load multiarray module.");
     }
     HPy_Close(ctx, h_mod);
-    HPy_Close(ctx, h_d);
-    Py_DECREF(m);
-    return HPy_NULL;
+    result = HPy_NULL;
+    goto cleanup;
 }

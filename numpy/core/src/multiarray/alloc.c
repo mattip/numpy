@@ -407,7 +407,7 @@ PyDataMem_Handler default_handler = {
 PyObject *PyDataMem_DefaultHandler;
 
 #if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
-HPy current_handler;
+HPyGlobal current_handler;
 #endif
 
 int uo_index=0;   /* user_override index */
@@ -590,9 +590,12 @@ HPyDataMem_GetHandler(HPyContext *ctx)
 {
     HPy handler;
 #if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
-    if (HPyContextVar_Get(ctx, current_handler, HPy_NULL, &handler)) {
+    HPy h_current_handler = HPyGlobal_Load(ctx, current_handler);
+    if (HPyContextVar_Get(ctx, h_current_handler, HPy_NULL, &handler)) {
+        HPy_Close(ctx, h_current_handler);
         return HPy_NULL;
     }
+    HPy_Close(ctx, h_current_handler);
     return handler;
 #else
     hpy_abort_not_implemented("HPyDataMem_GetHandler on older Pypy versions");

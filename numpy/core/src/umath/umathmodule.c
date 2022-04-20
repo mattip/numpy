@@ -234,9 +234,8 @@ intern_strings(void)
 
 /* Setup the umath part of the module */
 
-int initumath(HPyContext *ctx, PyObject *m, HPy module_dict)
+int initumath(HPyContext *ctx, HPy m, HPy d)
 {
-    PyObject *d, *s, *s2;
     int UFUNC_FLOATING_POINT_SUPPORT = 1;
 
 #ifdef NO_UFUNC_FLOATING_POINT_SUPPORT
@@ -244,17 +243,20 @@ int initumath(HPyContext *ctx, PyObject *m, HPy module_dict)
 #endif
 
     /* Add some symbolic constants to the module */
-    d = PyModule_GetDict(m);
+    HPy s;
+    HPy_SetItem_s(ctx, d, "pi", s = HPyFloat_FromDouble(ctx, NPY_PI));
+    HPy_Close(ctx, s);
+    HPy_SetItem_s(ctx, d, "e", s = HPyFloat_FromDouble(ctx, NPY_E));
+    HPy_Close(ctx, s);
+    HPy_SetItem_s(ctx, d, "euler_gamma", s = HPyFloat_FromDouble(ctx, NPY_EULER));
+    HPy_Close(ctx, s);
 
-    PyDict_SetItemString(d, "pi", s = PyFloat_FromDouble(NPY_PI));
-    Py_DECREF(s);
-    PyDict_SetItemString(d, "e", s = PyFloat_FromDouble(NPY_E));
-    Py_DECREF(s);
-    PyDict_SetItemString(d, "euler_gamma", s = PyFloat_FromDouble(NPY_EULER));
-    Py_DECREF(s);
-
-#define ADDCONST(str) PyModule_AddIntConstant(m, #str, UFUNC_##str)
-#define ADDSCONST(str) PyModule_AddStringConstant(m, "UFUNC_" #str, UFUNC_##str)
+#define ADDCONST(str) \
+    HPy_SetItem_s(ctx, d, #str, s = HPyLong_FromLong(ctx, UFUNC_##str)); \
+    HPy_Close(ctx, s)
+#define ADDSCONST(str) \
+    HPy_SetItem_s(ctx, d, "UFUNC_" #str, s = HPyUnicode_FromString(ctx, UFUNC_##str)); \
+    HPy_Close(ctx, s);
 
     ADDCONST(ERR_IGNORE);
     ADDCONST(ERR_WARN);
@@ -280,28 +282,37 @@ int initumath(HPyContext *ctx, PyObject *m, HPy module_dict)
 
 #undef ADDCONST
 #undef ADDSCONST
-    PyModule_AddIntConstant(m, "UFUNC_BUFSIZE_DEFAULT", (long)NPY_BUFSIZE);
 
-    PyModule_AddObject(m, "PINF", PyFloat_FromDouble(NPY_INFINITY));
-    PyModule_AddObject(m, "NINF", PyFloat_FromDouble(-NPY_INFINITY));
-    PyModule_AddObject(m, "PZERO", PyFloat_FromDouble(NPY_PZERO));
-    PyModule_AddObject(m, "NZERO", PyFloat_FromDouble(NPY_NZERO));
-    PyModule_AddObject(m, "NAN", PyFloat_FromDouble(NPY_NAN));
+    HPy_SetItem_s(ctx, d, "UFUNC_BUFSIZE_DEFAULT", s = HPyLong_FromLong(ctx, (long)NPY_BUFSIZE));
+    HPy_Close(ctx, s);
 
-    s = PyDict_GetItemString(d, "divide");
-    PyDict_SetItemString(d, "true_divide", s);
+#define ADDFCONST(name, value) \
+    HPy_SetItem_s(ctx, d, #name, s = HPyFloat_FromDouble(ctx, (double) (value))); \
+    HPy_Close(ctx, s);
 
-    s = PyDict_GetItemString(d, "conjugate");
-    s2 = PyDict_GetItemString(d, "remainder");
+    ADDFCONST(PINF, NPY_INFINITY);
+    ADDFCONST(NINF, -NPY_INFINITY);
+    ADDFCONST(PZERO, NPY_PZERO);
+    ADDFCONST(NZERO, NPY_NZERO);
+    ADDFCONST(NAN, NPY_NAN);
+
+#undef ADDFCONST
+
+    s = HPy_GetItem_s(ctx, d, "divide");
+    HPy_SetItem_s(ctx, d, "true_divide", s);
+    HPy_Close(ctx, s);
+
+    s = HPy_GetItem_s(ctx, d, "conjugate");
+    HPy s2 = HPy_GetItem_s(ctx, d, "remainder");
     /* Setup the array object's numerical structures with appropriate
        ufuncs in d*/
-    _PyArray_SetNumericOps(ctx, module_dict);
+    _PyArray_SetNumericOps(ctx, d);
 
-    PyDict_SetItemString(d, "conj", s);
-    PyDict_SetItemString(d, "mod", s2);
+    HPy_SetItem_s(ctx, d, "conj", s);
+    HPy_SetItem_s(ctx, d, "mod", s2);
 
     if (intern_strings() < 0) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
            "cannot intern umath strings while initializing _multiarray_umath.");
         return -1;
     }
@@ -311,28 +322,47 @@ int initumath(HPyContext *ctx, PyObject *m, HPy module_dict)
      * TODO: This should probably be done at a better place, or even in the
      *       code generator directly.
      */
-    s = _PyDict_GetItemStringWithError(d, "logical_and");
-    if (s == NULL) {
-        return -1;
-    }
-    if (install_logical_ufunc_promoter(s) < 0) {
-        return -1;
-    }
-
-    s = _PyDict_GetItemStringWithError(d, "logical_or");
-    if (s == NULL) {
-        return -1;
-    }
-    if (install_logical_ufunc_promoter(s) < 0) {
+    // TODO HPY LABS PORT: original used PyDict_GetItemWithError, is HPy_GetItem suposed to be equivalent?
+    s = HPy_GetItem_s(ctx, d, "logical_and");
+    if (HPy_IsNull(s)) {
         return -1;
     }
 
-    s = _PyDict_GetItemStringWithError(d, "logical_xor");
-    if (s == NULL) {
+    // Calls to install_logical_ufunc_promoter, install_logical_ufunc_promoter,
+    // and install_logical_ufunc_promoter removed, because they do not seem necessary
+    // for the HPy example
+    // PyObject *py_s;
+    // *py_s = HPy_AsPyObject(ctx, s);
+    // CAPI_WARN("Leaving to install_logical_ufunc_promoter");
+    // if (install_logical_ufunc_promoter(py_s) < 0) {
+    //      return -1;
+    // }
+    // Py_DECREF(py_s);
+    // HPy_Close(ctx, s);
+
+    s = HPy_GetItem_s(ctx, d, "logical_or");
+    if (HPy_IsNull(s)) {
         return -1;
     }
-    if (install_logical_ufunc_promoter(s) < 0) {
+
+    // py_s = HPy_AsPyObject(ctx, s);
+    // if (install_logical_ufunc_promoter(py_s) < 0) {
+    //     return -1;
+    // }
+    // Py_DECREF(py_s);
+    // HPy_Close(ctx, s);
+
+    s = HPy_GetItem_s(ctx, d, "logical_xor");
+    if (HPy_IsNull(s)) {
         return -1;
     }
+
+    // py_s = HPy_AsPyObject(ctx, s);
+    // if (install_logical_ufunc_promoter(py_s) < 0) {
+    //     return -1;
+    // }
+    // Py_DECREF(py_s);
+    // HPy_Close(ctx, s);
+
     return 0;
 }
