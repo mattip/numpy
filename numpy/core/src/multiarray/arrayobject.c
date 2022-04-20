@@ -1358,29 +1358,34 @@ DEPRECATE_silence_error(const char *msg) {
  * (2015-05-14, 1.10)
  */
 
-NPY_NO_EXPORT PyObject *
-_failed_comparison_workaround(PyArrayObject *self, PyObject *other, int cmp_op)
+NPY_NO_EXPORT HPy
+_failed_comparison_workaround(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, HPy other, int cmp_op)
 {
-    PyObject *exc, *val, *tb;
-    PyArrayObject *array_other;
+    // PyObject *exc, *val, *tb;
+    HPy /* (PyArrayObject *) */ array_other;
     int other_is_flexible, ndim_other;
-    int self_is_flexible = PyTypeNum_ISFLEXIBLE(PyArray_DESCR(self)->type_num);
+    HPy descr = HPyArray_GetDescr(ctx, self);
+    int self_is_flexible = PyTypeNum_ISFLEXIBLE(PyArray_Descr_AsStruct(ctx, descr)->type_num);
+    HPy_Close(ctx, descr);
 
-    PyErr_Fetch(&exc, &val, &tb);
+    // TOOD HPY LABS PORT: PyErr_Fetch
+    // PyErr_Fetch(&exc, &val, &tb);
     /*
      * Determine whether other has a flexible dtype; here, inconvertible
      * is counted as inflexible.  (This repeats work done in the ufunc,
      * but OK to waste some time in an unlikely path.)
      */
-    array_other = (PyArrayObject *)PyArray_FROM_O(other);
-    if (array_other) {
+    array_other = HPyArray_FROM_O(ctx, other);
+    if (!HPy_IsNull(array_other)) {
+        descr = HPyArray_GetDescr(ctx, array_other);
         other_is_flexible = PyTypeNum_ISFLEXIBLE(
-            PyArray_DESCR(array_other)->type_num);
-        ndim_other = PyArray_NDIM(array_other);
-        Py_DECREF(array_other);
+            PyArray_Descr_AsStruct(ctx, descr)->type_num);
+        HPy_Close(ctx, descr);
+        ndim_other = HPyArray_GetNDim(ctx, array_other);
+        HPy_Close(ctx, array_other);
     }
     else {
-        PyErr_Clear(); /* we restore the original error if needed */
+        // HPyErr_Clear(ctx); /* we restore the original error if needed */
         other_is_flexible = 0;
         ndim_other = 0;
     }
@@ -1396,9 +1401,9 @@ _failed_comparison_workaround(PyArrayObject *self, PyObject *other, int cmp_op)
              * When this warning is removed, a correctly shaped
              * array of bool should be returned.
              */
-            if (ndim_other != 0 || PyArray_NDIM(self) != 0) {
+            if (ndim_other != 0 || HPyArray_GetNDim(ctx, self) != 0) {
                 /* 2015-05-14, 1.10 */
-                if (DEPRECATE_FUTUREWARNING(
+                if (HPY_DEPRECATE_FUTUREWARNING(ctx,
                         "elementwise comparison failed; returning scalar "
                         "instead, but in the future will perform "
                         "elementwise comparison") < 0) {
@@ -1419,11 +1424,11 @@ _failed_comparison_workaround(PyArrayObject *self, PyObject *other, int cmp_op)
                 goto fail;
             }
         }
-        Py_XDECREF(exc);
-        Py_XDECREF(val);
-        Py_XDECREF(tb);
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
+        // Py_XDECREF(exc);
+        // Py_XDECREF(val);
+        // Py_XDECREF(tb);
+        HPyErr_Clear(ctx);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
     else if (other_is_flexible || self_is_flexible) {
         /*
@@ -1432,11 +1437,11 @@ _failed_comparison_workaround(PyArrayObject *self, PyObject *other, int cmp_op)
          * not in fact implement loops for those.  This will get us the
          * desired TypeError.
          */
-        Py_XDECREF(exc);
-        Py_XDECREF(val);
-        Py_XDECREF(tb);
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
+        // Py_XDECREF(exc);
+        // Py_XDECREF(val);
+        // Py_XDECREF(tb);
+        HPyErr_Clear(ctx);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
     else {
         /* LE, LT, GT, or GE with non-flexible other; just pass on error */
@@ -1447,8 +1452,8 @@ fail:
     /*
      * Reraise the original exception, possibly chaining with a new one.
      */
-    npy_PyErr_ChainExceptionsCause(exc, val, tb);
-    return NULL;
+    // npy_PyErr_ChainExceptionsCause(exc, val, tb);
+    return HPy_NULL;
 }
 
 HPyDef_SLOT(array_richcompare_def, hpy_array_richcompare, HPy_tp_richcompare);
@@ -1664,8 +1669,7 @@ hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy
          * However, for backwards compatibility, we cannot yet return arrays,
          * so we raise warnings instead.
          */
-        hpy_abort_not_implemented("richcmp: _failed_comparison_workaround");
-        // result = _failed_comparison_workaround(self, other, cmp_op);
+        result = _failed_comparison_workaround(ctx, self, other, cmp_op);
     }
     return result;
 }
