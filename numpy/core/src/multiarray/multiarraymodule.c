@@ -5394,9 +5394,11 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 
     // HPY TODO: this is a temporary solution to mimic the static types and global state:
     init_hpy_global_state(ctx);
+    result = h_mod;
 
  cleanup:
-    return h_mod;
+    HPy_Close(ctx, h_d);
+    return result;
 
  err:
     if (!HPyErr_Occurred(ctx)) {
@@ -5404,6 +5406,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
                         "cannot load multiarray module.");
     }
     HPy_Close(ctx, h_mod);
-    HPy_Close(ctx, h_d);
-    return HPy_NULL;
+    result = HPy_NULL;
+    goto cleanup;
 }
