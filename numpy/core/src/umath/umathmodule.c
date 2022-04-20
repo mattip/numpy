@@ -236,7 +236,6 @@ intern_strings(void)
 
 int initumath(HPyContext *ctx, HPy m, HPy d)
 {
-    printf("DEBUG: called initumath\n");
     int UFUNC_FLOATING_POINT_SUPPORT = 1;
 
 #ifdef NO_UFUNC_FLOATING_POINT_SUPPORT
