@@ -5059,6 +5059,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy h_mod, h_d, h_s;
     HPy result = HPy_NULL;
     HPy h_array_type = HPy_NULL;
+    HPy h_arrayIterType = HPy_NULL;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
@@ -5175,14 +5176,14 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     // HPY: TODO comment on this
     init_scalartypes_basetypes(ctx);
 
-    HPy h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
+    h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
     _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
 
     HPy h_arrayMapIterType = HPyType_FromSpec(ctx, &PyArrayMapIter_Type_Spec, NULL);
-    if (HPy_IsNull(h_arrayIterType)) {
+    if (HPy_IsNull(h_arrayMapIterType)) {
         goto err;
     }
     PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
@@ -5314,7 +5315,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 #undef ADDCONST
 
     HPy_SetItem_s(ctx, h_d, "ndarray", h_array_type);
-    PyDict_SetItemString(d, "flatiter", (PyObject *)&PyArrayIter_Type);
+    HPy_SetItem_s(ctx, h_d, "flatiter", h_arrayIterType);
     PyDict_SetItemString(d, "nditer", (PyObject *)&NpyIter_Type);
     PyDict_SetItemString(d, "broadcast",
                          (PyObject *)&PyArrayMultiIter_Type);
@@ -5399,6 +5400,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
  cleanup:
     HPy_Close(ctx, h_d);
     HPy_Close(ctx, h_array_type);
+    HPy_Close(ctx, h_arrayIterType);
     return result;
 
  err:
