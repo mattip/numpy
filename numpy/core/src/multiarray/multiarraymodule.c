@@ -5096,6 +5096,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (!d) {
         goto err;
     }
+    printf("Module dict: %p\n", (void*)h_d._i);
+    printf("Module dict: %p\n", (void*)d);
 
     // HPY HACK:
     /* Store the context so legacy functions and extensions can access it */
@@ -5372,7 +5374,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (initumath(ctx, m, h_d) != 0) {
+    if (initumath(ctx, h_mod, h_d) != 0) {
         goto err;
     }
     /*
