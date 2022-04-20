@@ -117,7 +117,8 @@ static int
     NPY_GCC_UNROLL_LOOPS
 #endif
 @prefix@_@oper@_size@elsize@(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -196,7 +197,8 @@ static int
 #if (@src_contig@ == 0) && @is_aligned@
 static NPY_GCC_OPT_3 int
 @prefix@_@oper@_size@elsize@_srcstride0(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -267,14 +269,15 @@ static NPY_GCC_OPT_3 int
 
 static int
 _strided_to_strided(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(data))
 {
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
-    npy_intp src_itemsize = context->descriptors[0]->elsize;
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
 
     while (N > 0) {
         memmove(dst, src, src_itemsize);
@@ -292,14 +295,15 @@ _strided_to_strided(
  */
 static int
 _swap_strided_to_strided(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(data))
 {
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
-    npy_intp src_itemsize = context->descriptors[0]->elsize;
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
 
     char *a, *b, c;
 
@@ -323,14 +327,15 @@ _swap_strided_to_strided(
 
 static int
 _swap_pair_strided_to_strided(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(data))
 {
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
-    npy_intp src_itemsize = context->descriptors[0]->elsize;
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
 
     char *a, *b, c;
     npy_intp itemsize_half = src_itemsize / 2;
@@ -364,20 +369,21 @@ _swap_pair_strided_to_strided(
 
 static int
 _contig_to_contig(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *NPY_UNUSED(data))
 {
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
-    npy_intp src_itemsize = context->descriptors[0]->elsize;
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
 
     memmove(dst, src, src_itemsize*N);
     return 0;
 }
 
 
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedCopyFn(int aligned, npy_intp src_stride,
                          npy_intp dst_stride, npy_intp itemsize)
 {
@@ -531,7 +537,7 @@ PyArray_GetStridedCopyFn(int aligned, npy_intp src_stride,
  * #not_pair = 1, 0#
  */
 
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 @function@(int aligned, npy_intp src_stride,
                              npy_intp dst_stride, npy_intp itemsize)
 {
@@ -839,7 +845,8 @@ NPY_NO_EXPORT PyArrayMethod_StridedLoop *
 
 static NPY_GCC_OPT_3 int
 @prefix@_cast_@name1@_to_@name2@(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(data))
 {
@@ -943,7 +950,7 @@ static NPY_GCC_OPT_3 int
 
 /**end repeat**/
 
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedNumericCastFn(int aligned, npy_intp src_stride,
                              npy_intp dst_stride,
                              int src_type_num, int dst_type_num)
@@ -1036,6 +1043,7 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
                 npy_intp count, npy_intp src_itemsize,
                 NPY_cast_info *cast_info)
 {
+    HPyContext *ctx = npy_get_context();
     npy_intp i, M, N, coord0, shape0, src_stride0, coord1, shape1, src_stride1;
 
     /* Finish off dimension 0 */
@@ -1048,10 +1056,10 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
 
     char *args[2] = {src, dst};
     if (N >= count) {
-        return cast_info->func(&cast_info->context,
+        return cast_info->func(ctx, &cast_info->context,
                 args, &count, strides, cast_info->auxdata);
     }
-    int res = cast_info->func(&cast_info->context,
+    int res = cast_info->func(ctx, &cast_info->context,
             args, &N, strides, cast_info->auxdata);
 
     if (res < 0) {
@@ -1077,11 +1085,11 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
     for (i = 0; i < M; ++i) {
         args[0] = src; args[1] = dst;
         if (shape0 >= count) {
-            return cast_info->func(&cast_info->context,
+            return cast_info->func(ctx, &cast_info->context,
                     args, &count, strides, cast_info->auxdata);
         }
         else {
-            res = cast_info->func(&cast_info->context,
+            res = cast_info->func(ctx, &cast_info->context,
                     args, &shape0, strides, cast_info->auxdata);
             if (res < 0) {
                 return -1;
@@ -1141,11 +1149,11 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
             for (i = 0; i < shape1; ++i) {
                 args[0] = src; args[1] = dst;
                 if (shape0 >= count) {
-                    return cast_info->func(&cast_info->context,
+                    return cast_info->func(ctx, &cast_info->context,
                             args, &count, strides, cast_info->auxdata);
                 }
                 else {
-                    res = cast_info->func(&cast_info->context,
+                    res = cast_info->func(ctx, &cast_info->context,
                             args, &shape0, strides, cast_info->auxdata);
                     if (res < 0) {
                         return -1;
@@ -1169,6 +1177,7 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
                 npy_intp count, npy_intp src_itemsize,
                 NPY_cast_info *cast_info)
 {
+    HPyContext *ctx = npy_get_context();
     npy_intp i, M, N, coord0, shape0, dst_stride0, coord1, shape1, dst_stride1;
 
     /* Finish off dimension 0 */
@@ -1181,10 +1190,10 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
 
     char *args[2] = {src, dst};
     if (N >= count) {
-        return cast_info->func(&cast_info->context,
+        return cast_info->func(ctx, &cast_info->context,
                 args, &count, strides, cast_info->auxdata);
     }
-    int res = cast_info->func(&cast_info->context,
+    int res = cast_info->func(ctx, &cast_info->context,
             args, &N, strides, cast_info->auxdata);
     if (res < 0) {
         return -1;
@@ -1209,11 +1218,11 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
     for (i = 0; i < M; ++i) {
         args[0] = src; args[1] = dst;
         if (shape0 >= count) {
-            return cast_info->func(&cast_info->context,
+            return cast_info->func(ctx, &cast_info->context,
                     args, &count, strides, cast_info->auxdata);
         }
         else {
-            res = cast_info->func(&cast_info->context,
+            res = cast_info->func(ctx, &cast_info->context,
                     args, &shape0, strides, cast_info->auxdata);
             if (res < 0) {
                 return -1;
@@ -1273,11 +1282,11 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
             for (i = 0; i < shape1; ++i) {
                 args[0] = src; args[1] = dst;
                 if (shape0 >= count) {
-                    return cast_info->func(&cast_info->context,
+                    return cast_info->func(ctx, &cast_info->context,
                             args, &count, strides, cast_info->auxdata);
                 }
                 else {
-                    res = cast_info->func(&cast_info->context,
+                    res = cast_info->func(ctx, &cast_info->context,
                             args, &shape0, strides, cast_info->auxdata);
                     if (res < 0) {
                         return -1;
@@ -1844,7 +1853,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                 do {
 
 #if @isget@
-                    if (NPY_UNLIKELY(cast_info.func(&cast_info.context,
+                    if (NPY_UNLIKELY(cast_info.func(npy_get_context(), &cast_info.context,
                             subspace_ptrs, counter, subspace_strides,
                             cast_info.auxdata) < 0)) {
                         NPY_END_THREADS;
@@ -1855,7 +1864,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                     /* The operand order is reversed here */
                     char *args[2] = {subspace_ptrs[1], subspace_ptrs[0]};
                     npy_intp strides[2] = {subspace_strides[1], subspace_strides[0]};
-                    if (NPY_UNLIKELY(cast_info.func(&cast_info.context,
+                    if (NPY_UNLIKELY(cast_info.func(npy_get_context(), &cast_info.context,
                             args, counter, strides, cast_info.auxdata) < 0)) {
                         NPY_END_THREADS;
                         NPY_cast_info_xfree(&cast_info);

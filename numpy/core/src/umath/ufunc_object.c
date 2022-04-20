@@ -1562,10 +1562,10 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
     npy_intp count = PyArray_MultiplyList(operation_shape, operation_ndim);
     NPY_BEGIN_THREADS_DEF;
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (context->method->get_strided_loop(context,
+    if (context->method->get_strided_loop(npy_get_context(), context,
             1, 0, fixed_strides,
             &strided_loop, &auxdata, &flags) < 0) {
         return -1;
@@ -1581,7 +1581,7 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
         NPY_BEGIN_THREADS_THRESHOLDED(count);
     }
 
-    int res = strided_loop(context, data, &count, fixed_strides, auxdata);
+    int res = strided_loop(npy_get_context(), context, data, &count, fixed_strides, auxdata);
 
     NPY_END_THREADS;
     NPY_AUXDATA_FREE(auxdata);
@@ -1801,7 +1801,7 @@ execute_ufunc_loop(PyArrayMethod_Context *context, int masked,
         }
     }
     else {
-        if (context->method->get_strided_loop(context,
+        if (context->method->get_strided_loop(npy_get_context(), context,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             NpyIter_Deallocate(iter);
             return -1;
@@ -2744,7 +2744,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
     PyArrayMethod_StridedLoop *strided_loop;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
 
-    if (ufuncimpl->get_strided_loop(&context, 1, 0, inner_strides,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), &context, 1, 0, inner_strides,
             &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -3257,7 +3257,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
 
     int res = 0;
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
 
     NpyIter *iter = NULL;
@@ -3421,7 +3421,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
 
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(&context,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), &context,
             1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -3508,7 +3508,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 dataptr_copy[2] += stride0;
                 NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                 (int)count_m1);
-                res = strided_loop(&context,
+                res = strided_loop(npy_get_context(), &context,
                         dataptr_copy, &count_m1, stride_copy, auxdata);
             }
         } while (res == 0 && iternext(iter));
@@ -3575,7 +3575,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 NPY_BEGIN_THREADS_THRESHOLDED(count);
             }
 
-            res = strided_loop(&context,
+            res = strided_loop(npy_get_context(), &context,
                     dataptr_copy, &count, fixed_strides, auxdata);
 
             NPY_END_THREADS;
@@ -3842,7 +3842,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     fixed_strides[2] = 0;
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(&context,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), &context,
             1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -6607,7 +6607,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
         strides[2] = operation_descrs[2]->elsize;
     }
 
-    if (ufuncimpl->get_strided_loop(&context, 1, 0, strides,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), &context, 1, 0, strides,
             &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }

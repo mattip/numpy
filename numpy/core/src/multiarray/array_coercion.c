@@ -493,7 +493,7 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     char *args[2] = {data, item};
     const npy_intp strides[2] = {0, 0};
     const npy_intp length = 1;
-    if (cast_info.func(&cast_info.context,
+    if (cast_info.func(npy_get_context(), &cast_info.context,
             args, &length, strides, cast_info.auxdata) < 0) {
         res = -1;
     }

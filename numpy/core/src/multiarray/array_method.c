@@ -56,24 +56,26 @@
  */
 static NPY_CASTING
 default_resolve_descriptors(
-        PyArrayMethodObject *method,
-        PyArray_DTypeMeta **dtypes,
-        PyArray_Descr **input_descrs,
-        PyArray_Descr **output_descrs,
+        HPyContext *ctx,
+        HPy method, /* (struct PyArrayMethodObject_tag *) */
+        HPy *dtypes, /* PyArray_DTypeMeta **dtypes */
+        HPy *input_descrs, /* PyArray_Descr **given_descrs */
+        HPy *output_descrs, /* PyArray_Descr **loop_descrs */
         npy_intp *view_offset)
 {
-    int nin = method->nin;
-    int nout = method->nout;
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(ctx, method);
+    int nin = method_data->nin;
+    int nout = method_data->nout;
 
     for (int i = 0; i < nin + nout; i++) {
-        PyArray_DTypeMeta *dtype = dtypes[i];
-        if (input_descrs[i] != NULL) {
-            output_descrs[i] = ensure_dtype_nbo(input_descrs[i]);
+        HPy dtype = dtypes[i]; /* (PyArray_DTypeMeta *) */
+        if (!HPy_IsNull(input_descrs[i])) {
+            output_descrs[i] = hensure_dtype_nbo(ctx, input_descrs[i]);
         }
         else {
-            output_descrs[i] = NPY_DT_CALL_default_descr(dtype);
+            output_descrs[i] = hdtypemeta_call_default_descr(ctx, dtype);
         }
-        if (NPY_UNLIKELY(output_descrs[i] == NULL)) {
+        if (NPY_UNLIKELY(HPy_IsNull(output_descrs[i]))) {
             goto fail;
         }
     }
@@ -82,29 +84,30 @@ default_resolve_descriptors(
      * abstract ones or unspecified outputs).  We can use the common-dtype
      * operation to provide a default here.
      */
-    if (method->casting == NPY_NO_CASTING) {
+    if (method_data->casting == NPY_NO_CASTING) {
         /*
          * By (current) definition no-casting should imply viewable.  This
          * is currently indicated for example for object to object cast.
          */
         *view_offset = 0;
     }
-    return method->casting;
+    return method_data->casting;
 
   fail:
     for (int i = 0; i < nin + nout; i++) {
-        Py_XDECREF(output_descrs[i]);
+        HPy_Close(ctx, output_descrs[i]);
     }
     return -1;
 }
 
 
 NPY_INLINE static int
-is_contiguous(
-        npy_intp const *strides, PyArray_Descr *const *descriptors, int nargs)
+is_contiguous(HPyContext *ctx,
+        npy_intp const *strides, HPy const *descriptors, int nargs)
 {
     for (int i = 0; i < nargs; i++) {
-        if (strides[i] != descriptors[i]->elsize) {
+        PyArray_Descr *descriptor_data = PyArray_Descr_AsStruct(ctx, descriptors[i]);
+        if (strides[i] != descriptor_data->elsize) {
             return 0;
         }
     }
@@ -120,6 +123,7 @@ is_contiguous(
  * true, i.e., for cast safety "no-cast". It will not recognize view as an
  * option for other casts (e.g., viewing '>i8' as '>i4' with an offset of 4).
  *
+ * @param hctx the HPy context
  * @param context
  * @param aligned
  * @param move_references UNUSED.
@@ -132,32 +136,34 @@ is_contiguous(
  */
 NPY_NO_EXPORT int
 npy_default_get_strided_loop(
-        PyArrayMethod_Context *context,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context,
         int aligned, int NPY_UNUSED(move_references), const npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    PyArray_Descr **descrs = context->descriptors;
-    PyArrayMethodObject *meth = context->method;
-    *flags = meth->flags & NPY_METH_RUNTIME_FLAGS;
+    HPy *descrs = context->descriptors; /* (PyArray_Descr **) */
+    HPy method = context->method; /* (PyArrayMethodObject *) */
+    PyArrayMethodObject *meth_data = PyArrayMethodObject_AsStruct(hctx, method);
+    *flags = meth_data->flags & NPY_METH_RUNTIME_FLAGS;
     *out_transferdata = NULL;
 
-    int nargs = meth->nin + meth->nout;
+    int nargs = meth_data->nin + meth_data->nout;
     if (aligned) {
-        if (meth->contiguous_loop == NULL ||
-                !is_contiguous(strides, descrs, nargs)) {
-            *out_loop = meth->strided_loop;
+        if (meth_data->contiguous_loop == NULL ||
+                !is_contiguous(hctx, strides, descrs, nargs)) {
+            *out_loop = meth_data->strided_loop;
             return 0;
         }
-        *out_loop = meth->contiguous_loop;
+        *out_loop = meth_data->contiguous_loop;
     }
     else {
-        if (meth->unaligned_contiguous_loop == NULL ||
-                !is_contiguous(strides, descrs, nargs)) {
-            *out_loop = meth->unaligned_strided_loop;
+        if (meth_data->unaligned_contiguous_loop == NULL ||
+                !is_contiguous(hctx, strides, descrs, nargs)) {
+            *out_loop = meth_data->unaligned_strided_loop;
             return 0;
         }
-        *out_loop = meth->unaligned_contiguous_loop;
+        *out_loop = meth_data->unaligned_contiguous_loop;
     }
     return 0;
 }
@@ -924,42 +930,45 @@ generic_masked_strided_loop(PyArrayMethod_Context *context,
         char *const *data, const npy_intp *dimensions,
         const npy_intp *strides, NpyAuxData *_auxdata)
 {
-    _masked_stridedloop_data *auxdata = (_masked_stridedloop_data *)_auxdata;
-    int nargs = auxdata->nargs;
-    PyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
-    NpyAuxData *strided_loop_auxdata = auxdata->unmasked_auxdata;
-
-    char **dataptrs = auxdata->dataptrs;
-    memcpy(dataptrs, data, nargs * sizeof(char *));
-    char *mask = data[nargs];
-    npy_intp mask_stride = strides[nargs];
-
-    npy_intp N = dimensions[0];
-    /* Process the data as runs of unmasked values */
-    do {
-        Py_ssize_t subloopsize;
-
-        /* Skip masked values */
-        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 1);
-        for (int i = 0; i < nargs; i++) {
-            dataptrs[i] += subloopsize * strides[i];
-        }
-        N -= subloopsize;
-
-        /* Process unmasked values */
-        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 0);
-        int res = strided_loop(context,
-                dataptrs, &subloopsize, strides, strided_loop_auxdata);
-        if (res != 0) {
-            return res;
-        }
-        for (int i = 0; i < nargs; i++) {
-            dataptrs[i] += subloopsize * strides[i];
-        }
-        N -= subloopsize;
-    } while (N > 0);
-
-    return 0;
+    // TODO HPY LABS PORT: migrate generic_masked_strided_loop
+    hpy_abort_not_implemented("generic_masked_strided_loop");
+    return -1;
+//    _masked_stridedloop_data *auxdata = (_masked_stridedloop_data *)_auxdata;
+//    int nargs = auxdata->nargs;
+//    PyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
+//    NpyAuxData *strided_loop_auxdata = auxdata->unmasked_auxdata;
+//
+//    char **dataptrs = auxdata->dataptrs;
+//    memcpy(dataptrs, data, nargs * sizeof(char *));
+//    char *mask = data[nargs];
+//    npy_intp mask_stride = strides[nargs];
+//
+//    npy_intp N = dimensions[0];
+//    /* Process the data as runs of unmasked values */
+//    do {
+//        Py_ssize_t subloopsize;
+//
+//        /* Skip masked values */
+//        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 1);
+//        for (int i = 0; i < nargs; i++) {
+//            dataptrs[i] += subloopsize * strides[i];
+//        }
+//        N -= subloopsize;
+//
+//        /* Process unmasked values */
+//        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 0);
+//        int res = strided_loop(context,
+//                dataptrs, &subloopsize, strides, strided_loop_auxdata);
+//        if (res != 0) {
+//            return res;
+//        }
+//        for (int i = 0; i < nargs; i++) {
+//            dataptrs[i] += subloopsize * strides[i];
+//        }
+//        N -= subloopsize;
+//    } while (N > 0);
+//
+//    return 0;
 }
 
 
@@ -994,7 +1003,7 @@ PyArrayMethod_GetMaskedStridedLoop(
     data->unmasked_stridedloop = NULL;
     data->nargs = nargs;
 
-    if (context->method->get_strided_loop(context,
+    if (context->method->get_strided_loop(npy_get_context(), context,
             aligned, 0, fixed_strides,
             &data->unmasked_stridedloop, &data->unmasked_auxdata, flags) < 0) {
         PyMem_Free(data);

@@ -2119,7 +2119,7 @@ hnpyiter_copy_from_buffers(HPyContext *ctx, NpyIter *iter)
                                 "of operand %d\n", (int)iop);
             /* Decrement refs */
             npy_intp buf_stride = dtype->elsize;
-            if (transferinfo[iop].write.func(
+            if (transferinfo[iop].write.func(ctx,
                     &transferinfo[iop].write.context,
                     &buffer, &transfersize, &buf_stride,
                     transferinfo[iop].write.auxdata) < 0) {

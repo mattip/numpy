@@ -17,6 +17,7 @@
 #include "legacy_array_method.h"
 #include "dtypemeta.h"
 #include "../multiarray/hpy_utils.h"
+#include "ufunc_object.h"
 
 
 typedef struct {
@@ -79,14 +80,14 @@ get_new_loop_data(
  * This is a thin wrapper around the legacy loop signature.
  */
 static int
-generic_wrapped_legacy_loop(PyArrayMethod_Context *NPY_UNUSED(context),
+generic_wrapped_legacy_loop(HPyContext *ctx, HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const *data, const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
     legacy_array_method_auxdata *ldata = (legacy_array_method_auxdata *)auxdata;
 
     ldata->loop((char **)data, dimensions, strides, ldata->user_data);
-    if (ldata->pyerr_check && PyErr_Occurred()) {
+    if (ldata->pyerr_check && HPyErr_Occurred(ctx)) {
         return -1;
     }
     return 0;
@@ -193,35 +194,41 @@ simple_legacy_resolve_descriptors(
  * we could probably cache it (with some care).
  */
 NPY_NO_EXPORT int
-get_wrapped_legacy_ufunc_loop(PyArrayMethod_Context *context,
+get_wrapped_legacy_ufunc_loop(HPyContext *ctx, HPyArrayMethod_Context *context,
         int aligned, int move_references,
         const npy_intp *NPY_UNUSED(strides),
-        PyArrayMethod_StridedLoop **out_loop,
+        HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     assert(aligned);
     assert(!move_references);
 
-    if (context->caller == NULL ||
-            !PyObject_TypeCheck(context->caller, &PyUFunc_Type)) {
-        PyErr_Format(PyExc_RuntimeError,
+
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(ctx, context->method);
+    if (HPy_IsNull(context->caller) ||
+            !HPyGlobal_TypeCheck(ctx, context->caller, HPyUFunc_Type)) {
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError,
                 "cannot call %s without its ufunc as caller context.",
-                context->method->name);
+                method_data->name);
         return -1;
     }
 
-    PyUFuncObject *ufunc = (PyUFuncObject *)context->caller;
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, context->caller);
     void *user_data;
     int needs_api = 0;
 
     PyUFuncGenericFunction loop = NULL;
     /* Note that `needs_api` is not reliable (it was in fact unused normally) */
+    CAPI_WARN("get_wrapped_legacy_ufunc_loop: call to PyUFunc_LegacyInnerLoopSelectionFunc");
+    PyArray_Descr **dtypes = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, context->descriptors, ufunc->nargs);
     if (ufunc->legacy_inner_loop_selector(ufunc,
-            context->descriptors, &loop, &user_data, &needs_api) < 0) {
+            dtypes, &loop, &user_data, &needs_api) < 0) {
+        HPy_DecrefAndFreeArray(ctx, dtypes, ufunc->nargs);
         return -1;
     }
-    *flags = context->method->flags & NPY_METH_RUNTIME_FLAGS;
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)dtypes, ufunc->nargs);
+    *flags = method_data->flags & NPY_METH_RUNTIME_FLAGS;
     if (needs_api) {
         *flags |= NPY_METH_REQUIRES_PYAPI;
     }
@@ -230,7 +237,7 @@ get_wrapped_legacy_ufunc_loop(PyArrayMethod_Context *context,
     *out_transferdata = get_new_loop_data(
             loop, user_data, (*flags & NPY_METH_REQUIRES_PYAPI) != 0);
     if (*out_transferdata == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         return -1;
     }
     return 0;

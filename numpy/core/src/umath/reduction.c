@@ -348,7 +348,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         }
     }
     else {
-        if (context->method->get_strided_loop(context,
+        if (context->method->get_strided_loop(npy_get_context(), context,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             goto fail;
         }
