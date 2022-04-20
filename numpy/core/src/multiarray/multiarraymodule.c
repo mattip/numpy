@@ -5058,6 +5058,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *d, *s;
     HPy h_mod, h_d, h_s;
     HPy result = HPy_NULL;
+    HPy h_array_type = HPy_NULL;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
@@ -5087,7 +5088,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
 
     /* Add some symbolic constants to the module */
-    h_d = HPy_GetAttr_s(ctx, h_mod, "__dict__");
+    h_d = HPyModule_GetDict(ctx, h_mod);
     if (HPy_IsNull(h_d)) {
         goto err;
     }
@@ -5157,14 +5158,13 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     //     goto err;
     // }
 
-    HPy h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
+    h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
     if (HPy_IsNull(h_array_type)) {
         goto err;
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
-    HPy_Close(ctx, h_array_type);
 
     if (setup_scalartypes(ctx) < 0) {
         goto err;
@@ -5313,7 +5313,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     ADDCONST(MAY_SHARE_EXACT);
 #undef ADDCONST
 
-    PyDict_SetItemString(d, "ndarray", (PyObject*)&PyArray_Type);
+    HPy_SetItem_s(ctx, h_d, "ndarray", h_array_type);
     PyDict_SetItemString(d, "flatiter", (PyObject *)&PyArrayIter_Type);
     PyDict_SetItemString(d, "nditer", (PyObject *)&NpyIter_Type);
     PyDict_SetItemString(d, "broadcast",
@@ -5398,6 +5398,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 
  cleanup:
     HPy_Close(ctx, h_d);
+    HPy_Close(ctx, h_array_type);
     return result;
 
  err:
