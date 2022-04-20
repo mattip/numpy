@@ -479,6 +479,7 @@ _hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
 NPY_NO_EXPORT int
 set_matmul_flags(PyObject *d)
 {
+    CAPI_WARN("startup: set_matmul_flags");
     PyObject *matmul = _PyDict_GetItemStringWithError(d, "matmul");
     if (matmul == NULL) {
         return -1;

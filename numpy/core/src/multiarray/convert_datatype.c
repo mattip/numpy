@@ -4171,6 +4171,7 @@ PyArray_InitializeObjectToObjectCast(void)
 NPY_NO_EXPORT int
 PyArray_InitializeCasts()
 {
+    CAPI_WARN("startup: PyArray_InitializeCasts");
     if (PyArray_InitializeNumericCasts() < 0) {
         return -1;
     }
