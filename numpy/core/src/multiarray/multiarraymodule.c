@@ -5057,6 +5057,7 @@ HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *d, *s;
     HPy h_mod, h_d, h_s;
+    HPy result = HPy_NULL;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
@@ -5279,12 +5280,12 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     HPy_Close(ctx, h_s);
 
-    s = PyCapsule_New((void *)_datetime_strings, NULL, NULL);
-    if (s == NULL) {
+    h_s = HPyCapsule_New(ctx, (void *)_datetime_strings, NULL, NULL);
+    if (HPy_IsNull(h_s)) {
         goto err;
     }
-    PyDict_SetItemString(d, "DATETIMEUNITS", s);
-    Py_DECREF(s);
+    HPy_SetItem_s(ctx, h_d, "DATETIMEUNITS", h_s);
+    HPy_Close(ctx, h_s);
 
 #define ADDCONST(NAME)                          \
     h_s = HPyLong_FromLong(ctx, NPY_##NAME);    \
@@ -5393,6 +5394,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 
     // HPY TODO: this is a temporary solution to mimic the static types and global state:
     init_hpy_global_state(ctx);
+
+ cleanup:
     return h_mod;
 
  err:
