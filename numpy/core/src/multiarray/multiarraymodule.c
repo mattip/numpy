@@ -5057,7 +5057,6 @@ HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *d, *s;
     HPy h_mod, h_d, h_s;
-    PyObject *c_api;
 
     /* Create the module and add the functions */
     h_mod = HPyModule_Create(ctx, &moduledef);
@@ -5216,21 +5215,21 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    c_api = PyCapsule_New((void *)PyArray_API, NULL, NULL);
-    if (c_api == NULL) {
+    HPy c_api = HPyCapsule_New(ctx, (void *)PyArray_API, NULL, NULL);
+    if (HPy_IsNull(c_api)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_ARRAY_API", c_api);
-    Py_DECREF(c_api);
+    HPy_SetItem_s(ctx, h_d, "_ARRAY_API", c_api);
+    HPy_Close(ctx, c_api);
     init_array_api();
 
-    c_api = PyCapsule_New((void *)PyUFunc_API, NULL, NULL);
-    if (c_api == NULL) {
+    c_api = HPyCapsule_New(ctx, (void *)PyUFunc_API, NULL, NULL);
+    if (HPy_IsNull(c_api)) {
         goto err;
     }
-    PyDict_SetItemString(d, "_UFUNC_API", c_api);
-    Py_DECREF(c_api);
-    if (PyErr_Occurred()) {
+    HPy_SetItem_s(ctx, h_d, "_UFUNC_API", c_api);
+    HPy_Close(ctx, c_api);
+    if (HPyErr_Occurred(ctx)) {
         goto err;
     }
 
