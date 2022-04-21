@@ -151,7 +151,6 @@ extern NPY_NO_EXPORT HPyGlobal HPyObjectArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyStringArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyUnicodeArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyTimeIntegerArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyDatetimeArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyTimedeltaArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyHalfArrType_Type;

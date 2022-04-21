@@ -174,6 +174,15 @@ PyArray_DTypeFromTypeNum(int typenum)
     return dtype;
 }
 
+static NPY_INLINE HPy
+HPyArray_DTypeFromTypeNum(HPyContext *ctx, int typenum)
+{
+    HPy descr = HPyArray_DescrFromType(ctx, typenum);
+    HPy dtype = HNPY_DTYPE(ctx, descr);
+    HPy_Close(ctx, descr);
+    return dtype;
+}
+
 static NPY_INLINE PyObject *
 dtypemeta_get_castingimpls(PyArray_DTypeMeta *cls)
 {

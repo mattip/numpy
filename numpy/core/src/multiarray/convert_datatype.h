@@ -119,7 +119,7 @@ simple_cast_resolve_descriptors(
         npy_intp *view_offset);
 
 NPY_NO_EXPORT int
-PyArray_InitializeCasts(void);
+PyArray_InitializeCasts(HPyContext *ctx);
 
 NPY_NO_EXPORT npy_bool
 HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,

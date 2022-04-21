@@ -733,6 +733,12 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
 
     /* Finally, replace the current class of the descr */
+    // TODO HPY LABS PORT: probably expose HPy_SetType for the HPy example port,
+    // ATTENTION: Py_SET_TYPE steals the reference, HPy API will not steal it
+    // in longer term, this can be refactored: it seems that it's here to support
+    // some legacy API, which we can keep in C API, and to initialize singleton
+    // descriptors like BOOL_Descr, which we can initialize with the right type
+    // already to avoid setting it ex-post
     Py_SET_TYPE(descr, (PyTypeObject *)dtype_class);
     result = 0;
 
@@ -740,7 +746,6 @@ cleanup:
     HPy_Close(ctx, h_PyArrayDescr_Type);
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_new_dtype_type);
-    Py_DecRef(dtype_class);
     return result;
 }
 
