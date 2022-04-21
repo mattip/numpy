@@ -2763,16 +2763,6 @@ _strided_masked_wrapper_transfer_function(
 /*************************** CLEAR SRC *******************************/
 
 static int
-_dec_src_ref_nop(
-        PyArrayMethod_Context *NPY_UNUSED(context),
-        char *const *NPY_UNUSED(args), const npy_intp *NPY_UNUSED(dimensions),
-        const npy_intp *NPY_UNUSED(strides), NpyAuxData *NPY_UNUSED(auxdata))
-{
-    /* NOP */
-    return 0;
-}
-
-static int
 _hdec_src_ref_nop(HPyContext *hctx,
         HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const *NPY_UNUSED(args), const npy_intp *NPY_UNUSED(dimensions),
@@ -3270,6 +3260,16 @@ fail:
 }
 
 
+static void
+_hclear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_info)
+{
+    /* As public API we could choose to clear auxdata != NULL */
+    assert(cast_info->auxdata == NULL);
+    /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
+    cast_info->func = &_hdec_src_ref_nop;
+    HNPY_cast_info_xfree(ctx, cast_info);
+}
+
 /*
  * When there is a failure in ArrayMethod.get_loop(...) we still have
  * to clean up references, but assume that `auxdata` and `func`
@@ -3279,21 +3279,7 @@ fail:
 static void
 _clear_cast_info_after_get_loop_failure(NPY_cast_info *cast_info)
 {
-    /* As public API we could choose to clear auxdata != NULL */
-    assert(cast_info->auxdata == NULL);
-    /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
-    cast_info->func = &_dec_src_ref_nop;
-    NPY_cast_info_xfree(cast_info);
-}
-
-static void
-_hclear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_info)
-{
-    /* As public API we could choose to clear auxdata != NULL */
-    assert(cast_info->auxdata == NULL);
-    /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
-    cast_info->func = &_hdec_src_ref_nop;
-    HNPY_cast_info_xfree(ctx, cast_info);
+    _hclear_cast_info_after_get_loop_failure(npy_get_context(), cast_info);
 }
 
 
