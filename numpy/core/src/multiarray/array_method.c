@@ -984,7 +984,7 @@ NPY_NO_EXPORT int
 PyArrayMethod_GetMaskedStridedLoop(
         PyArrayMethod_Context *context,
         int aligned, npy_intp *fixed_strides,
-        PyArrayMethod_StridedLoop **out_loop,
+        HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
@@ -1003,7 +1003,7 @@ PyArrayMethod_GetMaskedStridedLoop(
     data->unmasked_stridedloop = NULL;
     data->nargs = nargs;
 
-    if (context->method->get_strided_loop(npy_get_context(), context,
+    if (context->method->get_strided_loop(npy_get_context(), method_context_py2h(context),
             aligned, 0, fixed_strides,
             &data->unmasked_stridedloop, &data->unmasked_auxdata, flags) < 0) {
         PyMem_Free(data);

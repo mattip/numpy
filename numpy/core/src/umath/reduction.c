@@ -368,7 +368,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         strideptr = NpyIter_GetInnerStrideArray(iter);
         countptr = NpyIter_GetInnerLoopSizePtr(iter);
 
-        if (loop(context, strided_loop, auxdata,
+        if (loop(npy_get_context(), context, strided_loop, auxdata,
                 iter, dataptr, strideptr, countptr, iternext,
                 needs_api, skip_first_count) < 0) {
             goto fail;

@@ -1449,14 +1449,16 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
  * Returns -2 if a trivial loop is not possible, 0 on success and -1 on error.
  */
 static int
-try_trivial_single_output_loop(PyArrayMethod_Context *context,
+try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
         PyArrayObject *op[], NPY_ORDER order,
         PyObject *arr_prep[], ufunc_full_args full_args,
         int errormask, PyObject *extobj)
 {
-    int nin = context->method->nin;
+    CAPI_WARN("try_trivial_single_output_loop");
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(hctx, context->method);
+    int nin = method_data->nin;
     int nop = nin + 1;
-    assert(context->method->nout == 1);
+    assert(method_data->nout == 1);
 
     /* The order of all N-D contiguous operands, can be fixed by `order` */
     int operation_order = 0;
@@ -1521,14 +1523,15 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
     }
 
     if (op[nin] == NULL) {
-        Py_INCREF(context->descriptors[nin]);
+        // Py_INCREF(context->descriptors[nin]);
+        PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(hctx, context->descriptors[nin]);
         op[nin] = (PyArrayObject *) PyArray_NewFromDescr(&PyArray_Type,
-                context->descriptors[nin], operation_ndim, operation_shape,
+                descr, operation_ndim, operation_shape,
                 NULL, NULL, operation_order==NPY_ARRAY_F_CONTIGUOUS, NULL);
         if (op[nin] == NULL) {
             return -1;
         }
-        fixed_strides[nin] = context->descriptors[nin]->elsize;
+        fixed_strides[nin] = PyArray_Descr_AsStruct(hctx, context->descriptors[nin])->elsize;
     }
     else {
         /* If any input overlaps with the output, we use the full path. */
@@ -1549,10 +1552,13 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
     }
 
     /* Call the __prepare_array__ if necessary */
-    if (prepare_ufunc_output((PyUFuncObject *)context->caller, &op[nin],
+    PyUFuncObject *ufunc = (PyUFuncObject *)HPy_AsPyObject(hctx, context->caller);
+    if (prepare_ufunc_output(ufunc, &op[nin],
             arr_prep[0], full_args, 0) < 0) {
+        Py_DECREF(ufunc);
         return -1;
     }
+    Py_DECREF(ufunc);
 
     /*
      * We can use the trivial (single inner-loop call) optimization
@@ -1565,7 +1571,7 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
     HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (context->method->get_strided_loop(npy_get_context(), context,
+    if (method_data->get_strided_loop(hctx, context,
             1, 0, fixed_strides,
             &strided_loop, &auxdata, &flags) < 0) {
         return -1;
@@ -1581,7 +1587,7 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
         NPY_BEGIN_THREADS_THRESHOLDED(count);
     }
 
-    int res = strided_loop(npy_get_context(), context, data, &count, fixed_strides, auxdata);
+    int res = strided_loop(hctx, context, data, &count, fixed_strides, auxdata);
 
     NPY_END_THREADS;
     NPY_AUXDATA_FREE(auxdata);
@@ -1596,7 +1602,7 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
 
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         /* NOTE: We could check float errors even when `res < 0` */
-        const char *name = ufunc_get_name_cstr((PyUFuncObject *)context->caller);
+        const char *name = ufunc_get_name_cstr(PyUFuncObject_AsStruct(hctx, context->caller));
         res = _check_ufunc_fperr(errormask, extobj, name);
     }
     return res;
@@ -1642,12 +1648,13 @@ validate_casting(PyArrayMethodObject *method, PyUFuncObject *ufunc,
  * called from).
  */
 static int
-execute_ufunc_loop(PyArrayMethod_Context *context, int masked,
+execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
         PyArrayObject **op, NPY_ORDER order, npy_intp buffersize,
         NPY_CASTING casting,
         PyObject **arr_prep, ufunc_full_args full_args,
         npy_uint32 *op_flags, int errormask, PyObject *extobj)
 {
+    PyArrayMethod_Context *context = method_context_h2py(hcontext);
     PyUFuncObject *ufunc = (PyUFuncObject *)context->caller;
     int nin = context->method->nin, nout = context->method->nout;
     int nop = nin + nout;
@@ -1787,7 +1794,7 @@ execute_ufunc_loop(PyArrayMethod_Context *context, int masked,
      * Get the inner loop, with the possibility of specialization
      * based on the fixed strides.
      */
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata;
     npy_intp fixed_strides[NPY_MAXARGS];
 
@@ -1801,7 +1808,7 @@ execute_ufunc_loop(PyArrayMethod_Context *context, int masked,
         }
     }
     else {
-        if (context->method->get_strided_loop(npy_get_context(), context,
+        if (context->method->get_strided_loop(npy_get_context(), hcontext,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             NpyIter_Deallocate(iter);
             return -1;
@@ -1834,7 +1841,7 @@ execute_ufunc_loop(PyArrayMethod_Context *context, int masked,
     int res;
     do {
         NPY_UF_DBG_PRINT1("iterator loop count %d\n", (int)*countptr);
-        res = strided_loop(context, dataptr, countptr, strides, auxdata);
+        res = strided_loop(npy_get_context(), hcontext, dataptr, countptr, strides, auxdata);
     } while (res == 0 && iternext(iter));
 
     NPY_END_THREADS;
@@ -2817,16 +2824,18 @@ fail:
 
 
 static int
-PyUFunc_GenericFunctionInternal(PyUFuncObject *ufunc,
-        PyArrayMethodObject *ufuncimpl, PyArray_Descr *operation_descrs[],
-        PyArrayObject *op[], PyObject *extobj,
+PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_ufunc,
+        HPy /* (PyArrayMethodObject *) */ h_ufuncimpl, HPy /* (PyArray_Descr *) */ operation_descrs[],
+        HPy /* (PyArrayObject *) */ op[], HPy extobj,
         NPY_CASTING casting, NPY_ORDER order,
-        PyObject *output_array_prepare[], ufunc_full_args full_args,
-        PyArrayObject *wheremask)
+        HPy output_array_prepare[], ufunc_full_args full_args,
+        HPy /* (PyArrayObject *) */ wheremask)
 {
-    int nin = ufunc->nin, nout = ufunc->nout, nop = nin + nout;
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(hctx, h_ufunc);
+    int nin = ufunc_data->nin, nout = ufunc_data->nout, nop = nin + nout;
+    int retval;
 
-    const char *ufunc_name = ufunc_get_name_cstr(ufunc);
+    const char *ufunc_name = ufunc_get_name_cstr(ufunc_data);
 
     npy_intp default_op_out_flags;
     npy_uint32 op_flags[NPY_MAXARGS];
@@ -2837,49 +2846,56 @@ PyUFunc_GenericFunctionInternal(PyUFuncObject *ufunc,
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s\n", ufunc_name);
 
     /* Get the buffersize and errormask */
-    if (_get_bufsize_errmask(extobj, ufunc_name, &buffersize, &errormask) < 0) {
+    PyObject *py_extobj = HPy_AsPyObject(hctx, extobj);
+    if (_get_bufsize_errmask(py_extobj, ufunc_name, &buffersize, &errormask) < 0) {
+        Py_XDECREF(py_extobj);
         return -1;
     }
 
-    if (wheremask != NULL) {
+    if (!HPy_IsNull(wheremask)) {
         /* Set up the flags. */
         default_op_out_flags = NPY_ITER_NO_SUBTYPE |
                                NPY_ITER_WRITEMASKED |
                                NPY_UFUNC_DEFAULT_OUTPUT_FLAGS;
-        _ufunc_setup_flags(ufunc, NPY_UFUNC_DEFAULT_INPUT_FLAGS,
+        _ufunc_setup_flags(ufunc_data, NPY_UFUNC_DEFAULT_INPUT_FLAGS,
                            default_op_out_flags, op_flags);
     }
     else {
         /* Set up the flags. */
         default_op_out_flags = NPY_ITER_WRITEONLY |
                                NPY_UFUNC_DEFAULT_OUTPUT_FLAGS;
-        _ufunc_setup_flags(ufunc, NPY_UFUNC_DEFAULT_INPUT_FLAGS,
+        _ufunc_setup_flags(ufunc_data, NPY_UFUNC_DEFAULT_INPUT_FLAGS,
                            default_op_out_flags, op_flags);
     }
 
     /* Final preparation of the arraymethod call */
-    PyArrayMethod_Context context = {
-        .caller = (PyObject *)ufunc,
-        .method = ufuncimpl,
+    HPyArrayMethod_Context context = {
+        .caller = h_ufunc,
+        .method = h_ufuncimpl,
         .descriptors = operation_descrs,
     };
 
     /* Do the ufunc loop */
-    if (wheremask != NULL) {
+    PyArrayObject **py_op;
+    PyObject **py_output_array_prepare = HPy_AsPyObjectArray(hctx, output_array_prepare, nout);
+    if (!HPy_IsNull(wheremask)) {
         NPY_UF_DBG_PRINT("Executing masked inner loop\n");
 
         if (nop + 1 > NPY_MAXARGS) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(hctx, hctx->h_ValueError,
                     "Too many operands when including where= parameter");
-            return -1;
+            retval = -1;
+            goto finish;
         }
         op[nop] = wheremask;
-        operation_descrs[nop] = NULL;
+        operation_descrs[nop] = HPy_NULL;
 
-        return execute_ufunc_loop(&context, 1,
-                op, order, buffersize, casting,
-                output_array_prepare, full_args, op_flags,
-                errormask, extobj);
+        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
+        retval = execute_ufunc_loop(&context, 1,
+                py_op, order, buffersize, casting,
+                py_output_array_prepare, full_args, op_flags,
+                errormask, py_extobj);
+        // fall through to 'finish'
     }
     else {
         NPY_UF_DBG_PRINT("Executing normal inner loop\n");
@@ -2888,26 +2904,47 @@ PyUFunc_GenericFunctionInternal(PyUFuncObject *ufunc,
          * This checks whether a trivial loop is ok, making copies of
          * scalar and one dimensional operands if that should help.
          */
-        int trivial_ok = check_for_trivial_loop(ufuncimpl,
-                op, operation_descrs, casting, buffersize);
+        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to check_for_trivial_loop");
+        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
+        PyArrayMethodObject *ufuncimpl_data = PyArrayMethodObject_AsStruct(hctx, h_ufuncimpl);
+        PyArray_Descr **py_operation_descrs = HPy_AsPyObjectArray(hctx, operation_descrs, nop);
+        int trivial_ok = check_for_trivial_loop(ufuncimpl_data,
+                py_op, py_operation_descrs, casting, buffersize);
+        HPy_DecrefAndFreeArray(hctx, (PyObject **)py_operation_descrs, nop);
         if (trivial_ok < 0) {
-            return -1;
+            retval = -1;
+            goto finish;
         }
-        if (trivial_ok && context.method->nout == 1) {
+        if (trivial_ok && PyArrayMethodObject_AsStruct(hctx, context.method)->nout == 1) {
             /* Try to handle everything without using the (heavy) iterator */
-            int retval = try_trivial_single_output_loop(&context,
-                    op, order, output_array_prepare, full_args,
-                    errormask, extobj);
+            retval = try_trivial_single_output_loop(hctx, &context,
+                    py_op, order, py_output_array_prepare, full_args,
+                    errormask, py_extobj);
             if (retval != -2) {
-                return retval;
+                goto finish;
             }
         }
 
-        return execute_ufunc_loop(&context, 0,
-                op, order, buffersize, casting,
-                output_array_prepare, full_args, op_flags,
-                errormask, extobj);
+        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to execute_ufunc_loop");
+        retval = execute_ufunc_loop(&context, 0,
+                py_op, order, buffersize, casting,
+                py_output_array_prepare, full_args, op_flags,
+                errormask, py_extobj);
+        // fall through to 'finish'
     }
+finish:
+    // we need to write back from 'py_op' to 'op'
+    for(int i=0; i < nop; i++) {
+        HPy_SETREF(hctx, op[i], HPy_FromPyObject(hctx, (PyObject *)py_op[i]));
+    }
+    HPy_DecrefAndFreeArray(hctx, (PyObject **)py_op, nop);
+    Py_XDECREF(py_extobj);
+    // we need to write back from 'py_output_array_prepare' to 'output_array_prepare'
+    for(int i=0; i < nout; i++) {
+        HPy_SETREF(hctx, output_array_prepare[i], HPy_FromPyObject(hctx, py_output_array_prepare[i]));
+    }
+    HPy_DecrefAndFreeArray(hctx, py_output_array_prepare, nout);
+    return retval;
 }
 
 
@@ -3052,8 +3089,8 @@ reducelike_promote_and_resolve(PyUFuncObject *ufunc,
 
 
 static int
-reduce_loop(PyArrayMethod_Context *context,
-        PyArrayMethod_StridedLoop *strided_loop, NpyAuxData *auxdata,
+reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
+        HPyArrayMethod_StridedLoop *strided_loop, NpyAuxData *auxdata,
         NpyIter *iter, char **dataptrs, npy_intp const *strides,
         npy_intp const *countptr, NpyIter_IterNextFunc *iternext,
         int needs_api, npy_intp skip_first_count)
@@ -3097,7 +3134,7 @@ reduce_loop(PyArrayMethod_Context *context,
             strides_copy[1] = strides[1];
             strides_copy[2] = strides[0];
 
-            retval = strided_loop(context,
+            retval = strided_loop(hctx, context,
                     dataptrs_copy, &count, strides_copy, auxdata);
             if (retval < 0) {
                 goto finish_loop;
@@ -3128,7 +3165,7 @@ reduce_loop(PyArrayMethod_Context *context,
             strides_copy[3] = strides[2];
         }
 
-        retval = strided_loop(context,
+        retval = strided_loop(hctx, context,
                 dataptrs_copy, countptr, strides_copy, auxdata);
         if (retval < 0) {
             goto finish_loop;
@@ -5328,48 +5365,41 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
      * Do the final preparations and call the inner-loop.
      */
     errval = -1;
-    CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GenericFunctionInternal");
-    PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
-    PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, operation_descrs, nop);
-    PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
     if (!ufunc->core_enabled) {
-        PyObject **py_output_array_prepare = HPy_AsPyObjectArray(ctx, output_array_prepare, nout);
         ufunc_full_args py_full_args = {
                 .in = HPy_AsPyObject(ctx, full_args.in),
                 .out = HPy_AsPyObject(ctx, full_args.out)
         };
-        PyArrayObject *py_wheremask = (PyArrayObject *)HPy_AsPyObject(ctx, wheremask);
-        errval = PyUFunc_GenericFunctionInternal(py_ufunc, py_ufuncimpl,
-                py_operation_descrs, py_op, py_extobj, casting, order,
-                py_output_array_prepare, py_full_args,  /* for __array_prepare__ */
-                py_wheremask);
+        errval = PyUFunc_GenericFunctionInternal(ctx, self, ufuncimpl,
+                operation_descrs, operands, extobj, casting, order,
+                output_array_prepare, py_full_args,  /* for __array_prepare__ */
+                wheremask);
 
-        for(int i=0; i < nout; i++) {
-            HPy_SETREF(ctx, output_array_prepare[i], HPy_FromPyObject(ctx, py_output_array_prepare[i]));
-        }
         Py_XDECREF(py_full_args.in);
         Py_XDECREF(py_full_args.out);
-        HPy_DecrefAndFreeArray(ctx, py_output_array_prepare, nout);
-        Py_XDECREF(py_wheremask);
     }
     else {
+        CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GeneralizedFunctionInternal");
+        PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
+        PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
         PyObject *py_axis_obj = HPy_AsPyObject(ctx, axis_obj);
         PyObject *py_axes_obj = HPy_AsPyObject(ctx, axes_obj);
+        PyArray_Descr **py_operation_descrs = HPy_AsPyObjectArray(ctx, operation_descrs, nop);
         errval = PyUFunc_GeneralizedFunctionInternal(py_ufunc, py_ufuncimpl,
                 py_operation_descrs, py_op, py_extobj, casting, order,
                 /* GUFuncs never (ever) called __array_prepare__! */
                 py_axis_obj, py_axes_obj, keepdims);
+        for(int i=0; i < nop; i++) {
+            HPy_SETREF(ctx, operands[i], HPy_FromPyObject(ctx, (PyObject *)py_op[i]));
+        }
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_op, nop);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operation_descrs, nop);
         Py_XDECREF(py_axes_obj);
         Py_XDECREF(py_axis_obj);
+        Py_XDECREF(py_extobj);
+        Py_DECREF(py_ufunc);
+        Py_DECREF(py_ufuncimpl);
     }
-    for(int i=0; i < nop; i++) {
-        HPy_SETREF(ctx, operands[i], HPy_FromPyObject(ctx, (PyObject *)py_op[i]));
-    }
-    Py_XDECREF(py_extobj);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operation_descrs, nop);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_op, nop);
-    Py_DECREF(py_ufunc);
-    Py_DECREF(py_ufuncimpl);
     if (errval < 0) {
         goto fail;
     }
