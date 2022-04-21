@@ -2,20 +2,20 @@
 #define NUMPY_CORE_SRC_MULTIARRAY_TYPEINFO_H_
 
 #define PY_SSIZE_T_CLEAN
-#include <Python.h>
+#include <hpy.h>
 #include "npy_config.h"
 
 NPY_VISIBILITY_HIDDEN int
-typeinfo_init_structsequences(PyObject *multiarray_dict);
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict);
 
-NPY_VISIBILITY_HIDDEN PyObject *
-PyArray_typeinfo(
+NPY_VISIBILITY_HIDDEN HPy
+PyArray_typeinfo(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyTypeObject *type_obj);
+    HPy type_obj);
 
-NPY_VISIBILITY_HIDDEN PyObject *
-PyArray_typeinforanged(
+NPY_VISIBILITY_HIDDEN HPy
+PyArray_typeinforanged(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyObject *max, PyObject *min, PyTypeObject *type_obj);
+    HPy max, HPy min, HPy type_obj);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_TYPEINFO_H_ */

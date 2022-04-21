@@ -4,7 +4,7 @@
 #include "common.h"
 
 NPY_NO_EXPORT int
-set_typeinfo(HPyContext *ctx, PyObject *dict);
+set_typeinfo(HPyContext *ctx, HPy dict);
 
 /* needed for blasfuncs */
 NPY_NO_EXPORT void

@@ -16,10 +16,10 @@
 
 
 
-static PyTypeObject PyArray_typeinfoType;
-static PyTypeObject PyArray_typeinforangedType;
+static HPy PyArray_typeinfoType;
+static HPy PyArray_typeinforangedType;
 
-static PyStructSequence_Field typeinfo_fields[] = {
+static HPyStructSequence_Field typeinfo_fields[] = {
     {"char",      "The character used to represent the type"},
     {"num",       "The numeric id assigned to the type"},
     {"bits",      "The number of bits in the type"},
@@ -28,7 +28,7 @@ static PyStructSequence_Field typeinfo_fields[] = {
     {NULL, NULL,}
 };
 
-static PyStructSequence_Field typeinforanged_fields[] = {
+static HPyStructSequence_Field typeinforanged_fields[] = {
     {"char",      "The character used to represent the type"},
     {"num",       "The numeric id assigned to the type"},
     {"bits",      "The number of bits in the type"},
@@ -39,64 +39,58 @@ static PyStructSequence_Field typeinforanged_fields[] = {
     {NULL, NULL,}
 };
 
-static PyStructSequence_Desc typeinfo_desc = {
+static HPyStructSequence_Desc typeinfo_desc = {
     "numpy.core.multiarray.typeinfo",         /* name          */
     "Information about a scalar numpy type",  /* doc           */
     typeinfo_fields,                          /* fields        */
-    5,                                        /* n_in_sequence */
 };
 
-static PyStructSequence_Desc typeinforanged_desc = {
+static HPyStructSequence_Desc typeinforanged_desc = {
     "numpy.core.multiarray.typeinforanged",                /* name          */
     "Information about a scalar numpy type with a range",  /* doc           */
     typeinforanged_fields,                                 /* fields        */
-    7,                                                     /* n_in_sequence */
 };
 
-NPY_NO_EXPORT PyObject *
-PyArray_typeinfo(
+NPY_NO_EXPORT HPy
+PyArray_typeinfo(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyTypeObject *type_obj)
+    HPy type_obj)
 {
-    PyObject *entry = PyStructSequence_New(&PyArray_typeinfoType);
-    if (entry == NULL)
-        return NULL;
-    PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
-    PyStructSequence_SET_ITEM(entry, 1, Py_BuildValue("i", typenum));
-    PyStructSequence_SET_ITEM(entry, 2, Py_BuildValue("i", nbits));
-    PyStructSequence_SET_ITEM(entry, 3, Py_BuildValue("i", align));
-    PyStructSequence_SET_ITEM(entry, 4, Py_BuildValue("O", (PyObject *) type_obj));
+    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinfoType);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
+    HPyStructSequenceBuilder_Set(ctx, entry, 4, type_obj);
 
-    if (PyErr_Occurred()) {
-        Py_DECREF(entry);
-        return NULL;
+    if (HPyErr_Occurred(ctx)) {
+        HPyStructSequenceBuilder_Cancel(ctx, entry);
+        return HPy_NULL;
     }
 
-    return entry;
+    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinfoType);
 }
 
-NPY_NO_EXPORT PyObject *
-PyArray_typeinforanged(
+NPY_NO_EXPORT HPy
+PyArray_typeinforanged(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
-    PyObject *max, PyObject *min, PyTypeObject *type_obj)
+    HPy max, HPy min, HPy type_obj)
 {
-    PyObject *entry = PyStructSequence_New(&PyArray_typeinforangedType);
-    if (entry == NULL)
-        return NULL;
-    PyStructSequence_SET_ITEM(entry, 0, Py_BuildValue("C", typechar));
-    PyStructSequence_SET_ITEM(entry, 1, Py_BuildValue("i", typenum));
-    PyStructSequence_SET_ITEM(entry, 2, Py_BuildValue("i", nbits));
-    PyStructSequence_SET_ITEM(entry, 3, Py_BuildValue("i", align));
-    PyStructSequence_SET_ITEM(entry, 4, max);
-    PyStructSequence_SET_ITEM(entry, 5, min);
-    PyStructSequence_SET_ITEM(entry, 6, Py_BuildValue("O", (PyObject *) type_obj));
+    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinforangedType);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
+    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
+    HPyStructSequenceBuilder_Set(ctx, entry, 4, max);
+    HPyStructSequenceBuilder_Set(ctx, entry, 5, min);
+    HPyStructSequenceBuilder_Set(ctx, entry, 6, type_obj);
 
-    if (PyErr_Occurred()) {
-        Py_DECREF(entry);
-        return NULL;
+    if (HPyErr_Occurred(ctx)) {
+        HPyStructSequenceBuilder_Cancel(ctx, entry);
+        return HPy_NULL;
     }
 
-    return entry;
+    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinforangedType);
 }
 
 /* Python version needed for older PyPy */
@@ -112,23 +106,22 @@ PyArray_typeinforanged(
 #endif
 
 NPY_NO_EXPORT int
-typeinfo_init_structsequences(PyObject *multiarray_dict)
+typeinfo_init_structsequences(HPyContext *ctx, HPy multiarray_dict)
 {
-    CAPI_WARN("startup: PyStructSequence_InitType2");
-    if (PyStructSequence_InitType2(
-            &PyArray_typeinfoType, &typeinfo_desc) < 0) {
+    PyArray_typeinfoType = HPyStructSequence_NewType(ctx, &typeinfo_desc);
+    if (HPy_IsNull(PyArray_typeinfoType)) {
         return -1;
     }
-    if (PyStructSequence_InitType2(
-            &PyArray_typeinforangedType, &typeinforanged_desc) < 0) {
+    PyArray_typeinforangedType = HPyStructSequence_NewType(ctx, &typeinforanged_desc);
+    if (HPy_IsNull(PyArray_typeinforangedType)) {
         return -1;
     }
-    if (PyDict_SetItemString(multiarray_dict,
-            "typeinfo", (PyObject *)&PyArray_typeinfoType) < 0) {
+    if (HPy_SetItem_s(ctx, multiarray_dict,
+            "typeinfo", PyArray_typeinfoType) < 0) {
         return -1;
     }
-    if (PyDict_SetItemString(multiarray_dict,
-            "typeinforanged", (PyObject *)&PyArray_typeinforangedType) < 0) {
+    if (HPy_SetItem_s(ctx, multiarray_dict,
+            "typeinforanged", PyArray_typeinforangedType) < 0) {
         return -1;
     }
     return 0;
