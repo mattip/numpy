@@ -884,7 +884,7 @@ static int
 h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr)
 {
     // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
-    enum _dtype_discovery_flags flags = 0;
+    // enum _dtype_discovery_flags flags = 0;
     *out_descr = HPy_NULL;
 
     if (HPy_IsNull(DType)) {
