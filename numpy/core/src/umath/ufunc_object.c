@@ -2748,10 +2748,11 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         .method = ufuncimpl,
         .descriptors = operation_descrs,
     };
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_Context *hcontext = method_context_py2h(&context);
+    HPyArrayMethod_StridedLoop *strided_loop;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
 
-    if (ufuncimpl->get_strided_loop(npy_get_context(), &context, 1, 0, inner_strides,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), hcontext, 1, 0, inner_strides,
             &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -2785,7 +2786,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         }
         do {
             inner_dimensions[0] = *count_ptr;
-            retval = strided_loop(&context,
+            retval = strided_loop(npy_get_context(), hcontext,
                     dataptr, inner_dimensions, inner_strides, auxdata);
         } while (retval == 0 && iternext(iter));
 
