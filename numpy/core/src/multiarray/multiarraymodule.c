@@ -5096,7 +5096,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
 
     /* Add some symbolic constants to the module */
-    h_d = HPyModule_GetDict(ctx, h_mod);
+    h_d = HPy_GetAttr_s(ctx, h_mod, "__dict__");
     if (HPy_IsNull(h_d)) {
         goto err;
     }
