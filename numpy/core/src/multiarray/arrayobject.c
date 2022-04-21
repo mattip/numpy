@@ -479,11 +479,11 @@ HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self)
             int retval = 0;
             HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
             HPyArray_CLEARFLAGS(ctx, self, NPY_ARRAY_WRITEBACKIFCOPY);
-            capi_warn("HPyArray_ResolveWritebackIfCopy");
-            PyObject *base = HPy_AsPyObject(ctx, h_base);
-            PyObject *py_self = HPy_AsPyObject(ctx, self);
+            CAPI_WARN("HPyArray_ResolveWritebackIfCopy");
+            PyArrayObject *base = (PyArrayObject *)HPy_AsPyObject(ctx, h_base);
+            PyArrayObject *py_self = (PyArrayObject *)HPy_AsPyObject(ctx, self);
             HPy_Close(ctx, h_base);
-            retval = PyArray_CopyAnyInto((PyArrayObject *)base, py_self);
+            retval = PyArray_CopyAnyInto(base, py_self);
             Py_DECREF(py_self);
             Py_DECREF(base);
             HPyArray_SetBase(ctx, self, HPy_NULL);
