@@ -1936,9 +1936,13 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
     HPy_Close(ctx, h_context);
     HPy_Close(ctx, h_newtype);
     HPy_Close(ctx, h_op);
+    Py_XDECREF(newtype); /* simulate reference stealing */
     return res;
 }
 
+/*
+ * Same as PyArray_FromAny but *DOES NOT* steal reference to newtype.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
                 int max_depth, int flags, HPy context)
@@ -1963,10 +1967,8 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
     HPy fixed_DType; /* (PyArray_DTypeMeta *) */
     if (HPyArray_ExtractDTypeAndDescriptor(ctx, newtype,
             &fixed_descriptor, &fixed_DType) < 0) {
-        HPy_Close(ctx, newtype);
         return HPy_NULL;
     }
-    HPy_Close(ctx, newtype);
 
     // TODO HPY LABS PORT
     CAPI_WARN("HPyArray_FromAny: call to PyArray_DiscoverDTypeAndShape");
@@ -2327,6 +2329,9 @@ PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
 #include "descriptor.h"
 #include "arrayobject.h"
 
+/*
+ * Same as PyArray_CheckFromAny but *DOES NOT* steal reference to descr.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
                      int max_depth, int requires, HPy context)

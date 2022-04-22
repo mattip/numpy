@@ -281,10 +281,10 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
                               max_depth, NPY_ARRAY_BEHAVED | \
                                          NPY_ARRAY_ENSUREARRAY, NULL)
 
-#define HPyArray_FromObject(ctx, op, type, min_depth, max_depth) \
-        HPyArray_FromAny(ctx, op, HPyArray_DescrFromType(ctx, type), min_depth, \
-                              max_depth, NPY_ARRAY_BEHAVED | \
-                                         NPY_ARRAY_ENSUREARRAY, HPy_NULL)
+/*
+ * Macro HPyArray_FromObject was turned into an inline function and moved to
+ * 'ctors.h'.
+ */
 
 #define PyArray_ContiguousFromObject(op, type, min_depth, max_depth) \
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \
