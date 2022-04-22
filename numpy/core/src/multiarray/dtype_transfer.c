@@ -574,15 +574,18 @@ _strided_to_strided_wrap_copy_swap(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _wrap_copy_swap_data *d = (_wrap_copy_swap_data *)auxdata;
-
-    /* We assume that d->copyswapn should not be able to error. */
-    d->copyswapn(dst, dst_stride, src, src_stride, N, d->swap, d->arr);
-    return 0;
+    // TODO HPY LABS PORT: migrate _strided_to_strided_wrap_copy_swap
+    hpy_abort_not_implemented("_strided_to_strided_wrap_copy_swap");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _wrap_copy_swap_data *d = (_wrap_copy_swap_data *)auxdata;
+//
+//    /* We assume that d->copyswapn should not be able to error. */
+//    d->copyswapn(dst, dst_stride, src, src_stride, N, d->swap, d->arr);
+//    return 0;
 }
 
 /*
@@ -685,32 +688,36 @@ _aligned_strided_to_strided_cast(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
+    // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_cast
+    hpy_abort_not_implemented("_aligned_strided_to_strided_cast");
+    return -1;
 
-    _strided_cast_data *d = (_strided_cast_data *)auxdata;
-    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
-    PyArrayObject *aip = d->aip, *aop = d->aop;
-    npy_bool needs_api = d->needs_api;
-
-    while (N > 0) {
-        castfunc(src, dst, 1, aip, aop);
-        /*
-         * Since error handling in ufuncs is not ideal (at the time of
-         * writing this, an error could be in process before calling this
-         * function. For most of NumPy history these checks were completely
-         * missing, so this is hopefully OK for the time being (until ufuncs
-         * are fixed).
-         */
-        if (needs_api && PyErr_Occurred()) {
-            return -1;
-        }
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_cast_data *d = (_strided_cast_data *)auxdata;
+//    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
+//    PyArrayObject *aip = d->aip, *aop = d->aop;
+//    npy_bool needs_api = d->needs_api;
+//
+//    while (N > 0) {
+//        castfunc(src, dst, 1, aip, aop);
+//        /*
+//         * Since error handling in ufuncs is not ideal (at the time of
+//         * writing this, an error could be in process before calling this
+//         * function. For most of NumPy history these checks were completely
+//         * missing, so this is hopefully OK for the time being (until ufuncs
+//         * are fixed).
+//         */
+//        if (needs_api && PyErr_Occurred()) {
+//            return -1;
+//        }
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 /* This one requires src be of type NPY_OBJECT */
@@ -720,37 +727,40 @@ _aligned_strided_to_strided_cast_decref_src(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
-    _strided_cast_data *d = (_strided_cast_data *)data;
-    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
-    PyArrayObject *aip = d->aip, *aop = d->aop;
-    npy_bool needs_api = d->needs_api;
-    PyObject *src_ref;
-
-    while (N > 0) {
-        castfunc(src, dst, 1, aip, aop);
-        /*
-         * See comment in `_aligned_strided_to_strided_cast`, an error could
-         * in principle be set before `castfunc` is called.
-         */
-        if (needs_api && PyErr_Occurred()) {
-            return -1;
-        }
-        /* After casting, decrement the source ref and set it to NULL */
-        memcpy(&src_ref, src, sizeof(src_ref));
-        Py_XDECREF(src_ref);
-        memset(src, 0, sizeof(PyObject *));
-        NPY_DT_DBG_REFTRACE("dec src ref (cast object -> not object)", src_ref);
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_cast_decref_src
+    hpy_abort_not_implemented("_aligned_strided_to_strided_cast_decref_src");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
+//    _strided_cast_data *d = (_strided_cast_data *)data;
+//    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
+//    PyArrayObject *aip = d->aip, *aop = d->aop;
+//    npy_bool needs_api = d->needs_api;
+//    PyObject *src_ref;
+//
+//    while (N > 0) {
+//        castfunc(src, dst, 1, aip, aop);
+//        /*
+//         * See comment in `_aligned_strided_to_strided_cast`, an error could
+//         * in principle be set before `castfunc` is called.
+//         */
+//        if (needs_api && PyErr_Occurred()) {
+//            return -1;
+//        }
+//        /* After casting, decrement the source ref and set it to NULL */
+//        memcpy(&src_ref, src, sizeof(src_ref));
+//        Py_XDECREF(src_ref);
+//        memset(src, 0, sizeof(PyObject *));
+//        NPY_DT_DBG_REFTRACE("dec src ref (cast object -> not object)", src_ref);
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 static int
@@ -759,21 +769,24 @@ _aligned_contig_to_contig_cast(
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-
-    _strided_cast_data *d = (_strided_cast_data *)auxdata;
-    npy_bool needs_api = d->needs_api;
-
-    d->castfunc(src, dst, N, d->aip, d->aop);
-    /*
-     * See comment in `_aligned_strided_to_strided_cast`, an error could
-     * in principle be set before `castfunc` is called.
-     */
-    if (needs_api && PyErr_Occurred()) {
-        return -1;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _aligned_contig_to_contig_cast
+    hpy_abort_not_implemented("_aligned_contig_to_contig_cast");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//
+//    _strided_cast_data *d = (_strided_cast_data *)auxdata;
+//    npy_bool needs_api = d->needs_api;
+//
+//    d->castfunc(src, dst, N, d->aip, d->aop);
+//    /*
+//     * See comment in `_aligned_strided_to_strided_cast`, an error could
+//     * in principle be set before `castfunc` is called.
+//     */
+//    if (needs_api && PyErr_Occurred()) {
+//        return -1;
+//    }
+//    return 0;
 }
 
 
@@ -837,35 +850,38 @@ _strided_to_strided_datetime_general_cast(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-    npy_int64 dt;
-    npy_datetimestruct dts;
-
-    while (N > 0) {
-        memcpy(&dt, src, sizeof(dt));
-
-        if (convert_datetime_to_datetimestruct(&d->src_meta,
-                                               dt, &dts) < 0) {
-            return -1;
-        }
-        else {
-            if (convert_datetimestruct_to_datetime(&d->dst_meta,
-                                                   &dts, &dt) < 0) {
-                return -1;
-            }
-        }
-
-        memcpy(dst, &dt, sizeof(dt));
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_general_cast
+    hpy_abort_not_implemented("_strided_to_strided_datetime_general_cast");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+//    npy_int64 dt;
+//    npy_datetimestruct dts;
+//
+//    while (N > 0) {
+//        memcpy(&dt, src, sizeof(dt));
+//
+//        if (convert_datetime_to_datetimestruct(&d->src_meta,
+//                                               dt, &dts) < 0) {
+//            return -1;
+//        }
+//        else {
+//            if (convert_datetimestruct_to_datetime(&d->dst_meta,
+//                                                   &dts, &dt) < 0) {
+//                return -1;
+//            }
+//        }
+//
+//        memcpy(dst, &dt, sizeof(dt));
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 static int
@@ -874,34 +890,37 @@ _strided_to_strided_datetime_cast(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-    npy_int64 num = d->num, denom = d->denom;
-    npy_int64 dt;
-
-    while (N > 0) {
-        memcpy(&dt, src, sizeof(dt));
-
-        if (dt != NPY_DATETIME_NAT) {
-            /* Apply the scaling */
-            if (dt < 0) {
-                dt = (dt * num - (denom - 1)) / denom;
-            }
-            else {
-                dt = dt * num / denom;
-            }
-        }
-
-        memcpy(dst, &dt, sizeof(dt));
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_cast
+    hpy_abort_not_implemented("_strided_to_strided_datetime_cast");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+//    npy_int64 num = d->num, denom = d->denom;
+//    npy_int64 dt;
+//
+//    while (N > 0) {
+//        memcpy(&dt, src, sizeof(dt));
+//
+//        if (dt != NPY_DATETIME_NAT) {
+//            /* Apply the scaling */
+//            if (dt < 0) {
+//                dt = (dt * num - (denom - 1)) / denom;
+//            }
+//            else {
+//                dt = dt * num / denom;
+//            }
+//        }
+//
+//        memcpy(dst, &dt, sizeof(dt));
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 static int
@@ -910,34 +929,37 @@ _aligned_strided_to_strided_datetime_cast(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-    npy_int64 num = d->num, denom = d->denom;
-    npy_int64 dt;
-
-    while (N > 0) {
-        dt = *(npy_int64 *)src;
-
-        if (dt != NPY_DATETIME_NAT) {
-            /* Apply the scaling */
-            if (dt < 0) {
-                dt = (dt * num - (denom - 1)) / denom;
-            }
-            else {
-                dt = dt * num / denom;
-            }
-        }
-
-        *(npy_int64 *)dst = dt;
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_datetime_cast
+    hpy_abort_not_implemented("_aligned_strided_to_strided_datetime_cast");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+//    npy_int64 num = d->num, denom = d->denom;
+//    npy_int64 dt;
+//
+//    while (N > 0) {
+//        dt = *(npy_int64 *)src;
+//
+//        if (dt != NPY_DATETIME_NAT) {
+//            /* Apply the scaling */
+//            if (dt < 0) {
+//                dt = (dt * num - (denom - 1)) / denom;
+//            }
+//            else {
+//                dt = dt * num / denom;
+//            }
+//        }
+//
+//        *(npy_int64 *)dst = dt;
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 static int
@@ -946,37 +968,40 @@ _strided_to_strided_datetime_to_string(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-    npy_intp dst_itemsize = d->dst_itemsize;
-    npy_int64 dt;
-    npy_datetimestruct dts;
-
-    while (N > 0) {
-        memcpy(&dt, src, sizeof(dt));
-
-        if (convert_datetime_to_datetimestruct(&d->src_meta,
-                                               dt, &dts) < 0) {
-            return -1;
-        }
-
-        /* Initialize the destination to all zeros */
-        memset(dst, 0, dst_itemsize);
-
-        if (make_iso_8601_datetime(&dts, dst, dst_itemsize,
-                                0, 0, d->src_meta.base, -1,
-                                NPY_UNSAFE_CASTING) < 0) {
-            return -1;
-        }
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_to_string
+    hpy_abort_not_implemented("_strided_to_strided_datetime_to_string");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+//    npy_intp dst_itemsize = d->dst_itemsize;
+//    npy_int64 dt;
+//    npy_datetimestruct dts;
+//
+//    while (N > 0) {
+//        memcpy(&dt, src, sizeof(dt));
+//
+//        if (convert_datetime_to_datetimestruct(&d->src_meta,
+//                                               dt, &dts) < 0) {
+//            return -1;
+//        }
+//
+//        /* Initialize the destination to all zeros */
+//        memset(dst, 0, dst_itemsize);
+//
+//        if (make_iso_8601_datetime(&dts, dst, dst_itemsize,
+//                                0, 0, d->src_meta.base, -1,
+//                                NPY_UNSAFE_CASTING) < 0) {
+//            return -1;
+//        }
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 static int
@@ -985,56 +1010,59 @@ _strided_to_strided_string_to_datetime(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    npy_intp N = dimensions[0];
-    char *src = args[0], *dst = args[1];
-    npy_intp src_itemsize = context->descriptors[0]->elsize;
-    npy_intp src_stride = strides[0], dst_stride = strides[1];
-
-    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-    npy_datetimestruct dts;
-    char *tmp_buffer = d->tmp_buffer;
-    char *tmp;
-
-    while (N > 0) {
-        npy_int64 dt = ~NPY_DATETIME_NAT;
-
-        /* Replicating strnlen with memchr, because Mac OS X lacks it */
-        tmp = memchr(src, '\0', src_itemsize);
-
-        /* If the string is all full, use the buffer */
-        if (tmp == NULL) {
-            memcpy(tmp_buffer, src, src_itemsize);
-            tmp_buffer[src_itemsize] = '\0';
-
-            if (parse_iso_8601_datetime(tmp_buffer, src_itemsize,
-                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
-                                    &dts, NULL, NULL) < 0) {
-                return -1;
-            }
-        }
-        /* Otherwise parse the data in place */
-        else {
-            if (parse_iso_8601_datetime(src, tmp - src,
-                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
-                                    &dts, NULL, NULL) < 0) {
-                return -1;
-            }
-        }
-
-        /* Convert to the datetime */
-        if (dt != NPY_DATETIME_NAT &&
-                convert_datetimestruct_to_datetime(&d->dst_meta,
-                                               &dts, &dt) < 0) {
-            return -1;
-        }
-
-        memcpy(dst, &dt, sizeof(dt));
-
-        dst += dst_stride;
-        src += src_stride;
-        --N;
-    }
-    return 0;
+    // TODO HPY LABS PORT: migrate _strided_to_strided_string_to_datetime
+    hpy_abort_not_implemented("_strided_to_strided_string_to_datetime");
+    return -1;
+//    npy_intp N = dimensions[0];
+//    char *src = args[0], *dst = args[1];
+//    npy_intp src_itemsize = context->descriptors[0]->elsize;
+//    npy_intp src_stride = strides[0], dst_stride = strides[1];
+//
+//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+//    npy_datetimestruct dts;
+//    char *tmp_buffer = d->tmp_buffer;
+//    char *tmp;
+//
+//    while (N > 0) {
+//        npy_int64 dt = ~NPY_DATETIME_NAT;
+//
+//        /* Replicating strnlen with memchr, because Mac OS X lacks it */
+//        tmp = memchr(src, '\0', src_itemsize);
+//
+//        /* If the string is all full, use the buffer */
+//        if (tmp == NULL) {
+//            memcpy(tmp_buffer, src, src_itemsize);
+//            tmp_buffer[src_itemsize] = '\0';
+//
+//            if (parse_iso_8601_datetime(tmp_buffer, src_itemsize,
+//                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
+//                                    &dts, NULL, NULL) < 0) {
+//                return -1;
+//            }
+//        }
+//        /* Otherwise parse the data in place */
+//        else {
+//            if (parse_iso_8601_datetime(src, tmp - src,
+//                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
+//                                    &dts, NULL, NULL) < 0) {
+//                return -1;
+//            }
+//        }
+//
+//        /* Convert to the datetime */
+//        if (dt != NPY_DATETIME_NAT &&
+//                convert_datetimestruct_to_datetime(&d->dst_meta,
+//                                               &dts, &dt) < 0) {
+//            return -1;
+//        }
+//
+//        memcpy(dst, &dt, sizeof(dt));
+//
+//        dst += dst_stride;
+//        src += src_stride;
+//        --N;
+//    }
+//    return 0;
 }
 
 /*
