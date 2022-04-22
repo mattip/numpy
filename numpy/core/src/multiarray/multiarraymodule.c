@@ -90,7 +90,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "umathmodule.h"
 
 NPY_NO_EXPORT int initscalarmath(PyObject *);
-NPY_NO_EXPORT int set_matmul_flags(PyObject *d); /* in ufunc_object.c */
+NPY_NO_EXPORT int set_matmul_flags(HPyContext *ctx, HPy d); /* in ufunc_object.c */
 
 /*
  * global variable to determine if legacy printing is enabled, accessible from
@@ -5448,7 +5448,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (set_matmul_flags(d) < 0) {
+    if (set_matmul_flags(ctx, h_d) < 0) {
         goto err;
     }
 

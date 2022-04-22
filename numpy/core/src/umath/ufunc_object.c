@@ -477,11 +477,10 @@ _hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
 
 /* Called at module initialization to set the matmul ufunc output flags */
 NPY_NO_EXPORT int
-set_matmul_flags(PyObject *d)
+set_matmul_flags(HPyContext *ctx, HPy d)
 {
-    CAPI_WARN("startup: set_matmul_flags");
-    PyObject *matmul = _PyDict_GetItemStringWithError(d, "matmul");
-    if (matmul == NULL) {
+    HPy matmul = HPy_GetItem_s(ctx, d, "matmul");
+    if (HPy_IsNull(matmul)) {
         return -1;
     }
     /*
@@ -496,7 +495,7 @@ set_matmul_flags(PyObject *d)
      *
      * Enabling NPY_ITER_WRITEONLY can prevent a copy in some cases.
      */
-    ((PyUFuncObject *)matmul)->op_flags[2] = (NPY_ITER_WRITEONLY |
+    PyUFuncObject_AsStruct(ctx, matmul)->op_flags[2] = (NPY_ITER_WRITEONLY |
                                          NPY_ITER_UPDATEIFCOPY |
                                          NPY_UFUNC_DEFAULT_OUTPUT_FLAGS) &
                                          ~NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE;
