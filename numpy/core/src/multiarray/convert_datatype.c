@@ -4215,11 +4215,9 @@ object_to_object_get_loop(
 
 
 static int
-PyArray_InitializeObjectToObjectCast(void)
+PyArray_InitializeObjectToObjectCast(HPyContext *ctx)
 {
-    HPyContext *ctx = npy_get_context();
-    PyArray_DTypeMeta *Object = PyArray_DTypeFromTypeNum(NPY_OBJECT);
-    HPy h_Object = HPy_FromPyObject(ctx, (PyObject *)Object);
+    HPy h_Object = HPyArray_DTypeFromTypeNum(ctx, NPY_OBJECT);
     HPy dtypes[2] = {h_Object, h_Object}; /* PyArray_DTypeMeta *dtypes[2] */
     PyType_Slot slots[] = {
             {NPY_METH_get_loop, &object_to_object_get_loop},
@@ -4235,7 +4233,7 @@ PyArray_InitializeObjectToObjectCast(void)
     };
 
     int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
-    Py_DECREF(Object);
+    HPy_Close(ctx, h_Object);
     return res;
 }
 
@@ -4252,10 +4250,10 @@ PyArray_InitializeCasts(HPyContext *ctx)
     if (PyArray_InitializeVoidToVoidCast(ctx) < 0) {
         return -1;
     }
-    CAPI_WARN("startup: PyArray_InitializeCasts");
-    if (PyArray_InitializeObjectToObjectCast() < 0) {
+    if (PyArray_InitializeObjectToObjectCast(ctx) < 0) {
         return -1;
     }
+    CAPI_WARN("startup: PyArray_InitializeCasts");
     /* Datetime casts are defined in datetime.c */
     if (PyArray_InitializeDatetimeCasts() < 0) {
         return -1;
