@@ -79,6 +79,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 
 // Added for HPy port:
 #include "hpy.h"
+#include "hpy_utils.h"
 #include "scalarapi.h"
 
 /*
@@ -4952,46 +4953,31 @@ set_flaginfo(HPyContext *ctx, HPy d)
     return;
 }
 
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_array_wrap = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_array_finalize = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_implementation = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_axis1 = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_axis2 = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_like = NULL;
-NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_numpy = NULL;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_array_wrap;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_array_finalize;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_implementation;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_axis1;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_axis2;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_like;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_numpy;
 
 static int
-intern_strings(void)
+intern_strings(HPyContext *ctx)
 {
-    CAPI_WARN("startup: intern_strings");
-    npy_ma_str_array_wrap = PyUnicode_InternFromString("__array_wrap__");
-    if (npy_ma_str_array_wrap == NULL) {
-        return -1;
-    }
-    npy_ma_str_array_finalize = PyUnicode_InternFromString("__array_finalize__");
-    if (npy_ma_str_array_finalize == NULL) {
-        return -1;
-    }
-    npy_ma_str_implementation = PyUnicode_InternFromString("_implementation");
-    if (npy_ma_str_implementation == NULL) {
-        return -1;
-    }
-    npy_ma_str_axis1 = PyUnicode_InternFromString("axis1");
-    if (npy_ma_str_axis1 == NULL) {
-        return -1;
-    }
-    npy_ma_str_axis2 = PyUnicode_InternFromString("axis2");
-    if (npy_ma_str_axis2 == NULL) {
-        return -1;
-    }
-    npy_ma_str_like = PyUnicode_InternFromString("like");
-    if (npy_ma_str_like == NULL) {
-        return -1;
-    }
-    npy_ma_str_numpy = PyUnicode_InternFromString("numpy");
-    if (npy_ma_str_numpy == NULL) {
-        return -1;
-    }
+    HPy h_str;
+    #define INTERN(global, str)                         \
+        h_str = HPyUnicode_InternFromString(ctx, str);  \
+        if (HPy_IsNull(h_str)) return 1;                \
+        HPyGlobal_Store(ctx, &global, h_str);           \
+        HPy_Close(ctx, h_str);
+
+    INTERN(npy_ma_str_array_wrap, "__array_wrap__");
+    INTERN(npy_ma_str_array_finalize, "__array_finalize__");
+    INTERN(npy_ma_str_implementation, "_implementation");
+    INTERN(npy_ma_str_axis1, "axis1");
+    INTERN(npy_ma_str_axis2, "axis2");
+    INTERN(npy_ma_str_like, "like");
+    INTERN(npy_ma_str_numpy, "numpy");
     return 0;
 }
 
@@ -5113,6 +5099,16 @@ static HPyGlobal *module_globals[] = {
     &hpy_n_ops.matmul,
     &hpy_n_ops.clip,
     &current_handler,
+
+    // interned strings
+    &npy_ma_str_array_wrap,
+    &npy_ma_str_array_finalize,
+    &npy_ma_str_implementation,
+    &npy_ma_str_axis1,
+    &npy_ma_str_axis2,
+    &npy_ma_str_like,
+    &npy_ma_str_numpy,
+
     NULL
 };
 
@@ -5412,7 +5408,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (intern_strings() < 0) {
+    if (intern_strings(ctx) < 0) {
         goto err;
     }
 

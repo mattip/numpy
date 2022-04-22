@@ -6,6 +6,8 @@
 #include "npy_import.h"
 #include "multiarraymodule.h"
 
+#include "hpy_utils.h"
+
 
 /* Return the ndarray.__array_function__ method. */
 static PyObject *
@@ -171,7 +173,9 @@ array_function_method_impl(PyObject *func, PyObject *types, PyObject *args,
         }
     }
 
-    PyObject *implementation = PyObject_GetAttr(func, npy_ma_str_implementation);
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_implementation);
+    PyObject *implementation = PyObject_GetAttr(func, tmp);
+    Py_XDECREF(tmp);
     if (implementation == NULL) {
         return NULL;
     }
@@ -346,19 +350,22 @@ array_implement_array_function(
      * in downstream libraries. If `like=` is specified but doesn't
      * implement `__array_function__`, raise a `TypeError`.
      */
-    if (kwargs != NULL && PyDict_Contains(kwargs, npy_ma_str_like)) {
-        PyObject *like_arg = PyDict_GetItem(kwargs, npy_ma_str_like);
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis1);
+    if (kwargs != NULL && PyDict_Contains(kwargs, tmp)) {
+        PyObject *like_arg = PyDict_GetItem(kwargs, tmp);
         if (like_arg != NULL) {
             PyObject *tmp_has_override = get_array_function(like_arg);
             if (tmp_has_override == NULL) {
+                Py_XDECREF(tmp);
                 return PyErr_Format(PyExc_TypeError,
                         "The `like` argument must be an array-like that "
                         "implements the `__array_function__` protocol.");
             }
             Py_DECREF(tmp_has_override);
-            PyDict_DelItem(kwargs, npy_ma_str_like);
+            PyDict_DelItem(kwargs, tmp);
         }
     }
+    Py_XDECREF(tmp);
 
     PyObject *res = array_implement_array_function_internal(
         public_api, relevant_args, args, kwargs);
@@ -436,11 +443,16 @@ array_implement_c_array_function_creation(
         goto finish;
     }
     /* The like argument must be present in the keyword arguments, remove it */
-    if (PyDict_DelItem(kwargs, npy_ma_str_like) < 0) {
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_like);
+    if (PyDict_DelItem(kwargs, tmp) < 0) {
+        Py_XDECREF(tmp);
         goto finish;
     }
+    Py_XDECREF(tmp);
 
-    numpy_module = PyImport_Import(npy_ma_str_numpy);
+    tmp = HPyGlobal_LoadPyObj(npy_ma_str_numpy);
+    numpy_module = PyImport_Import(tmp);
+    Py_XDECREF(tmp);
     if (numpy_module == NULL) {
         goto finish;
     }

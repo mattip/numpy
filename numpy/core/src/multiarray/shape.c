@@ -23,6 +23,8 @@
 #include "common.h" /* for convert_shape_to_string */
 #include "alloc.h"
 
+#include "hpy_utils.h"
+
 static int
 _fix_unknown_dimension(PyArray_Dims *newshape, PyArrayObject *arr);
 
@@ -656,12 +658,18 @@ PyArray_SwapAxes(PyArrayObject *ap, int a1, int a2)
     int n = PyArray_NDIM(ap);
     int i;
 
-    if (check_and_adjust_axis_msg(&a1, n, npy_ma_str_axis1) < 0) {
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis1);
+    if (check_and_adjust_axis_msg(&a1, n, tmp) < 0) {
+        Py_XDECREF(tmp);
         return NULL;
     }
-    if (check_and_adjust_axis_msg(&a2, n, npy_ma_str_axis2) < 0) {
+    Py_XDECREF(tmp);
+    tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis2);
+    if (check_and_adjust_axis_msg(&a2, n, tmp) < 0) {
+        Py_XDECREF(tmp);
         return NULL;
     }
+    Py_XDECREF(tmp);
 
     for (i = 0; i < n; ++i) {
         dims[i] = i;

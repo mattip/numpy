@@ -37,6 +37,8 @@
 #include "arrayobject.h"
 #include "descriptor.h"
 
+#include "hpy_utils.h"
+
 /*
  * Reading from a file or a string.
  *
@@ -4547,8 +4549,10 @@ _array_fill_strides(npy_intp *strides, npy_intp const *dims, int nd, size_t item
 NPY_NO_EXPORT PyArrayObject *
 PyArray_SubclassWrap(PyArrayObject *arr_of_subclass, PyArrayObject *towrap)
 {
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_array_wrap);
     PyObject *wrapped = PyObject_CallMethodObjArgs((PyObject *)arr_of_subclass,
-            npy_ma_str_array_wrap, (PyObject *)towrap, NULL);
+            tmp, (PyObject *)towrap, NULL);
+    Py_XDECREF(tmp);
     if (wrapped == NULL) {
         return NULL;
     }
