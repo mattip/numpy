@@ -2,6 +2,7 @@
 #define NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_
 
 #include "hpy.h"
+#include "array_coercion.h"
 
 NPY_NO_EXPORT PyObject *
 PyArray_NewFromDescr(
@@ -134,5 +135,27 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
 NPY_NO_EXPORT HPy
 HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
                      HPy dtype, int subok);
+
+NPY_NO_EXPORT int
+HPyArray_AssignFromCache(HPyContext *ctx, HPy self, coercion_cache_obj *cache);
+
+/*
+ * This function was originally a macro in 'ndarrayobject.h' but it needs the
+ * declaration for 'HPyArray_FromAny'.
+ */
+static NPY_INLINE HPy
+HPyArray_FromObject(
+        HPyContext *ctx, HPy op, int type, int min_depth, int max_depth)
+{
+    HPy descr = HPyArray_DescrFromType(ctx, type);
+    HPy res = HPyArray_FromAny(ctx, op, descr, min_depth, max_depth,
+            NPY_ARRAY_BEHAVED | NPY_ARRAY_ENSUREARRAY, HPy_NULL);
+    /*
+     * HPyArray_FromAny does not steal reference to 'descr' like
+     * PyArray_FromAny.
+     */
+    HPy_Close(ctx, descr);
+    return res;
+}
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

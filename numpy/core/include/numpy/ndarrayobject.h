@@ -30,6 +30,7 @@ extern "C" {
 extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
+extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
 
 /* arraytypes.c */
 NPY_NO_EXPORT HPy HPyArray_DescrFromType(HPyContext *ctx, int type);
@@ -280,10 +281,10 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
                               max_depth, NPY_ARRAY_BEHAVED | \
                                          NPY_ARRAY_ENSUREARRAY, NULL)
 
-#define HPyArray_FromObject(ctx, op, type, min_depth, max_depth) \
-        HPyArray_FromAny(ctx, op, HPyArray_DescrFromType(ctx, type), min_depth, \
-                              max_depth, NPY_ARRAY_BEHAVED | \
-                                         NPY_ARRAY_ENSUREARRAY, HPy_NULL)
+/*
+ * Macro HPyArray_FromObject was turned into an inline function and moved to
+ * 'ctors.h'.
+ */
 
 #define PyArray_ContiguousFromObject(op, type, min_depth, max_depth) \
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \

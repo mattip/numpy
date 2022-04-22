@@ -544,9 +544,10 @@ PyArray_AssignFromCache_Recursive(
         PyArrayObject *self, const int ndim, coercion_cache_obj **cache)
 {
     /* Consume first cache element by extracting information and freeing it */
-    PyObject *original_obj = (*cache)->converted_obj;
-    PyObject *obj = (*cache)->arr_or_sequence;
-    Py_INCREF(obj);
+    HPyContext *ctx = npy_get_context();
+    PyObject *original_obj = HPy_AsPyObject(ctx, (*cache)->converted_obj);
+    Py_DECREF(original_obj); /* simulating the original behavior (borrowed ref) */
+    PyObject *obj = HPy_AsPyObject(ctx, (*cache)->arr_or_sequence);
     npy_bool sequence = (*cache)->sequence;
     int depth = (*cache)->depth;
     *cache = npy_unlink_coercion_cache(*cache);
@@ -614,8 +615,10 @@ PyArray_AssignFromCache_Recursive(
         for (npy_intp i = 0; i < length; i++) {
             PyObject *value = PySequence_Fast_GET_ITEM(obj, i);
 
-            if (*cache == NULL || (*cache)->converted_obj != value ||
+            PyObject *converted_obj = NULL;
+            if (*cache == NULL || (converted_obj = HPy_AsPyObject(ctx, (*cache)->converted_obj)) != value ||
                         (*cache)->depth != depth + 1) {
+                Py_XDECREF(converted_obj);
                 if (ndim != depth + 1) {
                     PyErr_SetString(PyExc_RuntimeError,
                             "Inconsistent object during array creation? "
@@ -630,6 +633,7 @@ PyArray_AssignFromCache_Recursive(
                 }
             }
             else {
+                Py_XDECREF(converted_obj);
                 PyArrayObject *view;
                 view = (PyArrayObject *)array_item_asarray(self, i);
                 if (view == NULL) {
@@ -649,6 +653,45 @@ PyArray_AssignFromCache_Recursive(
   fail:
     Py_DECREF(obj);
     return -1;
+}
+
+NPY_NO_EXPORT int
+HPyArray_AssignFromCache(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, coercion_cache_obj *cache) {
+    CAPI_WARN("HPyArray_AssignFromCache: call to PyArray_AssignFromCache_Recursive");
+    PyArrayObject *py_self = (PyArrayObject *)HPy_AsPyObject(ctx, self);
+    int ndim = PyArray_NDIM(py_self);
+    /*
+     * Do not support ndim == 0 now with an array in the cache.
+     * The ndim == 0 is special because np.array(np.array(0), dtype=object)
+     * should unpack the inner array.
+     * Since the single-array case is special, it is handled previously
+     * in either case.
+     */
+    assert(cache->sequence);
+    assert(ndim != 0);  /* guaranteed if cache contains a sequence */
+
+
+    if (PyArray_AssignFromCache_Recursive(py_self, ndim, &cache) < 0) {
+        /* free the remaining cache. */
+        hnpy_free_coercion_cache(ctx, cache);
+        Py_DECREF(py_self);
+        return -1;
+    }
+    Py_DECREF(py_self);
+
+    /*
+     * Sanity check, this is the initial call, and when it returns, the
+     * cache has to be fully consumed, otherwise something is wrong.
+     * NOTE: May be nicer to put into a recursion helper.
+     */
+    if (cache != NULL) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                "Inconsistent object during array creation? "
+                "Content of sequences changed (cache not consumed).");
+        hnpy_free_coercion_cache(ctx, cache);
+        return -1;
+    }
+    return 0;
 }
 
 
@@ -1883,41 +1926,73 @@ NPY_NO_EXPORT PyObject *
 PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
                 int max_depth, int flags, PyObject *context)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_op = HPy_FromPyObject(ctx, op);
+    HPy h_newtype = HPy_FromPyObject(ctx, (PyObject*)newtype);
+    HPy h_context = HPy_FromPyObject(ctx, context);
+    HPy h_res = HPyArray_FromAny(ctx, h_op, h_newtype, min_depth, max_depth, flags, h_context);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_context);
+    HPy_Close(ctx, h_newtype);
+    HPy_Close(ctx, h_op);
+    Py_XDECREF(newtype); /* simulate reference stealing */
+    return res;
+}
+
+/*
+ * Same as PyArray_FromAny but *DOES NOT* steal reference to newtype.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
+                int max_depth, int flags, HPy context)
+{
     /*
      * This is the main code to make a NumPy array from a Python
      * Object.  It is called from many different places.
      */
-    PyArrayObject *arr = NULL, *ret;
-    PyArray_Descr *dtype = NULL;
+    HPy arr = HPy_NULL; /* (PyArrayObject *) */
+    HPy ret; /* (PyArrayObject *) */
+    HPy dtype = HPy_NULL; /* (PyArray_Descr *) */
     coercion_cache_obj *cache = NULL;
     int ndim = 0;
     npy_intp dims[NPY_MAXDIMS];
 
-    if (context != NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "'context' must be NULL");
-        return NULL;
+    if (!HPy_IsNull(context)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError, "'context' must be NULL");
+        return HPy_NULL;
     }
 
-    PyArray_Descr *fixed_descriptor;
-    PyArray_DTypeMeta *fixed_DType;
-    if (PyArray_ExtractDTypeAndDescriptor((PyObject *)newtype,
+    HPy fixed_descriptor; /* (PyArray_Descr *) */
+    HPy fixed_DType; /* (PyArray_DTypeMeta *) */
+    if (HPyArray_ExtractDTypeAndDescriptor(ctx, newtype,
             &fixed_descriptor, &fixed_DType) < 0) {
-        Py_XDECREF(newtype);
-        return NULL;
+        return HPy_NULL;
     }
-    Py_XDECREF(newtype);
 
-    ndim = PyArray_DiscoverDTypeAndShape(op,
-            NPY_MAXDIMS, dims, &cache, fixed_DType, fixed_descriptor, &dtype,
+    // TODO HPY LABS PORT
+    CAPI_WARN("HPyArray_FromAny: call to PyArray_DiscoverDTypeAndShape");
+    PyObject *py_op = HPy_AsPyObject(ctx, op);
+    PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
+    PyArray_Descr *py_fixed_descriptor = (PyArray_Descr *)HPy_AsPyObject(ctx, fixed_descriptor);
+    PyArray_Descr *py_dtype = NULL;
+    ndim = PyArray_DiscoverDTypeAndShape(py_op,
+            NPY_MAXDIMS, dims, &cache, py_fixed_DType, py_fixed_descriptor, &py_dtype,
             flags & NPY_ARRAY_ENSURENOCOPY);
+    dtype = HPy_FromPyObject(ctx, (PyObject *)py_dtype);
+    Py_XDECREF(py_dtype);
+    Py_XDECREF(py_fixed_descriptor);
+    Py_XDECREF(py_fixed_DType);
+    Py_DECREF(py_op);
 
-    Py_XDECREF(fixed_descriptor);
-    Py_XDECREF(fixed_DType);
+    HPy_Close(ctx, fixed_descriptor);
+    HPy_Close(ctx, fixed_DType);
     if (ndim < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    if (NPY_UNLIKELY(fixed_descriptor != NULL && PyDataType_HASSUBARRAY(dtype))) {
+    if (NPY_UNLIKELY(!HPy_IsNull(fixed_descriptor) &&
+            PyDataType_HASSUBARRAY(PyArray_Descr_AsStruct(ctx, dtype)))) {
         /*
          * When a subarray dtype was passed in, its dimensions are appended
          * to the array dimension (causing a dimension mismatch).
@@ -1945,18 +2020,20 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
             }
         }
         if (includes_array) {
-            npy_free_coercion_cache(cache);
+            hnpy_free_coercion_cache(ctx, cache);
 
-            ret = (PyArrayObject *) PyArray_NewFromDescr(
-                    &PyArray_Type, dtype, ndim, dims, NULL, NULL,
-                    flags & NPY_ARRAY_F_CONTIGUOUS, NULL);
-            if (ret == NULL) {
-                return NULL;
+            HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+            ret = HPyArray_NewFromDescr(ctx,
+                    array_type, dtype, ndim, dims, NULL, NULL,
+                    flags & NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
+            HPy_Close(ctx, array_type);
+            if (HPy_IsNull(ret)) {
+                return HPy_NULL;
             }
-            assert(PyArray_NDIM(ret) != ndim);
+            assert(HPyArray_GetNDim(ctx, ret) != ndim);
 
             /* NumPy 1.20, 2020-10-01 */
-            if (DEPRECATE_FUTUREWARNING(
+            if (HPY_DEPRECATE_FUTUREWARNING(ctx,
                     "creating an array with a subarray dtype will behave "
                     "differently when the `np.array()` (or `asarray`, etc.) "
                     "call includes an array or array object.\n"
@@ -1969,35 +2046,37 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
                     "conversion.\n"
                     "This may lead to a different result or to current failures "
                     "succeeding.  (FutureWarning since NumPy 1.20)") < 0) {
-                Py_DECREF(ret);
-                return NULL;
+                HPy_Close(ctx, ret);
+                return HPy_NULL;
             }
 
-            if (setArrayFromSequence(ret, op, 0, NULL) < 0) {
-                Py_DECREF(ret);
-                return NULL;
-            }
-            return (PyObject *)ret;
+            hpy_abort_not_implemented("HPyArray_FromAny: call to setArrayFromSequence");
+            // TODO HPY LABS PORT
+            // if (setArrayFromSequence(ret, op, 0, NULL) < 0) {
+            //     HPy_Close(ctx, ret);
+            //     return HPy_NULL;
+            // }
+            return ret;
         }
     }
 
-    if (dtype == NULL) {
-        dtype = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
+    if (HPy_IsNull(dtype)) {
+        dtype = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
 
     if (min_depth != 0 && ndim < min_depth) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "object of too small depth for desired array");
-        Py_DECREF(dtype);
-        npy_free_coercion_cache(cache);
-        return NULL;
+        HPy_Close(ctx, dtype);
+        hnpy_free_coercion_cache(ctx, cache);
+        return HPy_NULL;
     }
     if (max_depth != 0 && ndim > max_depth) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "object too deep for desired array");
-        Py_DECREF(dtype);
-        npy_free_coercion_cache(cache);
-        return NULL;
+        HPy_Close(ctx, dtype);
+        hnpy_free_coercion_cache(ctx, cache);
+        return HPy_NULL;
     }
 
     /* Got the correct parameters, but the cache may already hold the result */
@@ -2006,16 +2085,23 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
          * There is only a single array-like and it was converted, it
          * may still have the incorrect type, but that is handled below.
          */
-        assert(cache->converted_obj == op);
-        arr = (PyArrayObject *)(cache->arr_or_sequence);
+        assert(HPy_Is(ctx, cache->converted_obj, op));
+        arr = cache->arr_or_sequence;
+        CAPI_WARN("HPyArray_FromAny: call to PyArray_FromArray");
+        PyArrayObject *py_arr = (PyArrayObject *)HPy_AsPyObject(ctx, arr);
+        PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
         /* we may need to cast or assert flags (e.g. copy) */
-        PyObject *res = PyArray_FromArray(arr, dtype, flags);
+        PyObject *py_res = PyArray_FromArray(py_arr, py_dtype, flags);
+        HPy res = HPy_FromPyObject(ctx, py_res);
+        Py_DECREF(py_res);
+        Py_DECREF(py_arr);
+        Py_DECREF(py_dtype);
         npy_unlink_coercion_cache(cache);
         return res;
     }
-    else if (cache == NULL && PyArray_IsScalar(op, Void) &&
-            !(((PyVoidScalarObject *)op)->flags & NPY_ARRAY_OWNDATA) &&
-            newtype == NULL) {
+    else if (cache == NULL && HPyArray_IsScalar(ctx, op, Void) &&
+            !(PyVoidScalarObject_AsStruct(ctx, op)->flags & NPY_ARRAY_OWNDATA) &&
+            HPy_IsNull(newtype)) {
         /*
          * Special case, we return a *view* into void scalars, mainly to
          * allow things similar to the "reversed" assignment:
@@ -2027,27 +2113,33 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
          */
         assert(ndim == 0);
 
-        return PyArray_NewFromDescrAndBase(
-                &PyArray_Type, dtype,
+        PyVoidScalarObject *op_data = PyVoidScalarObject_AsStruct(ctx, op);
+
+        HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        HPy res = HPyArray_NewFromDescrAndBase(ctx,
+                array_type, dtype,
                 0, NULL, NULL,
-                ((PyVoidScalarObject *)op)->obval,
-                ((PyVoidScalarObject *)op)->flags,
-                NULL, op);
+                op_data->obval,
+                op_data->flags,
+                HPy_NULL, op);
+        HPy_Close(ctx, array_type);
+        return res;
     }
     /*
      * If we got this far, we definitely have to create a copy, since we are
      * converting either from a scalar (cache == NULL) or a (nested) sequence.
      */
     if (flags & NPY_ARRAY_ENSURENOCOPY ) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Unable to avoid copy while creating an array.");
-        Py_DECREF(dtype);
-        npy_free_coercion_cache(cache);
-        return NULL;
+        HPy_Close(ctx, dtype);
+        hnpy_free_coercion_cache(ctx, cache);
+        return HPy_NULL;
     }
 
-    if (cache == NULL && newtype != NULL &&
-            PyDataType_ISSIGNED(newtype) && PyArray_IsScalar(op, Generic)) {
+    if (cache == NULL && !HPy_IsNull(newtype) &&
+            HPyArrayDescr_ISSIGNED(PyArray_Descr_AsStruct(ctx, newtype)) &&
+            HPyArray_IsScalar(ctx, op, Generic)) {
         assert(ndim == 0);
         /*
          * This is an (possible) inconsistency where:
@@ -2069,85 +2161,79 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
          * have a better solution at some point):
          * https://github.com/pandas-dev/pandas/issues/35481
          */
-        return PyArray_FromScalar(op, dtype);
+        CAPI_WARN("HPyArray_FromAny: call to PyArray_FromScalar");
+        PyObject *py_op = HPy_AsPyObject(ctx, op);
+        PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
+        PyObject *py_res = PyArray_FromScalar(py_op, py_dtype);
+        HPy res = HPy_FromPyObject(ctx, py_res);
+        Py_DECREF(py_res);
+        Py_DECREF(py_op);
+        Py_DECREF(py_dtype);
+        return res;
     }
 
     /* There was no array (or array-like) passed in directly. */
     if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                         "WRITEBACKIFCOPY used for non-array input.");
-        Py_DECREF(dtype);
-        npy_free_coercion_cache(cache);
-        return NULL;
+        HPy_Close(ctx, dtype);
+        hnpy_free_coercion_cache(ctx, cache);
+        return HPy_NULL;
     }
 
     /* Create a new array and copy the data */
-    Py_INCREF(dtype);  /* hold on in case of a subarray that is replaced */
-    ret = (PyArrayObject *)PyArray_NewFromDescr(
-            &PyArray_Type, dtype, ndim, dims, NULL, NULL,
-            flags&NPY_ARRAY_F_CONTIGUOUS, NULL);
-    if (ret == NULL) {
-        npy_free_coercion_cache(cache);
-        Py_DECREF(dtype);
-        return NULL;
+    // Py_INCREF(dtype);  /* hold on in case of a subarray that is replaced */
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    ret = HPyArray_NewFromDescr(ctx,
+            array_type, dtype, ndim, dims, NULL, NULL,
+            flags&NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(ret)) {
+        hnpy_free_coercion_cache(ctx, cache);
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
     }
-    if (ndim == PyArray_NDIM(ret)) {
+    if (ndim == HPyArray_GetNDim(ctx, ret)) {
         /*
          * Appending of dimensions did not occur, so use the actual dtype
          * below. This is relevant for S0 or U0 which can be replaced with
          * S1 or U1, although that should likely change.
          */
-        Py_SETREF(dtype, PyArray_DESCR(ret));
-        Py_INCREF(dtype);
+        HPy_SETREF(ctx, dtype, HPyArray_GetDescr(ctx, ret));
     }
 
     if (cache == NULL) {
         /* This is a single item. Set it directly. */
         assert(ndim == 0);
 
-        if (PyArray_Pack(dtype, PyArray_BYTES(ret), op) < 0) {
-            Py_DECREF(dtype);
-            Py_DECREF(ret);
-            return NULL;
+        if (HPyArray_Pack(ctx, dtype, HPyArray_GetBytes(ctx, ret), op) < 0) {
+            HPy_Close(ctx, dtype);
+            HPy_Close(ctx, ret);
+            return HPy_NULL;
         }
-        Py_DECREF(dtype);
-        return (PyObject *)ret;
+        HPy_Close(ctx, dtype);
+        return ret;
     }
     assert(ndim != 0);
-    assert(op == cache->converted_obj);
+    assert(HPy_Is(ctx, op, cache->converted_obj));
 
     /* Decrease the number of dimensions to the detected ones */
-    int out_ndim = PyArray_NDIM(ret);
-    PyArray_Descr *out_descr = PyArray_DESCR(ret);
-    ((PyArrayObject_fields *)ret)->nd = ndim;
-    _set_descr(ret, dtype);
+    const PyArrayObject *ret_data = PyArrayObject_AsStruct(ctx, ret);
+    int out_ndim = PyArray_NDIM(ret_data);
+    HPy /* (PyArray_Descr *) */ out_descr = HPyArray_DESCR(ctx, ret, ret_data);
+    ((PyArrayObject_fields *)ret_data)->nd = ndim;
+    _hpy_set_descr(ctx, ret, (PyArrayObject *)ret_data, dtype);
 
-    int success = PyArray_AssignFromCache(ret, cache);
+    int success = HPyArray_AssignFromCache(ctx, ret, cache);
 
-    ((PyArrayObject_fields *)ret)->nd = out_ndim;
-    _set_descr(ret, out_descr);
-    Py_DECREF(dtype);
+    ((PyArrayObject_fields *)ret_data)->nd = out_ndim;
+    _hpy_set_descr(ctx, ret, (PyArrayObject *)ret_data, out_descr);
+    HPy_Close(ctx, dtype);
     if (success < 0) {
-        Py_DECREF(ret);
-        return NULL;
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
     }
-    return (PyObject *)ret;
-}
-
-NPY_NO_EXPORT HPy
-HPyArray_FromAny(HPyContext *ctx, HPy h_op, HPy h_newtype, int min_depth,
-                int max_depth, int flags, HPy h_context)
-{
-    CAPI_WARN("HPyArray_FromAny: call to PyArray_FromAny");
-    PyObject *op = HPy_AsPyObject(ctx, h_op);
-    PyArray_Descr *newtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_newtype);
-    PyObject *context = HPy_AsPyObject(ctx, h_context);
-    PyObject *res = PyArray_FromAny(op, newtype, min_depth, max_depth, flags, context);
-    HPy h_res = HPy_FromPyObject(ctx, res);
-    Py_DECREF(res);
-    Py_XDECREF(context);
-    Py_DECREF(op);
-    return h_res;
+    return ret;
 }
 
 /*
@@ -2243,6 +2329,9 @@ PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
 #include "descriptor.h"
 #include "arrayobject.h"
 
+/*
+ * Same as PyArray_CheckFromAny but *DOES NOT* steal reference to descr.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
                      int max_depth, int requires, HPy context)

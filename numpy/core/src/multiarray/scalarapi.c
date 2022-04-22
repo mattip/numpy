@@ -632,63 +632,85 @@ PyArray_FieldNames(PyObject *fields)
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrFromScalar(PyObject *sc)
 {
-    int type_num;
-    PyArray_Descr *descr;
+    HPyContext *ctx = npy_get_context();
+    HPy h_sc = HPy_FromPyObject(ctx, sc);
+    HPy h_res = HPyArray_DescrFromScalar(ctx, h_sc);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_sc);
+    return res;
+}
 
-    if (PyArray_IsScalar(sc, Void)) {
-        descr = ((PyVoidScalarObject *)sc)->descr;
-        Py_INCREF(descr);
+NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
+HPyArray_DescrFromScalar(HPyContext *ctx, HPy sc)
+{
+    int type_num;
+    HPy descr; /* (PyArray_Descr *) */
+
+    if (HPyArray_IsScalar(ctx, sc, Void)) {
+        CAPI_WARN("HPyArray_DescrFromScalar: access to legacy PyObject* field");
+        descr = HPy_FromPyObject(ctx, (PyObject*)(PyVoidScalarObject_AsStruct(ctx, sc)->descr));
+        // return HPy_Dup(ctx, descr);
         return descr;
     }
 
-    if (PyArray_IsScalar(sc, Datetime) || PyArray_IsScalar(sc, Timedelta)) {
+    if (HPyArray_IsScalar(ctx, sc, Datetime) || HPyArray_IsScalar(ctx, sc, Timedelta)) {
         PyArray_DatetimeMetaData *dt_data;
 
-        if (PyArray_IsScalar(sc, Datetime)) {
-            descr = PyArray_DescrNewFromType(NPY_DATETIME);
+        if (HPyArray_IsScalar(ctx, sc, Datetime)) {
+            descr = HPyArray_DescrNewFromType(ctx, NPY_DATETIME);
         }
         else {
             /* Timedelta */
-            descr = PyArray_DescrNewFromType(NPY_TIMEDELTA);
+            descr = HPyArray_DescrNewFromType(ctx, NPY_TIMEDELTA);
         }
-        if (descr == NULL) {
-            return NULL;
+        if (HPy_IsNull(descr)) {
+            return HPy_NULL;
         }
-        dt_data = &(((PyArray_DatetimeDTypeMetaData *)descr->c_metadata)->meta);
-        memcpy(dt_data, &((PyDatetimeScalarObject *)sc)->obmeta,
+        PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+        dt_data = &(((PyArray_DatetimeDTypeMetaData *)descr_data->c_metadata)->meta);
+        memcpy(dt_data, &(PyDatetimeScalarObject_AsStruct(ctx, sc)->obmeta),
                sizeof(PyArray_DatetimeMetaData));
 
         return descr;
     }
 
-    descr = PyArray_DescrFromTypeObject((PyObject *)Py_TYPE(sc));
-    if (descr == NULL) {
-        return NULL;
+    HPy sc_type = HPy_Type(ctx, sc);
+    descr = HPyArray_DescrFromTypeObject(ctx, sc_type);
+    HPy_Close(ctx, sc_type);
+    if (HPy_IsNull(descr)) {
+        return HPy_NULL;
     }
-    if (PyDataType_ISUNSIZED(descr)) {
-        PyArray_DESCR_REPLACE(descr);
-        if (descr == NULL) {
-            return NULL;
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    if (PyDataType_ISUNSIZED(descr_data)) {
+        HPyArray_DESCR_REPLACE(ctx, descr);
+        if (HPy_IsNull(descr)) {
+            return HPy_NULL;
         }
-        type_num = descr->type_num;
+        type_num = descr_data->type_num;
         if (type_num == NPY_STRING) {
-            descr->elsize = PyBytes_GET_SIZE(sc);
+            // TODO HPY LABS PORT: was 'PyBytes_GET_SIZE'
+            descr_data->elsize = HPy_Length(ctx, sc);
         }
         else if (type_num == NPY_UNICODE) {
-            descr->elsize = PyUnicode_GET_LENGTH(sc) * 4;
+            // TODO HPY LABS PORT: was 'PyUnicode_GET_LENGTH'
+            descr_data->elsize = HPy_Length(ctx, sc) * 4;
         }
         else {
-            PyArray_Descr *dtype;
-            dtype = (PyArray_Descr *)PyObject_GetAttrString(sc, "dtype");
-            if (dtype != NULL) {
-                descr->elsize = dtype->elsize;
-                descr->fields = dtype->fields;
-                Py_XINCREF(dtype->fields);
-                descr->names = dtype->names;
-                Py_XINCREF(dtype->names);
-                Py_DECREF(dtype);
+            HPy dtype; /* (PyArray_Descr *) */
+            dtype = HPy_GetAttr_s(ctx, sc, "dtype");
+            if (!HPy_IsNull(dtype)) {
+                PyArray_Descr *dtype_data = PyArray_Descr_AsStruct(ctx, dtype);
+                descr_data->elsize = dtype_data->elsize;
+                // TODO HPY LABS PORT: access to legacy PyObject* field
+                CAPI_WARN("HPyArray_DescrFromScalar: access to legacy PyObject* field");
+                descr_data->fields = dtype_data->fields;
+                Py_XINCREF(dtype_data->fields);
+                descr_data->names = dtype_data->names;
+                Py_XINCREF(dtype_data->names);
+                HPy_Close(ctx, dtype);
             }
-            PyErr_Clear();
+            HPyErr_Clear(ctx);
         }
     }
     return descr;

@@ -113,6 +113,7 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
     Py_RETURN_NONE;
 }
 
+NPY_NO_EXPORT int _capi_warn_level = -1;
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
 NPY_NO_EXPORT HPyGlobal HPyArray_Type;
@@ -1779,7 +1780,7 @@ _hpy_array_fromobject_generic(
         goto fail;
     }
     /* fast exit if simple call */
-    // HPY TODO (API): original code uses "check exact"
+    // TODO HPY LABS PORT: original code uses "check exact"
     // HPy version has to use two calls HPy_Type and HPy_Is
     // It would be faster to check subok first and then exact or subclass check
     array_type = HPyGlobal_Load(ctx, HPyArray_Type);
@@ -1805,7 +1806,7 @@ _hpy_array_fromobject_generic(
         oldtype = HPyArray_DESCR(ctx, op, oparr);
         oldtype_data = PyArray_Descr_AsStruct(ctx, oldtype);
         HPy_Close(ctx, oldtype); // HPY TODO: assumes that oldtype stays alive -> fix when porting this code
-        capi_warn("np.array: PyArray_EquivTypes");
+        CAPI_WARN("np.array: PyArray_EquivTypes");
         if (PyArray_EquivTypes(oldtype_data, type_data)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);
@@ -1817,7 +1818,7 @@ _hpy_array_fromobject_generic(
                             "Unable to avoid copy while creating a new array.");
                     goto fail;
                 }
-                capi_warn("np.array: PyArray_NewCopy");
+                CAPI_WARN("np.array: PyArray_NewCopy");
                 PyObject *py_ret = (PyObject *) PyArray_NewCopy(oparr, order);
                 ret = HPy_FromPyObject(ctx, py_ret);
                 Py_XDECREF(py_ret);
@@ -1850,8 +1851,11 @@ _hpy_array_fromobject_generic(
     }
 
     flags |= NPY_ARRAY_FORCECAST;
-    // HPY NOTE: this used to do Py_XINCREF(type), but
-    // HPyArray_CheckFromAny should not need that, hopefully...
+    /*
+     * We don't need to dup 'type' here because in contrast to
+     * PyArray_CheckFromAny, function HPyArray_CheckFromAny is not stealing the
+     * reference.
+     */
     ret = HPyArray_CheckFromAny(ctx, op, type,
         0, 0, flags, HPy_NULL);
 
