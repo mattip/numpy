@@ -4031,10 +4031,10 @@ void_to_void_get_loop(
  * sense, are special (similar to Object).
  */
 static int
-PyArray_InitializeVoidToVoidCast(void)
+PyArray_InitializeVoidToVoidCast(HPyContext *ctx)
 {
-    PyArray_DTypeMeta *Void = PyArray_DTypeFromTypeNum(NPY_VOID);
-    PyArray_DTypeMeta *dtypes[2] = {Void, Void};
+    HPy Void = HPyArray_DTypeFromTypeNum(ctx, NPY_VOID);
+    HPy dtypes[2] = {Void, Void};
     PyType_Slot slots[] = {
             {NPY_METH_get_loop, &void_to_void_get_loop},
             {NPY_METH_resolve_descriptors, &void_to_void_resolve_descriptors},
@@ -4049,8 +4049,8 @@ PyArray_InitializeVoidToVoidCast(void)
             .slots = slots,
     };
 
-    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
-    Py_DECREF(Void);
+    int res = HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
+    HPy_Close(ctx, Void);
     return res;
 }
 
@@ -4249,10 +4249,10 @@ PyArray_InitializeCasts(HPyContext *ctx)
     if (PyArray_InitializeStringCasts(ctx) < 0) {
         return -1;
     }
-    CAPI_WARN("startup: PyArray_InitializeCasts");
-    if (PyArray_InitializeVoidToVoidCast() < 0) {
+    if (PyArray_InitializeVoidToVoidCast(ctx) < 0) {
         return -1;
     }
+    CAPI_WARN("startup: PyArray_InitializeCasts");
     if (PyArray_InitializeObjectToObjectCast() < 0) {
         return -1;
     }
