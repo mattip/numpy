@@ -4779,6 +4779,8 @@ setup_scalartypes(HPyContext *ctx)
         goto cleanup;                                                   \
     }                                                                   \
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
+        h_Py##child##ArrType_Type);                                     \
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
@@ -4826,6 +4828,8 @@ setup_scalartypes(HPyContext *ctx)
         goto cleanup;                                                   \
     }                                                                   \
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
+        h_Py##child##ArrType_Type);                                     \
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
@@ -4856,6 +4860,8 @@ setup_scalartypes(HPyContext *ctx)
         goto cleanup;                                                   \
     }                                                                   \
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
+        h_Py##child##ArrType_Type);                                     \
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
@@ -4999,6 +5005,71 @@ static HPyGlobal *module_globals[] = {
     &HPyArrayMethod_Type,
     &HPyBoundArrayMethod_Type,
     &HPyGenericArrType_Type,
+
+    // scalartypes:
+    &HPyGenericArrType_Type,
+    &HPyGenericArrType_Type,
+    &HPyBoolArrType_Type,
+    &HPyNumberArrType_Type,
+    &HPyIntegerArrType_Type,
+    &HPySignedIntegerArrType_Type,
+    &HPyUnsignedIntegerArrType_Type,
+    &HPyInexactArrType_Type,
+    &HPyFloatingArrType_Type,
+    &HPyComplexFloatingArrType_Type,
+    &HPyFlexibleArrType_Type,
+    &HPyCharacterArrType_Type,
+    &HPyByteArrType_Type,
+    &HPyShortArrType_Type,
+    &HPyIntArrType_Type,
+    &HPyLongArrType_Type,
+    &HPyLongLongArrType_Type,
+    &HPyUByteArrType_Type,
+    &HPyUShortArrType_Type,
+    &HPyUIntArrType_Type,
+    &HPyULongArrType_Type,
+    &HPyULongLongArrType_Type,
+    &HPyFloatArrType_Type,
+    &HPyDoubleArrType_Type,
+    &HPyLongDoubleArrType_Type,
+    &HPyCFloatArrType_Type,
+    &HPyCDoubleArrType_Type,
+    &HPyCLongDoubleArrType_Type,
+    &HPyObjectArrType_Type,
+    &HPyStringArrType_Type,
+    &HPyUnicodeArrType_Type,
+    &HPyVoidArrType_Type,
+    &HPyDatetimeArrType_Type,
+    &HPyTimedeltaArrType_Type,
+    &HPyHalfArrType_Type,
+
+    // arraytypes
+    &_hpy_builtin_descrs[NPY_VOID],
+    &_hpy_builtin_descrs[NPY_STRING],
+    &_hpy_builtin_descrs[NPY_UNICODE],
+    &_hpy_builtin_descrs[NPY_BOOL],
+    &_hpy_builtin_descrs[NPY_BYTE],
+    &_hpy_builtin_descrs[NPY_UBYTE],
+    &_hpy_builtin_descrs[NPY_SHORT],
+    &_hpy_builtin_descrs[NPY_USHORT],
+    &_hpy_builtin_descrs[NPY_INT],
+    &_hpy_builtin_descrs[NPY_UINT],
+    &_hpy_builtin_descrs[NPY_LONG],
+    &_hpy_builtin_descrs[NPY_ULONG],
+    &_hpy_builtin_descrs[NPY_LONGLONG],
+    &_hpy_builtin_descrs[NPY_ULONGLONG],
+    &_hpy_builtin_descrs[NPY_HALF],
+    &_hpy_builtin_descrs[NPY_FLOAT],
+    &_hpy_builtin_descrs[NPY_DOUBLE],
+    &_hpy_builtin_descrs[NPY_LONGDOUBLE],
+    &_hpy_builtin_descrs[NPY_CFLOAT],
+    &_hpy_builtin_descrs[NPY_CDOUBLE],
+    &_hpy_builtin_descrs[NPY_CLONGDOUBLE],
+    &_hpy_builtin_descrs[NPY_OBJECT],
+    &_hpy_builtin_descrs[NPY_DATETIME],
+    &_hpy_builtin_descrs[NPY_TIMEDELTA],
+
+    // hpy_n_ops struct/cache:
     &hpy_n_ops.add,
     &hpy_n_ops.subtract,
     &hpy_n_ops.multiply,
@@ -5176,9 +5247,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (setup_scalartypes(ctx) < 0) {
         goto err;
     }
-    // HPY: static descr objects, e.g., BOOL_Descr, have typeobj set to numpy scalar types
-    // Numpy scalar types are now heap allocated, so we must set them after their initialization
-    init_static_descrs_type_objs(ctx);
+
+    init_arraytypes_hpy_global_state(ctx);
     // HPY: TODO comment on this
     init_scalartypes_basetypes(ctx);
 
@@ -5366,7 +5436,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
-    if (PyArray_InitializeCasts() < 0) {
+    if (PyArray_InitializeCasts(ctx) < 0) {
         goto err;
     }
 
@@ -5402,8 +5472,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy_Close(ctx, h_current_handler);
 #endif
 
-    // HPY TODO: this is a temporary solution to mimic the static types and global state:
-    init_hpy_global_state(ctx);
     result = h_mod;
 
  cleanup:

@@ -28,12 +28,14 @@ small_correlate(const char * d_, npy_intp dstride,
                 npy_intp nk, enum NPY_TYPES ktype,
                 char * out_, npy_intp ostride);
 
-void init_hpy_global_state(HPyContext *ctx);
+void init_arraytypes_hpy_global_state(HPyContext *ctx);
 
 NPY_NO_EXPORT HPy
 HPyArray_DescrFromType(HPyContext *ctx, int type);
 
 NPY_NO_EXPORT void
 init_static_descrs_type_objs(HPyContext *ctx);
+
+extern HPyGlobal _hpy_builtin_descrs[NPY_NTYPES];
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYTYPES_H_ */

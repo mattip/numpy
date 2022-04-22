@@ -2848,11 +2848,10 @@ complex_to_noncomplex_get_loop(
 
 
 static int
-add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
+add_numeric_cast(HPyContext *ctx, HPy h_from, HPy h_to)
 {
-    HPyContext *ctx = npy_get_context();
-    HPy h_from = HPy_FromPyObject(ctx, (PyObject *)from);
-    HPy h_to = HPy_FromPyObject(ctx, (PyObject *)to);
+    PyArray_DTypeMeta *from = PyArray_DTypeMeta_AsStruct(ctx, h_from);
+    PyArray_DTypeMeta *to = PyArray_DTypeMeta_AsStruct(ctx, h_to);
 
     PyType_Slot slots[7];
     HPy dtypes[2] = {h_from, h_to}; /* PyArray_DTypeMeta *dtypes[2] */
@@ -2865,11 +2864,14 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
             .dtypes = dtypes,
     };
 
-    HPy h_from_singleton = HPyField_Load(ctx, h_from, PyArray_DTypeMeta_AsStruct(ctx, h_from)->singleton);
-    HPy h_to_singleton = HPyField_Load(ctx, h_to, PyArray_DTypeMeta_AsStruct(ctx, h_to)->singleton);
+    HPy h_from_singleton = HPyField_Load(ctx, h_from, from->singleton);
+    HPy h_to_singleton = HPyField_Load(ctx, h_to, to->singleton);
 
-    npy_intp from_itemsize = PyArray_Descr_AsStruct(ctx, h_from_singleton)->elsize;
-    npy_intp to_itemsize = PyArray_Descr_AsStruct(ctx, h_to_singleton)->elsize;
+    PyArray_Descr *h_from_singleton_data = PyArray_Descr_AsStruct(ctx, h_from_singleton);
+    PyArray_Descr *h_to_singleton_data = PyArray_Descr_AsStruct(ctx, h_to_singleton);
+
+    npy_intp from_itemsize = h_from_singleton_data->elsize;
+    npy_intp to_itemsize = h_to_singleton_data->elsize;
 
     slots[0].slot = NPY_METH_resolve_descriptors;
     slots[0].pfunc = &simple_cast_resolve_descriptors;
@@ -2907,9 +2909,6 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
 
     assert(slots[1].pfunc && slots[2].pfunc && slots[3].pfunc && slots[4].pfunc);
 
-    PyArray_Descr *h_from_singleton_data = PyArray_Descr_AsStruct(ctx, h_from_singleton);
-    PyArray_Descr *h_to_singleton_data = PyArray_Descr_AsStruct(ctx, h_to_singleton);
-
     /* Find the correct casting level, and special case no-cast */
     if (h_from_singleton_data->kind == h_to_singleton_data->kind
             && from_itemsize == to_itemsize) {
@@ -2943,10 +2942,6 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
     /* Create a bound method, unbind and store it */
     int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
 
-    /* 'h_to', 'h_from' are used in the spec */
-    HPy_Close(ctx, h_to);
-    HPy_Close(ctx, h_from);
-
     return res;
 }
 
@@ -2957,26 +2952,27 @@ add_numeric_cast(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
  * file to remove `PyArray_GetStridedNumericCastFn` entirely.
  */
 static int
-PyArray_InitializeNumericCasts(void)
+PyArray_InitializeNumericCasts(HPyContext *ctx)
 {
     for (int from = 0; from < NPY_NTYPES; from++) {
         if (!PyTypeNum_ISNUMBER(from) && from != NPY_BOOL) {
             continue;
         }
-        PyArray_DTypeMeta *from_dt = PyArray_DTypeFromTypeNum(from);
+        HPy from_dt = HPyArray_DTypeFromTypeNum(ctx, from);
 
         for (int to = 0; to < NPY_NTYPES; to++) {
             if (!PyTypeNum_ISNUMBER(to) && to != NPY_BOOL) {
                 continue;
             }
-            PyArray_DTypeMeta *to_dt = PyArray_DTypeFromTypeNum(to);
-            int res = add_numeric_cast(from_dt, to_dt);
-            Py_DECREF(to_dt);
+            HPy to_dt = HPyArray_DTypeFromTypeNum(ctx, to);
+            int res = add_numeric_cast(ctx, from_dt, to_dt);
+            HPy_Close(ctx, to_dt);
             if (res < 0) {
-                Py_DECREF(from_dt);
+                HPy_Close(ctx, from_dt);
                 return -1;
             }
         }
+        HPy_Close(ctx, from_dt);
     }
     return 0;
 }
@@ -4169,12 +4165,12 @@ PyArray_InitializeObjectToObjectCast(void)
 
 
 NPY_NO_EXPORT int
-PyArray_InitializeCasts()
+PyArray_InitializeCasts(HPyContext *ctx)
 {
-    CAPI_WARN("startup: PyArray_InitializeCasts");
-    if (PyArray_InitializeNumericCasts() < 0) {
+    if (PyArray_InitializeNumericCasts(ctx) < 0) {
         return -1;
     }
+    CAPI_WARN("startup: PyArray_InitializeCasts");
     if (PyArray_InitializeStringCasts() < 0) {
         return -1;
     }

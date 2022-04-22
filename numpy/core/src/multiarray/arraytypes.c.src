@@ -44,6 +44,9 @@
 #include "npy_buffer.h"
 
 
+#include "scalartypes.h"
+
+
 /* check for sequences, but ignore the types numpy considers scalars */
 static NPY_INLINE npy_bool
 PySequence_NoString_Check(PyObject *op) {
@@ -4184,42 +4187,30 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
     (PyArray_ArgFunc*)@from@_argmin
 };
 
-/*
- * FIXME: check for PY3K
- */
-static PyArray_Descr @from@_Descr = {
-    PyObject_HEAD_INIT((PyTypeObject* ) (&PyArrayDescr_TypeFull))
-    /* typeobj */
-    NULL,
-    /* kind */
-    NPY_@from@LTR,
-    /* type */
-    NPY_@from@LTR,
-    /* byteorder */
-    '@endian@',
-    /* flags, unicode needs init as py3.3 does not like printing garbage  */
-    @flags@,
-    /* type_num */
-    NPY_@from@,
-    /* elsize */
-    0,
-    /* alignment */
-    _ALIGN(@align@),
-    /* subarray */
-    NULL,
-    /* fields */
-    NULL,
-    /* names */
-    NULL,
-    /* f */
-    &_Py@NAME@_ArrFuncs,
-    /* metadata */
-    NULL,
-    /* c_metadata */
-    NULL,
-    /* hash */
-    -1,
-};
+static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type) {
+    PyArray_Descr *data;
+    HPy obj = HPy_New(ctx, desc_type, &data);
+
+    data->typeobj = NULL;
+    data->kind = NPY_@from@LTR;
+    data->type = NPY_@from@LTR;
+    data->byteorder = '@endian@';
+    data->flags = @flags@;
+    data->type_num = NPY_@from@;
+    data->elsize = 0;
+    data->alignment = _ALIGN(@align@);
+    data->subarray = NULL;
+    data->fields = NULL;
+    data->names = NULL;
+    data->f = &_Py@NAME@_ArrFuncs;
+    data->metadata = NULL;
+    data->c_metadata = NULL;
+    data->hash = -1;
+    data->typeobj = (PyTypeObject*) HPy_AsPyObject(ctx, HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type));
+
+    HPyGlobal_Store(ctx, global, obj);
+    HPy_Close(ctx, obj);
+}
 
 /**end repeat**/
 
@@ -4334,110 +4325,43 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
     (PyArray_ArgFunc*)@from@_argmin
 };
 
-/*
- * FIXME: check for PY3K
- */
-NPY_NO_EXPORT PyArray_Descr @from@_Descr = {
-    PyObject_HEAD_INIT((PyTypeObject* ) (&PyArrayDescr_TypeFull))
-    /* typeobj */
-    NULL,
-    /* kind */
-    NPY_@kind@LTR,
-    /* type */
-    NPY_@from@LTR,
-    /* byteorder */
-    '@endian@',
-    /* flags */
-    @isobject@,
-    /* type_num */
-    NPY_@from@,
-    /* elsize */
-    sizeof(@fromtype@),
-    /* alignment */
-    _ALIGN(@fromtype@),
-    /* subarray */
-    NULL,
-    /* fields */
-    NULL,
-    /* names */
-    NULL,
-    /* f */
-    &_Py@NAME@_ArrFuncs,
-    /* metadata */
-    NULL,
-    /* c_metadata */
-    NULL,
-    /* hash */
-    -1,
-};
+static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type) {
+    PyArray_Descr *data;
+    HPy obj = HPy_New(ctx, desc_type, &data);
+
+    data->typeobj = NULL;
+    data->kind = NPY_@kind@LTR;
+    data->type = NPY_@from@LTR;
+    data->byteorder = '@endian@';
+    data->flags = @isobject@;
+    data->type_num = NPY_@from@;
+    data->elsize = sizeof(@fromtype@);
+    data->alignment = _ALIGN(@fromtype@);
+    data->subarray = NULL;
+    data->fields = NULL;
+    data->names = NULL;
+    data->f = &_Py@NAME@_ArrFuncs;
+    data->metadata = NULL;
+    data->c_metadata = NULL;
+    data->hash = -1;
+    data->typeobj = (PyTypeObject*) HPy_AsPyObject(ctx, HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type));
+
+    HPyGlobal_Store(ctx, global, obj);
+    HPy_Close(ctx, obj);
+}
 
 /**end repeat**/
 
 #define _MAX_LETTER 128
 static char _letter_to_num[_MAX_LETTER];
 
-static PyArray_Descr *_builtin_descrs[] = {
-    &BOOL_Descr,
-    &BYTE_Descr,
-    &UBYTE_Descr,
-    &SHORT_Descr,
-    &USHORT_Descr,
-    &INT_Descr,
-    &UINT_Descr,
-    &LONG_Descr,
-    &ULONG_Descr,
-    &LONGLONG_Descr,
-    &ULONGLONG_Descr,
-    &FLOAT_Descr,
-    &DOUBLE_Descr,
-    &LONGDOUBLE_Descr,
-    &CFLOAT_Descr,
-    &CDOUBLE_Descr,
-    &CLONGDOUBLE_Descr,
-    &OBJECT_Descr,
-    &STRING_Descr,
-    &UNICODE_Descr,
-    &VOID_Descr,
-    &DATETIME_Descr,
-    &TIMEDELTA_Descr,
-    &HALF_Descr
-};
-
-
-// HPY TODO: HACK, HACK, HACK: storing handles into globals
+// HPY HACK: storing handles into globals, those handles are
+// returned as borrowed references and so switching them to
+// HPyGlobals would require updates to all the callers.
 // This array is filled in the module init
-static HPy _hpy_builtin_descrs[] = {
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-    HPy_NULL,
-};
+HPyGlobal _hpy_builtin_descrs[NPY_NTYPES];
 
-// HPY TODO: temporary hack, dtype (BOOL_Descr, etc.) are
-// still statically allocated PyObjects, but cannot have dynamically
-// allocated type in their static initializers...
 NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
-    CAPI_WARN("X_Descr.typeobj = _PyXArrType_p");
     /**begin repeat
      *
      * #from = VOID, STRING, UNICODE, BOOL,
@@ -4453,21 +4377,39 @@ NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
      *         CFloat, CDouble, CLongDouble,
      *         Object, Datetime, Timedelta#
      */
-    @from@_Descr.typeobj = _Py@NAME@ArrType_Type_p;
+    CAPI_WARN("PyObject field in @from@_Descr");
+    // PyArray_Descr_AsStruct(ctx, @from@_Descr)->typeobj = HPy@NAME@ArrType_Type;
     /**end repeat**/
 }
 
-// HPY TODO: temporary hack, should be heap types in module state
-void init_hpy_global_state(HPyContext *ctx) {
-    for (size_t i = 0; i < NPY_NTYPES; ++i) {
-        _hpy_builtin_descrs[i] = HPy_FromPyObject(ctx, (PyObject *) _builtin_descrs[i]);
-    }
+void init_arraytypes_hpy_global_state(HPyContext *ctx) {
+    HPy h_descr = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    /**begin repeat
+     *
+     * #from = VOID, STRING, UNICODE, BOOL,
+     *         BYTE, UBYTE, SHORT, USHORT, INT, UINT,
+     *         LONG, ULONG, LONGLONG, ULONGLONG,
+     *         HALF, FLOAT, DOUBLE, LONGDOUBLE,
+     *         CFLOAT, CDOUBLE, CLONGDOUBLE,
+     *         OBJECT, DATETIME, TIMEDELTA#
+     * #NAME = Void, String, Unicode, Bool,
+     *         Byte, UByte, Short, UShort, Int, UInt,
+     *         Long, ULong, LongLong, ULongLong,
+     *         Half, Float, Double, LongDouble,
+     *         CFloat, CDouble, CLongDouble,
+     *         Object, Datetime, Timedelta#
+     */
+    init_@from@_Descr(ctx, &_hpy_builtin_descrs[NPY_@from@], h_descr);
+    /**end repeat**/
+    HPy_Close(ctx, h_descr);
 }
 
 /*
  * Get the PyArray_Descr structure for a type.
  */
 // HPY TODO: make it a NUMPY_API
+// HPY NOTE: at least for builtin types this seems to return borrowed reference,
+// so we try to do the same to avoid large code rewrite
 NPY_NO_EXPORT HPy
 HPyArray_DescrFromType(HPyContext *ctx, int type)
 {
@@ -4484,7 +4426,7 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
         ret = HPy_NULL;
     }
     else if (type < NPY_NTYPES) {
-        ret = _hpy_builtin_descrs[type];
+        ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[type]);
     }
     else if (type == NPY_NOTYPE) {
         /*
@@ -4510,6 +4452,7 @@ NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrFromType(int type)
 {
     PyArray_Descr *ret = NULL;
+    HPyContext *ctx = npy_get_context();
 
     if (type < 0) {
         /*
@@ -4522,7 +4465,7 @@ PyArray_DescrFromType(int type)
         ret = NULL;
     }
     else if (type < NPY_NTYPES) {
-        ret = _builtin_descrs[type];
+        ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[type]));
     }
     else if (type == NPY_NOTYPE) {
         /*
@@ -4544,7 +4487,7 @@ PyArray_DescrFromType(int type)
                 return NULL;
             }
         }
-        ret = PyArray_DescrNew(_builtin_descrs[NPY_STRING]);
+        ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_STRING]));
         if (ret == NULL) {
             return NULL;
         }
@@ -4564,7 +4507,7 @@ PyArray_DescrFromType(int type)
             ret = NULL;
         }
         else {
-            ret = _builtin_descrs[num];
+            ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[num]));
         }
     }
     if (ret == NULL) {
@@ -4597,6 +4540,8 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
 
     PyArray_Descr *dtype;
     PyObject *cobj, *key;
+    PyObject *py;
+    HPy h_descr;
 
     /*
      * Override the base class for all types, eventually all of this logic
@@ -4604,9 +4549,13 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      * (NPY_HALF is the largest builtin one.)
      */
     for (i = 0; i <= NPY_HALF; i++) {
-        if (dtypemeta_wrap_legacy_descriptor(ctx, _builtin_descrs[i]) < 0) {
+        h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[i]);
+        PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
+        if (dtypemeta_wrap_legacy_descriptor(ctx, descr) < 0) {
+            HPy_Close(ctx, h_descr);
             return -1;
         }
+        HPy_Close(ctx, h_descr);
     }
 
     /*
@@ -4628,28 +4577,33 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      *
      * #name2 = HALF, DATETIME, TIMEDELTA#
      */
-
-    dtype = _builtin_descrs[NPY_@name1@];
+    h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@name1@]);
+    dtype = PyArray_Descr_AsStruct(ctx, h_descr);
     if (dtype->f->castdict == NULL) {
         dtype->f->castdict = PyDict_New();
         if (dtype->f->castdict == NULL) {
+            HPy_Close(ctx, h_descr);
             return -1;
         }
     }
     key = PyLong_FromLong(NPY_@name2@);
     if (key == NULL) {
+        HPy_Close(ctx, h_descr);
         return -1;
     }
     cobj = NpyCapsule_FromVoidPtr((void *)@name1@_to_@name2@, NULL);
     if (cobj == NULL) {
         Py_DECREF(key);
+        HPy_Close(ctx, h_descr);
         return -1;
     }
     if (PyDict_SetItem(dtype->f->castdict, key, cobj) < 0) {
         Py_DECREF(key);
         Py_DECREF(cobj);
+        HPy_Close(ctx, h_descr);
         return -1;
     }
+    HPy_Close(ctx, h_descr);
     Py_DECREF(key);
     Py_DECREF(cobj);
 
@@ -4657,16 +4611,25 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
 
     /**end repeat**/
 
-    _builtin_descrs[NPY_DATETIME]->c_metadata = _create_datetime_metadata(
+    h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_DATETIME]);
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    descr->c_metadata = _create_datetime_metadata(
                 NPY_DATETIME_DEFAULTUNIT, 1);
-    if (_builtin_descrs[NPY_DATETIME]->c_metadata == NULL) {
+    if (descr->c_metadata == NULL) {
+        HPy_Close(ctx, h_descr);
         return -1;
     }
-    _builtin_descrs[NPY_TIMEDELTA]->c_metadata = _create_datetime_metadata(
+    HPy_Close(ctx, h_descr);
+
+    h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_TIMEDELTA]);
+    descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    descr->c_metadata = _create_datetime_metadata(
                 NPY_DATETIME_DEFAULTUNIT, 1);
-    if (_builtin_descrs[NPY_DATETIME]->c_metadata == NULL) {
+    if (descr->c_metadata == NULL) {
+        HPy_Close(ctx, h_descr);
         return -1;
     }
+    HPy_Close(ctx, h_descr);
 
     for (i = 0; i < _MAX_LETTER; i++) {
         _letter_to_num[i] = NPY_NTYPES;
@@ -4700,7 +4663,9 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
       *         DATETIME, TIMEDELTA#
       */
 
-    @name@_Descr.fields = Py_None;
+    h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@name@]);
+    PyArray_Descr_AsStruct(ctx, h_descr)->fields = Py_None;
+    HPy_Close(ctx, h_descr);
 
     /**end repeat**/
 
@@ -4709,7 +4674,10 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
       * #name = STRING, UNICODE, VOID#
       */
 
-    PyDataType_MAKEUNSIZED(&@name@_Descr);
+    h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@name@]);
+    descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    PyDataType_MAKEUNSIZED(descr);
+    HPy_Close(ctx, h_descr);
 
     /**end repeat**/
 
