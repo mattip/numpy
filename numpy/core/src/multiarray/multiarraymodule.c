@@ -113,6 +113,7 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
     Py_RETURN_NONE;
 }
 
+NPY_NO_EXPORT int _capi_warn_level = -1;
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
 NPY_NO_EXPORT HPyGlobal HPyArray_Type;

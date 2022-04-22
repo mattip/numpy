@@ -16,12 +16,30 @@ extern "C" {
 #include <execinfo.h>
 #include <stdio.h>
 
+extern NPY_NO_EXPORT int _capi_warn_level;
 extern NPY_NO_EXPORT HPyContext *numpy_global_ctx;
-static NPY_INLINE HPyContext *
-npy_get_context(void)
+
+static int
+capi_warn_level_init()
 {
-    assert(numpy_global_ctx != NULL);
-    return numpy_global_ctx;
+    if (_capi_warn_level == -1) {
+        const char *capi_warn = getenv("CAPI_WARN");
+        if (capi_warn) {
+            _capi_warn_level = atoi(capi_warn);
+        } else {
+            _capi_warn_level = 1;
+        }
+    }
+    assert(_capi_warn_level >= 0);
+    return _capi_warn_level;
+}
+
+static NPY_INLINE int
+capi_warn_level()
+{
+    if (_capi_warn_level >= 0)
+        return _capi_warn_level;
+    return capi_warn_level_init();
 }
 
 static NPY_INLINE
@@ -40,23 +58,39 @@ void _print_stack() {
     printf("----\n\n");
 }
 
+static NPY_INLINE HPyContext *
+npy_get_context(void)
+{
+    if (capi_warn_level() > 1) {
+        printf("DEBUG WARNING: HPy context lookup (set CAPI_WARN_STACKTRACE=<limit> to show stack trace)\n");
+        _print_stack();
+    }
+    assert(numpy_global_ctx != NULL);
+    return numpy_global_ctx;
+}
+
 static NPY_INLINE
 void capi_warn(const char *where) {
-    printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
-    _print_stack();
+    if (capi_warn_level() > 0) {
+        printf("DEBUG WARNING: leaving to CPython API in %s\n", where);
+        _print_stack();
+    }
 }
 
 static NPY_INLINE
 void capi_warn0(const char *caller_name, const char *file, int lineno) {
-    printf("DEBUG WARNING: (%s:%d) leaving to CPython API in %s\n", file, lineno, caller_name);
-    _print_stack();
+    if (capi_warn_level() > 0) {
+        printf("DEBUG WARNING: (%s:%d) leaving to CPython API in %s\n", file, lineno, caller_name);
+        _print_stack();
+    }
 }
 
 #define CAPI_WARN(_x) capi_warn0(_x, __FILE__, __LINE__)
+
 static __attribute__ ((noreturn)) NPY_INLINE
 void hpy_abort_not_implemented(const char *where) {
-        printf("FATAL ERROR: not implemented in HPY: %s\n", where);
-        abort();
+    printf("FATAL ERROR: not implemented in HPY: %s\n", where);
+    abort();
 }
 
 #ifdef __cplusplus
