@@ -180,7 +180,7 @@ wrap_aligned_transferfunction(
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         PyArray_Descr *src_wrapped_dtype, PyArray_Descr *dst_wrapped_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata, int *out_needs_api);
 
 NPY_NO_EXPORT int
@@ -196,26 +196,26 @@ hwrap_aligned_transferfunction(
 NPY_NO_EXPORT int
 get_nbo_cast_datetime_transfer_function(int aligned,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
 get_nbo_datetime_to_string_transfer_function(
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
 get_nbo_string_to_datetime_transfer_function(
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
 get_datetime_to_unicode_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 
@@ -223,7 +223,7 @@ NPY_NO_EXPORT int
 get_unicode_to_datetime_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 

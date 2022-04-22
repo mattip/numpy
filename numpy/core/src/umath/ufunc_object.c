@@ -3692,7 +3692,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
 
     NpyIter *iter = NULL;
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
 
     /* The reduceat indices - ind must be validated outside this call */
@@ -6416,7 +6416,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     int errormask = 0;
     char * err_msg = NULL;
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
 
     NPY_BEGIN_THREADS_DEF;

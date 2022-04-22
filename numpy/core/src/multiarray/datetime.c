@@ -4013,7 +4013,7 @@ static int
 datetime_to_string_get_loop(
         PyArrayMethod_Context *context,
         int aligned, int NPY_UNUSED(move_references), npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate datetime_to_string_get_loop
@@ -4079,7 +4079,7 @@ static int
 string_to_datetime_cast_get_loop(
         PyArrayMethod_Context *context,
         int aligned, int NPY_UNUSED(move_references), npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate string_to_datetime_cast_get_loop

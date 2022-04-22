@@ -219,7 +219,7 @@ get_subarray_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         int move_references,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 

@@ -86,10 +86,6 @@ method_context_py2h(PyArrayMethod_Context *context) {
     return (HPyArrayMethod_Context *) context;
 }
 
-typedef int (PyArrayMethod_StridedLoop)(PyArrayMethod_Context *context,
-        char *const *data, const npy_intp *dimensions, const npy_intp *strides,
-        NpyAuxData *transferdata);
-
 typedef int (HPyArrayMethod_StridedLoop)(HPyContext *hctx,
         HPyArrayMethod_Context *context,
         char *const *data, const npy_intp *dimensions, const npy_intp *strides,

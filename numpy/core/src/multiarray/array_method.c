@@ -897,7 +897,7 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
  */
 typedef struct {
     NpyAuxData base;
-    PyArrayMethod_StridedLoop *unmasked_stridedloop;
+    HPyArrayMethod_StridedLoop *unmasked_stridedloop;
     NpyAuxData *unmasked_auxdata;
     int nargs;
     char *dataptrs[];

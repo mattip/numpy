@@ -299,7 +299,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
 
     result = NpyIter_GetOperandArray(iter)[0];
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
 
     int needs_api = (flags & NPY_METH_REQUIRES_PYAPI) != 0;

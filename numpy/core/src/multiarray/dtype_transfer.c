@@ -593,7 +593,7 @@ _strided_to_strided_wrap_copy_swap(
 static int
 wrap_copy_swap_function(
         PyArray_Descr *dtype, int should_swap,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata)
 {
     /* Allocate the data for the copy swap */
@@ -1043,7 +1043,7 @@ _strided_to_strided_string_to_datetime(
 NPY_NO_EXPORT int
 get_nbo_cast_datetime_transfer_function(int aligned,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata)
 {
     PyArray_DatetimeMetaData *src_meta, *dst_meta;
@@ -1118,7 +1118,7 @@ get_nbo_cast_datetime_transfer_function(int aligned,
 NPY_NO_EXPORT int
 get_nbo_datetime_to_string_transfer_function(
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
+        HPyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
 {
     PyArray_DatetimeMetaData *src_meta;
     _strided_datetime_cast_data *data;
@@ -1163,7 +1163,7 @@ NPY_NO_EXPORT int
 get_datetime_to_unicode_transfer_function(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -1204,7 +1204,7 @@ get_datetime_to_unicode_transfer_function(int aligned,
 NPY_NO_EXPORT int
 get_nbo_string_to_datetime_transfer_function(
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
+        HPyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
 {
     PyArray_DatetimeMetaData *dst_meta;
     _strided_datetime_cast_data *data;
@@ -1255,7 +1255,7 @@ NPY_NO_EXPORT int
 get_unicode_to_datetime_transfer_function(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -1297,7 +1297,7 @@ get_legacy_dtype_cast_function(
         int aligned, npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         int move_references,
-        PyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata,
         int *out_needs_api, int *out_needs_wrap)
 {
     _strided_cast_data *data;
@@ -1582,7 +1582,7 @@ get_one_to_n_transfer_function(int aligned,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
                             int move_references,
                             npy_intp N,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -1752,7 +1752,7 @@ get_n_to_n_transfer_function(int aligned,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
                             int move_references,
                             npy_intp N,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -2004,7 +2004,7 @@ get_subarray_broadcast_transfer_function(int aligned,
                             npy_intp src_size, npy_intp dst_size,
                             PyArray_Dims src_shape, PyArray_Dims dst_shape,
                             int move_references,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -2178,7 +2178,7 @@ get_subarray_transfer_function(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
                             int move_references,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -2561,7 +2561,7 @@ static int
 get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
                             npy_intp src_stride,
                             PyArray_Descr *src_dtype,
-                            PyArrayMethod_StridedLoop **out_stransfer,
+                            HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
@@ -3551,7 +3551,7 @@ wrap_aligned_transferfunction(
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         PyArray_Descr *src_wrapped_dtype, PyArray_Descr *dst_wrapped_dtype,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata, int *out_needs_api)
 {
     // TODO HPY LABS PORT: migrate wrap_aligned_transferfunction
@@ -3828,12 +3828,12 @@ HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             return NPY_FAIL;
         }
-        cast_info->func = (PyArrayMethod_StridedLoop *)
+        cast_info->func = (HPyArrayMethod_StridedLoop *)
                 &_strided_masked_wrapper_decref_transfer_function;
     }
     else {
         NPY_cast_info_init(&data->decref_src);
-        cast_info->func = (PyArrayMethod_StridedLoop *)
+        cast_info->func = (HPyArrayMethod_StridedLoop *)
                 &_strided_masked_wrapper_transfer_function;
     }
     cast_info->auxdata = (NpyAuxData *)data;

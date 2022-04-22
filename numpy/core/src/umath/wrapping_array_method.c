@@ -79,10 +79,10 @@ wrapping_method_resolve_descriptors(
 typedef struct {
     NpyAuxData base;
     /* Note that if context is expanded this may become trickier: */
-    PyArrayMethod_Context orig_context;
-    PyArrayMethod_StridedLoop *orig_loop;
+    HPyArrayMethod_Context orig_context;
+    HPyArrayMethod_StridedLoop *orig_loop;
     NpyAuxData *orig_auxdata;
-    PyArray_Descr *descriptors[NPY_MAXARGS];
+    HPy /* (PyArray_Descr *) */ descriptors[NPY_MAXARGS];
 } wrapping_auxdata;
 
 
@@ -138,7 +138,7 @@ wrapping_method_strided_loop(PyArrayMethod_Context *NPY_UNUSED(context),
      * If more things get stored on the context, it could be possible that
      * we would have to copy it here.  But currently, we do not.
      */
-    return auxdata->orig_loop(
+    return auxdata->orig_loop(npy_get_context(),
             &auxdata->orig_context, data, dimensions, strides,
             auxdata->orig_auxdata);
 }
@@ -148,7 +148,7 @@ static int
 wrapping_method_get_loop(
         PyArrayMethod_Context *context,
         int aligned, int move_references, const npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     hpy_abort_not_implemented("wrapping_method_get_loop");
