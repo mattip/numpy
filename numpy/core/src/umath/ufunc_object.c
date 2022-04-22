@@ -2908,7 +2908,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         CAPI_WARN("PyUFunc_GenericFunctionInternal: call to check_for_trivial_loop");
         py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
         PyArrayMethodObject *ufuncimpl_data = PyArrayMethodObject_AsStruct(hctx, h_ufuncimpl);
-        PyArray_Descr **py_operation_descrs = HPy_AsPyObjectArray(hctx, operation_descrs, nop);
+        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(hctx, operation_descrs, nop);
         int trivial_ok = check_for_trivial_loop(ufuncimpl_data,
                 py_op, py_operation_descrs, casting, buffersize);
         HPy_DecrefAndFreeArray(hctx, (PyObject **)py_operation_descrs, nop);
@@ -3459,7 +3459,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
 
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(npy_get_context(), &context,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context),
             1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -3546,7 +3546,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 dataptr_copy[2] += stride0;
                 NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                 (int)count_m1);
-                res = strided_loop(npy_get_context(), &context,
+                res = strided_loop(npy_get_context(), method_context_py2h(&context),
                         dataptr_copy, &count_m1, stride_copy, auxdata);
             }
         } while (res == 0 && iternext(iter));
@@ -3613,7 +3613,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 NPY_BEGIN_THREADS_THRESHOLDED(count);
             }
 
-            res = strided_loop(npy_get_context(), &context,
+            res = strided_loop(npy_get_context(), method_context_py2h(&context),
                     dataptr_copy, &count, fixed_strides, auxdata);
 
             NPY_END_THREADS;
@@ -3880,7 +3880,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     fixed_strides[2] = 0;
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(npy_get_context(), &context,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context),
             1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -3970,7 +3970,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                     dataptr_copy[1] += stride1;
                     NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                     (int)count);
-                    res = strided_loop(&context,
+                    res = strided_loop(npy_get_context(), method_context_py2h(&context),
                             dataptr_copy, &count, stride_copy, auxdata);
                 }
             }
@@ -4029,7 +4029,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                 dataptr_copy[1] += stride1;
                 NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                 (int)count);
-                res = strided_loop(&context,
+                res = strided_loop(npy_get_context(), method_context_py2h(&context),
                         dataptr_copy, &count, fixed_strides, auxdata);
                 if (res != 0) {
                     break;
@@ -5385,7 +5385,7 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
         PyObject *py_axis_obj = HPy_AsPyObject(ctx, axis_obj);
         PyObject *py_axes_obj = HPy_AsPyObject(ctx, axes_obj);
-        PyArray_Descr **py_operation_descrs = HPy_AsPyObjectArray(ctx, operation_descrs, nop);
+        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, operation_descrs, nop);
         errval = PyUFunc_GeneralizedFunctionInternal(py_ufunc, py_ufuncimpl,
                 py_operation_descrs, py_op, py_extobj, casting, order,
                 /* GUFuncs never (ever) called __array_prepare__! */
@@ -6638,7 +6638,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
         strides[2] = operation_descrs[2]->elsize;
     }
 
-    if (ufuncimpl->get_strided_loop(npy_get_context(), &context, 1, 0, strides,
+    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context), 1, 0, strides,
             &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -6688,7 +6688,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
 
         buffer_dataptr = NpyIter_GetDataPtrArray(iter_buffer);
 
-        res = strided_loop(&context, buffer_dataptr, &count, strides, auxdata);
+        res = strided_loop(npy_get_context(), method_context_py2h(&context), buffer_dataptr, &count, strides, auxdata);
         if (res != 0) {
             break;
         }
