@@ -4253,9 +4253,8 @@ PyArray_InitializeCasts(HPyContext *ctx)
     if (PyArray_InitializeObjectToObjectCast(ctx) < 0) {
         return -1;
     }
-    CAPI_WARN("startup: PyArray_InitializeCasts");
     /* Datetime casts are defined in datetime.c */
-    if (PyArray_InitializeDatetimeCasts() < 0) {
+    if (PyArray_InitializeDatetimeCasts(ctx) < 0) {
         return -1;
     }
     return 0;
