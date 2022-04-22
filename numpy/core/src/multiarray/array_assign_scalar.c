@@ -37,12 +37,14 @@
  */
 NPY_NO_EXPORT int
 hpy_raw_array_assign_scalar(HPyContext *ctx, int ndim, npy_intp const *shape,
-        HPy h_dst_dtype, PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
-        HPy h_src_dtype, PyArray_Descr *src_dtype, char *src_data)
+        HPy h_dst_dtype, char *dst_data, npy_intp const *dst_strides,
+        HPy h_src_dtype, char *src_data)
 {
     int idim;
     npy_intp shape_it[NPY_MAXDIMS], dst_strides_it[NPY_MAXDIMS];
     npy_intp coord[NPY_MAXDIMS];
+    PyArray_Descr *dst_dtype = PyArray_Descr_AsStruct(ctx, h_dst_dtype);
+    PyArray_Descr *src_dtype = PyArray_Descr_AsStruct(ctx, h_src_dtype);
 
     int aligned, needs_api = 0;
 
@@ -288,7 +290,12 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
 
         /* Replace src_data/src_dtype */
         src_data = tmp_src_data;
-        src_dtype = PyArray_DESCR(dst);
+        /*
+         * HPy note: we *MUST NOT* assign to variable 'src_dtype' since that's
+         * just the pointer to the native space of the dtype. We need to update
+         * 'h_src_dtype'.
+         */
+        HPy_SETREF(ctx, h_src_dtype, HPyArray_DESCR(ctx, h_dst, dst));
     }
 
     PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
@@ -296,8 +303,8 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
         if (hpy_raw_array_assign_scalar(ctx, PyArray_NDIM(dst), PyArray_DIMS(dst),
-                h_dst_dtype, dst_dtype, PyArray_DATA(dst), PyArray_STRIDES(dst),
-                h_src_dtype, src_dtype, src_data) < 0) {
+                h_dst_dtype, PyArray_DATA(dst), PyArray_STRIDES(dst),
+                h_src_dtype, src_data) < 0) {
             goto fail;
         }
     }
