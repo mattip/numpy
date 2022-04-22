@@ -2692,6 +2692,22 @@ PyArray_AddCastingImplementation_FromSpec(PyArrayMethod_Spec *spec, int private)
     return 0;
 }
 
+NPY_NO_EXPORT int
+HPyArray_AddCastingImplementation_FromSpec(HPyContext *ctx, PyArrayMethod_Spec *spec, int private)
+{
+    /* Create a bound method, unbind and store it */
+    HPy meth = HPyArrayMethod_FromSpec_int(ctx, spec, private);
+    if (HPy_IsNull(meth)) {
+        return -1;
+    }
+    int res = HPyArray_AddCastingImplementation(ctx, meth);
+    HPy_Close(ctx, meth);
+    if (res < 0) {
+        return -1;
+    }
+    return 0;
+}
+
 
 NPY_NO_EXPORT NPY_CASTING
 legacy_same_dtype_resolve_descriptors(
@@ -3123,7 +3139,7 @@ cast_to_string_resolve_descriptors(
 
 static int
 add_other_to_and_from_string_cast(
-        HPyContext *ctx, HPy h_string, PyArray_DTypeMeta *string, HPy h_other,
+        HPyContext *ctx, HPy h_string, HPy h_other,
         PyArray_DTypeMeta *other)
 {
     if (HPy_Is(ctx, h_string, h_other)) {
@@ -3132,9 +3148,8 @@ add_other_to_and_from_string_cast(
 
     /* Casting from string, is always a simple legacy-style cast */
     if (other->type_num != NPY_STRING && other->type_num != NPY_UNICODE) {
-        CAPI_WARN("PyArray_AddLegacyWrapping_CastingImpl");
-        if (PyArray_AddLegacyWrapping_CastingImpl(
-                string, other, NPY_UNSAFE_CASTING) < 0) {
+        if (HPyArray_AddLegacyWrapping_CastingImpl(
+                ctx, h_string, h_other, NPY_UNSAFE_CASTING) < 0) {
             return -1;
         }
     }
@@ -3164,8 +3179,7 @@ add_other_to_and_from_string_cast(
         spec.casting = NPY_UNSAFE_CASTING;
     }
 
-    CAPI_WARN("PyArray_AddCastingImplementation_FromSpec");
-    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    int res = HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
     return res;
 }
 
@@ -3282,10 +3296,10 @@ PyArray_InitializeStringCasts(HPyContext *ctx)
         other_dt = PyArray_DTypeMeta_AsStruct(ctx, h_other_dt);
 
         /* The functions skip string == other_dt or unicode == other_dt */
-        if (add_other_to_and_from_string_cast(ctx, h_string, string, h_other_dt, other_dt) < 0) {
+        if (add_other_to_and_from_string_cast(ctx, h_string, h_other_dt, other_dt) < 0) {
             goto finish;
         }
-        if (add_other_to_and_from_string_cast(ctx, h_unicode, unicode, h_other_dt, other_dt) < 0) {
+        if (add_other_to_and_from_string_cast(ctx, h_unicode, h_other_dt, other_dt) < 0) {
             goto finish;
         }
 
@@ -3313,15 +3327,13 @@ PyArray_InitializeStringCasts(HPyContext *ctx)
 
     dtypes[0] = h_string;
     dtypes[1] = h_string;
-    CAPI_WARN("PyArray_AddCastingImplementation_FromSpec");
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto finish;
     }
 
     dtypes[0] = h_unicode;
     dtypes[1] = h_unicode;
-    CAPI_WARN("PyArray_AddCastingImplementation_FromSpec");
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto finish;
     }
 
