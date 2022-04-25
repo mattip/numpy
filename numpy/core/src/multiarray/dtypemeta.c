@@ -565,6 +565,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     if (!has_type_set) {
         /* Accept if the type was filled in from an existing builtin dtype */
         for (int i = 0; i < NPY_NTYPES; i++) {
+            // TODO: port this
             PyArray_Descr *builtin = PyArray_DescrFromType(i);
             has_type_set = Py_TYPE(descr) == Py_TYPE(builtin);
             Py_DECREF(builtin);
@@ -574,14 +575,14 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
         }
     }
     if (!has_type_set) {
-        PyErr_Format(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "During creation/wrapping of legacy DType, the original class "
                 "was not of PyArrayDescr_Type (it is replaced in this step). "
                 "The extension creating a custom DType for type %S must be "
                 "modified to ensure `Py_TYPE(descr) == &PyArrayDescr_Type` or "
                 "that of an existing dtype (with the assumption it is just "
-                "copied over and can be replaced).",
-                descr->typeobj, Py_TYPE(descr));
+                "copied over and can be replaced)."
+                /*, descr->typeobj, Py_TYPE(descr)*/);
         return -1;
     }
 
@@ -595,7 +596,8 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
      * However, this function remains necessary for legacy user dtypes.
      */
 
-    const char *scalar_name = descr->typeobj->tp_name;
+    // TODO LABS HPY PORT: what about tp_name
+    const char *scalar_name = PyArray_Descr_typeobj(descr)->tp_name;
     /*
      * We have to take only the name, and ignore the module to get
      * a reasonable __name__, since static types are limited in this regard
@@ -663,7 +665,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     HPy h_descr = HPy_FromPyObject(ctx, (PyObject *)descr);
     HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->singleton, h_descr);
     HPy_Close(ctx, h_descr);
-    HPy h_typeobj = HPy_FromPyObject(ctx, (PyObject *)descr->typeobj);
+    HPy h_typeobj = HPyField_Load(ctx, h_descr, descr->typeobj);
     HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->scalar_type, h_typeobj);
     HPy_Close(ctx, h_typeobj);
     new_dtype_data->type_num = descr->type_num;
@@ -727,7 +729,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, PyArray_Descr *descr)
     }
 
     dtype_class = HPy_AsPyObject(ctx, h_new_dtype_type);
-    if (_PyArray_MapPyTypeToDType((PyArray_DTypeMeta *) dtype_class, descr->typeobj,
+    if (_PyArray_MapPyTypeToDType((PyArray_DTypeMeta *) dtype_class, PyArray_Descr_typeobj(descr),
             PyTypeNum_ISUSERDEF(new_dtype_data->type_num)) < 0) {
         goto cleanup;
     }

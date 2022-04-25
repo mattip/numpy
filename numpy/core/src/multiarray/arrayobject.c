@@ -431,7 +431,7 @@ PyArray_TypeNumFromName(char const *str)
 
     for (i = 0; i < NPY_NUMUSERTYPES; i++) {
         descr = userdescrs[i];
-        if (strcmp(descr->typeobj->tp_name, str) == 0) {
+        if (strcmp(PyArray_Descr_typeobj(descr)->tp_name, str) == 0) {
             return descr->type_num;
         }
     }

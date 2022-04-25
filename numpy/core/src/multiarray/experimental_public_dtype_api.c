@@ -129,113 +129,113 @@ int
 PyArrayInitDTypeMeta_FromSpec(
         PyArray_DTypeMeta *DType, PyArrayDTypeMeta_Spec *spec)
 {
-    if (!PyObject_TypeCheck(DType, PyArrayDTypeMeta_Type)) {
-        PyErr_SetString(PyExc_RuntimeError,
-                "Passed in DType must be a valid (initialized) DTypeMeta "
-                "instance!");
-        return -1;
-    }
+    hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
+    // if (!PyObject_TypeCheck(DType, PyArrayDTypeMeta_Type)) {
+    //     PyErr_SetString(PyExc_RuntimeError,
+    //             "Passed in DType must be a valid (initialized) DTypeMeta "
+    //             "instance!");
+    //     return -1;
+    // }
 
-    if (((PyTypeObject *)DType)->tp_repr == PyArrayDescr_Type.tp_repr
-            || ((PyTypeObject *)DType)->tp_str == PyArrayDescr_Type.tp_str) {
-        PyErr_SetString(PyExc_TypeError,
-                "A custom DType must implement `__repr__` and `__str__` since "
-                "the default inherited version (currently) fails.");
-        return -1;
-    }
+    // if (((PyTypeObject *)DType)->tp_repr == PyArrayDescr_Type.tp_repr
+    //         || ((PyTypeObject *)DType)->tp_str == PyArrayDescr_Type.tp_str) {
+    //     PyErr_SetString(PyExc_TypeError,
+    //             "A custom DType must implement `__repr__` and `__str__` since "
+    //             "the default inherited version (currently) fails.");
+    //     return -1;
+    // }
 
-    if (spec->typeobj == NULL || !PyType_Check(spec->typeobj)) {
-        PyErr_SetString(PyExc_TypeError,
-                "Not giving a type object is currently not supported, but "
-                "is expected to be supported eventually.  This would mean "
-                "that e.g. indexing a NumPy array will return a 0-D array "
-                "and not a scalar.");
-        return -1;
-    }
+    // if (spec->typeobj == NULL || !PyType_Check(spec->typeobj)) {
+    //     PyErr_SetString(PyExc_TypeError,
+    //             "Not giving a type object is currently not supported, but "
+    //             "is expected to be supported eventually.  This would mean "
+    //             "that e.g. indexing a NumPy array will return a 0-D array "
+    //             "and not a scalar.");
+    //     return -1;
+    // }
 
-    if (DType->dt_slots != NULL) {
-        PyErr_Format(PyExc_RuntimeError,
-                "DType %R appears already registered?", DType);
-        return -1;
-    }
+    // if (DType->dt_slots != NULL) {
+    //     PyErr_Format(PyExc_RuntimeError,
+    //             "DType %R appears already registered?", DType);
+    //     return -1;
+    // }
 
-    /* Check and handle flags: */
-    if (spec->flags & ~(NPY_DT_PARAMETRIC|NPY_DT_ABSTRACT)) {
-        PyErr_SetString(PyExc_RuntimeError,
-                "invalid DType flags specified, only parametric and abstract "
-                "are valid flags for user DTypes.");
-        return -1;
-    }
+    // /* Check and handle flags: */
+    // if (spec->flags & ~(NPY_DT_PARAMETRIC|NPY_DT_ABSTRACT)) {
+    //     PyErr_SetString(PyExc_RuntimeError,
+    //             "invalid DType flags specified, only parametric and abstract "
+    //             "are valid flags for user DTypes.");
+    //     return -1;
+    // }
 
-    DType->flags = spec->flags;
-    DType->dt_slots = PyMem_Calloc(1, sizeof(NPY_DType_Slots));
-    if (DType->dt_slots == NULL) {
-        return -1;
-    }
+    // DType->flags = spec->flags;
+    // DType->dt_slots = PyMem_Calloc(1, sizeof(NPY_DType_Slots));
+    // if (DType->dt_slots == NULL) {
+    //     return -1;
+    // }
 
-    /* Set default values (where applicable) */
-    NPY_DT_SLOTS(DType)->discover_descr_from_pyobject = &discover_as_default;
-    NPY_DT_SLOTS(DType)->is_known_scalar_type = (
-            &python_builtins_are_known_scalar_types);
-    NPY_DT_SLOTS(DType)->default_descr = use_new_as_default;
-    NPY_DT_SLOTS(DType)->common_dtype = dtype_does_not_promote;
-    /* May need a default for non-parametric? */
-    NPY_DT_SLOTS(DType)->common_instance = NULL;
-    NPY_DT_SLOTS(DType)->setitem = NULL;
-    NPY_DT_SLOTS(DType)->getitem = NULL;
+    // /* Set default values (where applicable) */
+    // NPY_DT_SLOTS(DType)->discover_descr_from_pyobject = &discover_as_default;
+    // NPY_DT_SLOTS(DType)->is_known_scalar_type = (
+    //         &python_builtins_are_known_scalar_types);
+    // NPY_DT_SLOTS(DType)->default_descr = use_new_as_default;
+    // NPY_DT_SLOTS(DType)->common_dtype = dtype_does_not_promote;
+    // /* May need a default for non-parametric? */
+    // NPY_DT_SLOTS(DType)->common_instance = NULL;
+    // NPY_DT_SLOTS(DType)->setitem = NULL;
+    // NPY_DT_SLOTS(DType)->getitem = NULL;
 
-    PyType_Slot *spec_slot = spec->slots;
-    while (1) {
-        int slot = spec_slot->slot;
-        void *pfunc = spec_slot->pfunc;
-        spec_slot++;
-        if (slot == 0) {
-            break;
-        }
-        if (slot > NUM_DTYPE_SLOTS || slot < 0) {
-            PyErr_Format(PyExc_RuntimeError,
-                    "Invalid slot with value %d passed in.", slot);
-            return -1;
-        }
-        /*
-         * It is up to the user to get this right, and slots are sorted
-         * exactly like they are stored right now:
-         */
-        void **current = (void **)(&(
-                NPY_DT_SLOTS(DType)->discover_descr_from_pyobject));
-        current += slot - 1;
-        *current = pfunc;
-    }
-    if (NPY_DT_SLOTS(DType)->setitem == NULL
-            || NPY_DT_SLOTS(DType)->getitem == NULL) {
-        PyErr_SetString(PyExc_RuntimeError,
-                "A DType must provide a getitem/setitem (there may be an "
-                "exception here in the future if no scalar type is provided)");
-        return -1;
-    }
+    // PyType_Slot *spec_slot = spec->slots;
+    // while (1) {
+    //     int slot = spec_slot->slot;
+    //     void *pfunc = spec_slot->pfunc;
+    //     spec_slot++;
+    //     if (slot == 0) {
+    //         break;
+    //     }
+    //     if (slot > NUM_DTYPE_SLOTS || slot < 0) {
+    //         PyErr_Format(PyExc_RuntimeError,
+    //                 "Invalid slot with value %d passed in.", slot);
+    //         return -1;
+    //     }
+    //     /*
+    //      * It is up to the user to get this right, and slots are sorted
+    //      * exactly like they are stored right now:
+    //      */
+    //     void **current = (void **)(&(
+    //             NPY_DT_SLOTS(DType)->discover_descr_from_pyobject));
+    //     current += slot - 1;
+    //     *current = pfunc;
+    // }
+    // if (NPY_DT_SLOTS(DType)->setitem == NULL
+    //         || NPY_DT_SLOTS(DType)->getitem == NULL) {
+    //     PyErr_SetString(PyExc_RuntimeError,
+    //             "A DType must provide a getitem/setitem (there may be an "
+    //             "exception here in the future if no scalar type is provided)");
+    //     return -1;
+    // }
 
-    /*
-     * Now that the spec is read we can check that all required functions were
-     * defined by the user.
-     */
-    if (spec->flags & NPY_DT_PARAMETRIC) {
-        if (NPY_DT_SLOTS(DType)->common_instance == NULL ||
-                NPY_DT_SLOTS(DType)->discover_descr_from_pyobject
-                        == &discover_as_default) {
-            PyErr_SetString(PyExc_RuntimeError,
-                    "Parametric DType must define a common-instance and "
-                    "descriptor discovery function!");
-            return -1;
-        }
-    }
-    NPY_DT_SLOTS(DType)->f = default_funcs;
-    /* invalid type num. Ideally, we get away with it! */
-    DType->type_num = -1;
+    // /*
+    //  * Now that the spec is read we can check that all required functions were
+    //  * defined by the user.
+    //  */
+    // if (spec->flags & NPY_DT_PARAMETRIC) {
+    //     if (NPY_DT_SLOTS(DType)->common_instance == NULL ||
+    //             NPY_DT_SLOTS(DType)->discover_descr_from_pyobject
+    //                     == &discover_as_default) {
+    //         PyErr_SetString(PyExc_RuntimeError,
+    //                 "Parametric DType must define a common-instance and "
+    //                 "descriptor discovery function!");
+    //         return -1;
+    //     }
+    // }
+    // NPY_DT_SLOTS(DType)->f = default_funcs;
+    // /* invalid type num. Ideally, we get away with it! */
+    // DType->type_num = -1;
 
     /*
      * Handle the scalar type mapping.
      */
-    hpy_abort_not_implemented("PyArrayInitDTypeMeta_FromSpec");
 //    Py_INCREF(spec->typeobj);
 //    DType->scalar_type = spec->typeobj;
 //    if (PyType_GetFlags(spec->typeobj) & Py_TPFLAGS_HEAPTYPE) {

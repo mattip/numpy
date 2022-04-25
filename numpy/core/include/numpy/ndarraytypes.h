@@ -680,7 +680,7 @@ typedef struct _PyArray_Descr {
          * be two type_numbers with the same type
          * object.
          */
-        PyTypeObject *typeobj;
+        HPyField typeobj;
         /* kind for this type */
         char kind;
         /* unique-character representing this type */
@@ -735,6 +735,27 @@ typedef struct _PyArray_Descr {
 } PyArray_Descr;
 
 HPyType_LEGACY_HELPERS(PyArray_Descr)
+
+static inline PyTypeObject *PyArray_Descr_typeobj(PyArray_Descr *pyobj) {
+    HPyContext *ctx = npy_get_context();
+    HPy owner = HPy_FromPyObject(ctx, (PyObject*) pyobj);
+    HPy res = HPyField_Load(ctx, owner, pyobj->typeobj);
+    PyObject *pyres = HPy_AsPyObject(ctx, res);
+    HPy_Close(ctx, owner);
+    HPy_Close(ctx, res);
+    Py_DECREF(pyres); // Simulate a borrowed reference...
+    return (PyTypeObject*) pyres;
+}
+
+static inline PyTypeObject *PyArray_Descr_set_typeobj(PyArray_Descr *pyobj, PyTypeObject *value) {
+    HPyContext *ctx = npy_get_context();
+    HPy owner = HPy_FromPyObject(ctx, (PyObject*) pyobj);
+    HPy hval = HPy_FromPyObject(ctx, (PyObject*)value);
+    HPyField_Store(ctx, owner, &pyobj->typeobj, hval);
+    HPy_Close(ctx, owner);
+    HPy_Close(ctx, hval);
+    return value;
+}
 
 typedef struct _arr_descr {
         PyArray_Descr *base;

@@ -4599,7 +4599,7 @@ _typenum_fromtypeobj(PyObject *type, int user)
     /* Search any registered types */
     i = 0;
     while (i < NPY_NUMUSERTYPES) {
-        if (type == (PyObject *)(userdescrs[i]->typeobj)) {
+        if (type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
             typenum = i + NPY_USERDEF;
             break;
         }
