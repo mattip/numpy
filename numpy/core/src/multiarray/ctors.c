@@ -1972,20 +1972,9 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
         return HPy_NULL;
     }
 
-    // TODO HPY LABS PORT
-    CAPI_WARN("HPyArray_FromAny: call to PyArray_DiscoverDTypeAndShape");
-    PyObject *py_op = HPy_AsPyObject(ctx, op);
-    PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
-    PyArray_Descr *py_fixed_descriptor = (PyArray_Descr *)HPy_AsPyObject(ctx, fixed_descriptor);
-    PyArray_Descr *py_dtype = NULL;
-    ndim = PyArray_DiscoverDTypeAndShape(py_op,
-            NPY_MAXDIMS, dims, &cache, py_fixed_DType, py_fixed_descriptor, &py_dtype,
+    ndim = HPyArray_DiscoverDTypeAndShape(ctx, op,
+            NPY_MAXDIMS, dims, &cache, fixed_DType, fixed_descriptor, &dtype,
             flags & NPY_ARRAY_ENSURENOCOPY);
-    dtype = HPy_FromPyObject(ctx, (PyObject *)py_dtype);
-    Py_XDECREF(py_dtype);
-    Py_XDECREF(py_fixed_descriptor);
-    Py_XDECREF(py_fixed_DType);
-    Py_DECREF(py_op);
 
     HPy_Close(ctx, fixed_descriptor);
     HPy_Close(ctx, fixed_DType);

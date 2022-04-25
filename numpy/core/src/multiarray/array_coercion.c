@@ -1332,6 +1332,31 @@ PyArray_DiscoverDTypeAndShape_Recursive(
     return max_dims;
 }
 
+NPY_NO_EXPORT int
+PyArray_DiscoverDTypeAndShape(
+        PyObject *obj, int max_dims,
+        npy_intp out_shape[NPY_MAXDIMS],
+        coercion_cache_obj **coercion_cache,
+        PyArray_DTypeMeta *fixed_DType, PyArray_Descr *requested_descr,
+        PyArray_Descr **out_descr, int never_copy)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_fixed_DType = HPy_FromPyObject(ctx, (PyObject *)fixed_DType);
+    HPy h_requested_descr = HPy_FromPyObject(ctx, (PyObject *)requested_descr);
+    HPy h_out_descr = HPy_FromPyObject(ctx, (PyObject *)*out_descr);
+
+    int res = HPyArray_DiscoverDTypeAndShape(ctx, h_obj, max_dims, out_shape,
+            coercion_cache, h_fixed_DType, h_requested_descr, &h_out_descr,
+            never_copy);
+
+    Py_XSETREF(*out_descr, (PyArray_Descr *)HPy_AsPyObject(ctx, h_out_descr));
+    HPy_Close(ctx, h_out_descr);
+    HPy_Close(ctx, h_requested_descr);
+    HPy_Close(ctx, h_fixed_DType);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
 
 /**
  * Finds the DType and shape of an arbitrary nested sequence. This is the
@@ -1371,12 +1396,13 @@ PyArray_DiscoverDTypeAndShape_Recursive(
  *         `arr1d[...] = np.array([[1,2,3,4]])`
  */
 NPY_NO_EXPORT int
-PyArray_DiscoverDTypeAndShape(
-        PyObject *obj, int max_dims,
+HPyArray_DiscoverDTypeAndShape(
+        HPyContext *ctx,
+        HPy obj, int max_dims,
         npy_intp out_shape[NPY_MAXDIMS],
         coercion_cache_obj **coercion_cache,
-        PyArray_DTypeMeta *fixed_DType, PyArray_Descr *requested_descr,
-        PyArray_Descr **out_descr, int never_copy)
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType, HPy /* (PyArray_Descr *) */ requested_descr,
+        HPy /* (PyArray_Descr **) */ *out_descr, int never_copy)
 {
     coercion_cache_obj **coercion_cache_head = coercion_cache;
     *coercion_cache = NULL;
@@ -1385,18 +1411,17 @@ PyArray_DiscoverDTypeAndShape(
     /*
      * Support a passed in descriptor (but only if nothing was specified).
      */
-    assert(*out_descr == NULL || fixed_DType == NULL);
+    assert(HPy_IsNull(*out_descr) || HPy_IsNull(fixed_DType));
     /* Validate input of requested descriptor and DType */
-    if (fixed_DType != NULL) {
-        assert(PyObject_TypeCheck(
-                (PyObject *)fixed_DType, PyArrayDTypeMeta_Type));
+    if (!HPy_IsNull(fixed_DType)) {
+        assert(HPyGlobal_TypeCheck(ctx,
+                fixed_DType, HPyArrayDTypeMeta_Type));
     }
 
-    if (requested_descr != NULL) {
-        assert(fixed_DType == NPY_DTYPE(requested_descr));
+    if (!HPy_IsNull(requested_descr)) {
+        assert(HPy_Is(ctx, fixed_DType, HNPY_DTYPE(ctx, requested_descr)));
         /* The output descriptor must be the input. */
-        Py_INCREF(requested_descr);
-        *out_descr = requested_descr;
+        *out_descr = HPy_Dup(ctx, requested_descr);
         flags |= DESCRIPTOR_WAS_SET;
     }
 
@@ -1406,22 +1431,31 @@ PyArray_DiscoverDTypeAndShape(
      */
 
     /* Legacy discovery flags */
-    if (requested_descr != NULL) {
-        if (requested_descr->type_num == NPY_STRING &&
-                requested_descr->type == 'c') {
+    if (!HPy_IsNull(requested_descr)) {
+        PyArray_Descr *requested_descr_data = PyArray_Descr_AsStruct(ctx, requested_descr);
+        if (requested_descr_data->type_num == NPY_STRING &&
+                requested_descr_data->type == 'c') {
             /* Character dtype variation of string (should be deprecated...) */
             flags |= DISCOVER_STRINGS_AS_SEQUENCES;
         }
-        else if (requested_descr->type_num == NPY_VOID &&
-                    (requested_descr->names || requested_descr->subarray))  {
+        else if (requested_descr_data->type_num == NPY_VOID &&
+                    (requested_descr_data->names || requested_descr_data->subarray))  {
             /* Void is a chimera, in that it may or may not be structured... */
             flags |= DISCOVER_TUPLES_AS_ELEMENTS;
         }
     }
 
+    CAPI_WARN("HPyArray_DiscoverDTypeAndShape: call to PyArray_DiscoverDTypeAndShape_Recursive");
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
+    PyArray_Descr *py_out_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, *out_descr);
     int ndim = PyArray_DiscoverDTypeAndShape_Recursive(
-            obj, 0, max_dims, out_descr, out_shape, &coercion_cache,
-            fixed_DType, &flags, never_copy);
+            py_obj, 0, max_dims, &py_out_descr, out_shape, &coercion_cache,
+            py_fixed_DType, &flags, never_copy);
+    HPy_SETREF(ctx, *out_descr, HPy_FromPyObject(ctx, (PyObject *)py_out_descr));
+    Py_XDECREF(py_out_descr);
+    Py_DECREF(py_obj);
+    Py_XDECREF(py_fixed_DType);
     if (ndim < 0) {
         goto fail;
     }
@@ -1440,18 +1474,19 @@ PyArray_DiscoverDTypeAndShape(
         /* Handle reaching the maximum depth differently: */
         int too_deep = ndim == max_dims;
 
-        if (fixed_DType == NULL) {
+        if (HPy_IsNull(fixed_DType)) {
             /* This is discovered as object, but deprecated */
-            static PyObject *visibleDeprecationWarning = NULL;
-            npy_cache_import(
+            // TODO LABS HPY PORT: should be HPyGlobal
+            static HPy visibleDeprecationWarning = HPy_NULL;
+            npy_hpy_cache_import(ctx,
                     "numpy", "VisibleDeprecationWarning",
                     &visibleDeprecationWarning);
-            if (visibleDeprecationWarning == NULL) {
+            if (HPy_IsNull(visibleDeprecationWarning)) {
                 goto fail;
             }
             if (!too_deep) {
                 /* NumPy 1.19, 2019-11-01 */
-                if (PyErr_WarnEx(visibleDeprecationWarning,
+                if (HPyErr_WarnEx(ctx, visibleDeprecationWarning,
                         "Creating an ndarray from ragged nested sequences (which "
                         "is a list-or-tuple of lists-or-tuples-or ndarrays with "
                         "different lengths or shapes) is deprecated. If you "
@@ -1463,19 +1498,18 @@ PyArray_DiscoverDTypeAndShape(
             else {
                 /* NumPy 1.20, 2020-05-08 */
                 /* Note, max_dims should normally always be NPY_MAXDIMS here */
-                if (PyErr_WarnFormat(visibleDeprecationWarning, 1,
+                if (HPyErr_WarnEx(ctx, visibleDeprecationWarning,
                         "Creating an ndarray from nested sequences exceeding "
                         "the maximum number of dimensions of %d is deprecated. "
                         "If you mean to do this, you must specify "
-                        "'dtype=object' when creating the ndarray.",
-                        max_dims) < 0) {
+                        "'dtype=object' when creating the ndarray.", 1) < 0) {
                     goto fail;
                 }
             }
             /* Ensure that ragged arrays always return object dtype */
-            Py_XSETREF(*out_descr, PyArray_DescrFromType(NPY_OBJECT));
+            HPy_SETREF(ctx, *out_descr, HPyArray_DescrFromType(ctx, NPY_OBJECT));
         }
-        else if (fixed_DType->type_num != NPY_OBJECT) {
+        else if (PyArray_DTypeMeta_AsStruct(ctx, fixed_DType)->type_num != NPY_OBJECT) {
             /* Only object DType supports ragged cases unify error */
 
             /*
@@ -1503,26 +1537,28 @@ PyArray_DiscoverDTypeAndShape(
                     current = current->next;
                     continue;
                 }
-                PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
-                assert(PyArray_NDIM(arr) + current->depth >= ndim);
-                if (PyArray_NDIM(arr) != ndim - current->depth) {
+                //PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
+                HPy arr = current->arr_or_sequence;
+                PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, current->arr_or_sequence);
+                assert(PyArray_NDIM(arr_data) + current->depth >= ndim);
+                if (PyArray_NDIM(arr_data) != ndim - current->depth) {
                     /* This array is not compatible with the final shape */
-                    if (PyArray_SIZE(arr) != 1) {
-                        Py_DECREF(arr);
+                    if (HPyArray_SIZE(arr_data) != 1) {
+                        HPy_Close(ctx, arr);
                         deprecate_single_element_ragged = 0;
                         break;
                     } else {
-                        Py_DECREF(arr);
+                        HPy_Close(ctx, arr);
                     }
                     deprecate_single_element_ragged = 1;
                 }
-                Py_DECREF(arr);
+                HPy_Close(ctx, arr);
                 current = current->next;
             }
 
             if (deprecate_single_element_ragged) {
                 /* Deprecated 2020-07-24, NumPy 1.20 */
-                if (DEPRECATE(
+                if (HPY_DEPRECATE(ctx,
                         "setting an array element with a sequence. "
                         "This was supported in some cases where the elements "
                         "are arrays with a single element. For example "
@@ -1533,18 +1569,25 @@ PyArray_DiscoverDTypeAndShape(
                 }
             }
             else if (!too_deep) {
-                PyObject *shape = PyArray_IntTupleFromIntp(ndim, out_shape);
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format_p(ctx, ctx->h_ValueError,
                         "setting an array element with a sequence. The "
                         "requested array has an inhomogeneous shape after "
                         "%d dimensions. The detected shape was "
-                        "%R + inhomogeneous part.",
-                        ndim, shape);
-                Py_DECREF(shape);
+                        "?? + inhomogeneous part.",
+                        ndim);
+                // TODO HPY LABS PORT: PyErr_Format
+                // PyObject *shape = PyArray_IntTupleFromIntp(ndim, out_shape);
+                // PyErr_Format(PyExc_ValueError,
+                //        "setting an array element with a sequence. The "
+                //        "requested array has an inhomogeneous shape after "
+                //        "%d dimensions. The detected shape was "
+                //        "%R + inhomogeneous part.",
+                //        ndim, shape);
+                // Py_DECREF(shape);
                 goto fail;
             }
             else {
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format_p(ctx, ctx->h_ValueError,
                         "setting an array element with a sequence. The "
                         "requested array would exceed the maximum number of "
                         "dimension of %d.",
@@ -1562,7 +1605,7 @@ PyArray_DiscoverDTypeAndShape(
         while (current != NULL) {
             if (current->depth > ndim) {
                 /* delete "next" cache item and advanced it (unlike later) */
-                current = npy_unlink_coercion_cache(current);
+                current = hnpy_unlink_coercion_cache(ctx, current);
                 continue;
             }
             /* advance both prev and next, and set prev->next to new item */
@@ -1574,11 +1617,11 @@ PyArray_DiscoverDTypeAndShape(
     }
     /* We could check here for max-ndims being reached as well */
 
-    if (requested_descr != NULL) {
+    if (!HPy_IsNull(requested_descr)) {
         /* descriptor was provided, we did not accidentally change it */
-        assert(*out_descr == requested_descr);
+        assert(HPy_Is(ctx, *out_descr, requested_descr));
     }
-    else if (NPY_UNLIKELY(*out_descr == NULL)) {
+    else if (NPY_UNLIKELY(HPy_IsNull(*out_descr))) {
         /*
          * When the object contained no elements (sequence of length zero),
          * the no descriptor may have been found. When a DType was requested
@@ -1586,9 +1629,10 @@ PyArray_DiscoverDTypeAndShape(
          * Otherwise, out_descr will remain NULL and the caller has to set
          * the correct default.
          */
-        if (fixed_DType != NULL) {
-            *out_descr = NPY_DT_CALL_default_descr(fixed_DType);
-            if (*out_descr == NULL) {
+        if (!HPy_IsNull(fixed_DType)) {
+            PyArray_DTypeMeta *fixed_DType_data = PyArray_DTypeMeta_AsStruct(ctx, fixed_DType);
+            *out_descr = HNPY_DT_CALL_default_descr(ctx, fixed_DType, fixed_DType_data);
+            if (HPy_IsNull(*out_descr)) {
                 goto fail;
             }
         }
@@ -1598,7 +1642,7 @@ PyArray_DiscoverDTypeAndShape(
   fail:
     npy_free_coercion_cache(*coercion_cache_head);
     *coercion_cache_head = NULL;
-    Py_XSETREF(*out_descr, NULL);
+    HPy_SETREF(ctx, *out_descr, HPy_NULL);
     return -1;
 }
 

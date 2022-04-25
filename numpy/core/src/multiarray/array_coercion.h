@@ -43,6 +43,15 @@ PyArray_DiscoverDTypeAndShape(
         PyArray_Descr **out_descr, int never_copy);
 
 NPY_NO_EXPORT int
+HPyArray_DiscoverDTypeAndShape(
+        HPyContext *ctx,
+        HPy obj, int max_dims,
+        npy_intp out_shape[NPY_MAXDIMS],
+        coercion_cache_obj **coercion_cache,
+        HPy fixed_DType, HPy requested_descr,
+        HPy *out_descr, int never_copy);
+
+NPY_NO_EXPORT int
 PyArray_ExtractDTypeAndDescriptor(PyObject *dtype,
         PyArray_Descr **out_descr, PyArray_DTypeMeta **out_DType);
 
