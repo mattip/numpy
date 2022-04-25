@@ -457,7 +457,7 @@ struct _PyArray_Descr;
 
 /* These must deal with unaligned and swapped data if necessary */
 typedef PyObject * (PyArray_GetItemFunc) (void *, void *);
-typedef int (PyArray_SetItemFunc)(PyObject *, void *, void *);
+typedef int (PyArray_SetItemFunc)(HPyContext *ctx, HPy, void *, HPy);
 
 typedef void (PyArray_CopySwapNFunc)(void *, npy_intp, void *, npy_intp,
                                      npy_intp, int, void *);
@@ -1863,7 +1863,23 @@ PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
 static NPY_INLINE int
 PyArray_SETITEM(PyArrayObject *arr, char *itemptr, PyObject *v)
 {
-    return PyArray_DESCR(arr)->f->setitem(v, itemptr, arr);
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    HPy h_v = HPy_FromPyObject(ctx, v);
+    int res = PyArray_DESCR(arr)->f->setitem(ctx, h_v, itemptr, h_arr);
+    HPy_Close(ctx, h_v);
+    HPy_Close(ctx, h_arr);
+    return res;
+}
+
+static NPY_INLINE int
+HPyArray_SETITEM(HPyContext *ctx, HPy /* (PyArrayObject *) */ arr, char *itemptr, HPy v)
+{
+    HPy descr = HPyArray_GetDescr(ctx, arr);
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    int res = descr_data->f->setitem(ctx, v, itemptr, arr);
+    HPy_Close(ctx, descr);
+    return res;
 }
 
 static NPY_INLINE PyArray_Descr *

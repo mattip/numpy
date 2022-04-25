@@ -3474,6 +3474,18 @@ _arange_safe_ceil_to_intp(double value)
 }
 
 
+static NPY_INLINE int
+setitem_trampoline(PyArray_SetItemFunc *func, PyObject *obj, char *data, PyArrayObject *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    int res = func(ctx, h_obj, data, h_arr);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
+
 /*NUMPY_API
   Arange,
 */
@@ -3524,7 +3536,7 @@ PyArray_Arange(double start, double stop, double step, int type_num)
      * if length > 2, then call the inner loop, otherwise stop
      */
     obj = PyFloat_FromDouble(start);
-    ret = funcs->setitem(obj, PyArray_DATA(range), range);
+    ret = setitem_trampoline(funcs->setitem, obj, PyArray_DATA(range), range);
     Py_DECREF(obj);
     if (ret < 0) {
         goto fail;
@@ -3533,8 +3545,8 @@ PyArray_Arange(double start, double stop, double step, int type_num)
         return (PyObject *)range;
     }
     obj = PyFloat_FromDouble(start + step);
-    ret = funcs->setitem(obj, PyArray_BYTES(range)+PyArray_ITEMSIZE(range),
-                         range);
+    ret = setitem_trampoline(funcs->setitem, obj,
+            PyArray_BYTES(range)+PyArray_ITEMSIZE(range), range);
     Py_DECREF(obj);
     if (ret < 0) {
         goto fail;
@@ -3782,14 +3794,15 @@ PyArray_ArangeObj(PyObject *start, PyObject *stop, PyObject *step, PyArray_Descr
      * if length > 2, then call the inner loop, otherwise stop
      */
     funcs = PyArray_DESCR(range)->f;
-    if (funcs->setitem(start, PyArray_DATA(range), range) < 0) {
+    if (setitem_trampoline(funcs->setitem, start, PyArray_DATA(range),
+            range) < 0) {
         goto fail;
     }
     if (length == 1) {
         goto finish;
     }
-    if (funcs->setitem(next, PyArray_BYTES(range)+PyArray_ITEMSIZE(range),
-                       range) < 0) {
+    if (setitem_trampoline(funcs->setitem, next,
+            PyArray_BYTES(range)+PyArray_ITEMSIZE(range), range) < 0) {
         goto fail;
     }
     if (length == 2) {

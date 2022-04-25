@@ -431,18 +431,6 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     return res;
 }
 
-static inline int
-setitem_trampoline(HPyContext *ctx, PyArray_SetItemFunc *setitem, HPy mp, char *key, HPy value)
-{
-    CAPI_WARN("setitem_trampoline: calling PyArray_SetItemFunc function");
-    PyObject *py_mp = HPy_AsPyObject(ctx, mp);
-    PyObject *py_value = HPy_AsPyObject(ctx, value);
-    int result = setitem(py_mp, key, py_value);
-    Py_DECREF(py_mp);
-    Py_DECREF(py_value);
-    return result;
-}
-
 NPY_NO_EXPORT HPyGlobal g_dummy_arr;
 static int g_dummy_arr_initialized;
 
@@ -472,7 +460,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
          * NOTE: OBJECT_setitem doesn't care about the NPY_ARRAY_ALIGNED flag
          */
         _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, descr);
-        int result = setitem_trampoline(ctx, descr_data->f->setitem, value, item, dummy_arr);
+        int result = descr_data->f->setitem(ctx, value, item, dummy_arr);
         _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
         return result;
     }
@@ -496,7 +484,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
         else {
             PyArray_CLEARFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
         }
-        int result = setitem_trampoline(ctx, descr_data->f->setitem, value, item, dummy_arr);
+        int result = descr_data->f->setitem(ctx, value, item, dummy_arr);
         _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
         return result;
     }
@@ -526,7 +514,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
     else {
         PyArray_CLEARFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
     }
-    if (setitem_trampoline(ctx, descr_data->f->setitem, value, item, dummy_arr) < 0) {
+    if (descr_data->f->setitem(ctx, value, item, dummy_arr) < 0) {
         // TODO HPY LABS PORT: PyObject_Free
         // PyObject_Free(data);
         free(data);
