@@ -226,6 +226,7 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
                         /*PyArrayObject*/HPy h_wheremask,
                         NPY_CASTING casting)
 {
+    HPy updated_src_dtype = HPy_NULL;
     int allocated_src_data = 0;
     npy_longlong scalarbuffer[4];
 
@@ -295,7 +296,8 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
          * just the pointer to the native space of the dtype. We need to update
          * 'h_src_dtype'.
          */
-        HPy_SETREF(ctx, h_src_dtype, HPyArray_DESCR(ctx, h_dst, dst));
+        updated_src_dtype = HPyArray_DESCR(ctx, h_dst, dst);
+        h_src_dtype = updated_src_dtype;
     }
 
     PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
@@ -334,6 +336,7 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
     if (allocated_src_data) {
         PyArray_free(src_data);
     }
+    HPy_Close(ctx, updated_src_dtype);
 
     return 0;
 
@@ -341,6 +344,7 @@ fail:
     if (allocated_src_data) {
         PyArray_free(src_data);
     }
+    HPy_Close(ctx, updated_src_dtype);
 
     return -1;
 }
