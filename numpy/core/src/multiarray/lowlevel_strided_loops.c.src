@@ -1035,7 +1035,7 @@ PyArray_GetStridedNumericCastFn(int aligned, npy_intp src_stride,
 
 /* See documentation of arguments in lowlevel_strided_loops.h */
 NPY_NO_EXPORT npy_intp
-PyArray_TransferNDimToStrided(npy_intp ndim,
+PyArray_TransferNDimToStrided(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp dst_stride,
                 char *src, npy_intp const *src_strides, npy_intp src_strides_inc,
                 npy_intp const *coords, npy_intp coords_inc,
@@ -1043,7 +1043,6 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
                 npy_intp count, npy_intp src_itemsize,
                 NPY_cast_info *cast_info)
 {
-    HPyContext *ctx = npy_get_context();
     npy_intp i, M, N, coord0, shape0, src_stride0, coord1, shape1, src_stride1;
 
     /* Finish off dimension 0 */
@@ -1169,7 +1168,7 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
 
 /* See documentation of arguments in lowlevel_strided_loops.h */
 NPY_NO_EXPORT npy_intp
-PyArray_TransferStridedToNDim(npy_intp ndim,
+PyArray_TransferStridedToNDim(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp const *dst_strides, npy_intp dst_strides_inc,
                 char *src, npy_intp src_stride,
                 npy_intp const *coords, npy_intp coords_inc,
@@ -1177,7 +1176,6 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
                 npy_intp count, npy_intp src_itemsize,
                 NPY_cast_info *cast_info)
 {
-    HPyContext *ctx = npy_get_context();
     npy_intp i, M, N, coord0, shape0, dst_stride0, coord1, shape1, dst_stride1;
 
     /* Finish off dimension 0 */

@@ -319,7 +319,7 @@ PyArray_CastRawArrays(npy_intp count,
  *      necessary to perform a cast.
  */
 NPY_NO_EXPORT npy_intp
-PyArray_TransferNDimToStrided(npy_intp ndim,
+PyArray_TransferNDimToStrided(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp dst_stride,
                 char *src, npy_intp const *src_strides, npy_intp src_strides_inc,
                 npy_intp const *coords, npy_intp coords_inc,
@@ -328,7 +328,7 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
                 NPY_cast_info *cast_info);
 
 NPY_NO_EXPORT npy_intp
-PyArray_TransferStridedToNDim(npy_intp ndim,
+PyArray_TransferStridedToNDim(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp const *dst_strides, npy_intp dst_strides_inc,
                 char *src, npy_intp src_stride,
                 npy_intp const *coords, npy_intp coords_inc,

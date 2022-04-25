@@ -2095,7 +2095,7 @@ hnpyiter_copy_from_buffers(HPyContext *ctx, NpyIter *iter)
             }
             /* Regular operand */
             else {
-                if (PyArray_TransferStridedToNDim(ndim_transfer,
+                if (PyArray_TransferStridedToNDim(ctx, ndim_transfer,
                         ad_ptrs[iop], dst_strides, axisdata_incr,
                         buffer, src_stride,
                         dst_coords, axisdata_incr,
@@ -2638,7 +2638,7 @@ hnpyiter_copy_to_buffers(HPyContext *ctx, NpyIter *iter, char **prev_dataptrs)
                                 "buffer (%d items)\n",
                                 (int)iop, (int)op_transfersize);
 
-                if (PyArray_TransferNDimToStrided(
+                if (PyArray_TransferNDimToStrided(ctx,
                         ndim_transfer, ptrs[iop], dst_stride,
                         ad_ptrs[iop], src_strides, axisdata_incr,
                         src_coords, axisdata_incr,
