@@ -4559,7 +4559,7 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     for (i = 0; i <= NPY_HALF; i++) {
         h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[i]);
         PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
-        if (dtypemeta_wrap_legacy_descriptor(ctx, descr) < 0) {
+        if (dtypemeta_wrap_legacy_descriptor(ctx, h_descr, descr) < 0) {
             HPy_Close(ctx, h_descr);
             return -1;
         }
