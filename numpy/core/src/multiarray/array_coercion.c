@@ -221,7 +221,7 @@ npy_discover_dtype_from_pytype(HPyContext *ctx, HPy /* (PyTypeObject *) */ pytyp
     }
 
     HPy pytype_to_type_dict = HPyGlobal_Load(ctx, _hpy_global_pytype_to_type_dict);
-    DType = HPy_GetItem(ctx, pytype_to_type_dict, pytype);
+    DType = HPyDict_GetItem(ctx, pytype_to_type_dict, pytype);
     if (HPy_IsNull(DType)) {
         /* the python type is not known */
         return HPy_NULL;
