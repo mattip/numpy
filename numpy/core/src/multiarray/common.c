@@ -38,20 +38,25 @@
 NPY_NO_EXPORT NPY_CASTING NPY_DEFAULT_ASSIGN_CASTING = NPY_SAME_KIND_CASTING;
 
 
-NPY_NO_EXPORT PyArray_Descr *
-_array_find_python_scalar_type(PyObject *op)
+NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
+_array_find_python_scalar_type(HPyContext *ctx, HPy op)
 {
-    if (PyFloat_Check(op)) {
-        return PyArray_DescrFromType(NPY_DOUBLE);
+    if (HPy_TypeCheck(ctx, op, ctx->h_FloatType)) {
+        return HPyArray_DescrFromType(ctx, NPY_DOUBLE);
     }
-    else if (PyComplex_Check(op)) {
-        return PyArray_DescrFromType(NPY_CDOUBLE);
+    else if (HPy_TypeCheck(ctx, op, ctx->h_ComplexType)) {
+        return HPyArray_DescrFromType(ctx, NPY_CDOUBLE);
     }
-    else if (PyLong_Check(op)) {
-        return NPY_DT_CALL_discover_descr_from_pyobject(
-                PyArray_PyIntAbstractDType, op);
+    else if (HPy_TypeCheck(ctx, op, ctx->h_LongType)) {
+        // TODO HPY LABS PORT
+        CAPI_WARN("_array_find_python_scalar_type: loading type from legacy global");
+        HPy int_abstract_dtype = HPy_FromPyObject(ctx, (PyObject *)PyArray_PyIntAbstractDType);
+        HPy res = HNPY_DT_CALL_discover_descr_from_pyobject(
+                ctx, int_abstract_dtype, op);
+        HPy_Close(ctx, int_abstract_dtype);
+        return res;
     }
-    return NULL;
+    return HPy_NULL;
 }
 
 
@@ -334,27 +339,26 @@ end:
 }
 
 
-NPY_NO_EXPORT PyArrayObject *
-dummy_array_new(PyArray_Descr *descr, npy_intp flags, PyObject *base)
+NPY_NO_EXPORT HPy
+dummy_array_new(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, npy_intp flags, HPy base)
 {
-    PyArrayObject_fields *fa = (PyArrayObject_fields *)PyArray_Type.tp_alloc(&PyArray_Type, 0);
-    if (fa == NULL) {
-        return NULL;
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+
+    // PyArrayObject_fields *fa = (PyArrayObject_fields *)PyArray_Type.tp_alloc(&PyArray_Type, 0);
+    PyArrayObject_fields *data = NULL;
+    HPy fa = HPy_New(ctx, array_type, &data);
+    if (HPy_IsNull(fa)) {
+        return HPy_NULL;
     }
-    fa->f_descr = HPyField_NULL;
-    if (descr != NULL) {
-        _set_descr((PyArrayObject *)fa, descr);
+    data->f_descr = HPyField_NULL;
+    if (!HPy_IsNull(descr)) {
+        _hpy_set_descr(ctx, fa, data, descr);
     }
-    fa->flags = flags;
-    if (base != NULL) {
-        HPyContext *ctx = npy_get_context();
-        HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)fa);
-        HPy h_base = HPy_FromPyObject(ctx, base);
-        HPyArray_SetBase(ctx, h_arr, h_base);
-        HPy_Close(ctx, h_base);
-        HPy_Close(ctx, h_arr);
+    data->flags = flags;
+    if (!HPy_IsNull(base)) {
+        HPyArray_SetBase(ctx, fa, base);
     }
-    return (PyArrayObject *)fa;
+    return fa;
 }
 
 /*

@@ -158,6 +158,21 @@ static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy 
 #define NPY_DT_CALL_setitem(descr, value, data_ptr)  \
     NPY_DT_SLOTS(NPY_DTYPE(descr))->setitem(descr, value, data_ptr)
 
+static inline int
+HNPY_DT_CALL_is_known_scalar_type(HPyContext *ctx, HPy h_meta, PyArray_DTypeMeta *meta, HPy obj) {
+    NPY_DType_Slots *slots = NPY_DT_SLOTS(meta);
+    int res = 0;
+    if (slots->is_known_scalar_type != NULL) {
+        CAPI_WARN("HNPY_DT_CALL_is_known_scalar_type: calling legacy DType slot 'is_known_scalar_type'");
+        PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_meta);
+        PyTypeObject *py_obj = (PyTypeObject *)HPy_AsPyObject(ctx, obj);
+        res = slots->is_known_scalar_type(py_cls, py_obj);
+        Py_DECREF(py_cls);
+        Py_DECREF(py_obj);
+    }
+    return res;
+}
+
 static NPY_INLINE HPy
 hdtypemeta_call_default_descr(HPyContext *ctx, HPy dtype_meta)
 {
