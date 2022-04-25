@@ -429,7 +429,7 @@ struct NpyAuxData_tag {
 * allocated. These should be made private
 */
 
-#define NPY_USE_PYMEM 1
+#define NPY_USE_PYMEM 0
 
 
 #if NPY_USE_PYMEM == 1

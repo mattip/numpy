@@ -155,4 +155,6 @@ extern NPY_NO_EXPORT HPyGlobal HPyDatetimeArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyTimedeltaArrType_Type;
 extern NPY_NO_EXPORT HPyGlobal HPyHalfArrType_Type;
 
+extern NPY_NO_EXPORT HPyGlobal _HPyArrayScalar_BoolValues[2];
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SCALARTYPES_H_ */

@@ -5032,6 +5032,9 @@ static HPyGlobal *module_globals[] = {
     &HPyTimedeltaArrType_Type,
     &HPyHalfArrType_Type,
 
+    &_HPyArrayScalar_BoolValues[0],
+    &_HPyArrayScalar_BoolValues[1],
+
     // arraytypes
     &_hpy_builtin_descrs[NPY_VOID],
     &_hpy_builtin_descrs[NPY_STRING],
