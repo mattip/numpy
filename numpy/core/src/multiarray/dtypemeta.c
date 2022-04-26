@@ -729,12 +729,13 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
         }
     }
 
-    dtype_class = HPy_AsPyObject(ctx, h_new_dtype_type);
-    CAPI_WARN("_PyArray_MapPyTypeToDType");
-    if (_PyArray_MapPyTypeToDType((PyArray_DTypeMeta *) dtype_class, PyArray_Descr_typeobj(descr),
+    HPy descr_typeobj = HPyField_Load(ctx, h_descr, descr->typeobj);
+    if (_PyArray_MapPyTypeToDType(ctx, h_new_dtype_type, descr_typeobj,
             PyTypeNum_ISUSERDEF(new_dtype_data->type_num)) < 0) {
+        HPy_Close(ctx, descr_typeobj);
         goto cleanup;
     }
+    HPy_Close(ctx, descr_typeobj);
 
     /* Finally, replace the current class of the descr */
     // TODO HPY LABS PORT: probably expose HPy_SetType for the HPy example port,
@@ -744,6 +745,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
     // descriptors like BOOL_Descr, which we can initialize with the right type
     // already to avoid setting it ex-post
     CAPI_WARN("Py_SET_TYPE");
+    dtype_class = HPy_AsPyObject(ctx, h_new_dtype_type);
     Py_SET_TYPE(descr, (PyTypeObject *)dtype_class);
     result = 0;
 

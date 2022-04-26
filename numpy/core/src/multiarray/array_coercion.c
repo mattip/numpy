@@ -83,8 +83,16 @@
  *       It should be possible to retrofit this without too much trouble
  *       (all type objects support weak references).
  */
-PyObject *_global_pytype_to_type_dict = NULL;
-NPY_NO_EXPORT HPyGlobal _hpy_global_pytype_to_type_dict;
+NPY_NO_EXPORT HPyGlobal _global_pytype_to_type_dict;
+
+static inline PyObject *get_global_pytype_to_type_dict() {
+    HPyContext *ctx = npy_get_context();
+    HPy h = HPyGlobal_Load(ctx, _global_pytype_to_type_dict);
+    PyObject *res = HPy_AsPyObject(ctx, h);
+    HPy_Close(ctx, h);
+    Py_DECREF(res); // simulate a borrowed ref for ease of using this where borrowed ref was assumed
+    return res;
+}
 
 
 /* Enum to track or signal some things during dtype and shape discovery */
@@ -105,29 +113,34 @@ enum _dtype_discovery_flags {
  *
  * @return -1 on error 0 on success
  */
-static int
-_prime_global_pytype_to_type_dict(void)
+NPY_NO_EXPORT int
+init_global_pytype_to_type_dict(HPyContext *ctx)
 {
-    int res;
+    int res = 0;
+    HPy d = HPyDict_New(ctx);
 
     /* Add the basic Python sequence types */
-    res = PyDict_SetItem(_global_pytype_to_type_dict,
-                         (PyObject *)&PyList_Type, Py_None);
+    res = HPy_SetItem(ctx, d, ctx->h_ListType, ctx->h_None);
     if (res < 0) {
-        return -1;
+        goto cleanup;
     }
-    res = PyDict_SetItem(_global_pytype_to_type_dict,
-                         (PyObject *)&PyTuple_Type, Py_None);
+
+    res = HPy_SetItem(ctx, d, ctx->h_TupleType, ctx->h_None);
     if (res < 0) {
-        return -1;
+        goto cleanup;
     }
     /* NumPy Arrays are not handled as scalars */
-    res = PyDict_SetItem(_global_pytype_to_type_dict,
-                         (PyObject *)&PyArray_Type, Py_None);
+    HPy arr_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    res = HPy_SetItem(ctx, d, arr_type, ctx->h_None);
+    HPy_Close(ctx, arr_type);
     if (res < 0) {
-        return -1;
+        goto cleanup;
     }
-    return 0;
+
+    HPyGlobal_Store(ctx, &_global_pytype_to_type_dict, d);
+cleanup:
+    HPy_Close(ctx, d);
+    return res;
 }
 
 
@@ -147,63 +160,72 @@ _prime_global_pytype_to_type_dict(void)
  */
 NPY_NO_EXPORT int
 _PyArray_MapPyTypeToDType(
-        PyArray_DTypeMeta *DType, PyTypeObject *pytype, npy_bool userdef)
+        HPyContext *ctx, /*PyArray_DTypeMeta*/ HPy h_DType, /*PyTypeObject*/ HPy h_pytype, npy_bool userdef)
 {
-    PyObject *Dtype_obj = (PyObject *)DType;
+    int res;
+    HPy d = HPy_NULL;
+    HPy generic_arr_type = HPyGlobal_Load(ctx, HPyGenericArrType_Type);
 
-    if (userdef && !PyObject_IsSubclass(
-                    (PyObject *)pytype, (PyObject *)&PyGenericArrType_Type)) {
+    // TODO HPY LABS PORT: PyObject_IsInstance
+    if (userdef && !HPy_TypeCheck(ctx, h_pytype, generic_arr_type)) {
         /*
          * We expect that user dtypes (for now) will subclass some numpy
          * scalar class to allow automatic discovery.
          */
-        if (NPY_DT_is_legacy(DType)) {
+        PyArray_DTypeMeta *meta_data = PyArray_DTypeMeta_AsStruct(ctx, h_DType);
+        if (NPY_DT_is_legacy(meta_data)) {
             /*
              * For legacy user dtypes, discovery relied on subclassing, but
              * arbitrary type objects are supported, so do nothing.
              */
-            return 0;
+            res = 0;
+            goto cleanup;
         }
         /*
          * We currently enforce that user DTypes subclass from `np.generic`
          * (this should become a `np.generic` base class and may be lifted
          * entirely).
          */
-        PyErr_Format(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "currently it is only possible to register a DType "
-                "for scalars deriving from `np.generic`, got '%S'.",
-                (PyObject *)pytype);
-        return -1;
+                "for scalars deriving from `np.generic`, got '%S'."
+                /*, (PyObject *)pytype*/);
+        res = -1;
+        goto cleanup;
     }
 
     /* Create the global dictionary if it does not exist */
-    if (NPY_UNLIKELY(_global_pytype_to_type_dict == NULL)) {
-        _global_pytype_to_type_dict = PyDict_New();
-        if (_global_pytype_to_type_dict == NULL) {
-            return -1;
-        }
-        HPyContext *ctx = npy_get_context();
-        HPy h = HPy_FromPyObject(ctx, _global_pytype_to_type_dict);
-        HPyGlobal_Store(ctx, &_hpy_global_pytype_to_type_dict, h);
-        HPy_Close(ctx, h);
-        if (_prime_global_pytype_to_type_dict() < 0) {
-            return -1;
-        }
-    }
+    // Initialized eagerly in HPy
+    // if (NPY_UNLIKELY(_global_pytype_to_type_dict == NULL)) {
+    //     _global_pytype_to_type_dict = PyDict_New();
+    //     if (_global_pytype_to_type_dict == NULL) {
+    //         return -1;
+    //     }
+    //     if (_prime_global_pytype_to_type_dict() < 0) {
+    //         return -1;
+    //     }
+    // }
 
-    int res = PyDict_Contains(_global_pytype_to_type_dict, (PyObject *)pytype);
+    d = HPyGlobal_Load(ctx, _global_pytype_to_type_dict);
+    res = HPy_Contains(ctx, d, h_pytype);
     if (res < 0) {
-        return -1;
+        goto cleanup;
     }
     else if (res) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Can only map one python type to DType.");
-        return -1;
+        res = -1;
+        goto cleanup;
     }
 
-    return PyDict_SetItem(_global_pytype_to_type_dict,
-            (PyObject *)pytype, Dtype_obj);
+    res = HPy_SetItem(ctx, d, h_pytype, h_DType);
+
+cleanup:
+    HPy_Close(ctx, generic_arr_type);
+    HPy_Close(ctx, d);
+    return res;
 }
+
 
 /**
  * Lookup the DType for a registered known python scalar type.
@@ -220,7 +242,7 @@ npy_discover_dtype_from_pytype(HPyContext *ctx, HPy /* (PyTypeObject *) */ pytyp
         return HPy_Dup(ctx, ctx->h_None);
     }
 
-    HPy pytype_to_type_dict = HPyGlobal_Load(ctx, _hpy_global_pytype_to_type_dict);
+    HPy pytype_to_type_dict = HPyGlobal_Load(ctx, _global_pytype_to_type_dict);
     DType = HPyDict_GetItem(ctx, pytype_to_type_dict, pytype);
     if (HPy_IsNull(DType)) {
         /* the python type is not known */
