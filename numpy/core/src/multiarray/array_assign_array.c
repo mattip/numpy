@@ -130,10 +130,11 @@ raw_array_assign_array(int ndim, npy_intp const *shape,
 
     npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
 
+    HPyContext *ctx = npy_get_context();
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         /* Process the innermost dimension */
         char *args[2] = {src_data, dst_data};
-        if (cast_info.func(&cast_info.context,
+        if (cast_info.func(ctx, &cast_info.context,
                 args, &shape_it[0], strides, cast_info.auxdata) < 0) {
             goto fail;
         }
@@ -142,11 +143,11 @@ raw_array_assign_array(int ndim, npy_intp const *shape,
                             src_data, src_strides_it);
 
     NPY_END_THREADS;
-    NPY_cast_info_xfree(&cast_info);
+    HNPY_cast_info_xfree(ctx, &cast_info);
     return 0;
 fail:
     NPY_END_THREADS;
-    NPY_cast_info_xfree(&cast_info);
+    HNPY_cast_info_xfree(ctx, &cast_info);
     return -1;
 }
 
@@ -586,6 +587,7 @@ HPyArray_AssignArray(HPyContext *ctx, /*PyArrayObject*/HPy h_dst, /*PyArrayObjec
     if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
+        CAPI_WARN("straightforward value assignment that needs raw_array_assign_array");
         if (raw_array_assign_array(PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
                 PyArray_DESCR(src), PyArray_DATA(src), src_strides) < 0) {

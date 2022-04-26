@@ -179,11 +179,11 @@ PyArray_DTypeFromTypeNum(int typenum)
     return dtype;
 }
 
-static NPY_INLINE HPy
+static NPY_INLINE HPy /* (PyArray_DTypeMeta *) */
 HPyArray_DTypeFromTypeNum(HPyContext *ctx, int typenum)
 {
-    HPy descr = HPyArray_DescrFromType(ctx, typenum);
-    HPy dtype = HNPY_DTYPE(ctx, descr);
+    HPy /* (PyArray_Descr *) */ descr = HPyArray_DescrFromType(ctx, typenum);
+    HPy /* (PyArray_DTypeMeta *) */ dtype = HNPY_DTYPE(ctx, descr);
     HPy_Close(ctx, descr);
     return dtype;
 }

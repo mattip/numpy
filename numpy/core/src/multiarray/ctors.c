@@ -3221,7 +3221,7 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
     for(;;) {
         /* Transfer the biggest amount that fits both */
         count = (src_count < dst_count) ? src_count : dst_count;
-        if (cast_info.func(&cast_info.context,
+        if (cast_info.func(npy_get_context(), &cast_info.context,
                 args, &count, strides, cast_info.auxdata) < 0) {
             res = -1;
             break;

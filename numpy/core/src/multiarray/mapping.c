@@ -1118,7 +1118,7 @@ array_boolean_subscript(PyArrayObject *self,
                 bmask_data = npy_memchr(bmask_data, 0, bmask_stride, innersize,
                                         &subloopsize, 0);
                 char *args[2] = {self_data, ret_data};
-                res = cast_info.func(&cast_info.context,
+                res = cast_info.func(npy_get_context(), &cast_info.context,
                         args, &subloopsize, strides, cast_info.auxdata);
                 if (res < 0) {
                     break;
@@ -1308,7 +1308,7 @@ array_assign_boolean_subscript(PyArrayObject *self,
                                         &subloopsize, 0);
 
                 char *args[2] = {v_data, self_data};
-                res = cast_info.func(&cast_info.context,
+                res = cast_info.func(npy_get_context(), &cast_info.context,
                         args, &subloopsize, strides, cast_info.auxdata);
                 if (res < 0) {
                     break;

@@ -48,7 +48,7 @@
  * mask[i*mask_stride] is true.
  */
 typedef int (PyArray_MaskedStridedUnaryOp)(
-        PyArrayMethod_Context *context, char *const *args,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata);
@@ -71,7 +71,7 @@ typedef int (PyArray_MaskedStridedUnaryOp)(
  *      Should be the item size if it will always be the same, 0 otherwise.
  *
  */
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedCopyFn(int aligned,
                         npy_intp src_stride, npy_intp dst_stride,
                         npy_intp itemsize);
@@ -86,7 +86,7 @@ PyArray_GetStridedCopyFn(int aligned,
  *
  * Parameters are as for PyArray_GetStridedCopyFn.
  */
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedCopySwapFn(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             npy_intp itemsize);
@@ -101,7 +101,7 @@ PyArray_GetStridedCopySwapFn(int aligned,
  *
  * Parameters are as for PyArray_GetStridedCopyFn.
  */
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedCopySwapPairFn(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             npy_intp itemsize);
@@ -120,7 +120,7 @@ NPY_NO_EXPORT int
 PyArray_GetStridedZeroPadCopyFn(int aligned, int unicode_swap,
                             npy_intp src_stride, npy_intp dst_stride,
                             npy_intp src_itemsize, npy_intp dst_itemsize,
-                            PyArrayMethod_StridedLoop **outstransfer,
+                            HPyArrayMethod_StridedLoop **outstransfer,
                             NpyAuxData **outtransferdata);
 
 /*
@@ -129,7 +129,7 @@ PyArray_GetStridedZeroPadCopyFn(int aligned, int unicode_swap,
  * to dst_type_num.  If a conversion is unsupported, returns NULL
  * without setting a Python exception.
  */
-NPY_NO_EXPORT PyArrayMethod_StridedLoop *
+NPY_NO_EXPORT HPyArrayMethod_StridedLoop *
 PyArray_GetStridedNumericCastFn(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             int src_type_num, int dst_type_num);
@@ -144,7 +144,7 @@ NPY_NO_EXPORT int
 PyArray_GetDTypeCopySwapFn(int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
                             PyArray_Descr *dtype,
-                            PyArrayMethod_StridedLoop **outstransfer,
+                            HPyArrayMethod_StridedLoop **outstransfer,
                             NpyAuxData **outtransferdata);
 
 /*
@@ -210,7 +210,7 @@ get_fields_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         int move_references,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 
@@ -219,7 +219,7 @@ get_subarray_transfer_function(int aligned,
         npy_intp src_stride, npy_intp dst_stride,
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         int move_references,
-        PyArrayMethod_StridedLoop **out_stransfer,
+        HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 
@@ -319,7 +319,7 @@ PyArray_CastRawArrays(npy_intp count,
  *      necessary to perform a cast.
  */
 NPY_NO_EXPORT npy_intp
-PyArray_TransferNDimToStrided(npy_intp ndim,
+PyArray_TransferNDimToStrided(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp dst_stride,
                 char *src, npy_intp const *src_strides, npy_intp src_strides_inc,
                 npy_intp const *coords, npy_intp coords_inc,
@@ -328,7 +328,7 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
                 NPY_cast_info *cast_info);
 
 NPY_NO_EXPORT npy_intp
-PyArray_TransferStridedToNDim(npy_intp ndim,
+PyArray_TransferStridedToNDim(HPyContext *ctx, npy_intp ndim,
                 char *dst, npy_intp const *dst_strides, npy_intp dst_strides_inc,
                 char *src, npy_intp src_stride,
                 npy_intp const *coords, npy_intp coords_inc,

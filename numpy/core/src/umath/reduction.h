@@ -25,8 +25,9 @@ typedef int (PyArray_AssignReduceIdentityFunc)(PyArrayObject *result,
  *
  * TODO: This should be refactored/removed.
  */
-typedef int (PyArray_ReduceLoopFunc)(PyArrayMethod_Context *context,
-        PyArrayMethod_StridedLoop *strided_loop, NpyAuxData *auxdata,
+typedef int (PyArray_ReduceLoopFunc)(HPyContext *ctx,
+        HPyArrayMethod_Context *context,
+        HPyArrayMethod_StridedLoop *strided_loop, NpyAuxData *auxdata,
         NpyIter *iter, char **dataptrs, npy_intp const *strides,
         npy_intp const *countptr, NpyIter_IterNextFunc *iternext,
         int needs_api, npy_intp skip_first_count);

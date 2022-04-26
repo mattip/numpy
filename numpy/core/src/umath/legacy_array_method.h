@@ -21,10 +21,10 @@ HPyArray_NewLegacyWrappingArrayMethod(HPyContext *ctx, PyUFuncObject *ufunc,
  * one).
  */
 NPY_NO_EXPORT int
-get_wrapped_legacy_ufunc_loop(PyArrayMethod_Context *context,
+get_wrapped_legacy_ufunc_loop(HPyContext *ctx, HPyArrayMethod_Context *context,
         int aligned, int move_references,
         const npy_intp *NPY_UNUSED(strides),
-        PyArrayMethod_StridedLoop **out_loop,
+        HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags);
 

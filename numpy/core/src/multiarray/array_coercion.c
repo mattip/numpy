@@ -493,7 +493,7 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     char *args[2] = {data, item};
     const npy_intp strides[2] = {0, 0};
     const npy_intp length = 1;
-    if (cast_info.func(&cast_info.context,
+    if (cast_info.func(npy_get_context(), &cast_info.context,
             args, &length, strides, cast_info.auxdata) < 0) {
         res = -1;
     }
@@ -884,7 +884,7 @@ static int
 h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr)
 {
     // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
-    enum _dtype_discovery_flags flags = 0;
+    // enum _dtype_discovery_flags flags = 0;
     *out_descr = HPy_NULL;
 
     if (HPy_IsNull(DType)) {

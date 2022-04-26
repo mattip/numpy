@@ -16,30 +16,17 @@ extern "C" {
 #include <execinfo.h>
 #include <stdio.h>
 
-extern NPY_NO_EXPORT int _capi_warn_level;
 extern NPY_NO_EXPORT HPyContext *numpy_global_ctx;
-
-static int
-capi_warn_level_init()
-{
-    if (_capi_warn_level == -1) {
-        const char *capi_warn = getenv("CAPI_WARN");
-        if (capi_warn) {
-            _capi_warn_level = atoi(capi_warn);
-        } else {
-            _capi_warn_level = 1;
-        }
-    }
-    assert(_capi_warn_level >= 0);
-    return _capi_warn_level;
-}
 
 static NPY_INLINE int
 capi_warn_level()
 {
-    if (_capi_warn_level >= 0)
-        return _capi_warn_level;
-    return capi_warn_level_init();
+    const char *capi_warn = getenv("CAPI_WARN");
+    if (capi_warn) {
+        return atoi(capi_warn);
+    }
+    // default is 1
+    return 1;
 }
 
 static NPY_INLINE

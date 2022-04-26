@@ -299,7 +299,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
 
     result = NpyIter_GetOperandArray(iter)[0];
 
-    PyArrayMethod_StridedLoop *strided_loop;
+    HPyArrayMethod_StridedLoop *strided_loop;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
 
     int needs_api = (flags & NPY_METH_REQUIRES_PYAPI) != 0;
@@ -348,7 +348,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         }
     }
     else {
-        if (context->method->get_strided_loop(context,
+        if (context->method->get_strided_loop(npy_get_context(), context,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             goto fail;
         }
@@ -368,7 +368,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         strideptr = NpyIter_GetInnerStrideArray(iter);
         countptr = NpyIter_GetInnerLoopSizePtr(iter);
 
-        if (loop(context, strided_loop, auxdata,
+        if (loop(npy_get_context(), context, strided_loop, auxdata,
                 iter, dataptr, strideptr, countptr, iternext,
                 needs_api, skip_first_count) < 0) {
             goto fail;

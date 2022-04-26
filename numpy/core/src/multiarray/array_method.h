@@ -72,10 +72,19 @@ typedef struct {
     HPy *descriptors;
 } HPyArrayMethod_Context;
 
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE PyArrayMethod_Context *
+method_context_h2py(HPyArrayMethod_Context *hcontext) {
+    CAPI_WARN("method_context_h2py");
+    return (PyArrayMethod_Context *) hcontext;
+}
 
-typedef int (PyArrayMethod_StridedLoop)(PyArrayMethod_Context *context,
-        char *const *data, const npy_intp *dimensions, const npy_intp *strides,
-        NpyAuxData *transferdata);
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE HPyArrayMethod_Context *
+method_context_py2h(PyArrayMethod_Context *context) {
+    CAPI_WARN("method_context_py2h");
+    return (HPyArrayMethod_Context *) context;
+}
 
 typedef int (HPyArrayMethod_StridedLoop)(HPyContext *hctx,
         HPyArrayMethod_Context *context,
@@ -100,10 +109,11 @@ typedef NPY_CASTING (h_resolve_descriptors_function)(
 
 
 typedef int (get_loop_function)(
-        PyArrayMethod_Context *context,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context,
         int aligned, int move_references,
         const npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop,
+        HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags);
 
@@ -257,9 +267,10 @@ extern NPY_NO_EXPORT HPyGlobal HPyBoundArrayMethod_Type;
  */
 NPY_NO_EXPORT int
 npy_default_get_strided_loop(
-        PyArrayMethod_Context *context,
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context,
         int aligned, int NPY_UNUSED(move_references), const npy_intp *strides,
-        PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags);
 
 
@@ -268,7 +279,7 @@ PyArrayMethod_GetMaskedStridedLoop(
         PyArrayMethod_Context *context,
         int aligned,
         npy_intp *fixed_strides,
-        PyArrayMethod_StridedLoop **out_loop,
+        HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags);
 
