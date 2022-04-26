@@ -4112,9 +4112,8 @@ string_to_datetime_cast_get_loop(
  * This registers the castingimpl for all datetime related casts.
  */
 NPY_NO_EXPORT int
-PyArray_InitializeDatetimeCasts()
+PyArray_InitializeDatetimeCasts(HPyContext *ctx)
 {
-    HPyContext *ctx = npy_get_context();
     int result = -1;
 
     PyType_Slot slots[3];
@@ -4135,24 +4134,20 @@ PyArray_InitializeDatetimeCasts()
     slots[2].slot = 0;
     slots[2].pfunc = NULL;
 
-    PyArray_DTypeMeta *datetime = PyArray_DTypeFromTypeNum(NPY_DATETIME);
-    HPy h_datetime = HPy_FromPyObject(ctx, (PyObject *)datetime);
-    PyArray_DTypeMeta *timedelta = PyArray_DTypeFromTypeNum(NPY_TIMEDELTA);
-    HPy h_timedelta = HPy_FromPyObject(ctx, (PyObject *)timedelta);
-    PyArray_DTypeMeta *string = PyArray_DTypeFromTypeNum(NPY_STRING);
-    HPy h_string = HPy_FromPyObject(ctx, (PyObject *)string);
-    PyArray_DTypeMeta *unicode = PyArray_DTypeFromTypeNum(NPY_UNICODE);
-    HPy h_unicode = HPy_FromPyObject(ctx, (PyObject *)unicode);
-    PyArray_DTypeMeta *tmp = NULL;
+    HPy datetime = HPyArray_DTypeFromTypeNum(ctx, NPY_DATETIME);
+    HPy timedelta = HPyArray_DTypeFromTypeNum(ctx, NPY_TIMEDELTA);
+    HPy string = HPyArray_DTypeFromTypeNum(ctx, NPY_STRING);
+    HPy unicode = HPyArray_DTypeFromTypeNum(ctx, NPY_UNICODE);
+    HPy tmp = HPy_NULL;
 
-    dtypes[0] = h_datetime;
-    dtypes[1] = h_datetime;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    dtypes[0] = datetime;
+    dtypes[1] = datetime;
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
-    dtypes[0] = h_timedelta;
-    dtypes[1] = h_timedelta;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    dtypes[0] = timedelta;
+    dtypes[1] = timedelta;
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
 
@@ -4170,15 +4165,15 @@ PyArray_InitializeDatetimeCasts()
     slots[2].pfunc = NULL;
 
     spec.name = "timedelta_and_datetime_cast";
-    dtypes[0] = h_timedelta;
-    dtypes[1] = h_datetime;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    dtypes[0] = timedelta;
+    dtypes[1] = datetime;
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
     spec.name = "datetime_to_timedelta_cast";
-    dtypes[0] = h_datetime;
-    dtypes[1] = h_timedelta;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    dtypes[0] = datetime;
+    dtypes[1] = timedelta;
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
 
@@ -4193,22 +4188,22 @@ PyArray_InitializeDatetimeCasts()
             continue;
         }
 
-        Py_XSETREF(tmp, PyArray_DTypeFromTypeNum(num));
+        HPy_Close(ctx, tmp);
+        tmp = HPyArray_DTypeFromTypeNum(ctx, num);
 
-        if (PyArray_AddLegacyWrapping_CastingImpl(
-                tmp, datetime, NPY_UNSAFE_CASTING) < 0) {
+        if (HPyArray_AddLegacyWrapping_CastingImpl(
+                ctx, tmp, datetime, NPY_UNSAFE_CASTING) < 0) {
             goto fail;
         }
-        if (PyArray_AddLegacyWrapping_CastingImpl(
-                datetime, tmp, NPY_UNSAFE_CASTING) < 0) {
+        if (HPyArray_AddLegacyWrapping_CastingImpl(
+                ctx, datetime, tmp, NPY_UNSAFE_CASTING) < 0) {
             goto fail;
         }
 
         NPY_CASTING to_timedelta_casting = NPY_UNSAFE_CASTING;
         if (PyTypeNum_ISINTEGER(num) || num == NPY_BOOL) {
             /* timedelta casts like int64 right now... */
-            HPy h_tmp = HPy_FromPyObject(ctx, (PyObject *)tmp);
-            HPy h_singleton = HPyField_Load(ctx, h_tmp, PyArray_DTypeMeta_AsStruct(ctx, h_tmp)->singleton);
+            HPy h_singleton = HPyField_Load(ctx, tmp, PyArray_DTypeMeta_AsStruct(ctx, tmp)->singleton);
             if (PyTypeNum_ISUNSIGNED(num) && PyArray_Descr_AsStruct(ctx, h_singleton)->elsize == 8) {
                 to_timedelta_casting = NPY_SAME_KIND_CASTING;
             }
@@ -4216,14 +4211,13 @@ PyArray_InitializeDatetimeCasts()
                 to_timedelta_casting = NPY_SAFE_CASTING;
             }
             HPy_Close(ctx, h_singleton);
-            HPy_Close(ctx, h_tmp);
         }
-        if (PyArray_AddLegacyWrapping_CastingImpl(
-                tmp, timedelta, to_timedelta_casting) < 0) {
+        if (HPyArray_AddLegacyWrapping_CastingImpl(
+                ctx, tmp, timedelta, to_timedelta_casting) < 0) {
             goto fail;
         }
-        if (PyArray_AddLegacyWrapping_CastingImpl(
-                timedelta, tmp, NPY_UNSAFE_CASTING) < 0) {
+        if (HPyArray_AddLegacyWrapping_CastingImpl(
+                ctx, timedelta, tmp, NPY_UNSAFE_CASTING) < 0) {
             goto fail;
         }
     }
@@ -4245,15 +4239,15 @@ PyArray_InitializeDatetimeCasts()
     slots[2].slot = 0;
     slots[2].pfunc = NULL;
 
-    dtypes[0] = h_datetime;
+    dtypes[0] = datetime;
     for (int num = NPY_DATETIME; num <= NPY_TIMEDELTA; num++) {
         if (num == NPY_DATETIME) {
-            dtypes[0] = h_datetime;
+            dtypes[0] = datetime;
             spec.flags = NPY_METH_SUPPORTS_UNALIGNED | NPY_METH_REQUIRES_PYAPI;
             slots[1].pfunc = &datetime_to_string_get_loop;
         }
         else {
-            dtypes[0] = h_timedelta;
+            dtypes[0] = timedelta;
             spec.flags = NPY_METH_REQUIRES_PYAPI;
             slots[1].pfunc = &legacy_cast_get_strided_loop;
         }
@@ -4261,8 +4255,8 @@ PyArray_InitializeDatetimeCasts()
         for (int str = NPY_STRING; str <= NPY_UNICODE; str++) {
             dtypes[1] = HPyArray_DTypeFromTypeNum(ctx, str);
 
-            int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
-            HPy_SETREF(ctx, dtypes[1], HPy_NULL);
+            int res = HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
+            HPy_Close(ctx, dtypes[1]);
             if (res < 0) {
                 goto fail;
             }
@@ -4272,19 +4266,19 @@ PyArray_InitializeDatetimeCasts()
     /*
      * Cast strings to timedelta are currently only legacy casts
      */
-    if (PyArray_AddLegacyWrapping_CastingImpl(
-            string, timedelta, NPY_UNSAFE_CASTING) < 0) {
+    if (HPyArray_AddLegacyWrapping_CastingImpl(
+            ctx, string, timedelta, NPY_UNSAFE_CASTING) < 0) {
         goto fail;
     }
-    if (PyArray_AddLegacyWrapping_CastingImpl(
-            unicode, timedelta, NPY_UNSAFE_CASTING) < 0) {
+    if (HPyArray_AddLegacyWrapping_CastingImpl(
+            ctx, unicode, timedelta, NPY_UNSAFE_CASTING) < 0) {
         goto fail;
     }
 
     /*
      * Cast strings to datetime
      */
-    dtypes[1] = h_datetime;
+    dtypes[1] = datetime;
     spec.casting = NPY_UNSAFE_CASTING;
 
     /* The default type resolution should work fine. */
@@ -4295,33 +4289,29 @@ PyArray_InitializeDatetimeCasts()
     slots[2].slot = 0;
     slots[2].pfunc = NULL;
 
-    dtypes[0] = h_string;
+    dtypes[0] = string;
     spec.flags = NPY_METH_SUPPORTS_UNALIGNED;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
 
-    dtypes[0] = h_unicode;
+    dtypes[0] = unicode;
     /*
      * Unicode handling is currently implemented via a legacy cast, which
      * requires the Python API.
      */
     spec.flags = NPY_METH_SUPPORTS_UNALIGNED | NPY_METH_REQUIRES_PYAPI;
-    if (PyArray_AddCastingImplementation_FromSpec(&spec, 1) < 0) {
+    if (HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1) < 0) {
         goto fail;
     }
 
     result = 0;
   fail:
-    Py_DECREF(datetime);
-    Py_DECREF(timedelta);
-    Py_DECREF(string);
-    Py_DECREF(unicode);
-    Py_XDECREF(tmp);
-    HPy_Close(ctx, h_datetime);
-    HPy_Close(ctx, h_timedelta);
-    HPy_Close(ctx, h_string);
-    HPy_Close(ctx, h_unicode);
+    HPy_Close(ctx, datetime);
+    HPy_Close(ctx, timedelta);
+    HPy_Close(ctx, string);
+    HPy_Close(ctx, unicode);
+    HPy_Close(ctx, tmp);
     return result;
 }
 

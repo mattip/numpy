@@ -30,6 +30,8 @@
 #include "array_coercion.h"
 #include "simd/simd.h"
 
+#include "hpy_utils.h"
+
 static NPY_GCC_OPT_3 NPY_INLINE int
 npy_fasttake_impl(
         char *dest, char *src, const npy_intp *indices,
@@ -1991,12 +1993,18 @@ PyArray_Diagonal(PyArrayObject *self, int offset, int axis1, int axis2)
     }
 
     /* Handle negative axes with standard Python indexing rules */
-    if (check_and_adjust_axis_msg(&axis1, ndim, npy_ma_str_axis1) < 0) {
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis1);
+    if (check_and_adjust_axis_msg(&axis1, ndim, tmp) < 0) {
+        Py_XDECREF(tmp);
         return NULL;
     }
-    if (check_and_adjust_axis_msg(&axis2, ndim, npy_ma_str_axis2) < 0) {
+    Py_XDECREF(tmp);
+    tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis2);
+    if (check_and_adjust_axis_msg(&axis2, ndim, tmp) < 0) {
+        Py_XDECREF(tmp);
         return NULL;
     }
+    Py_XDECREF(tmp);
     if (axis1 == axis2) {
         PyErr_SetString(PyExc_ValueError,
                     "axis1 and axis2 cannot be the same");

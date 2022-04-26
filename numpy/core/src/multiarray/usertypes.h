@@ -27,4 +27,8 @@ NPY_NO_EXPORT int
 PyArray_AddLegacyWrapping_CastingImpl(
         PyArray_DTypeMeta *from, PyArray_DTypeMeta *to, NPY_CASTING casting);
 
+NPY_NO_EXPORT int
+HPyArray_AddLegacyWrapping_CastingImpl(HPyContext *ctx,
+        HPy h_from, HPy h_to, NPY_CASTING casting);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_USERTYPES_H_ */

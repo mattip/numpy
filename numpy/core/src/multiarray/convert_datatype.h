@@ -77,6 +77,9 @@ HPyArray_AddCastingImplementation(HPyContext *ctx, HPy bmeth);
 NPY_NO_EXPORT int
 PyArray_AddCastingImplementation_FromSpec(PyArrayMethod_Spec *spec, int private);
 
+NPY_NO_EXPORT int
+HPyArray_AddCastingImplementation_FromSpec(HPyContext *ctx, PyArrayMethod_Spec *spec, int private);
+
 NPY_NO_EXPORT NPY_CASTING
 PyArray_MinCastSafety(NPY_CASTING casting1, NPY_CASTING casting2);
 

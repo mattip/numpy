@@ -86,4 +86,12 @@ HPyBool_Check(HPyContext *ctx, HPy obj)
     return HPy_TypeCheck(ctx, obj, ctx->h_BoolType);
 }
 
+static inline PyObject *HPyGlobal_LoadPyObj(HPyGlobal g) {
+    HPyContext *ctx = npy_get_context();
+    HPy h = HPyGlobal_Load(ctx, g);
+    PyObject *res = HPy_AsPyObject(ctx, h);
+    HPy_Close(ctx, h);
+    return res;
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */

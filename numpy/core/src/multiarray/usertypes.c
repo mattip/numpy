@@ -628,3 +628,57 @@ PyArray_AddLegacyWrapping_CastingImpl(
         return PyArray_AddCastingImplementation_FromSpec(&spec, 1);
     }
 }
+
+NPY_NO_EXPORT int
+HPyArray_AddLegacyWrapping_CastingImpl(HPyContext *ctx,
+        HPy h_from, HPy h_to, NPY_CASTING casting)
+{
+    if (casting < 0) {
+        hpy_abort_not_implemented("casting < 0 in HPyArray_AddLegacyWrapping_CastingImpl");
+        // PyArray_Descr *from_singleton = dtypemeta_get_singleton(from);
+        // PyArray_Descr *to_singleton = dtypemeta_get_singleton(to);
+        // if (from == to) {
+        //     casting = NPY_NO_CASTING;
+        // }
+        // else if (PyArray_LegacyCanCastTypeTo(
+        //         from_singleton, to_singleton, NPY_SAFE_CASTING)) {
+        //     casting = NPY_SAFE_CASTING;
+        // }
+        // else if (PyArray_LegacyCanCastTypeTo(
+        //         from_singleton, to_singleton, NPY_SAME_KIND_CASTING)) {
+        //     casting = NPY_SAME_KIND_CASTING;
+        // }
+        // else {
+        //     casting = NPY_UNSAFE_CASTING;
+        // }
+    }
+
+    HPy dtypes[2] = {h_from, h_to};
+    PyArrayMethod_Spec spec = {
+            /* Name is not actually used, but allows identifying these. */
+            .name = "legacy_cast",
+            .nin = 1,
+            .nout = 1,
+            .casting = casting,
+            .dtypes = dtypes,
+    };
+
+    if (HPy_Is(ctx, h_from, h_to)) {
+        spec.flags = NPY_METH_REQUIRES_PYAPI | NPY_METH_SUPPORTS_UNALIGNED;
+        PyType_Slot slots[] = {
+            {NPY_METH_get_loop, &legacy_cast_get_strided_loop},
+            {NPY_METH_resolve_descriptors, &legacy_same_dtype_resolve_descriptors},
+            {0, NULL}};
+        spec.slots = slots;
+        return HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
+    }
+    else {
+        spec.flags = NPY_METH_REQUIRES_PYAPI;
+        PyType_Slot slots[] = {
+            {NPY_METH_get_loop, &legacy_cast_get_strided_loop},
+            {NPY_METH_resolve_descriptors, &simple_cast_resolve_descriptors},
+            {0, NULL}};
+        spec.slots = slots;
+        return HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
+    }
+}

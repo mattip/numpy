@@ -3,13 +3,13 @@
 
 extern NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p;
 
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_array_wrap;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_array_finalize;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_implementation;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_axis1;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_axis2;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_like;
-NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_numpy;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_array_wrap;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_array_finalize;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_implementation;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_axis1;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_axis2;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_like;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_ma_str_numpy;
 
 NPY_NO_EXPORT unsigned char
 HPyArray_EquivTypes(HPyContext *ctx, /*PyArray_Descr*/HPy type1, /*PyArray_Descr*/HPy type2);
