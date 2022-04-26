@@ -569,8 +569,8 @@ static NpyAuxData *_wrap_copy_swap_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_to_strided_wrap_copy_swap(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_wrap_copy_swap(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -683,8 +683,8 @@ static NpyAuxData *_strided_cast_data_clone(NpyAuxData *data)
 }
 
 static int
-_aligned_strided_to_strided_cast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_aligned_strided_to_strided_cast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -722,8 +722,8 @@ _aligned_strided_to_strided_cast(
 
 /* This one requires src be of type NPY_OBJECT */
 static int
-_aligned_strided_to_strided_cast_decref_src(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_aligned_strided_to_strided_cast_decref_src(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -764,8 +764,8 @@ _aligned_strided_to_strided_cast_decref_src(
 }
 
 static int
-_aligned_contig_to_contig_cast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
+_aligned_contig_to_contig_cast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *auxdata)
 {
@@ -845,8 +845,8 @@ static NpyAuxData *_strided_datetime_cast_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_to_strided_datetime_general_cast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
+_strided_to_strided_datetime_general_cast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -885,8 +885,8 @@ _strided_to_strided_datetime_general_cast(
 }
 
 static int
-_strided_to_strided_datetime_cast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
+_strided_to_strided_datetime_cast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char * const*args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -924,8 +924,8 @@ _strided_to_strided_datetime_cast(
 }
 
 static int
-_aligned_strided_to_strided_datetime_cast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_aligned_strided_to_strided_datetime_cast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -963,8 +963,8 @@ _aligned_strided_to_strided_datetime_cast(
 }
 
 static int
-_strided_to_strided_datetime_to_string(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_datetime_to_string(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1005,8 +1005,8 @@ _strided_to_strided_datetime_to_string(
 }
 
 static int
-_strided_to_strided_string_to_datetime(
-        PyArrayMethod_Context *context, char *const *args,
+_strided_to_strided_string_to_datetime(HPyContext *ctx,
+        HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1534,8 +1534,8 @@ static NpyAuxData *_one_to_n_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_to_strided_one_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_one_to_n(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1566,8 +1566,8 @@ _strided_to_strided_one_to_n(
 }
 
 static int
-_strided_to_strided_one_to_n_with_finish(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_one_to_n_with_finish(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1703,8 +1703,8 @@ static NpyAuxData *_n_to_n_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_to_strided_1_to_1(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_1_to_1(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1717,8 +1717,8 @@ _strided_to_strided_1_to_1(
 }
 
 static int
-_strided_to_strided_n_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_n_to_n(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1746,8 +1746,8 @@ _strided_to_strided_n_to_n(
 }
 
 static int
-_contig_to_contig_n_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_contig_to_contig_n_to_n(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *auxdata)
 {
@@ -1913,8 +1913,8 @@ static NpyAuxData *_subarray_broadcast_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_to_strided_subarray_broadcast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_subarray_broadcast(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1962,8 +1962,8 @@ _strided_to_strided_subarray_broadcast(
 
 
 static int
-_strided_to_strided_subarray_broadcast_withrefs(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_subarray_broadcast_withrefs(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -2698,8 +2698,8 @@ _masked_wrapper_transfer_data_clone(NpyAuxData *data)
 }
 
 static int
-_strided_masked_wrapper_decref_transfer_function(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_masked_wrapper_decref_transfer_function(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
@@ -2745,8 +2745,8 @@ _strided_masked_wrapper_decref_transfer_function(
 }
 
 static int
-_strided_masked_wrapper_transfer_function(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_masked_wrapper_transfer_function(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
