@@ -4191,7 +4191,7 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     PyArray_Descr *data;
     HPy obj = HPy_New(ctx, desc_type, &data);
 
-    data->typeobj = NULL;
+    data->typeobj = HPyField_NULL;
     data->kind = NPY_@from@LTR;
     data->type = NPY_@from@LTR;
     data->byteorder = '@endian@';
@@ -4206,7 +4206,9 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->metadata = NULL;
     data->c_metadata = NULL;
     data->hash = -1;
-    data->typeobj = (PyTypeObject*) HPy_AsPyObject(ctx, HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type));
+    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
+    HPyField_Store(ctx, obj, &data->typeobj, typeobj);
+    HPy_Close(ctx, typeobj);
 
     HPyGlobal_Store(ctx, global, obj);
     HPy_Close(ctx, obj);
@@ -4329,7 +4331,7 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     PyArray_Descr *data;
     HPy obj = HPy_New(ctx, desc_type, &data);
 
-    data->typeobj = NULL;
+    data->typeobj = HPyField_NULL;
     data->kind = NPY_@kind@LTR;
     data->type = NPY_@from@LTR;
     data->byteorder = '@endian@';
@@ -4344,7 +4346,9 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->metadata = NULL;
     data->c_metadata = NULL;
     data->hash = -1;
-    data->typeobj = (PyTypeObject*) HPy_AsPyObject(ctx, HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type));
+    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
+    HPyField_Store(ctx, obj, &data->typeobj, typeobj);
+    HPy_Close(ctx, typeobj);    
 
     HPyGlobal_Store(ctx, global, obj);
     HPy_Close(ctx, obj);
@@ -4362,6 +4366,7 @@ static char _letter_to_num[_MAX_LETTER];
 HPyGlobal _hpy_builtin_descrs[NPY_NTYPES];
 
 NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
+    HPy descr, typeobj;
     /**begin repeat
      *
      * #from = VOID, STRING, UNICODE, BOOL,
@@ -4377,8 +4382,11 @@ NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {
      *         CFloat, CDouble, CLongDouble,
      *         Object, Datetime, Timedelta#
      */
-    CAPI_WARN("PyObject field in @from@_Descr");
-    // PyArray_Descr_AsStruct(ctx, @from@_Descr)->typeobj = HPy@NAME@ArrType_Type;
+    descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@from@]);
+    typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
+    HPyField_Store(ctx, descr, &PyArray_Descr_AsStruct(ctx, descr)->typeobj, typeobj);
+    HPy_Close(ctx, typeobj);
+    HPy_Close(ctx, descr);
     /**end repeat**/
 }
 
@@ -4551,7 +4559,7 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     for (i = 0; i <= NPY_HALF; i++) {
         h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[i]);
         PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
-        if (dtypemeta_wrap_legacy_descriptor(ctx, descr) < 0) {
+        if (dtypemeta_wrap_legacy_descriptor(ctx, h_descr, descr) < 0) {
             HPy_Close(ctx, h_descr);
             return -1;
         }

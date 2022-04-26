@@ -1938,53 +1938,54 @@ fail:
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrNew(PyArray_Descr *base)
 {
-    PyArray_Descr *newdescr = PyObject_New(PyArray_Descr, Py_TYPE(base));
+    hpy_abort_not_implemented("PyArray_DescrNew");
+    // PyArray_Descr *newdescr = PyObject_New(PyArray_Descr, Py_TYPE(base));
 
-    if (newdescr == NULL) {
-        return NULL;
-    }
-    /* Don't copy PyObject_HEAD part */
-    memcpy((char *)newdescr + sizeof(PyObject),
-           (char *)base + sizeof(PyObject),
-           sizeof(PyArray_Descr) - sizeof(PyObject));
+    // if (newdescr == NULL) {
+    //     return NULL;
+    // }
+    // /* Don't copy PyObject_HEAD part */
+    // memcpy((char *)newdescr + sizeof(PyObject),
+    //        (char *)base + sizeof(PyObject),
+    //        sizeof(PyArray_Descr) - sizeof(PyObject));
 
-    /*
-     * The c_metadata has a by-value ownership model, need to clone it
-     * (basically a deep copy, but the auxdata clone function has some
-     * flexibility still) so the new PyArray_Descr object owns
-     * a copy of the data. Having both 'base' and 'newdescr' point to
-     * the same auxdata pointer would cause a double-free of memory.
-     */
-    if (base->c_metadata != NULL) {
-        newdescr->c_metadata = NPY_AUXDATA_CLONE(base->c_metadata);
-        if (newdescr->c_metadata == NULL) {
-            PyErr_NoMemory();
-            /* TODO: This seems wrong, as the old fields get decref'd? */
-            Py_DECREF(newdescr);
-            return NULL;
-        }
-    }
+    // /*
+    //  * The c_metadata has a by-value ownership model, need to clone it
+    //  * (basically a deep copy, but the auxdata clone function has some
+    //  * flexibility still) so the new PyArray_Descr object owns
+    //  * a copy of the data. Having both 'base' and 'newdescr' point to
+    //  * the same auxdata pointer would cause a double-free of memory.
+    //  */
+    // if (base->c_metadata != NULL) {
+    //     newdescr->c_metadata = NPY_AUXDATA_CLONE(base->c_metadata);
+    //     if (newdescr->c_metadata == NULL) {
+    //         PyErr_NoMemory();
+    //         /* TODO: This seems wrong, as the old fields get decref'd? */
+    //         Py_DECREF(newdescr);
+    //         return NULL;
+    //     }
+    // }
 
-    if (newdescr->fields == Py_None) {
-        newdescr->fields = NULL;
-    }
-    Py_XINCREF(newdescr->fields);
-    Py_XINCREF(newdescr->names);
-    if (newdescr->subarray) {
-        newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
-        if (newdescr->subarray == NULL) {
-            Py_DECREF(newdescr);
-            return (PyArray_Descr *)PyErr_NoMemory();
-        }
-        memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
-        Py_INCREF(newdescr->subarray->shape);
-        Py_INCREF(newdescr->subarray->base);
-    }
-    Py_XINCREF(newdescr->typeobj);
-    Py_XINCREF(newdescr->metadata);
-    newdescr->hash = -1;
+    // if (newdescr->fields == Py_None) {
+    //     newdescr->fields = NULL;
+    // }
+    // Py_XINCREF(newdescr->fields);
+    // Py_XINCREF(newdescr->names);
+    // if (newdescr->subarray) {
+    //     newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
+    //     if (newdescr->subarray == NULL) {
+    //         Py_DECREF(newdescr);
+    //         return (PyArray_Descr *)PyErr_NoMemory();
+    //     }
+    //     memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
+    //     Py_INCREF(newdescr->subarray->shape);
+    //     Py_INCREF(newdescr->subarray->base);
+    // }
+    // Py_XINCREF(newdescr->typeobj);
+    // Py_XINCREF(newdescr->metadata);
+    // newdescr->hash = -1;
 
-    return newdescr;
+    // return newdescr;
 }
 
 NPY_NO_EXPORT HPy
@@ -2022,27 +2023,27 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
         }
     }
 
-    capi_warn("HPyArray_DescrNew: PyArray_Descr still contains PyObject fields");
-    if (newdescr->fields == Py_None) {
-        newdescr->fields = NULL;
-    }
-    Py_XINCREF(newdescr->fields);
-    Py_XINCREF(newdescr->names);
-    if (newdescr->subarray) {
-        newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
-        if (newdescr->subarray == NULL) {
-            HPyErr_NoMemory(ctx);
-            return HPy_NULL;
-        }
-        memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
-        Py_INCREF(newdescr->subarray->shape);
-        Py_INCREF(newdescr->subarray->base);
-    }
-    Py_XINCREF(newdescr->typeobj);
-    Py_XINCREF(newdescr->metadata);
-    newdescr->hash = -1;
+    hpy_abort_not_implemented("HPyArray_DescrNew: reminder");
+    // if (newdescr->fields == Py_None) {
+    //     newdescr->fields = NULL;
+    // }
+    // Py_XINCREF(newdescr->fields);
+    // Py_XINCREF(newdescr->names);
+    // if (newdescr->subarray) {
+    //     newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
+    //     if (newdescr->subarray == NULL) {
+    //         HPyErr_NoMemory(ctx);
+    //         return HPy_NULL;
+    //     }
+    //     memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
+    //     Py_INCREF(newdescr->subarray->shape);
+    //     Py_INCREF(newdescr->subarray->base);
+    // }
+    // Py_XINCREF(newdescr->typeobj);
+    // Py_XINCREF(newdescr->metadata);
+    // newdescr->hash = -1;
 
-    return h_newdescr;
+    // return h_newdescr;
 }
 
 /*
@@ -2060,18 +2061,19 @@ arraydescr_dealloc(PyArray_Descr *self)
         Py_INCREF(self);
         return;
     }
-    Py_XDECREF(self->typeobj);
-    Py_XDECREF(self->names);
-    Py_XDECREF(self->fields);
-    if (self->subarray) {
-        Py_XDECREF(self->subarray->shape);
-        Py_DECREF(self->subarray->base);
-        PyArray_free(self->subarray);
-    }
-    Py_XDECREF(self->metadata);
-    NPY_AUXDATA_FREE(self->c_metadata);
-    self->c_metadata = NULL;
-    Py_TYPE(self)->tp_free((PyObject *)self);
+    hpy_abort_not_implemented("non-builtin descriptors...");
+    // Py_XDECREF(self->typeobj);
+    // Py_XDECREF(self->names);
+    // Py_XDECREF(self->fields);
+    // if (self->subarray) {
+    //     Py_XDECREF(self->subarray->shape);
+    //     Py_DECREF(self->subarray->base);
+    //     PyArray_free(self->subarray);
+    // }
+    // Py_XDECREF(self->metadata);
+    // NPY_AUXDATA_FREE(self->c_metadata);
+    // self->c_metadata = NULL;
+    // Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 /*
@@ -2550,7 +2552,7 @@ arraydescr_new(PyTypeObject *subtype,
             PyArray_DTypeMeta *h_DType_data = PyArray_DTypeMeta_AsStruct(ctx, h_DType);
             HPy h_scalar_type = HPyField_Load(ctx, h_DType, h_DType_data->scalar_type);
             HPy_Close(ctx, h_DType);
-            descr->typeobj = (PyObject *)HPy_AsPyObject(ctx, h_scalar_type);
+            PyArray_Descr_set_typeobj(descr, (PyObject *)HPy_AsPyObject(ctx, h_scalar_type));
             HPy_Close(ctx, h_scalar_type);
             descr->type_num = DType->type_num;
             descr->flags = NPY_USE_GETITEM|NPY_USE_SETITEM;
@@ -2705,111 +2707,112 @@ arraydescr_reduce(PyArray_Descr *self, PyObject *NPY_UNUSED(args))
      * change the format. Be sure to handle the old versions in
      * arraydescr_setstate.
     */
-    const int version = 4;
-    PyObject *ret, *mod, *obj;
-    PyObject *state;
-    char endian;
-    int elsize, alignment;
+   hpy_abort_not_implemented("arraydescr_reduce");
+    // const int version = 4;
+    // PyObject *ret, *mod, *obj;
+    // PyObject *state;
+    // char endian;
+    // int elsize, alignment;
 
-    ret = PyTuple_New(3);
-    if (ret == NULL) {
-        return NULL;
-    }
-    mod = PyImport_ImportModule("numpy.core._multiarray_umath");
-    if (mod == NULL) {
-        Py_DECREF(ret);
-        return NULL;
-    }
-    obj = PyObject_GetAttrString(mod, "dtype");
-    Py_DECREF(mod);
-    if (obj == NULL) {
-        Py_DECREF(ret);
-        return NULL;
-    }
-    PyTuple_SET_ITEM(ret, 0, obj);
-    if (PyTypeNum_ISUSERDEF(self->type_num)
-            || ((self->type_num == NPY_VOID
-                    && self->typeobj != &PyVoidArrType_Type))) {
-        obj = (PyObject *)self->typeobj;
-        Py_INCREF(obj);
-    }
-    else {
-        elsize = self->elsize;
-        if (self->type_num == NPY_UNICODE) {
-            elsize >>= 2;
-        }
-        obj = PyUnicode_FromFormat("%c%d",self->kind, elsize);
-    }
-    PyTuple_SET_ITEM(ret, 1, Py_BuildValue("(NOO)", obj, Py_False, Py_True));
+    // ret = PyTuple_New(3);
+    // if (ret == NULL) {
+    //     return NULL;
+    // }
+    // mod = PyImport_ImportModule("numpy.core._multiarray_umath");
+    // if (mod == NULL) {
+    //     Py_DECREF(ret);
+    //     return NULL;
+    // }
+    // obj = PyObject_GetAttrString(mod, "dtype");
+    // Py_DECREF(mod);
+    // if (obj == NULL) {
+    //     Py_DECREF(ret);
+    //     return NULL;
+    // }
+    // PyTuple_SET_ITEM(ret, 0, obj);
+    // if (PyTypeNum_ISUSERDEF(self->type_num)
+    //         || ((self->type_num == NPY_VOID
+    //                 && self->typeobj != &PyVoidArrType_Type))) {
+    //     obj = (PyObject *)self->typeobj;
+    //     Py_INCREF(obj);
+    // }
+    // else {
+    //     elsize = self->elsize;
+    //     if (self->type_num == NPY_UNICODE) {
+    //         elsize >>= 2;
+    //     }
+    //     obj = PyUnicode_FromFormat("%c%d",self->kind, elsize);
+    // }
+    // PyTuple_SET_ITEM(ret, 1, Py_BuildValue("(NOO)", obj, Py_False, Py_True));
 
-    /*
-     * Now return the state which is at least byteorder,
-     * subarray, and fields
-     */
-    endian = self->byteorder;
-    if (endian == '=') {
-        endian = '<';
-        if (!PyArray_IsNativeByteOrder(endian)) {
-            endian = '>';
-        }
-    }
-    if (PyDataType_ISDATETIME(self)) {
-        PyObject *newobj;
-        state = PyTuple_New(9);
-        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
-        /*
-         * newobj is a tuple of the Python metadata dictionary
-         * and tuple of date_time info (str, num)
-         */
-        newobj = _get_pickleabletype_from_datetime_metadata(self);
-        if (newobj == NULL) {
-            Py_DECREF(state);
-            Py_DECREF(ret);
-            return NULL;
-        }
-        PyTuple_SET_ITEM(state, 8, newobj);
-    }
-    else if (self->metadata) {
-        state = PyTuple_New(9);
-        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
-        Py_INCREF(self->metadata);
-        PyTuple_SET_ITEM(state, 8, self->metadata);
-    }
-    else { /* Use version 3 pickle format */
-        state = PyTuple_New(8);
-        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(3));
-    }
+    // /*
+    //  * Now return the state which is at least byteorder,
+    //  * subarray, and fields
+    //  */
+    // endian = self->byteorder;
+    // if (endian == '=') {
+    //     endian = '<';
+    //     if (!PyArray_IsNativeByteOrder(endian)) {
+    //         endian = '>';
+    //     }
+    // }
+    // if (PyDataType_ISDATETIME(self)) {
+    //     PyObject *newobj;
+    //     state = PyTuple_New(9);
+    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
+    //     /*
+    //      * newobj is a tuple of the Python metadata dictionary
+    //      * and tuple of date_time info (str, num)
+    //      */
+    //     newobj = _get_pickleabletype_from_datetime_metadata(self);
+    //     if (newobj == NULL) {
+    //         Py_DECREF(state);
+    //         Py_DECREF(ret);
+    //         return NULL;
+    //     }
+    //     PyTuple_SET_ITEM(state, 8, newobj);
+    // }
+    // else if (self->metadata) {
+    //     state = PyTuple_New(9);
+    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
+    //     Py_INCREF(self->metadata);
+    //     PyTuple_SET_ITEM(state, 8, self->metadata);
+    // }
+    // else { /* Use version 3 pickle format */
+    //     state = PyTuple_New(8);
+    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(3));
+    // }
 
-    PyTuple_SET_ITEM(state, 1, PyUnicode_FromFormat("%c", endian));
-    PyTuple_SET_ITEM(state, 2, arraydescr_subdescr_get(self, NULL));
-    if (PyDataType_HASFIELDS(self)) {
-        Py_INCREF(self->names);
-        Py_INCREF(self->fields);
-        PyTuple_SET_ITEM(state, 3, self->names);
-        PyTuple_SET_ITEM(state, 4, self->fields);
-    }
-    else {
-        PyTuple_SET_ITEM(state, 3, Py_None);
-        PyTuple_SET_ITEM(state, 4, Py_None);
-        Py_INCREF(Py_None);
-        Py_INCREF(Py_None);
-    }
+    // PyTuple_SET_ITEM(state, 1, PyUnicode_FromFormat("%c", endian));
+    // PyTuple_SET_ITEM(state, 2, arraydescr_subdescr_get(self, NULL));
+    // if (PyDataType_HASFIELDS(self)) {
+    //     Py_INCREF(self->names);
+    //     Py_INCREF(self->fields);
+    //     PyTuple_SET_ITEM(state, 3, self->names);
+    //     PyTuple_SET_ITEM(state, 4, self->fields);
+    // }
+    // else {
+    //     PyTuple_SET_ITEM(state, 3, Py_None);
+    //     PyTuple_SET_ITEM(state, 4, Py_None);
+    //     Py_INCREF(Py_None);
+    //     Py_INCREF(Py_None);
+    // }
 
-    /* for extended types it also includes elsize and alignment */
-    if (PyTypeNum_ISEXTENDED(self->type_num)) {
-        elsize = self->elsize;
-        alignment = self->alignment;
-    }
-    else {
-        elsize = -1;
-        alignment = -1;
-    }
-    PyTuple_SET_ITEM(state, 5, PyLong_FromLong(elsize));
-    PyTuple_SET_ITEM(state, 6, PyLong_FromLong(alignment));
-    PyTuple_SET_ITEM(state, 7, PyLong_FromLong(self->flags));
+    // /* for extended types it also includes elsize and alignment */
+    // if (PyTypeNum_ISEXTENDED(self->type_num)) {
+    //     elsize = self->elsize;
+    //     alignment = self->alignment;
+    // }
+    // else {
+    //     elsize = -1;
+    //     alignment = -1;
+    // }
+    // PyTuple_SET_ITEM(state, 5, PyLong_FromLong(elsize));
+    // PyTuple_SET_ITEM(state, 6, PyLong_FromLong(alignment));
+    // PyTuple_SET_ITEM(state, 7, PyLong_FromLong(self->flags));
 
-    PyTuple_SET_ITEM(ret, 2, state);
-    return ret;
+    // PyTuple_SET_ITEM(ret, 2, state);
+    // return ret;
 }
 
 /*

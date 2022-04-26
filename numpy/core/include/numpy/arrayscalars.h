@@ -1,6 +1,8 @@
 #ifndef NUMPY_CORE_INCLUDE_NUMPY_ARRAYSCALARS_H_
 #define NUMPY_CORE_INCLUDE_NUMPY_ARRAYSCALARS_H_
 
+#include "scalartypes.h"
+
 #ifndef _MULTIARRAYMODULE
 typedef struct {
         PyObject_HEAD
@@ -181,19 +183,50 @@ HPyType_LEGACY_HELPERS(PyVoidScalarObject);
    are defined in ndarrayobject.h
 */
 
-#define PyArrayScalar_False ((PyObject *)((_PyArrayScalar_BoolValues[0])))
-#define PyArrayScalar_True ((PyObject *)((_PyArrayScalar_BoolValues[1])))
+#define HPyArrayScalar_False(ctx) (HPyGlobal_Load(ctx, _HPyArrayScalar_BoolValues[0]))
+#define HPyArrayScalar_True(ctx) (HPyGlobal_Load(ctx, _HPyArrayScalar_BoolValues[1]))
+#define HPyArrayScalar_FromLong(ctx, i) \
+        (HPyGlobal_Load(ctx, _HPyArrayScalar_BoolValues[((i)!=0)]))
+#define HPyArrayScalar_RETURN_BOOL_FROM_LONG(i)                  \
+        return HPyArrayScalar_FromLong(ctx, i)
+#define HPyArrayScalar_RETURN_FALSE              \
+        return HPyArrayScalar_False(ctx)
+#define HPyArrayScalar_RETURN_TRUE               \
+        return HPyArrayScalar_True(ctx)
+
+
+#define HPyArrayScalar_VAL(ctx, obj, cls)             \
+        Py##cls##ScalarObject_AsStruct(ctx, obj)->obval
+
+
+// HPY Note: the original macros keep their "borrowing" semantics where applicable
+// This works only on CPython where HPyGlobal == PyObject*
+static inline PyObject *borrow_pyarray_scalar_bool(HPy h) {
+        HPyContext *ctx = npy_get_context();
+        PyObject *py = HPy_AsPyObject(ctx, h);
+        // We know that the HPyGlobal is still holding onto the object...
+        Py_DECREF(py);
+        HPy_Close(ctx, h);
+        return py;
+}
+
+static inline PyObject *aspyobj_pyarray_scalar_bool(HPy h) {
+        HPyContext *ctx = npy_get_context();
+        PyObject *py = HPy_AsPyObject(ctx, h);
+        HPy_Close(ctx, h);
+        return py;
+}
+
+#define PyArrayScalar_False (borrow_pyarray_scalar_bool(HPyArrayScalar_False(npy_get_context())))
+#define PyArrayScalar_True (borrow_pyarray_scalar_bool(HPyArrayScalar_True(npy_get_context())))
 #define PyArrayScalar_FromLong(i) \
-        ((PyObject *)((_PyArrayScalar_BoolValues[((i)!=0)])))
+        (borrow_pyarray_scalar_bool(HPyArrayScalar_FromLong(npy_get_context(), i)))
 #define PyArrayScalar_RETURN_BOOL_FROM_LONG(i)                  \
-        return Py_INCREF(PyArrayScalar_FromLong(i)), \
-                PyArrayScalar_FromLong(i)
+        return aspyobj_pyarray_scalar_bool(HPyArrayScalar_FromLong(npy_get_context(), i))
 #define PyArrayScalar_RETURN_FALSE              \
-        return Py_INCREF(PyArrayScalar_False),  \
-                PyArrayScalar_False
+        return aspyobj_pyarray_scalar_bool(HPyArrayScalar_False(npy_get_context()))
 #define PyArrayScalar_RETURN_TRUE               \
-        return Py_INCREF(PyArrayScalar_True),   \
-                PyArrayScalar_True
+        return aspyobj_pyarray_scalar_bool(HPyArrayScalar_True(npy_get_context()))
 
 #define PyArrayScalar_New(cls) \
         Py##cls##ArrType_Type.tp_alloc(&Py##cls##ArrType_Type, 0)

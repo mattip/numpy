@@ -51,11 +51,17 @@ npy_alloc_cache_zero(size_t nmemb, size_t size);
 NPY_NO_EXPORT void
 npy_free_cache(void * p, npy_uintp sz);
 
+// HPY LABS PORT: we are leaving _PyArrayScalar_BoolValues here to
+// avoid fiddeling with the API codegen, but at runtime, we are
+// going to use _HPyArrayScalar_BoolValues
 NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[] = {
     // HPY TODO: global state, filled in during module init...
     // false, true
     NULL, NULL,
 };
+
+// filled in during module init with values for false and true
+NPY_NO_EXPORT HPyGlobal _HPyArrayScalar_BoolValues[2];
 
 /* TimeInteger is deleted, but still here to fill the API slot */
 NPY_NO_EXPORT PyTypeObject PyTimeIntegerArrType_Type;
@@ -3700,6 +3706,7 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .flags = HPY_BASEFLAGS,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
 };
+
 /**end repeat**/
 
 #undef NAME_bool
@@ -4465,13 +4472,18 @@ static void init_basetypes(void) {
 
 NPY_NO_EXPORT void init_scalartypes_basetypes(HPyContext *ctx)
 {
-    HPy h_PyBoolArrType_Type = HPy_FromPyObject(ctx, (PyObject*) _PyBoolArrType_Type_p);
-    _PyArrayScalar_BoolValues[0] = (PyBoolScalarObject*) HPy_AsPyObject(ctx, 
-        HPyType_GenericNew(ctx, h_PyBoolArrType_Type, NULL, 0, HPy_NULL));
-    _PyArrayScalar_BoolValues[1] = (PyBoolScalarObject*) HPy_AsPyObject(ctx, 
-        HPyType_GenericNew(ctx, h_PyBoolArrType_Type, NULL, 0, HPy_NULL));
-    _PyArrayScalar_BoolValues[0]->obval = 0;
-    _PyArrayScalar_BoolValues[1]->obval = 1;
+    HPy h_PyBoolArrType_Type = HPyGlobal_Load(ctx, HPyBoolArrType_Type);    
+    PyBoolScalarObject *data;
+
+    HPy h_false = HPy_New(ctx, h_PyBoolArrType_Type, &data);
+    data->obval = 0;
+    HPyGlobal_Store(ctx, &_HPyArrayScalar_BoolValues[0], h_false);
+    HPy_Close(ctx, h_false);
+
+    HPy h_true = HPy_New(ctx, h_PyBoolArrType_Type, &data);
+    data->obval = 1;
+    HPyGlobal_Store(ctx, &_HPyArrayScalar_BoolValues[1], h_true);
+    HPy_Close(ctx, h_true);
 
     size_t i = 0;
     CAPI_WARN("Do not initialize 'scalar_type typeobjects' at all?");
@@ -4587,7 +4599,7 @@ _typenum_fromtypeobj(PyObject *type, int user)
     /* Search any registered types */
     i = 0;
     while (i < NPY_NUMUSERTYPES) {
-        if (type == (PyObject *)(userdescrs[i]->typeobj)) {
+        if (type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
             typenum = i + NPY_USERDEF;
             break;
         }

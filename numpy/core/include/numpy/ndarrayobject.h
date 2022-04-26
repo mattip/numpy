@@ -193,6 +193,9 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_ToScalar(data, arr) \
         PyArray_Scalar(data, PyArray_DESCR(arr), (PyObject *)arr)
 
+#define HPyArray_ToScalar(ctx, data, arr, arr_struct) \
+        HPyArray_Scalar(ctx, data, HPyArray_DESCR(ctx, arr, arr_struct), arr, arr_struct)
+
 
 /* These might be faster without the dereferencing of obj
    going on inside -- of course an optimizing compiler should
