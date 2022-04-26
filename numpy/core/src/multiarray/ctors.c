@@ -1972,20 +1972,9 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
         return HPy_NULL;
     }
 
-    // TODO HPY LABS PORT
-    CAPI_WARN("HPyArray_FromAny: call to PyArray_DiscoverDTypeAndShape");
-    PyObject *py_op = HPy_AsPyObject(ctx, op);
-    PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
-    PyArray_Descr *py_fixed_descriptor = (PyArray_Descr *)HPy_AsPyObject(ctx, fixed_descriptor);
-    PyArray_Descr *py_dtype = NULL;
-    ndim = PyArray_DiscoverDTypeAndShape(py_op,
-            NPY_MAXDIMS, dims, &cache, py_fixed_DType, py_fixed_descriptor, &py_dtype,
+    ndim = HPyArray_DiscoverDTypeAndShape(ctx, op,
+            NPY_MAXDIMS, dims, &cache, fixed_DType, fixed_descriptor, &dtype,
             flags & NPY_ARRAY_ENSURENOCOPY);
-    dtype = HPy_FromPyObject(ctx, (PyObject *)py_dtype);
-    Py_XDECREF(py_dtype);
-    Py_XDECREF(py_fixed_descriptor);
-    Py_XDECREF(py_fixed_DType);
-    Py_DECREF(py_op);
 
     HPy_Close(ctx, fixed_descriptor);
     HPy_Close(ctx, fixed_DType);
@@ -3485,6 +3474,18 @@ _arange_safe_ceil_to_intp(double value)
 }
 
 
+static NPY_INLINE int
+setitem_trampoline(PyArray_SetItemFunc *func, PyObject *obj, char *data, PyArrayObject *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    int res = func(ctx, h_obj, data, h_arr);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
+
 /*NUMPY_API
   Arange,
 */
@@ -3535,7 +3536,7 @@ PyArray_Arange(double start, double stop, double step, int type_num)
      * if length > 2, then call the inner loop, otherwise stop
      */
     obj = PyFloat_FromDouble(start);
-    ret = funcs->setitem(obj, PyArray_DATA(range), range);
+    ret = setitem_trampoline(funcs->setitem, obj, PyArray_DATA(range), range);
     Py_DECREF(obj);
     if (ret < 0) {
         goto fail;
@@ -3544,8 +3545,8 @@ PyArray_Arange(double start, double stop, double step, int type_num)
         return (PyObject *)range;
     }
     obj = PyFloat_FromDouble(start + step);
-    ret = funcs->setitem(obj, PyArray_BYTES(range)+PyArray_ITEMSIZE(range),
-                         range);
+    ret = setitem_trampoline(funcs->setitem, obj,
+            PyArray_BYTES(range)+PyArray_ITEMSIZE(range), range);
     Py_DECREF(obj);
     if (ret < 0) {
         goto fail;
@@ -3793,14 +3794,15 @@ PyArray_ArangeObj(PyObject *start, PyObject *stop, PyObject *step, PyArray_Descr
      * if length > 2, then call the inner loop, otherwise stop
      */
     funcs = PyArray_DESCR(range)->f;
-    if (funcs->setitem(start, PyArray_DATA(range), range) < 0) {
+    if (setitem_trampoline(funcs->setitem, start, PyArray_DATA(range),
+            range) < 0) {
         goto fail;
     }
     if (length == 1) {
         goto finish;
     }
-    if (funcs->setitem(next, PyArray_BYTES(range)+PyArray_ITEMSIZE(range),
-                       range) < 0) {
+    if (setitem_trampoline(funcs->setitem, next,
+            PyArray_BYTES(range)+PyArray_ITEMSIZE(range), range) < 0) {
         goto fail;
     }
     if (length == 2) {

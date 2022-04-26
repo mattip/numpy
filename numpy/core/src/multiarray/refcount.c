@@ -288,6 +288,18 @@ PyArray_FillObjectArray(PyArrayObject *arr, PyObject *obj)
     }
 }
 
+static NPY_INLINE int
+setitem_trampoline(PyArray_SetItemFunc *func, PyObject *obj, char *data, PyArrayObject *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    int res = func(ctx, h_obj, data, h_arr);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
+
 static void
 _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
 {
@@ -305,7 +317,7 @@ _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
                                    0, NULL, NULL, NULL,
                                    0, NULL);
         if (arr!=NULL) {
-            dtype->f->setitem(obj, optr, arr);
+            setitem_trampoline(dtype->f->setitem, obj, optr, arr);
         }
         Py_XDECREF(arr);
     }

@@ -20,6 +20,7 @@
 #include "common.h"
 #include "_datetime.h"
 #include "npy_import.h"
+#include "scalarapi.h"
 
 
 /*
@@ -83,6 +84,7 @@
  *       (all type objects support weak references).
  */
 PyObject *_global_pytype_to_type_dict = NULL;
+NPY_NO_EXPORT HPyGlobal _hpy_global_pytype_to_type_dict;
 
 
 /* Enum to track or signal some things during dtype and shape discovery */
@@ -180,6 +182,10 @@ _PyArray_MapPyTypeToDType(
         if (_global_pytype_to_type_dict == NULL) {
             return -1;
         }
+        HPyContext *ctx = npy_get_context();
+        HPy h = HPy_FromPyObject(ctx, _global_pytype_to_type_dict);
+        HPyGlobal_Store(ctx, &_hpy_global_pytype_to_type_dict, h);
+        HPy_Close(ctx, h);
         if (_prime_global_pytype_to_type_dict() < 0) {
             return -1;
         }
@@ -199,37 +205,113 @@ _PyArray_MapPyTypeToDType(
             (PyObject *)pytype, Dtype_obj);
 }
 
-
 /**
  * Lookup the DType for a registered known python scalar type.
  *
  * @param pytype Python Type to look up
  * @return DType, None if it a known non-scalar, or NULL if an unknown object.
  */
-static NPY_INLINE PyArray_DTypeMeta *
-npy_discover_dtype_from_pytype(PyTypeObject *pytype)
+static NPY_INLINE HPy /* (PyArray_DTypeMeta *) */
+npy_discover_dtype_from_pytype(HPyContext *ctx, HPy /* (PyTypeObject *) */ pytype)
 {
-    PyObject *DType;
+    HPy DType;
 
-    if (pytype == &PyArray_Type) {
-        Py_INCREF(Py_None);
-        return (PyArray_DTypeMeta *)Py_None;
+    if (HPyGlobal_Is(ctx, pytype, HPyArray_Type)) {
+        return HPy_Dup(ctx, ctx->h_None);
     }
 
-    DType = PyDict_GetItem(_global_pytype_to_type_dict, (PyObject *)pytype);
-    if (DType == NULL) {
+    HPy pytype_to_type_dict = HPyGlobal_Load(ctx, _hpy_global_pytype_to_type_dict);
+    DType = HPyDict_GetItem(ctx, pytype_to_type_dict, pytype);
+    if (HPy_IsNull(DType)) {
         /* the python type is not known */
-        return NULL;
+        return HPy_NULL;
     }
 
-    Py_INCREF(DType);
-    if (DType == Py_None) {
-        return (PyArray_DTypeMeta *)Py_None;
+    if (HPy_Is(ctx, DType, ctx->h_None)) {
+        return HPy_Dup(ctx, ctx->h_None);
     }
-    assert(PyObject_TypeCheck(DType, PyArrayDTypeMeta_Type));
-    return (PyArray_DTypeMeta *)DType;
+    assert(HPyGlobal_TypeCheck(ctx, DType, HPyArrayDTypeMeta_Type));
+    return DType;
 }
 
+static NPY_INLINE HPy /* (PyArray_DTypeMeta *) */
+hdiscover_dtype_from_pyobject(
+        HPyContext *ctx,
+        HPy obj, enum _dtype_discovery_flags *flags,
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType)
+{
+    HPy res;
+    HPy obj_type = HPy_Type(ctx, obj);
+    if (!HPy_IsNull(fixed_DType)) {
+        /*
+         * Let the given DType handle the discovery.  This is when the
+         * scalar-type matches exactly, or the DType signals that it can
+         * handle the scalar-type.  (Even if it cannot handle here it may be
+         * asked to attempt to do so later, if no other matching DType exists.)
+         */
+        PyArray_DTypeMeta *fixed_DType_data = PyArray_DTypeMeta_AsStruct(ctx, fixed_DType);
+        HPy scalar_type = HPyField_Load(ctx, fixed_DType, fixed_DType_data->scalar_type);
+        int is_scalar_type = HPy_Is(ctx, obj_type, scalar_type);
+        if (is_scalar_type ||
+                HNPY_DT_CALL_is_known_scalar_type(ctx, fixed_DType, fixed_DType_data, obj_type)) {
+            res = HPy_Dup(ctx, fixed_DType);
+            goto cleanup;
+        }
+    }
+
+    HPy DType = npy_discover_dtype_from_pytype(ctx, obj_type);
+    if (!HPy_IsNull(DType)) {
+        res = DType;
+        goto cleanup;
+    }
+    /*
+     * At this point we have not found a clear mapping, but mainly for
+     * backward compatibility we have to make some further attempts at
+     * interpreting the input as a known scalar type.
+     */
+    HPy legacy_descr; /* (PyArray_Descr *) */
+    if (HPyArray_IsScalar(ctx, obj, Generic)) {
+        legacy_descr = HPyArray_DescrFromScalar(ctx, obj);
+        if (HPy_IsNull(legacy_descr)) {
+            return HPy_NULL;
+        }
+    }
+    else if (flags == NULL) {
+        return HPy_Dup(ctx, ctx->h_None);
+    }
+    else if (HPyBytes_Check(ctx, obj)) {
+        legacy_descr = HPyArray_DescrFromType(ctx, NPY_BYTE);
+    }
+    else if (HPyUnicode_Check(ctx, obj)) {
+        legacy_descr = HPyArray_DescrFromType(ctx, NPY_UNICODE);
+    }
+    else {
+        legacy_descr = _array_find_python_scalar_type(ctx, obj);
+    }
+
+    if (!HPy_IsNull(legacy_descr)) {
+        DType = HNPY_DTYPE(ctx, legacy_descr);
+        HPy_Close(ctx, legacy_descr);
+        /* TODO: Enable warning about subclass handling */
+        if ((0) && !((*flags) & GAVE_SUBCLASS_WARNING)) {
+            if (HPY_DEPRECATE_FUTUREWARNING(ctx,
+                    "in the future NumPy will not automatically find the "
+                    "dtype for subclasses of scalars known to NumPy (i.e. "
+                    "python types). Use the appropriate `dtype=...` to create "
+                    "this array. This will use the `object` dtype or raise "
+                    "an error in the future.") < 0) {
+                return HPy_NULL;
+            }
+            *flags |= GAVE_SUBCLASS_WARNING;
+        }
+        return DType;
+    }
+    return HPy_Dup(ctx, ctx->h_None);
+
+cleanup:
+    HPy_Close(ctx, obj_type);
+    return res;
+}
 
 /**
  * Find the correct DType class for the given python type. If flags is NULL
@@ -250,80 +332,16 @@ discover_dtype_from_pyobject(
         PyObject *obj, enum _dtype_discovery_flags *flags,
         PyArray_DTypeMeta *fixed_DType)
 {
-    if (fixed_DType != NULL) {
-        /*
-         * Let the given DType handle the discovery.  This is when the
-         * scalar-type matches exactly, or the DType signals that it can
-         * handle the scalar-type.  (Even if it cannot handle here it may be
-         * asked to attempt to do so later, if no other matching DType exists.)
-         */
-        HPyContext *ctx = npy_get_context();
-        HPy h_fixed_DType = HPy_FromPyObject(ctx, (PyObject *)fixed_DType);
-        HPy h_scalar_type = HPyField_Load(ctx, h_fixed_DType, PyArray_DTypeMeta_AsStruct(ctx, h_fixed_DType)->scalar_type);
-        PyTypeObject *scalar_type = (PyTypeObject *)HPy_AsPyObject(ctx, h_scalar_type);
-        int is_scalar_type = Py_TYPE(obj) == scalar_type;
-        Py_DECREF(scalar_type);
-        HPy_Close(ctx, h_scalar_type);
-        HPy_Close(ctx, h_fixed_DType);
-        if (is_scalar_type ||
-                NPY_DT_CALL_is_known_scalar_type(fixed_DType, Py_TYPE(obj))) {
-            Py_INCREF(fixed_DType);
-            return fixed_DType;
-        }
-    }
-
-    PyArray_DTypeMeta *DType = npy_discover_dtype_from_pytype(Py_TYPE(obj));
-    if (DType != NULL) {
-        return DType;
-    }
-    /*
-     * At this point we have not found a clear mapping, but mainly for
-     * backward compatibility we have to make some further attempts at
-     * interpreting the input as a known scalar type.
-     */
-    PyArray_Descr *legacy_descr;
-    if (PyArray_IsScalar(obj, Generic)) {
-        legacy_descr = PyArray_DescrFromScalar(obj);
-        if (legacy_descr == NULL) {
-            return NULL;
-        }
-    }
-    else if (flags == NULL) {
-        Py_INCREF(Py_None);
-        return (PyArray_DTypeMeta *)Py_None;
-    }
-    else if (PyBytes_Check(obj)) {
-        legacy_descr = PyArray_DescrFromType(NPY_BYTE);
-    }
-    else if (PyUnicode_Check(obj)) {
-        legacy_descr = PyArray_DescrFromType(NPY_UNICODE);
-    }
-    else {
-        legacy_descr = _array_find_python_scalar_type(obj);
-    }
-
-    if (legacy_descr != NULL) {
-        DType = NPY_DTYPE(legacy_descr);
-        Py_INCREF(DType);
-        Py_DECREF(legacy_descr);
-        /* TODO: Enable warning about subclass handling */
-        if ((0) && !((*flags) & GAVE_SUBCLASS_WARNING)) {
-            if (DEPRECATE_FUTUREWARNING(
-                    "in the future NumPy will not automatically find the "
-                    "dtype for subclasses of scalars known to NumPy (i.e. "
-                    "python types). Use the appropriate `dtype=...` to create "
-                    "this array. This will use the `object` dtype or raise "
-                    "an error in the future.") < 0) {
-                return NULL;
-            }
-            *flags |= GAVE_SUBCLASS_WARNING;
-        }
-        return DType;
-    }
-    Py_INCREF(Py_None);
-    return (PyArray_DTypeMeta *)Py_None;
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_fixed_DType = HPy_FromPyObject(ctx, (PyObject *)fixed_DType);
+    HPy h_res = hdiscover_dtype_from_pyobject(ctx, h_obj, flags, h_fixed_DType);
+    PyArray_DTypeMeta *res = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_fixed_DType);
+    HPy_Close(ctx, h_obj);
+    return res;
 }
-
 
 /**
  * Discover the correct descriptor from a known DType class and scalar.
@@ -404,87 +422,117 @@ find_scalar_descriptor(
 NPY_NO_EXPORT int
 PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
 {
-    static PyArrayObject *dummy_arr = NULL;
-    if (dummy_arr == NULL) {
-        dummy_arr = dummy_array_new(
-                NULL, NPY_ARRAY_WRITEABLE, NULL);
-        if (dummy_arr == NULL) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject *)descr);
+    HPy h_value = HPy_FromPyObject(ctx, value);
+    int res = HPyArray_Pack(ctx, h_descr, item, h_value);
+    HPy_Close(ctx, h_value);
+    HPy_Close(ctx, h_descr);
+    return res;
+}
+
+NPY_NO_EXPORT HPyGlobal g_dummy_arr;
+static int g_dummy_arr_initialized;
+
+NPY_NO_EXPORT int
+HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HPy value)
+{
+    HPy dummy_arr;
+    if (!g_dummy_arr_initialized) {
+        dummy_arr = dummy_array_new(ctx,
+                HPy_NULL, NPY_ARRAY_WRITEABLE, HPy_NULL);
+        if (HPy_IsNull(dummy_arr)) {
             return -1;
         }
+        HPyGlobal_Store(ctx, &g_dummy_arr, dummy_arr);
+        g_dummy_arr_initialized = 1;
+    } else {
+        dummy_arr = HPyGlobal_Load(ctx, g_dummy_arr); /* (PyArrayObject *) */
     }
+    PyArrayObject *dummy_arr_data = PyArrayObject_AsStruct(ctx, dummy_arr);
 
-    if (NPY_UNLIKELY(descr->type_num == NPY_OBJECT)) {
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    if (NPY_UNLIKELY(descr_data->type_num == NPY_OBJECT)) {
         /*
          * We always have store objects directly, casting will lose some
          * type information. Any other dtype discards the type information.
          * TODO: For a Categorical[object] this path may be necessary?
          * NOTE: OBJECT_setitem doesn't care about the NPY_ARRAY_ALIGNED flag
          */
-        _set_descr(dummy_arr, descr);
-        int result = descr->f->setitem(value, item, dummy_arr);
-        _set_descr(dummy_arr, NULL);
+        _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, descr);
+        int result = descr_data->f->setitem(ctx, value, item, dummy_arr);
+        _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
         return result;
     }
 
     /* discover_dtype_from_pyobject includes a check for is_known_scalar_type */
-    PyArray_DTypeMeta *DType = discover_dtype_from_pyobject(
-            value, NULL, NPY_DTYPE(descr));
-    if (DType == NULL) {
+    HPy descr_type = HNPY_DTYPE(ctx, descr);
+    HPy DType = hdiscover_dtype_from_pyobject(
+            ctx, value, NULL, descr_type); /* (PyArray_DTypeMeta *) */
+    if (HPy_IsNull(DType)) {
+        HPy_Close(ctx, descr_type);
         return -1;
     }
-    if (DType == NPY_DTYPE(descr) || DType == (PyArray_DTypeMeta *)Py_None) {
+    if (HPy_Is(ctx, DType, descr_type) || HPy_Is(ctx, DType, ctx->h_None)) {
+        HPy_Close(ctx, descr_type);
         /* We can set the element directly (or at least will try to) */
-        Py_XDECREF(DType);
-        _set_descr(dummy_arr, descr);
-        if (npy_is_aligned(item, descr->alignment)) {
-            PyArray_ENABLEFLAGS(dummy_arr, NPY_ARRAY_ALIGNED);
+        HPy_Close(ctx, DType);
+        _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, descr);
+        if (npy_is_aligned(item, descr_data->alignment)) {
+            PyArray_ENABLEFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
         }
         else {
-            PyArray_CLEARFLAGS(dummy_arr, NPY_ARRAY_ALIGNED);
+            PyArray_CLEARFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
         }
-        int result = descr->f->setitem(value, item, dummy_arr);
-        _set_descr(dummy_arr, NULL);
+        int result = descr_data->f->setitem(ctx, value, item, dummy_arr);
+        _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
         return result;
     }
-    PyArray_Descr *tmp_descr;
-    tmp_descr = NPY_DT_CALL_discover_descr_from_pyobject(DType, value);
-    Py_DECREF(DType);
-    if (tmp_descr == NULL) {
+    HPy tmp_descr; /* (PyArray_Descr *) */
+    tmp_descr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, DType, value);
+    HPy_Close(ctx, DType);
+    if (HPy_IsNull(tmp_descr)) {
         return -1;
     }
 
-    char *data = PyObject_Malloc(tmp_descr->elsize);
+    PyArray_Descr *tmp_descr_data = PyArray_Descr_AsStruct(ctx, tmp_descr);
+    // TODO HPY LABS PORT: PyObject_Malloc
+    // char *data = PyObject_Malloc(tmp_descr_data->elsize);
+    char *data = malloc(tmp_descr_data->elsize);
     if (data == NULL) {
-        PyErr_NoMemory();
-        Py_DECREF(tmp_descr);
+        HPyErr_NoMemory(ctx);
+        HPy_Close(ctx, tmp_descr);
         return -1;
     }
-    if (PyDataType_FLAGCHK(tmp_descr, NPY_NEEDS_INIT)) {
-        memset(data, 0, tmp_descr->elsize);
+    if (PyDataType_FLAGCHK(tmp_descr_data, NPY_NEEDS_INIT)) {
+        memset(data, 0, tmp_descr_data->elsize);
     }
-    _set_descr(dummy_arr, tmp_descr);
-    if (npy_is_aligned(item, tmp_descr->alignment)) {
-        PyArray_ENABLEFLAGS(dummy_arr, NPY_ARRAY_ALIGNED);
+    _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, tmp_descr);
+    if (npy_is_aligned(item, tmp_descr_data->alignment)) {
+        PyArray_ENABLEFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
     }
     else {
-        PyArray_CLEARFLAGS(dummy_arr, NPY_ARRAY_ALIGNED);
+        PyArray_CLEARFLAGS(dummy_arr_data, NPY_ARRAY_ALIGNED);
     }
-    if (tmp_descr->f->setitem(value, data, dummy_arr) < 0) {
-        PyObject_Free(data);
-        _set_descr(dummy_arr, NULL);
-        Py_DECREF(tmp_descr);
+    if (descr_data->f->setitem(ctx, value, item, dummy_arr) < 0) {
+        // TODO HPY LABS PORT: PyObject_Free
+        // PyObject_Free(data);
+        free(data);
+        _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
+        HPy_Close(ctx, tmp_descr);
         return -1;
     }
-    _set_descr(dummy_arr, NULL);
-    if (PyDataType_REFCHK(tmp_descr)) {
+    _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
+    if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        PyArray_Item_INCREF(data, tmp_descr);
+        hpy_abort_not_implemented("HPyArray_Pack: using PyArray_Item_INCREF is not supported");
+        //PyArray_Item_INCREF(data, tmp_descr);
     }
 
     int res = 0;
     int needs_api = 0;
-    NPY_cast_info cast_info;
-    if (PyArray_GetDTypeTransferFunction(
+    HNPY_cast_info cast_info;
+    if (HPyArray_GetDTypeTransferFunction(ctx,
             0, 0, 0, tmp_descr, descr, 0, &cast_info,
             &needs_api) == NPY_FAIL) {
         res = -1;
@@ -493,33 +541,36 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     char *args[2] = {data, item};
     const npy_intp strides[2] = {0, 0};
     const npy_intp length = 1;
-    if (cast_info.func(npy_get_context(), &cast_info.context,
+    if (cast_info.func(ctx, &cast_info.context,
             args, &length, strides, cast_info.auxdata) < 0) {
         res = -1;
     }
-    NPY_cast_info_xfree(&cast_info);
+    HNPY_cast_info_xfree(ctx, &cast_info);
 
   finish:
-    if (PyDataType_REFCHK(tmp_descr)) {
+    if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        PyArray_Item_XDECREF(data, tmp_descr);
+        hpy_abort_not_implemented("HPyArray_Pack: using PyArray_Item_XDECREF is not supported");
+        // PyArray_Item_XDECREF(data, tmp_descr);
     }
-    PyObject_Free(data);
-    Py_DECREF(tmp_descr);
+    // TODO HPY LABS PORT: PyObject_Free
+    // PyObject_Free(data);
+    free(data);
+    HPy_Close(ctx, tmp_descr);
     return res;
 }
 
-NPY_NO_EXPORT int
-HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HPy value)
-{
-    CAPI_WARN("HPyArray_Pack: call to PyArray_Pack");
-    PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
-    PyObject *py_value = HPy_AsPyObject(ctx, value);
-    int res = PyArray_Pack(py_descr, item, py_value);
-    Py_DECREF(py_value);
-    Py_DECREF(py_descr);
-    return res;
-}
+//NPY_NO_EXPORT int
+//HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HPy value)
+//{
+//    CAPI_WARN("HPyArray_Pack: call to PyArray_Pack");
+//    PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
+//    PyObject *py_value = HPy_AsPyObject(ctx, value);
+//    int res = PyArray_Pack(py_descr, item, py_value);
+//    Py_DECREF(py_value);
+//    Py_DECREF(py_descr);
+//    return res;
+//}
 
 
 static int
@@ -1269,6 +1320,31 @@ PyArray_DiscoverDTypeAndShape_Recursive(
     return max_dims;
 }
 
+NPY_NO_EXPORT int
+PyArray_DiscoverDTypeAndShape(
+        PyObject *obj, int max_dims,
+        npy_intp out_shape[NPY_MAXDIMS],
+        coercion_cache_obj **coercion_cache,
+        PyArray_DTypeMeta *fixed_DType, PyArray_Descr *requested_descr,
+        PyArray_Descr **out_descr, int never_copy)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_fixed_DType = HPy_FromPyObject(ctx, (PyObject *)fixed_DType);
+    HPy h_requested_descr = HPy_FromPyObject(ctx, (PyObject *)requested_descr);
+    HPy h_out_descr = HPy_FromPyObject(ctx, (PyObject *)*out_descr);
+
+    int res = HPyArray_DiscoverDTypeAndShape(ctx, h_obj, max_dims, out_shape,
+            coercion_cache, h_fixed_DType, h_requested_descr, &h_out_descr,
+            never_copy);
+
+    Py_XSETREF(*out_descr, (PyArray_Descr *)HPy_AsPyObject(ctx, h_out_descr));
+    HPy_Close(ctx, h_out_descr);
+    HPy_Close(ctx, h_requested_descr);
+    HPy_Close(ctx, h_fixed_DType);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
 
 /**
  * Finds the DType and shape of an arbitrary nested sequence. This is the
@@ -1308,12 +1384,13 @@ PyArray_DiscoverDTypeAndShape_Recursive(
  *         `arr1d[...] = np.array([[1,2,3,4]])`
  */
 NPY_NO_EXPORT int
-PyArray_DiscoverDTypeAndShape(
-        PyObject *obj, int max_dims,
+HPyArray_DiscoverDTypeAndShape(
+        HPyContext *ctx,
+        HPy obj, int max_dims,
         npy_intp out_shape[NPY_MAXDIMS],
         coercion_cache_obj **coercion_cache,
-        PyArray_DTypeMeta *fixed_DType, PyArray_Descr *requested_descr,
-        PyArray_Descr **out_descr, int never_copy)
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType, HPy /* (PyArray_Descr *) */ requested_descr,
+        HPy /* (PyArray_Descr **) */ *out_descr, int never_copy)
 {
     coercion_cache_obj **coercion_cache_head = coercion_cache;
     *coercion_cache = NULL;
@@ -1322,18 +1399,17 @@ PyArray_DiscoverDTypeAndShape(
     /*
      * Support a passed in descriptor (but only if nothing was specified).
      */
-    assert(*out_descr == NULL || fixed_DType == NULL);
+    assert(HPy_IsNull(*out_descr) || HPy_IsNull(fixed_DType));
     /* Validate input of requested descriptor and DType */
-    if (fixed_DType != NULL) {
-        assert(PyObject_TypeCheck(
-                (PyObject *)fixed_DType, PyArrayDTypeMeta_Type));
+    if (!HPy_IsNull(fixed_DType)) {
+        assert(HPyGlobal_TypeCheck(ctx,
+                fixed_DType, HPyArrayDTypeMeta_Type));
     }
 
-    if (requested_descr != NULL) {
-        assert(fixed_DType == NPY_DTYPE(requested_descr));
+    if (!HPy_IsNull(requested_descr)) {
+        assert(HPy_Is(ctx, fixed_DType, HNPY_DTYPE(ctx, requested_descr)));
         /* The output descriptor must be the input. */
-        Py_INCREF(requested_descr);
-        *out_descr = requested_descr;
+        *out_descr = HPy_Dup(ctx, requested_descr);
         flags |= DESCRIPTOR_WAS_SET;
     }
 
@@ -1343,22 +1419,31 @@ PyArray_DiscoverDTypeAndShape(
      */
 
     /* Legacy discovery flags */
-    if (requested_descr != NULL) {
-        if (requested_descr->type_num == NPY_STRING &&
-                requested_descr->type == 'c') {
+    if (!HPy_IsNull(requested_descr)) {
+        PyArray_Descr *requested_descr_data = PyArray_Descr_AsStruct(ctx, requested_descr);
+        if (requested_descr_data->type_num == NPY_STRING &&
+                requested_descr_data->type == 'c') {
             /* Character dtype variation of string (should be deprecated...) */
             flags |= DISCOVER_STRINGS_AS_SEQUENCES;
         }
-        else if (requested_descr->type_num == NPY_VOID &&
-                    (requested_descr->names || requested_descr->subarray))  {
+        else if (requested_descr_data->type_num == NPY_VOID &&
+                    (requested_descr_data->names || requested_descr_data->subarray))  {
             /* Void is a chimera, in that it may or may not be structured... */
             flags |= DISCOVER_TUPLES_AS_ELEMENTS;
         }
     }
 
+    CAPI_WARN("HPyArray_DiscoverDTypeAndShape: call to PyArray_DiscoverDTypeAndShape_Recursive");
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
+    PyArray_Descr *py_out_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, *out_descr);
     int ndim = PyArray_DiscoverDTypeAndShape_Recursive(
-            obj, 0, max_dims, out_descr, out_shape, &coercion_cache,
-            fixed_DType, &flags, never_copy);
+            py_obj, 0, max_dims, &py_out_descr, out_shape, &coercion_cache,
+            py_fixed_DType, &flags, never_copy);
+    HPy_SETREF(ctx, *out_descr, HPy_FromPyObject(ctx, (PyObject *)py_out_descr));
+    Py_XDECREF(py_out_descr);
+    Py_DECREF(py_obj);
+    Py_XDECREF(py_fixed_DType);
     if (ndim < 0) {
         goto fail;
     }
@@ -1377,18 +1462,19 @@ PyArray_DiscoverDTypeAndShape(
         /* Handle reaching the maximum depth differently: */
         int too_deep = ndim == max_dims;
 
-        if (fixed_DType == NULL) {
+        if (HPy_IsNull(fixed_DType)) {
             /* This is discovered as object, but deprecated */
-            static PyObject *visibleDeprecationWarning = NULL;
-            npy_cache_import(
+            // TODO LABS HPY PORT: should be HPyGlobal
+            static HPy visibleDeprecationWarning = HPy_NULL;
+            npy_hpy_cache_import(ctx,
                     "numpy", "VisibleDeprecationWarning",
                     &visibleDeprecationWarning);
-            if (visibleDeprecationWarning == NULL) {
+            if (HPy_IsNull(visibleDeprecationWarning)) {
                 goto fail;
             }
             if (!too_deep) {
                 /* NumPy 1.19, 2019-11-01 */
-                if (PyErr_WarnEx(visibleDeprecationWarning,
+                if (HPyErr_WarnEx(ctx, visibleDeprecationWarning,
                         "Creating an ndarray from ragged nested sequences (which "
                         "is a list-or-tuple of lists-or-tuples-or ndarrays with "
                         "different lengths or shapes) is deprecated. If you "
@@ -1400,19 +1486,18 @@ PyArray_DiscoverDTypeAndShape(
             else {
                 /* NumPy 1.20, 2020-05-08 */
                 /* Note, max_dims should normally always be NPY_MAXDIMS here */
-                if (PyErr_WarnFormat(visibleDeprecationWarning, 1,
+                if (HPyErr_WarnEx(ctx, visibleDeprecationWarning,
                         "Creating an ndarray from nested sequences exceeding "
                         "the maximum number of dimensions of %d is deprecated. "
                         "If you mean to do this, you must specify "
-                        "'dtype=object' when creating the ndarray.",
-                        max_dims) < 0) {
+                        "'dtype=object' when creating the ndarray.", 1) < 0) {
                     goto fail;
                 }
             }
             /* Ensure that ragged arrays always return object dtype */
-            Py_XSETREF(*out_descr, PyArray_DescrFromType(NPY_OBJECT));
+            HPy_SETREF(ctx, *out_descr, HPyArray_DescrFromType(ctx, NPY_OBJECT));
         }
-        else if (fixed_DType->type_num != NPY_OBJECT) {
+        else if (PyArray_DTypeMeta_AsStruct(ctx, fixed_DType)->type_num != NPY_OBJECT) {
             /* Only object DType supports ragged cases unify error */
 
             /*
@@ -1440,26 +1525,28 @@ PyArray_DiscoverDTypeAndShape(
                     current = current->next;
                     continue;
                 }
-                PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
-                assert(PyArray_NDIM(arr) + current->depth >= ndim);
-                if (PyArray_NDIM(arr) != ndim - current->depth) {
+                //PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
+                HPy arr = current->arr_or_sequence;
+                PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, current->arr_or_sequence);
+                assert(PyArray_NDIM(arr_data) + current->depth >= ndim);
+                if (PyArray_NDIM(arr_data) != ndim - current->depth) {
                     /* This array is not compatible with the final shape */
-                    if (PyArray_SIZE(arr) != 1) {
-                        Py_DECREF(arr);
+                    if (HPyArray_SIZE(arr_data) != 1) {
+                        HPy_Close(ctx, arr);
                         deprecate_single_element_ragged = 0;
                         break;
                     } else {
-                        Py_DECREF(arr);
+                        HPy_Close(ctx, arr);
                     }
                     deprecate_single_element_ragged = 1;
                 }
-                Py_DECREF(arr);
+                HPy_Close(ctx, arr);
                 current = current->next;
             }
 
             if (deprecate_single_element_ragged) {
                 /* Deprecated 2020-07-24, NumPy 1.20 */
-                if (DEPRECATE(
+                if (HPY_DEPRECATE(ctx,
                         "setting an array element with a sequence. "
                         "This was supported in some cases where the elements "
                         "are arrays with a single element. For example "
@@ -1470,18 +1557,25 @@ PyArray_DiscoverDTypeAndShape(
                 }
             }
             else if (!too_deep) {
-                PyObject *shape = PyArray_IntTupleFromIntp(ndim, out_shape);
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format_p(ctx, ctx->h_ValueError,
                         "setting an array element with a sequence. The "
                         "requested array has an inhomogeneous shape after "
                         "%d dimensions. The detected shape was "
-                        "%R + inhomogeneous part.",
-                        ndim, shape);
-                Py_DECREF(shape);
+                        "?? + inhomogeneous part.",
+                        ndim);
+                // TODO HPY LABS PORT: PyErr_Format
+                // PyObject *shape = PyArray_IntTupleFromIntp(ndim, out_shape);
+                // PyErr_Format(PyExc_ValueError,
+                //        "setting an array element with a sequence. The "
+                //        "requested array has an inhomogeneous shape after "
+                //        "%d dimensions. The detected shape was "
+                //        "%R + inhomogeneous part.",
+                //        ndim, shape);
+                // Py_DECREF(shape);
                 goto fail;
             }
             else {
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format_p(ctx, ctx->h_ValueError,
                         "setting an array element with a sequence. The "
                         "requested array would exceed the maximum number of "
                         "dimension of %d.",
@@ -1499,7 +1593,7 @@ PyArray_DiscoverDTypeAndShape(
         while (current != NULL) {
             if (current->depth > ndim) {
                 /* delete "next" cache item and advanced it (unlike later) */
-                current = npy_unlink_coercion_cache(current);
+                current = hnpy_unlink_coercion_cache(ctx, current);
                 continue;
             }
             /* advance both prev and next, and set prev->next to new item */
@@ -1511,11 +1605,11 @@ PyArray_DiscoverDTypeAndShape(
     }
     /* We could check here for max-ndims being reached as well */
 
-    if (requested_descr != NULL) {
+    if (!HPy_IsNull(requested_descr)) {
         /* descriptor was provided, we did not accidentally change it */
-        assert(*out_descr == requested_descr);
+        assert(HPy_Is(ctx, *out_descr, requested_descr));
     }
-    else if (NPY_UNLIKELY(*out_descr == NULL)) {
+    else if (NPY_UNLIKELY(HPy_IsNull(*out_descr))) {
         /*
          * When the object contained no elements (sequence of length zero),
          * the no descriptor may have been found. When a DType was requested
@@ -1523,9 +1617,10 @@ PyArray_DiscoverDTypeAndShape(
          * Otherwise, out_descr will remain NULL and the caller has to set
          * the correct default.
          */
-        if (fixed_DType != NULL) {
-            *out_descr = NPY_DT_CALL_default_descr(fixed_DType);
-            if (*out_descr == NULL) {
+        if (!HPy_IsNull(fixed_DType)) {
+            PyArray_DTypeMeta *fixed_DType_data = PyArray_DTypeMeta_AsStruct(ctx, fixed_DType);
+            *out_descr = HNPY_DT_CALL_default_descr(ctx, fixed_DType, fixed_DType_data);
+            if (HPy_IsNull(*out_descr)) {
                 goto fail;
             }
         }
@@ -1535,7 +1630,7 @@ PyArray_DiscoverDTypeAndShape(
   fail:
     npy_free_coercion_cache(*coercion_cache_head);
     *coercion_cache_head = NULL;
-    Py_XSETREF(*out_descr, NULL);
+    HPy_SETREF(ctx, *out_descr, HPy_NULL);
     return -1;
 }
 

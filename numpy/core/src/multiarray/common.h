@@ -53,8 +53,8 @@ PyArray_DTypeFromObjectHelper(PyObject *obj, int maxdims,
  * Returns NULL without setting an exception if no scalar is matched, a
  * new dtype reference otherwise.
  */
-NPY_NO_EXPORT PyArray_Descr *
-_array_find_python_scalar_type(PyObject *op);
+NPY_NO_EXPORT HPy
+_array_find_python_scalar_type(HPyContext *ctx, HPy op);
 
 NPY_NO_EXPORT PyArray_Descr *
 _array_typedescr_fromstr(char const *str);
@@ -78,8 +78,8 @@ convert_shape_to_string(npy_intp n, npy_intp const *vals, char *ending);
 NPY_NO_EXPORT void
 dot_alignment_error(PyArrayObject *a, int i, PyArrayObject *b, int j);
 
-NPY_NO_EXPORT PyArrayObject *
-dummy_array_new(PyArray_Descr *descr, npy_intp flags, PyObject *base);
+NPY_NO_EXPORT HPy
+dummy_array_new(HPyContext *ctx, HPy descr, npy_intp flags, HPy base);
 
 NPY_NO_EXPORT PyArrayObject *
 get_tmp_array(PyArrayObject *orig);

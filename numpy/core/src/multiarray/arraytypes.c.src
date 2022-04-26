@@ -57,6 +57,20 @@ PySequence_NoString_Check(PyObject *op) {
         !PyArray_IsZeroDim(op);
 }
 
+static NPY_INLINE npy_bool
+HPySequence_NoString_Check(HPyContext *ctx, HPy op) {
+    // try to avoid C API usage
+    if (!HPyBytes_Check(ctx, op) && !HPyUnicode_Check(ctx, op) && !HPyArray_IsZeroDim(ctx, op)) {
+        CAPI_WARN("HPySequence_NoString_Check: call to PySequence_Check");
+        PyObject *py_op = HPy_AsPyObject(ctx, op);
+        int res = PySequence_Check(py_op);
+        Py_DECREF(py_op);
+        return res;
+        
+    }
+    return 0;
+}
+
 /*
  *****************************************************************************
  **                        PYTHON TYPES TO C TYPES                          **
@@ -81,16 +95,46 @@ MyPyFloat_AsDouble(PyObject *obj)
     return ret;
 }
 
+static double
+MyHPyFloat_AsDouble(HPyContext *ctx, HPy obj)
+{
+    double ret = 0;
+    HPy num;
+
+    if (HPy_Is(ctx, obj, ctx->h_None)) {
+        return NPY_NAN;
+    }
+    num = HPy_Float(ctx, obj);
+    if (HPy_IsNull(num)) {
+        return NPY_NAN;
+    }
+    ret = HPyFloat_AsDouble(ctx, num);
+    HPy_Close(ctx, num);
+    return ret;
+}
+
 static npy_half
 MyPyFloat_AsHalf(PyObject *obj)
 {
     return npy_double_to_half(MyPyFloat_AsDouble(obj));
 }
 
+static npy_half
+MyHPyFloat_AsHalf(HPyContext *ctx, HPy obj)
+{
+    return npy_double_to_half(MyHPyFloat_AsDouble(ctx, obj));
+}
+
 static PyObject *
 MyPyFloat_FromHalf(npy_half h)
 {
     return PyFloat_FromDouble(npy_half_to_double(h));
+}
+
+static HPy
+MyHPyFloat_FromHalf(HPyContext *ctx, npy_half h)
+{
+    return HPyFloat_FromDouble(ctx, npy_half_to_double(h));
 }
 
 /* Handle case of assigning from an array scalar in setitem */
@@ -133,6 +177,20 @@ MyPyLong_As@Type@ (PyObject *obj)
     return ret;
 }
 
+static @type@
+MyHPyLong_As@Type@ (HPyContext *ctx, HPy obj)
+{
+    @type@ ret;
+    HPy num = HPy_Long(ctx, obj);
+
+    if (HPy_IsNull(num)) {
+        return -1;
+    }
+    ret = HPyLong_As@Type@(ctx, num);
+    HPy_Close(ctx, num);
+    return ret;
+}
+
 /**end repeat**/
 
 /**begin repeat
@@ -155,6 +213,24 @@ MyPyLong_AsUnsigned@Type@ (PyObject *obj)
         ret = PyLong_As@Type@(num);
     }
     Py_DECREF(num);
+    return ret;
+}
+
+static @type@
+MyHPyLong_AsUnsigned@Type@ (HPyContext *ctx, HPy obj)
+{
+    @type@ ret;
+    HPy num = HPy_Long(ctx, obj);
+
+    if (HPy_IsNull(num)) {
+        return -1;
+    }
+    ret = HPyLong_AsUnsigned@Type@(ctx, num);
+    if (HPyErr_Occurred(ctx)) {
+        HPyErr_Clear(ctx);
+        ret = HPyLong_As@Type@(ctx, num);
+    }
+    HPy_Close(ctx, num);
     return ret;
 }
 
@@ -244,6 +320,63 @@ static int
     else {
         PyArray_DESCR(ap)->f->copyswap(ov, &temp, PyArray_ISBYTESWAPPED(ap),
                                        ap);
+    }
+    return 0;
+}
+
+/**end repeat**/
+
+/**begin repeat
+ *
+ * #TYPE = BOOL, BYTE, UBYTE, SHORT, USHORT, INT, LONG, UINT, ULONG,
+ *         LONGLONG, ULONGLONG, HALF, FLOAT, DOUBLE#
+ * #func2 = HPy_IsTrue, MyHPyLong_AsLong*6, MyHPyLong_AsUnsignedLong*2,
+ *          MyHPyLong_AsLongLong, MyHPyLong_AsUnsignedLongLong,
+ *          MyHPyFloat_AsHalf, MyHPyFloat_AsDouble*2#
+ * #type = npy_bool,
+ *         npy_byte, npy_ubyte, npy_short, npy_ushort, npy_int,
+ *         npy_long, npy_uint, npy_ulong, npy_longlong, npy_ulonglong,
+ *         npy_half, npy_float, npy_double#
+ * #type1 = long*7, npy_ulong*2, npy_longlong, npy_ulonglong,
+ *          npy_half, npy_float, npy_double#
+ * #kind = Bool, Byte, UByte, Short, UShort, Int, Long, UInt, ULong,
+ *         LongLong, ULongLong, Half, Float, Double#
+*/
+static int
+@TYPE@_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
+{
+    // PyArrayObject *ap = vap;
+    @type@ temp;  /* ensures alignment */
+
+    if (HPyArray_IsScalar(ctx, op, @kind@)) {
+        temp = HPyArrayScalar_VAL(ctx, op, @kind@);
+    }
+    else {
+        temp = (@type@)@func2@(ctx, op);
+    }
+    if (HPyErr_Occurred(ctx)) {
+        CAPI_WARN("@TYPE@_setitem: call to PyErr_Fetch/Restore/npy_PyErr_ChainExceptionsCause");
+        PyObject *type, *value, *traceback;
+        PyErr_Fetch(&type, &value, &traceback);
+        if (HPySequence_NoString_Check(ctx, op)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "setting an array element with a sequence.");
+            npy_PyErr_ChainExceptionsCause(type, value, traceback);
+        }
+        else {
+            PyErr_Restore(type, value, traceback);
+        }
+        return -1;
+    }
+    if (HPy_IsNull(ap) || PyArray_ISBEHAVED(PyArrayObject_AsStruct(ctx, ap))) {
+        assert(npy_is_aligned(ov, _ALIGN(@type@)));
+        *((@type@ *)ov)=temp;
+    }
+    else {
+        PyArrayObject *py_ap = (PyArrayObject *)HPy_AsPyObject(ctx, ap);
+        PyArray_DESCR(py_ap)->f->copyswap(ov, &temp, 
+            PyArray_ISBYTESWAPPED(py_ap), py_ap);
+        Py_DECREF(py_ap);
     }
     return 0;
 }
@@ -359,6 +492,14 @@ static int
     return 0;
 }
 
+static int
+@NAME@_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+{
+    // TODO HPY LABS PORT: implememnt
+    hpy_abort_not_implemented("@NAME@_hpy_setitem");
+    return -1;
+}
+
 /**end repeat**/
 
 static NPY_INLINE npy_longdouble
@@ -426,6 +567,74 @@ string_to_long_double(PyObject*op)
     return temp;
 }
 
+static NPY_INLINE npy_longdouble
+hpy_string_to_long_double(HPyContext *ctx, HPy op)
+{
+    char *s;
+    char *end;
+    npy_longdouble temp;
+    HPy b;
+
+    /* Convert python long objects to a longdouble, without precision or range
+     * loss via a double.
+     */
+    if ((HPy_TypeCheck(ctx, op, ctx->h_LongType) && !HPyBool_Check(ctx, op))) {
+        CAPI_WARN("hpy_string_to_long_double: call to npy_longdouble_from_PyLong");
+        PyObject *py_op = HPy_AsPyObject(ctx, op);
+        temp = npy_longdouble_from_PyLong(py_op);
+        Py_DECREF(py_op);
+        return temp;
+    }
+
+    if (HPyUnicode_Check(ctx, op)) {
+        b = HPyUnicode_AsUTF8String(ctx, op);
+        if (HPy_IsNull(b)) {
+            return 0;
+        }
+    }
+    else {
+        b = HPy_Dup(ctx, op);
+    }
+    s = HPyBytes_AsString(ctx, b);
+    if (s) {
+        errno = 0;
+        temp = NumPyOS_ascii_strtold(s, &end);
+        if (errno == ERANGE) {
+           if (HPyErr_WarnEx(ctx, ctx->h_RuntimeWarning,
+                   "overflow encountered in conversion from string", 1) < 0) {
+               HPy_Close(ctx, b);
+               return 0;
+           }
+           /* strtold returns INFINITY of the correct sign. */
+        }
+        else if (errno) {
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
+                         "invalid literal for long double: %s (%s)",
+                         s,
+                         strerror(errno));
+            HPy_Close(ctx, b);
+            return 0;
+        }
+
+        /* Extra characters at the end of the string, or nothing parsed */
+        if (end == s || *end) {
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
+                         "invalid literal for long double: %s",
+                         s);
+            HPy_Close(ctx, b);
+            return 0;
+        }
+        HPy_Close(ctx, b);
+    }
+    else {
+        /* Probably wasn't a string, try converting it via a python double */
+        HPyErr_Clear(ctx);
+        HPy_Close(ctx, b);
+        temp = (npy_longdouble) MyHPyFloat_AsDouble(ctx, op);
+    }
+    return temp;
+}
+
 /*
  * These return array scalars which are different than other date-types.
  */
@@ -466,6 +675,44 @@ LONGDOUBLE_setitem(PyObject *op, void *ov, void *vap)
     else {
         copy_and_swap(ov, &temp, PyArray_DESCR(ap)->elsize, 1, 0,
                       PyArray_ISBYTESWAPPED(ap));
+    }
+    return 0;
+}
+
+static int
+LONGDOUBLE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
+{
+    //PyArrayObject *ap = vap;
+    /* ensure alignment */
+    npy_longdouble temp;
+
+    if (HPyArray_IsZeroDim(ctx, op)) {
+        hpy_abort_not_implemented("LONGDOUBLE_hpy_setitem: convert_to_scalar_and_retry");
+        return -1;
+        // return convert_to_scalar_and_retry(op, ov, vap, LONGDOUBLE_setitem);
+    }
+
+    if (HPyArray_IsScalar(ctx, op, LongDouble)) {
+        temp = HPyArrayScalar_VAL(ctx, op, LongDouble);
+    }
+    else {
+        /* In case something funny happened in PyArray_IsScalar */
+        if (HPyErr_Occurred(ctx)) {
+            return -1;
+        }
+        temp = hpy_string_to_long_double(ctx, op);
+    }
+    if (HPyErr_Occurred(ctx)) {
+        return -1;
+    }
+    PyArrayObject *ap_data = PyArrayObject_AsStruct(ctx, ap);
+    if (HPy_IsNull(ap) || PyArray_ISBEHAVED(ap_data)) {
+        *((npy_longdouble *)ov) = temp;
+    }
+    else {
+        HPy descr = HPyArray_DESCR(ctx, ap, ap_data);
+        copy_and_swap(ov, &temp, PyArray_Descr_AsStruct(ctx, descr)->elsize, 1, 0,
+                      PyArray_ISBYTESWAPPED(ap_data));
     }
     return 0;
 }
@@ -566,6 +813,92 @@ UNICODE_setitem(PyObject *op, void *ov, void *vap)
     return 0;
 }
 
+static int
+UNICODE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
+{
+    // PyArrayObject *ap = vap;
+
+    if (HPyArray_IsZeroDim(ctx, op)) {
+        hpy_abort_not_implemented("UNICODE_hpy_setitem: convert_to_scalar_and_retry");
+        return -1;
+        // return convert_to_scalar_and_retry(op, ov, vap, UNICODE_setitem);
+    }
+
+    if (HPySequence_NoString_Check(ctx, op)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "setting an array element with a sequence");
+        return -1;
+    }
+
+    HPy temp;
+    if (HPyBytes_Check(ctx, op)) {
+        /* Try to decode from ASCII */
+        temp = HPyUnicode_FromEncodedObject(ctx, op, "ASCII", "strict");
+        if (HPy_IsNull(temp)) {
+            return -1;
+        }
+    }
+    else if (HPy_IsNull(temp=HPy_Str(ctx, op))) {
+        return -1;
+    }
+
+    /* truncate if needed */
+    PyArrayObject *ap_data = PyArrayObject_AsStruct(ctx, ap);
+    HPy descr = HPyArray_DESCR(ctx, ap, ap_data);
+    HPy_ssize_t max_len = PyArray_Descr_AsStruct(ctx, descr)->elsize >> 2;
+    HPy_ssize_t actual_len = HPy_Length(ctx, temp);
+    if (actual_len < 0) {
+        HPy_Close(ctx, temp);
+        return -1;
+    }
+    if (actual_len > max_len) {
+        HPy_SETREF(ctx, temp, HPyUnicode_Substring(ctx, temp, 0, max_len));
+        if (HPy_IsNull(temp)) {
+            return -1;
+        }
+        actual_len = max_len;
+    }
+
+    HPy_ssize_t num_bytes = actual_len * 4;
+
+    char *buffer;
+    if (!PyArray_ISALIGNED(ap_data)) {
+        buffer = PyArray_malloc(num_bytes);
+        if (buffer == NULL) {
+            HPy_Close(ctx, temp);
+            HPyErr_NoMemory(ctx);
+            return -1;
+        }
+    }
+    else {
+        buffer = ov;
+    }
+    CAPI_WARN("UNICODE_hpy_setitem: call to PyUnicode_AsUCS4");
+    PyObject *py_temp = HPy_AsPyObject(ctx, temp);
+    if (PyUnicode_AsUCS4(py_temp, (Py_UCS4 *)buffer, actual_len, 0) == NULL) {
+        Py_DECREF(py_temp);
+        PyArray_free(buffer);
+        HPy_Close(ctx, temp);
+        return -1;
+    }
+    Py_DECREF(py_temp);
+
+    if (!PyArray_ISALIGNED(ap_data)) {
+        memcpy(ov, buffer, num_bytes);
+        PyArray_free(buffer);
+    }
+
+    /* Fill in the rest of the space with 0 */
+    if (PyArray_DESCR(ap_data)->elsize > num_bytes) {
+        memset((char*)ov + num_bytes, 0, (PyArray_DESCR(ap_data)->elsize - num_bytes));
+    }
+    if (PyArray_ISBYTESWAPPED(ap_data)) {
+        byte_swap_vector(ov, actual_len, 4);
+    }
+    HPy_Close(ctx, temp);
+    return 0;
+}
+
 /* STRING
  *
  * can handle both NULL-terminated and not NULL-terminated cases
@@ -645,6 +978,15 @@ STRING_setitem(PyObject *op, void *ov, void *vap)
     return 0;
 }
 
+static int
+STRING_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+{
+    // TODO HPY LABS PORT: implememnt
+    hpy_abort_not_implemented("STRING_hpy_setitem");
+    return -1;
+}
+
+
 /* OBJECT */
 
 #define __ALIGNED(obj, sz) ((((size_t) obj) % (sz))==0)
@@ -664,19 +1006,28 @@ OBJECT_getitem(void *ip, void *NPY_UNUSED(ap))
 }
 
 
+// static int
+// OBJECT_setitem(PyObject *op, void *ov, void *NPY_UNUSED(ap))
+// {
+//     PyObject *obj;
+//
+//     memcpy(&obj, ov, sizeof(obj));
+//
+//     Py_INCREF(op);
+//     Py_XDECREF(obj);
+//
+//     memcpy(ov, &op, sizeof(op));
+//
+//     return PyErr_Occurred() ? -1 : 0;
+// }
+
 static int
-OBJECT_setitem(PyObject *op, void *ov, void *NPY_UNUSED(ap))
+OBJECT_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy NPY_UNUSED(vap))
 {
-    PyObject *obj;
-
-    memcpy(&obj, ov, sizeof(obj));
-
-    Py_INCREF(op);
-    Py_XDECREF(obj);
-
-    memcpy(ov, &op, sizeof(op));
-
-    return PyErr_Occurred() ? -1 : 0;
+    HPy *hov = (HPy *)ov;
+    HPy_Close(ctx, *hov);
+    *hov = HPy_Dup(ctx, op);
+    return HPyErr_Occurred(ctx) ? -1 : 0;
 }
 
 
@@ -992,6 +1343,14 @@ VOID_setitem(PyObject *op, void *input, void *vap)
     return 0;
 }
 
+static int
+VOID_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+{
+    // TODO HPY LABS PORT: implememnt
+    hpy_abort_not_implemented("VOID_hpy_setitem");
+    return -1;
+}
+
 static PyObject *
 DATETIME_getitem(void *ip, void *vap)
 {
@@ -1072,6 +1431,14 @@ DATETIME_setitem(PyObject *op, void *ov, void *vap)
 }
 
 static int
+DATETIME_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+{
+    // TODO HPY LABS PORT: implememnt
+    hpy_abort_not_implemented("DATETIME_hpy_setitem");
+    return -1;
+}
+
+static int
 TIMEDELTA_setitem(PyObject *op, void *ov, void *vap)
 {
     PyArrayObject *ap = vap;
@@ -1101,6 +1468,14 @@ TIMEDELTA_setitem(PyObject *op, void *ov, void *vap)
     }
 
     return 0;
+}
+
+static int
+TIMEDELTA_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+{
+    // TODO HPY LABS PORT: implememnt
+    hpy_abort_not_implemented("TIMEDELTA_hpy_setitem");
+    return -1;
 }
 
 
@@ -4147,7 +4522,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         @from@_to_VOID
     },
     @from@_getitem,
-    @from@_setitem,
+    @from@_hpy_setitem,
     (PyArray_CopySwapNFunc*)@from@_copyswapn,
     (PyArray_CopySwapFunc*)@from@_copyswap,
     (PyArray_CompareFunc*)@from@_compare,
@@ -4279,7 +4654,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         @from@_to_VOID
     },
     @from@_getitem,
-    @from@_setitem,
+    @from@_hpy_setitem,
     (PyArray_CopySwapNFunc*)@from@_copyswapn,
     (PyArray_CopySwapFunc*)@from@_copyswap,
     (PyArray_CompareFunc*)@from@_compare,

@@ -384,6 +384,18 @@ PyArray_CastScalarDirect(PyObject *scalar, PyArray_Descr *indescr,
     return 0;
 }
 
+static NPY_INLINE int
+setitem_trampoline(PyArray_SetItemFunc *func, PyObject *obj, char *data, PyArrayObject *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    int res = func(ctx, h_obj, data, h_arr);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
+
 /*NUMPY_API
  * Get 0-dim array from scalar
  *
@@ -425,7 +437,7 @@ PyArray_FromScalar(PyObject *scalar, PyArray_Descr *outcode)
     /* the dtype used by the array may be different to the one requested */
     typecode = PyArray_DESCR(r);
     if (PyDataType_FLAGCHK(typecode, NPY_USE_SETITEM)) {
-        if (typecode->f->setitem(scalar, PyArray_DATA(r), r) < 0) {
+        if (setitem_trampoline(typecode->f->setitem, scalar, PyArray_DATA(r), r) < 0) {
             Py_DECREF(r);
             Py_XDECREF(outcode);
             return NULL;

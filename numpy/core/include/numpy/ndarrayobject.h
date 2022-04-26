@@ -96,6 +96,9 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_IsZeroDim(op) (PyArray_Check(op) && \
                                (PyArray_NDIM((PyArrayObject *)op) == 0))
 
+#define HPyArray_IsZeroDim(ctx, op) (HPyArray_Check(ctx, op) && \
+                               (HPyArray_GetNDim(ctx, op) == 0))
+
 #define PyArray_IsScalar(obj, cls)                                            \
         (PyObject_TypeCheck(obj, &Py##cls##ArrType_Type))
 

@@ -1752,6 +1752,18 @@ _getlist_pkl(PyArrayObject *self)
     return list;
 }
 
+static NPY_INLINE int
+setitem_trampoline(PyArray_SetItemFunc *func, PyObject *obj, char *data, PyArrayObject *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    int res = func(ctx, h_obj, data, h_arr);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_obj);
+    return res;
+}
+
 static int
 _setlist_pkl(PyArrayObject *self, PyObject *list)
 {
@@ -1766,7 +1778,7 @@ _setlist_pkl(PyArrayObject *self, PyObject *list)
     }
     while(iter->index < iter->size) {
         theobject = PyList_GET_ITEM(list, iter->index);
-        setitem(theobject, iter->dataptr, self);
+        setitem_trampoline(setitem, theobject, iter->dataptr, self);
         PyArray_ITER_NEXT(iter);
     }
     Py_XDECREF(iter);
