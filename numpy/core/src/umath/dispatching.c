@@ -77,71 +77,108 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
 NPY_NO_EXPORT int
 PyUFunc_AddLoop(PyUFuncObject *ufunc, PyObject *info, int ignore_duplicate)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_info = HPy_FromPyObject(ctx, info);
+    int res = HPyUFunc_AddLoop(ctx, h_ufunc, h_info, ignore_duplicate);
+    HPy_Close(ctx, h_info);
+    HPy_Close(ctx, h_ufunc);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, int ignore_duplicate)
+{
+    int res;
+    HPy DType_tuple = HPy_NULL;
+    HPy loops = HPy_NULL;
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
     /*
      * Validate the info object, this should likely move to a different
      * entry-point in the future (and is mostly unnecessary currently).
      */
-    if (!PyTuple_CheckExact(info) || PyTuple_GET_SIZE(info) != 2) {
-        PyErr_SetString(PyExc_TypeError,
+    if (!HPyTuple_CheckExact(ctx, info) || HPy_Length(ctx, info) != 2) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Info must be a tuple: "
                 "(tuple of DTypes or None, ArrayMethod or promoter)");
         return -1;
     }
-    PyObject *DType_tuple = PyTuple_GetItem(info, 0);
-    if (PyTuple_GET_SIZE(DType_tuple) != ufunc->nargs) {
-        PyErr_SetString(PyExc_TypeError,
+    DType_tuple = HPy_GetItem_i(ctx, info, 0);
+    HPy_ssize_t n_DType_tuple = HPy_Length(ctx, DType_tuple);
+    if (n_DType_tuple != ufunc_data->nargs) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "DType tuple length does not match ufunc number of operands");
-        return -1;
+        res = -1;
+        goto finish;
     }
-    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(DType_tuple); i++) {
-        PyObject *item = PyTuple_GET_ITEM(DType_tuple, i);
-        if (item != Py_None
-                && !PyObject_TypeCheck(item, PyArrayDTypeMeta_Type)) {
-            PyErr_SetString(PyExc_TypeError,
+    for (HPy_ssize_t i = 0; i < n_DType_tuple; i++) {
+        HPy item = HPy_GetItem_i(ctx, DType_tuple, i);
+        if (!HPy_Is(ctx, item, ctx->h_None)
+                && !HPyGlobal_TypeCheck(ctx, item, HPyArrayDTypeMeta_Type)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "DType tuple may only contain None and DType classes");
-            return -1;
+            res = -1;
+            goto finish;
         }
     }
-    PyObject *meth_or_promoter = PyTuple_GET_ITEM(info, 1);
-    if (!PyObject_TypeCheck(meth_or_promoter, PyArrayMethod_Type)
-            && !PyCapsule_IsValid(meth_or_promoter, "numpy._ufunc_promoter")) {
-        PyErr_SetString(PyExc_TypeError,
+    HPy meth_or_promoter = HPy_GetItem_i(ctx, info, 1);
+    if (!HPyGlobal_TypeCheck(ctx, meth_or_promoter, HPyArrayMethod_Type)
+            && !HPyCapsule_IsValid(ctx, meth_or_promoter, "numpy._ufunc_promoter")) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Second argument to info must be an ArrayMethod or promoter");
-        return -1;
+        res = -1;
+        goto finish;
     }
 
-    if (ufunc->_loops == NULL) {
-        ufunc->_loops = PyList_New(0);
-        if (ufunc->_loops == NULL) {
-            return -1;
+    CAPI_WARN("HPyUFunc_AddLoop: use of legacy field PyUFuncObject._loops");
+    if (ufunc_data->_loops == NULL) {
+        ufunc_data->_loops = PyList_New(0);
+        if (ufunc_data->_loops == NULL) {
+            res = -1;
+            goto finish;
         }
     }
 
-    PyObject *loops = ufunc->_loops;
-    Py_ssize_t length = PyList_Size(loops);
-    for (Py_ssize_t i = 0; i < length; i++) {
-        PyObject *item = PyList_GetItem(loops, i);
-        PyObject *cur_DType_tuple = PyTuple_GetItem(item, 0);
-        int cmp = PyObject_RichCompareBool(cur_DType_tuple, DType_tuple, Py_EQ);
+    loops = HPy_FromPyObject(ctx, ufunc_data->_loops);
+    HPy_ssize_t length = HPy_Length(ctx, loops);
+    for (HPy_ssize_t i = 0; i < length; i++) {
+        HPy item = HPy_GetItem_i(ctx, loops, i);
+        HPy cur_DType_tuple = HPy_GetItem_i(ctx, item, 0);
+        HPy_Close(ctx, item);
+        int cmp = HPy_RichCompareBool(ctx, cur_DType_tuple, DType_tuple, HPy_EQ);
+        HPy_Close(ctx, cur_DType_tuple);
         if (cmp < 0) {
-            return -1;
+            res = -1;
+            goto finish;
         }
         if (cmp == 0) {
             continue;
         }
         if (ignore_duplicate) {
-            return 0;
+            res = 0;
+            goto finish;
         }
-        PyErr_Format(PyExc_TypeError,
-                "A loop/promoter has already been registered with '%s' for %R",
-                ufunc_get_name_cstr(ufunc), DType_tuple);
-        return -1;
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
+                "A loop/promoter has already been registered with '%s' for ??",
+                ufunc_get_name_cstr(ufunc_data));
+        // TODO HPY LABS PORT: PyErr_Format
+        // PyErr_Format(PyExc_TypeError,
+        //        "A loop/promoter has already been registered with '%s' for %R",
+        //        ufunc_get_name_cstr(ufunc), DType_tuple);
+        res = -1;
+        goto finish;
     }
 
-    if (PyList_Append(loops, info) < 0) {
-        return -1;
+    if (HPyList_Append(ctx, loops, info) < 0) {
+        res = -1;
+        goto finish;
     }
-    return 0;
+    res = 0;
+
+finish:
+    HPy_Close(ctx, DType_tuple);
+    HPy_Close(ctx, loops);
+    return res;
 }
 
 
@@ -616,6 +653,41 @@ legacy_promote_using_legacy_type_resolver(PyUFuncObject *ufunc,
 
 
 /*
+ * Note, this function *DOES NOT* return a borrowed reference to info.
+ */
+NPY_NO_EXPORT HPy
+hpy_add_and_return_legacy_wrapping_ufunc_loop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
+        HPy /* (PyArray_DTypeMeta *) */ operation_dtypes[], int ignore_duplicate)
+{
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    HPy DType_tuple = HPyArray_TupleFromItems(ctx, ufunc_data->nargs,
+            operation_dtypes, 0);
+    if (HPy_IsNull(DType_tuple)) {
+        return HPy_NULL;
+    }
+
+    // PyArrayMethodObject *
+    HPy method = HPyArray_NewLegacyWrappingArrayMethod(ctx,
+            ufunc_data, operation_dtypes);
+    if (HPy_IsNull(method)) {
+        HPy_Close(ctx, DType_tuple);
+        return HPy_NULL;
+    }
+    HPy info = HPyTuple_Pack(ctx, 2, DType_tuple, method);
+    HPy_Close(ctx, DType_tuple);
+    HPy_Close(ctx, method);
+    if (HPy_IsNull(info)) {
+        return HPy_NULL;
+    }
+    if (HPyUFunc_AddLoop(ctx, ufunc, info, ignore_duplicate) < 0) {
+        HPy_Close(ctx, info);
+        return HPy_NULL;
+    }
+    // Py_DECREF(info);  /* now borrowed from the ufunc's list of loops */
+    return info;
+}
+
+/*
  * Note, this function returns a BORROWED references to info since it adds
  * it to the loops.
  */
@@ -623,30 +695,17 @@ NPY_NO_EXPORT PyObject *
 add_and_return_legacy_wrapping_ufunc_loop(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *operation_dtypes[], int ignore_duplicate)
 {
-    PyObject *DType_tuple = PyArray_TupleFromItems(ufunc->nargs,
-            (PyObject **)operation_dtypes, 0);
-    if (DType_tuple == NULL) {
-        return NULL;
-    }
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy *h_operation_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)operation_dtypes, ufunc->nargs);
+    HPy h_res = hpy_add_and_return_legacy_wrapping_ufunc_loop(ctx, h_ufunc, h_operation_dtypes, ignore_duplicate);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_CloseAndFreeArray(ctx, h_operation_dtypes, ufunc->nargs);
+    HPy_Close(ctx, h_ufunc);
 
-    PyArrayMethodObject *method = PyArray_NewLegacyWrappingArrayMethod(
-            ufunc, operation_dtypes);
-    if (method == NULL) {
-        Py_DECREF(DType_tuple);
-        return NULL;
-    }
-    PyObject *info = PyTuple_Pack(2, DType_tuple, method);
-    Py_DECREF(DType_tuple);
-    Py_DECREF(method);
-    if (info == NULL) {
-        return NULL;
-    }
-    if (PyUFunc_AddLoop(ufunc, info, ignore_duplicate) < 0) {
-        Py_DECREF(info);
-        return NULL;
-    }
-    Py_DECREF(info);  /* now borrowed from the ufunc's list of loops */
-    return info;
+    Py_DECREF(res);  /* now borrowed from the ufunc's list of loops */
+    return res;
 }
 
 

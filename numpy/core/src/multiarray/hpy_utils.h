@@ -94,4 +94,13 @@ static inline PyObject *HPyGlobal_LoadPyObj(HPyGlobal g) {
     return res;
 }
 
+static inline int
+HPyTuple_CheckExact(HPyContext *ctx, HPy h)
+{
+    HPy type = HPy_Type(ctx, h);
+    int res = HPy_Is(ctx, type, ctx->h_TupleType);
+    HPy_Close(ctx, type);
+    return res;
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */

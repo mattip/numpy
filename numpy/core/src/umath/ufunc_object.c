@@ -5616,23 +5616,38 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
                                      const int unused, const char *signature,
                                      PyObject *identity_value)
 {
+    hpy_abort_not_implemented("PyUFunc_FromFuncAndDataAndSignatureAndIdentity");
+    return NULL;
+}
+
+NPY_NO_EXPORT HPy
+HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericFunction *func, void **data,
+                                     char *types, int ntypes,
+                                     int nin, int nout, int identity,
+                                     const char *name, const char *doc,
+                                     const int unused, const char *signature,
+                                     HPy identity_value)
+{
+    HPy h_ufunc;
     PyUFuncObject *ufunc;
     if (nin + nout > NPY_MAXARGS) {
         PyErr_Format(PyExc_ValueError,
                      "Cannot construct a ufunc with more than %d operands "
                      "(requested number were: inputs = %d and outputs = %d)",
                      NPY_MAXARGS, nin, nout);
-        return NULL;
+        return HPy_NULL;
     }
 
-    ufunc = PyObject_GC_New(PyUFuncObject, &PyUFunc_Type);
+    HPy ufunc_type = HPyGlobal_Load(ctx, HPyUFunc_Type);
+    h_ufunc = HPy_New(ctx, ufunc_type, &ufunc);
+    HPy_Close(ctx, ufunc_type);
     /*
      * We use GC_New here for ufunc->obj, but do not use GC_Track since
      * ufunc->obj is still NULL at the end of this function.
      * See ufunc_frompyfunc where ufunc->obj is set and GC_Track is called.
      */
-    if (ufunc == NULL) {
-        return NULL;
+    if (HPy_IsNull(h_ufunc)) {
+        return HPy_NULL;
     }
 
     ufunc->nin = nin;
@@ -5640,8 +5655,8 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     ufunc->nargs = nin+nout;
     ufunc->identity = identity;
     if (ufunc->identity == PyUFunc_IdentityValue) {
-        Py_INCREF(identity_value);
-        ufunc->identity_value = identity_value;
+        // Py_INCREF(identity_value);
+        ufunc->identity_value = HPy_AsPyObject(ctx, identity_value);
     }
     else {
         ufunc->identity_value = NULL;
@@ -5676,8 +5691,8 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     if (nin + nout != 0) {
         ufunc->_dispatch_cache = PyArrayIdentityHash_New(nin + nout);
         if (ufunc->_dispatch_cache == NULL) {
-            Py_DECREF(ufunc);
-            return NULL;
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
     else {
@@ -5689,8 +5704,8 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     }
     ufunc->_loops = PyList_New(0);
     if (ufunc->_loops == NULL) {
-        Py_DECREF(ufunc);
-        return NULL;
+        HPy_Close(ctx, h_ufunc);
+        return HPy_NULL;
     }
 
     if (name == NULL) {
@@ -5703,15 +5718,15 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
 
     ufunc->op_flags = PyArray_malloc(sizeof(npy_uint32)*ufunc->nargs);
     if (ufunc->op_flags == NULL) {
-        Py_DECREF(ufunc);
-        return PyErr_NoMemory();
+        HPy_Close(ctx, h_ufunc);
+        return HPyErr_NoMemory(ctx);
     }
     memset(ufunc->op_flags, 0, sizeof(npy_uint32)*ufunc->nargs);
 
     if (signature != NULL) {
         if (_parse_signature(ufunc, signature) != 0) {
-            Py_DECREF(ufunc);
-            return NULL;
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
 
@@ -5723,19 +5738,20 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
          * ambiguous loops such as: `OO->?` and `OO->O` where in theory the
          * wrong loop could be picked if only the second one is added.
          */
-        PyObject *info;
-        PyArray_DTypeMeta *op_dtypes[NPY_MAXARGS];
+        HPy info;
+        HPy op_dtypes[NPY_MAXARGS]; /* (PyArray_DTypeMeta *) */
         for (int arg = 0; arg < nin + nout; arg++) {
-            op_dtypes[arg] = PyArray_DTypeFromTypeNum(curr_types[arg]);
-            /* These DTypes are immortal and adding INCREFs: so borrow it */
-            Py_DECREF(op_dtypes[arg]);
+            op_dtypes[arg] = HPyArray_DTypeFromTypeNum(ctx, curr_types[arg]);
         }
         curr_types += nin + nout;
 
-        info = add_and_return_legacy_wrapping_ufunc_loop(ufunc, op_dtypes, 1);
-        if (info == NULL) {
-            Py_DECREF(ufunc);
-            return NULL;
+        info = hpy_add_and_return_legacy_wrapping_ufunc_loop(ctx, h_ufunc, op_dtypes, 1);
+        for (int arg = 0; arg < nin + nout; arg++) {
+            HPy_Close(ctx, op_dtypes[arg]);
+        }
+        if (HPy_IsNull(info)) {
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
     /*
@@ -5750,7 +5766,7 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
      *       datetimes, this meant that `timedelta.sum(dtype="f8")` returned
      *       datetimes (and not floats or error), arguably wrong, but...
      */
-    return (PyObject *)ufunc;
+    return h_ufunc;
 }
 
 

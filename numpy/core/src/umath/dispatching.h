@@ -14,6 +14,9 @@ typedef int promoter_function(PyUFuncObject *ufunc,
 NPY_NO_EXPORT int
 PyUFunc_AddLoop(PyUFuncObject *ufunc, PyObject *info, int ignore_duplicate);
 
+NPY_NO_EXPORT int
+HPyUFunc_AddLoop(HPyContext *ctx, HPy ufunc, HPy info, int ignore_duplicate);
+
 NPY_NO_EXPORT PyArrayMethodObject *
 promote_and_get_ufuncimpl(PyUFuncObject *ufunc,
         PyArrayObject *const ops[],
@@ -26,6 +29,10 @@ promote_and_get_ufuncimpl(PyUFuncObject *ufunc,
 NPY_NO_EXPORT PyObject *
 add_and_return_legacy_wrapping_ufunc_loop(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *operation_dtypes[], int ignore_duplicate);
+
+NPY_NO_EXPORT HPy
+hpy_add_and_return_legacy_wrapping_ufunc_loop(HPyContext *ctx, HPy ufunc,
+        HPy operation_dtypes[], int ignore_duplicate);
 
 NPY_NO_EXPORT int
 default_ufunc_promoter(PyUFuncObject *ufunc,

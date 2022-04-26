@@ -15,6 +15,14 @@ ufunc_seterr(PyObject *NPY_UNUSED(dummy), PyObject *args);
 NPY_NO_EXPORT const char*
 ufunc_get_name_cstr(PyUFuncObject *ufunc);
 
+NPY_NO_EXPORT HPy
+HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericFunction *func, void **data,
+                                     char *types, int ntypes,
+                                     int nin, int nout, int identity,
+                                     const char *name, const char *doc,
+                                     const int unused, const char *signature,
+                                     HPy identity_value);
+
 /* strings from umathmodule.c that are interned on umath import */
 NPY_VISIBILITY_HIDDEN extern PyObject *npy_um_str_array_prepare;
 NPY_VISIBILITY_HIDDEN extern PyObject *npy_um_str_array_wrap;
