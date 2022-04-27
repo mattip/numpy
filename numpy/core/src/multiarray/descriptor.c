@@ -2552,7 +2552,7 @@ arraydescr_new(PyTypeObject *subtype,
             PyArray_DTypeMeta *h_DType_data = PyArray_DTypeMeta_AsStruct(ctx, h_DType);
             HPy h_scalar_type = HPyField_Load(ctx, h_DType, h_DType_data->scalar_type);
             HPy_Close(ctx, h_DType);
-            PyArray_Descr_set_typeobj(descr, (PyObject *)HPy_AsPyObject(ctx, h_scalar_type));
+            PyArray_Descr_set_typeobj(descr, (PyTypeObject *)HPy_AsPyObject(ctx, h_scalar_type));
             HPy_Close(ctx, h_scalar_type);
             descr->type_num = DType->type_num;
             descr->flags = NPY_USE_GETITEM|NPY_USE_SETITEM;

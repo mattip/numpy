@@ -5135,7 +5135,7 @@ static HPyModuleDef moduledef = {
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *s;
-    HPy h_mod, h_d, h_s;
+    HPy h_mod, h_d = HPy_NULL, h_s;
     HPy result = HPy_NULL;
     HPy h_array_type = HPy_NULL;
     HPy h_arrayIterType = HPy_NULL;
