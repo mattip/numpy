@@ -232,6 +232,17 @@ PyArray_OptionalIntpConverter(PyObject *obj, PyArray_Dims *seq)
 }
 
 NPY_NO_EXPORT int
+HPyArray_OptionalIntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq)
+{
+    // HPY: we use NULL as the default for kwargs parsing in HPy...
+    if (HPy_IsNull(obj) || HPy_Is(ctx, obj, ctx->h_None)) {
+        return NPY_SUCCEED;
+    }
+
+    return HPyArray_IntpConverter(ctx, obj, seq);
+}
+
+NPY_NO_EXPORT int
 PyArray_CopyConverter(PyObject *obj, _PyArray_CopyMode *copymode) {
     if (obj == Py_None) {
         PyErr_SetString(PyExc_ValueError,
@@ -358,6 +369,22 @@ PyArray_BufferConverter(PyObject *obj, PyArray_Chunk *buf)
         buf->base = obj;
     }
     return NPY_SUCCEED;
+}
+
+NPY_NO_EXPORT int
+HPyArray_BufferConverter(HPyContext *ctx, HPy obj, HPyArray_Chunk *buf)
+{
+    Py_buffer view;
+
+    buf->ptr = NULL;
+    buf->flags = NPY_ARRAY_BEHAVED;
+    buf->base = HPy_NULL;
+    // HPY: we use NULL as the default for kwargs parsing in...
+    if (HPy_IsNull(obj) || HPy_Is(ctx, obj, ctx->h_None)) {
+        return NPY_SUCCEED;
+    }
+
+    hpy_abort_not_implemented("HPyArray_BufferConverter: for not None");
 }
 
 /*NUMPY_API
@@ -768,7 +795,6 @@ PyArray_OrderConverter(PyObject *object, NPY_ORDER *val)
         "must be one of 'C', 'F', 'A', or 'K'");
 }
 
-// TODO HPY LABS PORT: NUMPY_API?
 NPY_NO_EXPORT int
 HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val)
 {

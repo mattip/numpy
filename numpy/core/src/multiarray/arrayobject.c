@@ -1762,61 +1762,66 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 {
     static char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
                              "order", NULL};
-    PyArray_Descr *descr = NULL;
+    HPy h_descr_in;
     int itemsize;
     PyArray_Dims dims = {NULL, 0};
     PyArray_Dims strides = {NULL, -1};
-    PyArray_Chunk buffer;
+    HPyArray_Chunk buffer;
     npy_longlong offset = 0;
     NPY_ORDER order = NPY_CORDER;
     int is_f_order = 0;
 
-    buffer.ptr = NULL;
+    HPyTracker ht;
+    HPy h_dims = HPy_NULL;
+    HPy h_strides = HPy_NULL;
+    HPy h_buffer = HPy_NULL;
+    HPy h_order = HPy_NULL;
 
-    HPy h_args = HPyTuple_FromArray(ctx, args_h, nargs);
-    if (HPy_IsNull(h_args)) {
-        goto fail;
-    }
-    PyObject* args = HPy_AsPyObject(ctx, h_args);
-    PyObject* kwds = HPy_AsPyObject(ctx, h_kwds);
     /*
      * Usually called with shape and type but can also be called with buffer,
      * strides, and swapped info For now, let's just use this to create an
      * empty, contiguous array of a specific type and shape.
      */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|O&O&LO&O&:ndarray",
-                                     kwlist, PyArray_IntpConverter,
-                                     &dims,
-                                     PyArray_DescrConverter,
-                                     &descr,
-                                     PyArray_BufferConverter,
-                                     &buffer,
-                                     &offset,
-                                     &PyArray_OptionalIntpConverter,
-                                     &strides,
-                                     &PyArray_OrderConverter,
-                                     &order)) {
-        Py_DECREF(args);
-        Py_XDECREF(kwds);
-        HPy_Close(ctx, h_args);
+    buffer.ptr = NULL;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args_h, nargs, h_kwds, "O|OOLOO", kwlist,
+            &h_dims, &h_descr_in, &h_buffer, &offset, &h_strides, &h_order)) {
+        return HPy_NULL;
+    }
+
+    HPy h_descr;
+    if (HPyArray_IntpConverter(ctx, h_dims, &dims) != NPY_SUCCEED ||
+        HPyArray_DescrConverter(ctx, h_descr_in, &h_descr) != NPY_SUCCEED) {
         goto fail;
     }
-    Py_DECREF(args);
-    Py_XDECREF(kwds);
-    HPy_Close(ctx, h_args);
+    if (!HPy_IsNull(h_descr)) {
+        HPyTracker_Add(ctx, ht, h_descr);
+    }
+    if (HPyArray_BufferConverter(ctx, h_buffer, &buffer) != NPY_SUCCEED){
+        goto fail;
+    }
+    if (!HPy_IsNull(buffer.base)) {
+        HPyTracker_Add(ctx, ht, buffer.base);
+    }
+    if (HPyArray_OptionalIntpConverter(ctx, h_strides, &strides) != NPY_SUCCEED ||
+        HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        goto fail;
+    }
+
     if (order == NPY_FORTRANORDER) {
         is_f_order = 1;
     }
-    if (descr == NULL) {
-        descr = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
+    if (HPy_IsNull(h_descr)) {
+        h_descr = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
+        HPyTracker_Add(ctx, ht, h_descr);
     }
 
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     itemsize = descr->elsize;
 
     if (strides.len != -1) {
         npy_intp nb, off;
         if (strides.len != dims.len) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                             "strides, if given, must be "   \
                             "the same length as shape");
             goto fail;
@@ -1832,10 +1837,11 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         }
 
 
+        // HPy Note: PyArray_CheckStrides seems to not use any C API...
         if (!PyArray_CheckStrides(itemsize, dims.len,
                                   nb, off,
                                   dims.ptr, strides.ptr)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                             "strides is incompatible "      \
                             "with shape of requested "      \
                             "array and size of buffer");
@@ -1845,27 +1851,24 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 
     HPy h_result;
     if (buffer.ptr == NULL) {
-        HPy h_descr = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
                 ctx, h_subtype, h_descr,
                 (int)dims.len, dims.ptr, strides.ptr, NULL,
                 is_f_order, HPy_NULL, HPy_NULL,
                 0, 1);
-        HPy_Close(ctx, h_descr);
-        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref...
         if (HPy_IsNull(h_result)) {
-            descr = NULL;
             goto fail;
         }
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_HASOBJECT)) {
             /* place Py_None in object positions */
-            PyObject *ret = HPy_AsPyObject(ctx, h_result);
-            PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
-            Py_DECREF(ret);
-            if (PyErr_Occurred()) {
-                descr = NULL;
-                goto fail;
-            }
+            hpy_abort_not_implemented("array_array: objects");
+            // PyObject *ret = HPy_AsPyObject(ctx, h_result);
+            // PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
+            // Py_DECREF(ret);
+            // if (HPyErr_Occurred(ctx)) {
+            //     descr = NULL;
+            //     goto fail;
+            // }
         }
     }
     else {
@@ -1877,7 +1880,7 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
                  (buffer.len < (offset + (((npy_intp)itemsize)*
                                           PyArray_MultiplyList(dims.ptr,
                                                                dims.len))))) {
-            PyErr_SetString(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                             "buffer is too small for "      \
                             "requested array");
             goto fail;
@@ -1886,28 +1889,24 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         if (is_f_order) {
             buffer.flags |= NPY_ARRAY_F_CONTIGUOUS;
         }
-        HPy h_base = HPy_FromPyObject(ctx, buffer.base);
-        HPy h_desc = HPy_FromPyObject(ctx, (PyObject*) descr);
         h_result = HPyArray_NewFromDescr_int(
-                ctx, h_subtype, h_desc,
+                ctx, h_subtype, h_descr,
                 dims.len, dims.ptr, strides.ptr, offset + (char *)buffer.ptr,
-                buffer.flags, HPy_NULL, h_base,
+                buffer.flags, HPy_NULL, buffer.base,
                 0, 1);
-        HPy_Close(ctx, h_desc);
-        Py_DECREF((PyObject*) descr); // HPyArray_NewFromDescr_int does not steal the ref anymore
-        HPy_Close(ctx, h_base);
         if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
         }
     }
 
+    HPyTracker_Close(ctx, ht);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
     return h_result;
 
  fail:
-    Py_XDECREF(descr);
+    HPyTracker_Close(ctx, ht);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
     return HPy_NULL;

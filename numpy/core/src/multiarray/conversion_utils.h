@@ -97,6 +97,12 @@ extern NPY_NO_EXPORT int evil_global_disable_warn_O4O8_flag;
 NPY_NO_EXPORT int
 HPyArray_IntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq);
 
+NPY_NO_EXPORT int
+HPyArray_OptionalIntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq);
+
+NPY_NO_EXPORT int
+HPyArray_BufferConverter(HPyContext *ctx, HPy obj, HPyArray_Chunk *buf);
+
 NPY_NO_EXPORT npy_intp
 HPyArray_IntpFromIndexSequence(HPyContext *ctx, HPy seq, npy_intp *vals, npy_intp maxvals);
 

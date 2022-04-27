@@ -900,6 +900,13 @@ typedef struct {
 } PyArray_Chunk;
 
 typedef struct {
+        HPy base;
+        void *ptr;
+        npy_intp len;
+        int flags;
+} HPyArray_Chunk;
+
+typedef struct {
     NPY_DATETIMEUNIT base;
     int num;
 } PyArray_DatetimeMetaData;
