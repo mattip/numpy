@@ -277,11 +277,11 @@ HPyArray_CheckAnyScalarExact(HPyContext *ctx, HPy obj)
 }
 
 NPY_NO_EXPORT int
-HPyArray_CheckTypeAnyScalarExact(HPy type)
+HPyArray_CheckTypeAnyScalarExact(HPyContext *ctx, HPy type)
 {
     // At some callsites of PyArray_CheckAnyScalarExact the type is already available
     // and it would be a suboptimal to query for it again
-    return hpy_is_type_anyscalar_exact(type);
+    return hpy_is_type_anyscalar_exact(ctx, type);
 }
 
 /*NUMPY_API
@@ -667,7 +667,7 @@ NPY_NO_EXPORT HPy
 HPyArray_DescrFromTypeObject(HPyContext *ctx, HPy type)
 {
     /* if it's a builtin type, then use the typenumber */
-    int typenum = _hpy_typenum_fromtypeobj(type,1);
+    int typenum = _hpy_typenum_fromtypeobj(ctx,type,1);
     if (typenum != NPY_NOTYPE) {
         return HPyArray_DescrFromType(ctx, typenum);
     }

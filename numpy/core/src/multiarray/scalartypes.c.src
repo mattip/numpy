@@ -4375,17 +4375,16 @@ initialize_numeric_types(void)
 #endif
 }
 
+// In HPy we cannot compare handles or hpy globals like numpy
+// originally did with PyObject pointers. We use the type name instead.
+// We also do not want to rely on HPyType_GetName always returning the
+// same char pointer, so we use string comparison...
 typedef struct {
-    PyTypeObject *type;
-    int typenum;
-} scalar_type;
-
-typedef struct {
-    HPy type;
+    const char *name;
     int typenum;
 } scalar_hpy_type;
 
-static scalar_type typeobjects[] = {
+static scalar_hpy_type hpy_typeobjects[] = {
     {NULL, NPY_BOOL},
     {NULL, NPY_BYTE},
     {NULL, NPY_UBYTE},
@@ -4412,57 +4411,24 @@ static scalar_type typeobjects[] = {
     {NULL, NPY_HALF}
 };
 
-static scalar_hpy_type hpy_typeobjects[] = {
-    {HPy_NULL, NPY_BOOL},
-    {HPy_NULL, NPY_BYTE},
-    {HPy_NULL, NPY_UBYTE},
-    {HPy_NULL, NPY_SHORT},
-    {HPy_NULL, NPY_USHORT},
-    {HPy_NULL, NPY_INT},
-    {HPy_NULL, NPY_UINT},
-    {HPy_NULL, NPY_LONG},
-    {HPy_NULL, NPY_ULONG},
-    {HPy_NULL, NPY_LONGLONG},
-    {HPy_NULL, NPY_ULONGLONG},
-    {HPy_NULL, NPY_FLOAT},
-    {HPy_NULL, NPY_DOUBLE},
-    {HPy_NULL, NPY_LONGDOUBLE},
-    {HPy_NULL, NPY_CFLOAT},
-    {HPy_NULL, NPY_CDOUBLE},
-    {HPy_NULL, NPY_CLONGDOUBLE},
-    {HPy_NULL, NPY_OBJECT},
-    {HPy_NULL, NPY_STRING},
-    {HPy_NULL, NPY_UNICODE},
-    {HPy_NULL, NPY_VOID},
-    {HPy_NULL, NPY_DATETIME},
-    {HPy_NULL, NPY_TIMEDELTA},
-    {HPy_NULL, NPY_HALF}
-};
-
-static int compare_types(const void * a_, const void * b_)
-{
-    const PyTypeObject * a = ((const scalar_type *)a_)->type;
-    const PyTypeObject * b = ((const scalar_type *)b_)->type;
-    if (a < b) {
+static int compare_type_names(const char *a, const char *b) {
+    if (a == b) {
+        return 0;
+    }
+    if (a == NULL) {
         return -1;
     }
-    else if (a > b) {
+    if (b == NULL) {
         return 1;
     }
-    return 0;
+    return strcmp(a, b);
 }
 
 static int compare_hpy_types(const void * a_, const void * b_)
 {
-    const HPy a = ((const scalar_hpy_type *)a_)->type;
-    const HPy b = ((const scalar_hpy_type *)b_)->type;
-    if (a._i < b._i) {
-        return -1;
-    }
-    else if (a._i > b._i) {
-        return 1;
-    }
-    return 0;
+    const char *a = ((const scalar_hpy_type *)a_)->name;
+    const char *b = ((const scalar_hpy_type *)b_)->name;
+    return compare_type_names(a, b);
 }
 
 static void init_basetypes(void) {
@@ -4470,57 +4436,75 @@ static void init_basetypes(void) {
     // after the scalar types are initialized
 }
 
-NPY_NO_EXPORT void init_scalartypes_basetypes(HPyContext *ctx)
+NPY_NO_EXPORT int init_scalartypes_basetypes(HPyContext *ctx)
 {
-    HPy h_PyBoolArrType_Type = HPyGlobal_Load(ctx, HPyBoolArrType_Type);    
+    HPy h_PyBoolArrType_Type = HPyGlobal_Load(ctx, HPyBoolArrType_Type);
     PyBoolScalarObject *data;
 
     HPy h_false = HPy_New(ctx, h_PyBoolArrType_Type, &data);
+    if (HPy_IsNull(h_false)) {
+        HPy_Close(ctx, h_PyBoolArrType_Type);
+        return -1;
+    }
+
     data->obval = 0;
     HPyGlobal_Store(ctx, &_HPyArrayScalar_BoolValues[0], h_false);
     HPy_Close(ctx, h_false);
 
     HPy h_true = HPy_New(ctx, h_PyBoolArrType_Type, &data);
+    if (HPy_IsNull(h_true)) {
+        HPy_Close(ctx, h_PyBoolArrType_Type);
+        return -1;
+    }
+
     data->obval = 1;
     HPyGlobal_Store(ctx, &_HPyArrayScalar_BoolValues[1], h_true);
     HPy_Close(ctx, h_true);
 
+    HPy_Close(ctx, h_PyBoolArrType_Type);
+
+    HPy tmp;
+    const char *name;
     size_t i = 0;
-    CAPI_WARN("Do not initialize 'scalar_type typeobjects' at all?");
-    typeobjects[i++].type = _PyBoolArrType_Type_p;
-    typeobjects[i++].type = _PyByteArrType_Type_p;
-    typeobjects[i++].type = _PyUByteArrType_Type_p;
-    typeobjects[i++].type = _PyShortArrType_Type_p;
-    typeobjects[i++].type = _PyUShortArrType_Type_p;
-    typeobjects[i++].type = _PyIntArrType_Type_p;
-    typeobjects[i++].type = _PyUIntArrType_Type_p;
-    typeobjects[i++].type = _PyLongArrType_Type_p;
-    typeobjects[i++].type = _PyULongArrType_Type_p;
-    typeobjects[i++].type = _PyLongLongArrType_Type_p;
-    typeobjects[i++].type = _PyULongLongArrType_Type_p;
-    typeobjects[i++].type = _PyFloatArrType_Type_p;
-    typeobjects[i++].type = _PyDoubleArrType_Type_p;
-    typeobjects[i++].type = _PyLongDoubleArrType_Type_p;
-    typeobjects[i++].type = _PyCFloatArrType_Type_p;
-    typeobjects[i++].type = _PyCDoubleArrType_Type_p;
-    typeobjects[i++].type = _PyCLongDoubleArrType_Type_p;
-    typeobjects[i++].type = _PyObjectArrType_Type_p;
-    typeobjects[i++].type = _PyStringArrType_Type_p;
-    typeobjects[i++].type = _PyUnicodeArrType_Type_p;
-    typeobjects[i++].type = _PyVoidArrType_Type_p;
-    typeobjects[i++].type = _PyDatetimeArrType_Type_p;
-    typeobjects[i++].type = _PyTimedeltaArrType_Type_p;
-    typeobjects[i++].type = _PyHalfArrType_Type_p;
 
-    for (size_t j = 0; j < i; ++j)
-        hpy_typeobjects[j].type = HPy_FromPyObject(ctx, (PyObject*) typeobjects[j].type);
+    #define ADD_TYPE_OBJ(global) \
+        tmp = HPyGlobal_Load(ctx, global);                     \
+        name = HPyType_GetName(ctx, tmp);                      \
+        hpy_typeobjects[i++].name = name;                      \
+        HPy_Close(ctx, tmp);
 
-    qsort(typeobjects, sizeof(typeobjects) / sizeof(typeobjects[0]),
-           sizeof(typeobjects[0]),
-           compare_types);
+    ADD_TYPE_OBJ(HPyBoolArrType_Type);
+    ADD_TYPE_OBJ(HPyByteArrType_Type);
+    ADD_TYPE_OBJ(HPyUByteArrType_Type);
+    ADD_TYPE_OBJ(HPyShortArrType_Type);
+    ADD_TYPE_OBJ(HPyUShortArrType_Type);
+    ADD_TYPE_OBJ(HPyIntArrType_Type);
+    ADD_TYPE_OBJ(HPyUIntArrType_Type);
+    ADD_TYPE_OBJ(HPyLongArrType_Type);
+    ADD_TYPE_OBJ(HPyULongArrType_Type);
+    ADD_TYPE_OBJ(HPyLongLongArrType_Type);
+    ADD_TYPE_OBJ(HPyULongLongArrType_Type);
+    ADD_TYPE_OBJ(HPyFloatArrType_Type);
+    ADD_TYPE_OBJ(HPyDoubleArrType_Type);
+    ADD_TYPE_OBJ(HPyLongDoubleArrType_Type);
+    ADD_TYPE_OBJ(HPyCFloatArrType_Type);
+    ADD_TYPE_OBJ(HPyCDoubleArrType_Type);
+    ADD_TYPE_OBJ(HPyCLongDoubleArrType_Type);
+    ADD_TYPE_OBJ(HPyObjectArrType_Type);
+    ADD_TYPE_OBJ(HPyStringArrType_Type);
+    ADD_TYPE_OBJ(HPyUnicodeArrType_Type);
+    ADD_TYPE_OBJ(HPyVoidArrType_Type);
+    ADD_TYPE_OBJ(HPyDatetimeArrType_Type);
+    ADD_TYPE_OBJ(HPyTimedeltaArrType_Type);
+    ADD_TYPE_OBJ(HPyHalfArrType_Type);
+
+    #undef ADD_TYPE_OBJ
+
     qsort(hpy_typeobjects, sizeof(hpy_typeobjects) / sizeof(hpy_typeobjects[0]),
            sizeof(hpy_typeobjects[0]),
            compare_hpy_types);
+
+    return 0;
 }
 
 
@@ -4546,16 +4530,18 @@ get_typeobj_idx(PyTypeObject * obj)
 }
 
 NPY_NO_EXPORT int
-hpy_get_typeobj_idx(HPy obj)
+hpy_get_typeobj_idx(HPyContext *ctx, HPy obj)
 {
+    const char *needle = HPyType_GetName(ctx, obj);
     npy_intp imin = 0, imax = sizeof(hpy_typeobjects) / sizeof(hpy_typeobjects[0]) - 1;
     while (imax >= imin)
     {
         npy_intp imid = ((imax - imin) / 2) + imin;
-        if(hpy_typeobjects[imid].type._i == obj._i) {
+        int cmp_res = compare_type_names(hpy_typeobjects[imid].name, needle);
+        if(cmp_res == 0) {
             return imid;
         }
-        else if (hpy_typeobjects[imid].type._i < obj._i) {
+        else if (cmp_res < 0) {
             imin = imid + 1;
         }
         else {
@@ -4574,13 +4560,13 @@ is_anyscalar_exact(PyObject *obj)
 NPY_NO_EXPORT int
 hpy_is_anyscalar_exact(HPyContext *ctx, HPy obj)
 {
-    return hpy_get_typeobj_idx(HPy_Type(ctx, obj)) >= 0;
+    return hpy_get_typeobj_idx(ctx, HPy_Type(ctx, obj)) >= 0;
 }
 
 NPY_NO_EXPORT int
-hpy_is_type_anyscalar_exact(HPy type)
+hpy_is_type_anyscalar_exact(HPyContext *ctx, HPy type)
 {
-    return hpy_get_typeobj_idx(type) >= 0;
+    return hpy_get_typeobj_idx(ctx, type) >= 0;
 }
 
 NPY_NO_EXPORT int
@@ -4611,14 +4597,14 @@ _typenum_fromtypeobj(PyObject *type, int user)
 }
 
 NPY_NO_EXPORT int
-_hpy_typenum_fromtypeobj(HPy type, int user)
+_hpy_typenum_fromtypeobj(HPyContext *ctx, HPy type, int user)
 {
     int typenum, i;
 
     typenum = NPY_NOTYPE;
-    i = hpy_get_typeobj_idx(type);
+    i = hpy_get_typeobj_idx(ctx, type);
     if (i >= 0) {
-        typenum = typeobjects[i].typenum;
+        typenum = hpy_typeobjects[i].typenum;
     }
 
     if (!user) {

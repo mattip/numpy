@@ -5257,7 +5257,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     
     init_arraytypes_hpy_global_state(ctx);
     // HPY: TODO comment on this
-    init_scalartypes_basetypes(ctx);
+    if (init_scalartypes_basetypes(ctx) != 0) {
+        goto err;
+    }
 
     h_arrayIterType = HPyType_FromSpec(ctx, &PyArrayIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayIterType)) {
