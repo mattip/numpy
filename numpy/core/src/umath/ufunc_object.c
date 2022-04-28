@@ -5616,8 +5616,13 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
                                      const int unused, const char *signature,
                                      PyObject *identity_value)
 {
-    hpy_abort_not_implemented("PyUFunc_FromFuncAndDataAndSignatureAndIdentity");
-    return NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy h_identity_value = HPy_FromPyObject(ctx, identity_value);
+    HPy h_res = HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(ctx, func, data, types, ntypes, nin, nout, identity, name, doc, unused, signature, h_identity_value);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_identity_value);
+    return res;
 }
 
 NPY_NO_EXPORT HPy
