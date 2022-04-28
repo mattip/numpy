@@ -5675,7 +5675,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->core_dim_ixs = NULL;
     ufunc->core_dim_sizes = NULL;
     ufunc->core_dim_flags = NULL;
-    ufunc->userloops = NULL;
+    ufunc->userloops = HPyField_NULL;
     ufunc->ptr = NULL;
     ufunc->vectorcall = &ufunc_generic_vectorcall;
     ufunc->reserved1 = 0;
@@ -5909,7 +5909,9 @@ PyUFunc_RegisterLoopForDescr(PyUFuncObject *ufunc,
         function, arg_typenums, data);
 
     if (result == 0) {
-        cobj = PyDict_GetItemWithError(ufunc->userloops, key);
+        PyObject *userloops = HPyField_LoadPyObj(ufunc, ufunc->userloops);
+        cobj = PyDict_GetItemWithError(userloops, key);
+        Py_DECREF(userloops);
         if (cobj == NULL && PyErr_Occurred()) {
             result = -1;
         }
@@ -5985,6 +5987,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     PyArray_DTypeMeta *signature[NPY_MAXARGS];
     PyObject *signature_tuple = NULL;
     PyObject *_loops = NULL;
+    PyObject *userloops = NULL;
     int i;
     int *newtypes=NULL;
 
@@ -5995,8 +5998,9 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     }
     Py_DECREF(descr);
 
-    if (ufunc->userloops == NULL) {
-        ufunc->userloops = PyDict_New();
+    if (HPyField_IsNull(ufunc->userloops)) {
+        userloops = PyDict_New();
+        HPyField_StorePyObj(ufunc, &ufunc->userloops, userloops);
     }
     key = PyLong_FromLong((long) usertype);
     if (key == NULL) {
@@ -6086,7 +6090,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     funcdata->nargs = 0;
 
     /* Get entry for this user-defined type*/
-    cobj = PyDict_GetItemWithError(ufunc->userloops, key);
+    cobj = PyDict_GetItemWithError(userloops, key);
     if (cobj == NULL && PyErr_Occurred()) {
         goto fail;
     }
@@ -6096,7 +6100,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
         if (cobj == NULL) {
             goto fail;
         }
-        PyDict_SetItem(ufunc->userloops, key, cobj);
+        PyDict_SetItem(userloops, key, cobj);
+        Py_DECREF(userloops);
         Py_DECREF(cobj);
         Py_DECREF(key);
         return 0;
@@ -6145,10 +6150,12 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
             }
         }
     }
+    Py_XDECREF(userloops);
     Py_DECREF(key);
     return 0;
 
  fail:
+    Py_XDECREF(userloops);
     Py_DECREF(key);
     Py_XDECREF(signature_tuple);
     Py_XDECREF(_loops);

@@ -805,7 +805,7 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
      * (it will modify `op_dtypes`).
      */
     if (!allow_legacy_promotion || ufunc->type_resolver == NULL ||
-            (ufunc->ntypes == 0 && ufunc->userloops == NULL)) {
+            (ufunc->ntypes == 0 && HPyField_IsNull(ufunc->userloops))) {
         /* Already tried or not a "legacy" ufunc (no loop found, return) */
         return NULL;
     }

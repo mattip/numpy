@@ -1456,7 +1456,9 @@ find_userloop(PyUFuncObject *ufunc,
             if (key == NULL) {
                 return -1;
             }
-            obj = PyDict_GetItemWithError(ufunc->userloops, key);
+            PyObject *userloops = HPyField_LoadPyObj(ufunc, ufunc->userloops);
+            obj = PyDict_GetItemWithError(userloops, key);
+            Py_DECREF(userloops);
             Py_DECREF(key);
             if (obj == NULL && PyErr_Occurred()){
                 return -1;
@@ -1506,7 +1508,7 @@ PyUFunc_DefaultLegacyInnerLoopSelector(PyUFuncObject *ufunc,
      * TODO: There needs to be a loop selection acceleration structure,
      *       like a hash table.
      */
-    if (ufunc->userloops) {
+    if (!HPyField_IsNull(ufunc->userloops)) {
         switch (find_userloop(ufunc, dtypes,
                     out_innerloop, out_innerloopdata)) {
             /* Error */
@@ -1741,7 +1743,9 @@ linear_search_userloop_type_resolver(PyUFuncObject *self,
             if (key == NULL) {
                 return -1;
             }
-            obj = PyDict_GetItemWithError(self->userloops, key);
+            PyObject *userloops = HPyField_LoadPyObj(self, self->userloops);
+            obj = PyDict_GetItemWithError(userloops, key);
+            Py_DECREF(userloops);
             Py_DECREF(key);
             if (obj == NULL && PyErr_Occurred()){
                 return -1;
@@ -1812,7 +1816,9 @@ type_tuple_userloop_type_resolver(PyUFuncObject *self,
             if (key == NULL) {
                 return -1;
             }
-            obj = PyDict_GetItemWithError(self->userloops, key);
+            PyObject *userloops = HPyField_LoadPyObj(self, self->userloops);
+            obj = PyDict_GetItemWithError(userloops, key);
+            Py_DECREF(userloops);
             Py_DECREF(key);
             if (obj == NULL && PyErr_Occurred()){
                 return -1;
@@ -1922,7 +1928,7 @@ linear_search_type_resolver(PyUFuncObject *self,
     use_min_scalar = should_use_min_scalar(nin, op, 0, NULL);
 
     /* If the ufunc has userloops, search for them. */
-    if (self->userloops) {
+    if (!HPyField_IsNull(self->userloops)) {
         switch (linear_search_userloop_type_resolver(self, op,
                                 input_casting, output_casting,
                                 any_object, use_min_scalar, out_dtype,
@@ -2021,7 +2027,7 @@ type_tuple_type_resolver_core(PyUFuncObject *self,
     char err_dst_typecode = '-', err_src_typecode = '-';
 
     /* If the ufunc has userloops, search for them. */
-    if (self->userloops) {
+    if (!HPyField_IsNull(self->userloops)) {
         switch (type_tuple_userloop_type_resolver(self,
                 nop, specified_types,
                 op, input_casting, casting,
