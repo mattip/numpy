@@ -210,7 +210,7 @@ typedef struct _tagPyUFuncObject {
         npy_uint32 *core_dim_flags;
 
         /* Identity for reduction, when identity == PyUFunc_IdentityValue */
-        PyObject *identity_value;
+        HPyField identity_value;
 
         /* New in NPY_API_VERSION 0x0000000F and above */
 

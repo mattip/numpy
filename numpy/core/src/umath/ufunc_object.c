@@ -2315,8 +2315,8 @@ _get_identity(PyUFuncObject *ufunc, npy_bool *reorderable) {
 
     case PyUFunc_IdentityValue:
         *reorderable = 1;
-        Py_INCREF(ufunc->identity_value);
-        return ufunc->identity_value;
+        // Py_INCREF(ufunc->identity_value);
+        return HPyField_LoadPyObj((PyObject *)ufunc, ufunc->identity_value);
 
     default:
         PyErr_Format(PyExc_ValueError,
@@ -5631,7 +5631,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     HPy h_ufunc;
     PyUFuncObject *ufunc;
     if (nin + nout > NPY_MAXARGS) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                      "Cannot construct a ufunc with more than %d operands "
                      "(requested number were: inputs = %d and outputs = %d)",
                      NPY_MAXARGS, nin, nout);
@@ -5656,10 +5656,10 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->identity = identity;
     if (ufunc->identity == PyUFunc_IdentityValue) {
         // Py_INCREF(identity_value);
-        ufunc->identity_value = HPy_AsPyObject(ctx, identity_value);
+        HPyField_Store(ctx, h_ufunc, &ufunc->identity_value, identity_value);
     }
     else {
-        ufunc->identity_value = NULL;
+        ufunc->identity_value = HPyField_NULL;
     }
 
     ufunc->functions = func;
