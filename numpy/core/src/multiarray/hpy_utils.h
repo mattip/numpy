@@ -94,6 +94,16 @@ static inline PyObject *HPyGlobal_LoadPyObj(HPyGlobal g) {
     return res;
 }
 
+static inline PyObject *HPyField_LoadPyObj(PyObject *owner, HPyField f) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_owner = HPy_FromPyObject(ctx, owner);
+    HPy h = HPyField_Load(ctx, h_owner, f);
+    PyObject *res = HPy_AsPyObject(ctx, h);
+    HPy_Close(ctx, h);
+    HPy_Close(ctx, h_owner);
+    return res;
+}
+
 static inline int
 HPyTuple_CheckExact(HPyContext *ctx, HPy h)
 {
