@@ -2992,7 +2992,7 @@ add_numeric_cast(HPyContext *ctx, HPy h_from, HPy h_to)
     HPy_Close(ctx, h_to_singleton);
 
     /* Create a bound method, unbind and store it */
-    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    int res = HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
 
     return res;
 }
@@ -4232,7 +4232,7 @@ PyArray_InitializeObjectToObjectCast(HPyContext *ctx)
             .slots = slots,
     };
 
-    int res = PyArray_AddCastingImplementation_FromSpec(&spec, 1);
+    int res = HPyArray_AddCastingImplementation_FromSpec(ctx, &spec, 1);
     HPy_Close(ctx, h_Object);
     return res;
 }
