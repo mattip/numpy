@@ -1083,15 +1083,28 @@ PyArray_DiscoverDTypeAndShape_Recursive(
         PyArray_DTypeMeta *fixed_DType, enum _dtype_discovery_flags *flags,
         int never_copy)
 {
-    PyArrayObject *arr = NULL;
-    PyObject *seq;
+    hpy_abort_not_implemented("PyArray_DiscoverDTypeAndShape_Recursive");
+    return -1;
+}
+
+NPY_NO_EXPORT int
+HPyArray_DiscoverDTypeAndShape_Recursive(
+        HPyContext *ctx,
+        HPy obj, int curr_dims, int max_dims, HPy /* (PyArray_Descr**) */ *out_descr,
+        npy_intp out_shape[NPY_MAXDIMS],
+        coercion_cache_obj ***coercion_cache_tail_ptr,
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType, enum _dtype_discovery_flags *flags,
+        int never_copy)
+{
+    HPy arr = HPy_NULL; /* (PyArrayObject *) */
+    HPy seq;
 
     /*
      * The first step is to find the DType class if it was not provided,
      * alternatively we have to find out that this is not a scalar at all
      * (which could fail and lead us to `object` dtype).
      */
-    PyArray_DTypeMeta *DType = NULL;
+    HPy DType = HPy_NULL; /* (PyArray_DTypeMeta *) */
 
     if (NPY_UNLIKELY(*flags & DISCOVER_STRINGS_AS_SEQUENCES)) {
         /*
@@ -1099,27 +1112,28 @@ PyArray_DiscoverDTypeAndShape_Recursive(
          * if the dtype is np.dtype('c'), this should be deprecated probably,
          * but requires hacks right now.
          */
-        if (PyBytes_Check(obj) && PyBytes_Size(obj) != 1) {
+        if (HPyBytes_Check(ctx, obj) && HPy_Length(ctx, obj) != 1) {
             goto force_sequence_due_to_char_dtype;
         }
-        else if (PyUnicode_Check(obj) && PyUnicode_GetLength(obj) != 1) {
+        else if (HPyUnicode_Check(ctx, obj) && HPy_Length(ctx, obj) != 1) {
             goto force_sequence_due_to_char_dtype;
         }
     }
 
     /* If this is a known scalar, find the corresponding DType class */
-    DType = discover_dtype_from_pyobject(obj, flags, fixed_DType);
-    if (DType == NULL) {
+    DType = hdiscover_dtype_from_pyobject(ctx, obj, flags, fixed_DType);
+    if (HPy_IsNull(DType)) {
         return -1;
     }
-    else if (DType == (PyArray_DTypeMeta *)Py_None) {
-        Py_DECREF(Py_None);
+    else if (HPy_Is(ctx, DType, ctx->h_None)) {
+        HPy_Close(ctx, DType);
     }
     else {
+        CAPI_WARN("HPyArray_DiscoverDTypeAndShape_Recursive: call to handle_scalar");
         max_dims = handle_scalar(
                 obj, curr_dims, &max_dims, out_descr, out_shape, fixed_DType,
                 flags, DType);
-        Py_DECREF(DType);
+        HPy_Close(ctx, DType);
         return max_dims;
     }
 
@@ -1128,24 +1142,26 @@ PyArray_DiscoverDTypeAndShape_Recursive(
      * Although it is still possible that this fails and we have to use
      * `object`.
      */
-    if (PyArray_Check(obj)) {
-        arr = (PyArrayObject *)obj;
-        Py_INCREF(arr);
+    if (HPyArray_Check(ctx, obj)) {
+        arr = HPy_Dup(ctx, obj);
     }
     else {
-        PyArray_Descr *requested_descr = NULL;
+        HPy requested_descr = HPy_NULL;
         if (*flags & DESCRIPTOR_WAS_SET) {
             /* __array__ may be passed the requested descriptor if provided */
             requested_descr = *out_descr;
         }
-        arr = (PyArrayObject *)_array_from_array_like(obj,
+        CAPI_WARN("HPyArray_DiscoverDTypeAndShape_Recursive: call to _array_from_array_like");
+        PyArrayObject *py_arr = (PyArrayObject *)_array_from_array_like(obj,
                 requested_descr, 0, NULL, never_copy);
-        if (arr == NULL) {
+        arr = HPy_FromPyObject(ctx, (PyObject *)py_arr);
+        Py_XDECREF(py_arr);
+        if (HPy_IsNull(arr)) {
             return -1;
         }
-        else if (arr == (PyArrayObject *)Py_NotImplemented) {
-            Py_DECREF(arr);
-            arr = NULL;
+        else if (HPy_Is(ctx, arr, ctx->h_NotImplemented)) {
+            HPy_Close(ctx, arr);
+            arr = HPy_NULL;
         }
         else if (curr_dims > 0 && curr_dims != max_dims) {
             /*
@@ -1330,7 +1346,7 @@ PyArray_DiscoverDTypeAndShape_Recursive(
 
     /* Recursive call for each sequence item */
     for (Py_ssize_t i = 0; i < size; i++) {
-        max_dims = PyArray_DiscoverDTypeAndShape_Recursive(
+        max_dims = HPyArray_DiscoverDTypeAndShape_Recursive(ctx,
                 objects[i], curr_dims + 1, max_dims,
                 out_descr, out_shape, coercion_cache_tail_ptr, fixed_DType,
                 flags, never_copy);
