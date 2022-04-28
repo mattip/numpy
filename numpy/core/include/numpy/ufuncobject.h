@@ -126,7 +126,7 @@ typedef struct _tagPyUFuncObject {
         const char *doc;
 
         void *ptr;
-        PyObject *obj;
+        HPyField obj;
         PyObject *userloops;
 
         /* generalized ufunc parameters */

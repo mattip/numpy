@@ -154,8 +154,9 @@ ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
         PyArray_free(ptr);
         return NULL;
     }
-    Py_INCREF(function);
-    self->obj = function;
+    // Py_INCREF(function);
+    // self->obj = function;
+    HPyField_StorePyObj(self, &self->obj, function);
     self->ptr = ptr;
 
     self->type_resolver = &object_ufunc_type_resolver;

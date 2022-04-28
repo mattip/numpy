@@ -5668,7 +5668,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->ntypes = ntypes;
     ufunc->core_signature = NULL;
     ufunc->core_enabled = 0;
-    ufunc->obj = NULL;
+    ufunc->obj = HPyField_NULL;
     ufunc->core_num_dims = NULL;
     ufunc->core_num_dim_ix = 0;
     ufunc->core_offsets = NULL;
