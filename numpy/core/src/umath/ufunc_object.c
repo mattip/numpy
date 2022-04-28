@@ -5914,7 +5914,7 @@ PyUFunc_RegisterLoopForDescr(PyUFuncObject *ufunc,
         function, arg_typenums, data);
 
     if (result == 0) {
-        PyObject *userloops = HPyField_LoadPyObj(ufunc, ufunc->userloops);
+        PyObject *userloops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->userloops);
         cobj = PyDict_GetItemWithError(userloops, key);
         Py_DECREF(userloops);
         if (cobj == NULL && PyErr_Occurred()) {
@@ -6005,7 +6005,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
 
     if (HPyField_IsNull(ufunc->userloops)) {
         userloops = PyDict_New();
-        HPyField_StorePyObj(ufunc, &ufunc->userloops, userloops);
+        HPyField_StorePyObj((PyObject *)ufunc, &ufunc->userloops, userloops);
     }
     key = PyLong_FromLong((long) usertype);
     if (key == NULL) {

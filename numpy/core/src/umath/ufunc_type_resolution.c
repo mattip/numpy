@@ -1456,7 +1456,7 @@ find_userloop(PyUFuncObject *ufunc,
             if (key == NULL) {
                 return -1;
             }
-            PyObject *userloops = HPyField_LoadPyObj(ufunc, ufunc->userloops);
+            PyObject *userloops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->userloops);
             obj = PyDict_GetItemWithError(userloops, key);
             Py_DECREF(userloops);
             Py_DECREF(key);
@@ -1743,7 +1743,7 @@ linear_search_userloop_type_resolver(PyUFuncObject *self,
             if (key == NULL) {
                 return -1;
             }
-            PyObject *userloops = HPyField_LoadPyObj(self, self->userloops);
+            PyObject *userloops = HPyField_LoadPyObj((PyObject *)self, self->userloops);
             obj = PyDict_GetItemWithError(userloops, key);
             Py_DECREF(userloops);
             Py_DECREF(key);
@@ -1816,7 +1816,7 @@ type_tuple_userloop_type_resolver(PyUFuncObject *self,
             if (key == NULL) {
                 return -1;
             }
-            PyObject *userloops = HPyField_LoadPyObj(self, self->userloops);
+            PyObject *userloops = HPyField_LoadPyObj((PyObject *)self, self->userloops);
             obj = PyDict_GetItemWithError(userloops, key);
             Py_DECREF(userloops);
             Py_DECREF(key);

@@ -226,7 +226,7 @@ resolve_implementation_info(PyUFuncObject *ufunc,
 {
     int res;
     int nin = ufunc->nin, nargs = ufunc->nargs;
-    PyObject *_loops = HPyField_LoadPyObj(ufunc, ufunc->_loops);
+    PyObject *_loops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->_loops);
     Py_ssize_t size = PySequence_Length(_loops);
     PyObject *best_dtypes = NULL;
     PyObject *best_resolver_info = NULL;
