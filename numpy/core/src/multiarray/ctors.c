@@ -38,6 +38,7 @@
 #include "descriptor.h"
 
 #include "hpy_utils.h"
+#include "flagsobject.h"
 
 /*
  * Reading from a file or a string.
@@ -1014,7 +1015,7 @@ HPyArray_NewFromDescr_int(
      * not be aligned. Also on some platforms (debian sparc) malloc does not
      * provide enough alignment for long double types.
      */
-    PyArray_UpdateFlags((PyArrayObject *)fa, NPY_ARRAY_ALIGNED);
+    HPyArray_UpdateFlags(ctx, result, (PyArrayObject *)fa, NPY_ARRAY_ALIGNED);
 
     /* Set the base object. It's important to do it here so that
      * __array_finalize__ below receives it

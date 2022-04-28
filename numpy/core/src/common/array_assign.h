@@ -48,6 +48,9 @@ HPyArray_AssignRawScalar(HPyContext *ctx, HPy h_dst,
                         HPy h_wheremask,
                         NPY_CASTING casting);
 
+NPY_NO_EXPORT int
+HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap);
+
 /******** LOW-LEVEL SCALAR TO ARRAY ASSIGNMENT ********/
 
 /*
