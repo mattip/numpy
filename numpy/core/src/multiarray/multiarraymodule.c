@@ -4995,6 +4995,9 @@ static HPyGlobal *module_globals[] = {
     &HPyBoundArrayMethod_Type,
     &HPyGenericArrType_Type,
 
+    // array_coercion:
+    &_global_pytype_to_type_dict,
+
     // scalartypes:
     &HPyGenericArrType_Type,
     &HPyGenericArrType_Type,
@@ -5113,7 +5116,6 @@ static HPyGlobal *module_globals[] = {
     &npy_ma_str_numpy,
 
     &g_dummy_arr,
-    &_hpy_global_pytype_to_type_dict,
     NULL
 };
 
@@ -5252,6 +5254,11 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 
+    // init for array_coercion.c:
+    if (init_global_pytype_to_type_dict(ctx) != 0) {
+        goto err;
+    }
+    
     init_arraytypes_hpy_global_state(ctx);
     // HPY: TODO comment on this
     init_scalartypes_basetypes(ctx);

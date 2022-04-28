@@ -15,12 +15,14 @@ typedef struct coercion_cache_obj {
     int depth;  /* the dimension at which this object was found. */
 } coercion_cache_obj;
 
-extern NPY_NO_EXPORT HPyGlobal g_dummy_arr;
-extern NPY_NO_EXPORT HPyGlobal _hpy_global_pytype_to_type_dict;
+extern HPyGlobal _global_pytype_to_type_dict;
+NPY_NO_EXPORT HPyGlobal g_dummy_arr;
+
+NPY_NO_EXPORT int init_global_pytype_to_type_dict(HPyContext *ctx);
 
 NPY_NO_EXPORT int
 _PyArray_MapPyTypeToDType(
-        PyArray_DTypeMeta *DType, PyTypeObject *pytype, npy_bool userdef);
+        HPyContext *ctx, /*PyArray_DTypeMeta*/ HPy h_DType, /*PyTypeObject*/ HPy h_pytype, npy_bool userdef);
 
 NPY_NO_EXPORT int
 PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value);
