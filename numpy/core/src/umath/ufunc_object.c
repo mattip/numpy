@@ -2794,7 +2794,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         }
         do {
             inner_dimensions[0] = *count_ptr;
-            retval = strided_loop(npy_get_context(), hcontext,
+            retval = strided_loop(hctx, &hcontext,
                     dataptr, inner_dimensions, inner_strides, auxdata);
         } while (retval == 0 && iternext(iter));
 
@@ -3470,8 +3470,9 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
 
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context),
-            1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
+    res = ufuncimpl->get_strided_loop(hctx, &hcontext,
+            1, 0, fixed_strides, &strided_loop, &auxdata, &flags);
+    if (res < 0) {
         goto fail;
     }
     needs_api = (flags & NPY_METH_REQUIRES_PYAPI) != 0;
@@ -3557,7 +3558,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 dataptr_copy[2] += stride0;
                 NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                 (int)count_m1);
-                res = strided_loop(npy_get_context(), method_context_py2h(&context),
+                res = strided_loop(hctx, &hcontext,
                         dataptr_copy, &count_m1, stride_copy, auxdata);
             }
         } while (res == 0 && iternext(iter));
@@ -3624,7 +3625,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 NPY_BEGIN_THREADS_THRESHOLDED(count);
             }
 
-            res = strided_loop(npy_get_context(), method_context_py2h(&context),
+            res = strided_loop(hctx, &hcontext,
                     dataptr_copy, &count, fixed_strides, auxdata);
 
             NPY_END_THREADS;
@@ -3896,7 +3897,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     fixed_strides[2] = 0;
 
     NPY_ARRAYMETHOD_FLAGS flags = 0;
-    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context),
+    if (ufuncimpl->get_strided_loop(hctx, &hcontext,
             1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -3986,7 +3987,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                     dataptr_copy[1] += stride1;
                     NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                     (int)count);
-                    res = strided_loop(npy_get_context(), method_context_py2h(&context),
+                    res = strided_loop(hctx, &hcontext,
                             dataptr_copy, &count, stride_copy, auxdata);
                 }
             }
@@ -4045,7 +4046,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                 dataptr_copy[1] += stride1;
                 NPY_UF_DBG_PRINT1("iterator loop count %d\n",
                                                 (int)count);
-                res = strided_loop(npy_get_context(), method_context_py2h(&context),
+                res = strided_loop(hctx, &hcontext,
                         dataptr_copy, &count, fixed_strides, auxdata);
                 if (res != 0) {
                     break;
@@ -6694,7 +6695,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
         strides[2] = operation_descrs[2]->elsize;
     }
 
-    if (ufuncimpl->get_strided_loop(npy_get_context(), method_context_py2h(&context), 1, 0, strides,
+    if (ufuncimpl->get_strided_loop(hctx, &hcontext, 1, 0, strides,
             &strided_loop, &auxdata, &flags) < 0) {
         goto fail;
     }
@@ -6744,7 +6745,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
 
         buffer_dataptr = NpyIter_GetDataPtrArray(iter_buffer);
 
-        res = strided_loop(npy_get_context(), method_context_py2h(&context), buffer_dataptr, &count, strides, auxdata);
+        res = strided_loop(hctx, &hcontext, buffer_dataptr, &count, strides, auxdata);
         if (res != 0) {
             break;
         }
