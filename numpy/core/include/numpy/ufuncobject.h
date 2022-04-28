@@ -216,8 +216,8 @@ typedef struct _tagPyUFuncObject {
 
         /* New private fields related to dispatching */
         void *_dispatch_cache;
-        /* A PyListObject of `(tuple of DTypes, ArrayMethod/Promoter)` */
-        PyObject *_loops;
+        /* A list object of `(tuple of DTypes, ArrayMethod/Promoter)` */
+        HPyField _loops;
 } PyUFuncObject;
 
 HPyType_LEGACY_HELPERS(PyUFuncObject)

@@ -5687,7 +5687,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->_always_null_previously_masked_innerloop_selector = NULL;
 
     ufunc->op_flags = NULL;
-    ufunc->_loops = NULL;
+    ufunc->_loops = HPyField_NULL;
     if (nin + nout != 0) {
         ufunc->_dispatch_cache = PyArrayIdentityHash_New(nin + nout);
         if (ufunc->_dispatch_cache == NULL) {
@@ -5702,11 +5702,12 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
          */
         ufunc->_dispatch_cache = NULL;
     }
-    ufunc->_loops = PyList_New(0);
-    if (ufunc->_loops == NULL) {
+    HPy loops = HPyList_New(ctx, 0);
+    if (HPy_IsNull(loops)) {
         HPy_Close(ctx, h_ufunc);
         return HPy_NULL;
     }
+    HPyField_Store(ctx, h_ufunc, &ufunc->_loops, loops);
 
     if (name == NULL) {
         ufunc->name = "?";
@@ -5983,6 +5984,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     PyObject *key, *cobj;
     PyArray_DTypeMeta *signature[NPY_MAXARGS];
     PyObject *signature_tuple = NULL;
+    PyObject *_loops = NULL;
     int i;
     int *newtypes=NULL;
 
@@ -6038,8 +6040,9 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
      * A new-style loop should not be replaced by an old-style one.
      */
     int add_new_loop = 1;
-    for (Py_ssize_t j = 0; j < PyList_GET_SIZE(ufunc->_loops); j++) {
-        PyObject *item = PyList_GET_ITEM(ufunc->_loops, j);
+    _loops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->_loops);
+    for (Py_ssize_t j = 0; j < PyList_GET_SIZE(_loops); j++) {
+        PyObject *item = PyList_GET_ITEM(_loops, j);
         PyObject *existing_tuple = PyTuple_GET_ITEM(item, 0);
 
         int cmp = PyObject_RichCompareBool(existing_tuple, signature_tuple, Py_EQ);
@@ -6063,6 +6066,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
         add_new_loop = 0;
         break;
     }
+    Py_XDECREF(_loops);
+
     if (add_new_loop) {
         PyObject *info = add_and_return_legacy_wrapping_ufunc_loop(
                 ufunc, signature, 0);
@@ -6146,6 +6151,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
  fail:
     Py_DECREF(key);
     Py_XDECREF(signature_tuple);
+    Py_XDECREF(_loops);
     PyArray_free(funcdata);
     PyArray_free(newtypes);
     if (!PyErr_Occurred()) PyErr_NoMemory();

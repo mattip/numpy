@@ -130,16 +130,20 @@ HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, i
         goto finish;
     }
 
-    CAPI_WARN("HPyUFunc_AddLoop: use of legacy field PyUFuncObject._loops");
-    if (ufunc_data->_loops == NULL) {
-        ufunc_data->_loops = PyList_New(0);
-        if (ufunc_data->_loops == NULL) {
+    if (!HPyField_IsNull(ufunc_data->_loops)) {
+        loops = HPyField_Load(ctx, ufunc, ufunc_data->_loops);
+    }
+
+    if (HPy_IsNull(loops)) {
+        loops = HPyList_New(ctx, 0);
+        if (HPy_IsNull(loops)) {
             res = -1;
             goto finish;
         }
+        HPyField_Store(ctx, ufunc, &ufunc_data->_loops, loops);
+        HPy_Close(ctx, loops);
     }
 
-    loops = HPy_FromPyObject(ctx, ufunc_data->_loops);
     HPy_ssize_t length = HPy_Length(ctx, loops);
     for (HPy_ssize_t i = 0; i < length; i++) {
         HPy item = HPy_GetItem_i(ctx, loops, i);
@@ -220,8 +224,10 @@ resolve_implementation_info(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *op_dtypes[], npy_bool only_promoters,
         PyObject **out_info)
 {
+    int res;
     int nin = ufunc->nin, nargs = ufunc->nargs;
-    Py_ssize_t size = PySequence_Length(ufunc->_loops);
+    PyObject *_loops = HPyField_LoadPyObj(ufunc, ufunc->_loops);
+    Py_ssize_t size = PySequence_Length(_loops);
     PyObject *best_dtypes = NULL;
     PyObject *best_resolver_info = NULL;
 
@@ -239,7 +245,7 @@ resolve_implementation_info(PyUFuncObject *ufunc,
     for (Py_ssize_t res_idx = 0; res_idx < size; res_idx++) {
         /* Test all resolvers  */
         PyObject *resolver_info = PySequence_Fast_GET_ITEM(
-                ufunc->_loops, res_idx);
+                _loops, res_idx);
 
         if (only_promoters && PyObject_TypeCheck(
                     PyTuple_GET_ITEM(resolver_info, 1), PyArrayMethod_Type)) {
@@ -295,7 +301,8 @@ resolve_implementation_info(PyUFuncObject *ufunc,
             int subclass = PyObject_IsSubclass(
                     (PyObject *)given_dtype, (PyObject *)resolver_dtype);
             if (subclass < 0) {
-                return -1;
+                res = -1;
+                goto finish;
             }
             if (!subclass) {
                 matches = NPY_FALSE;
@@ -393,7 +400,8 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                             "a better match is not yet implemented.  This "
                             "will pick the better (or bail) in the future.");
                     *out_info = NULL;
-                    return -1;
+                    res = -1;
+                    goto finish;
                 }
 
                 if (best == -1) {
@@ -448,7 +456,8 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                     Py_DECREF(given);
                 }
                 *out_info = NULL;
-                return 0;
+                res = 0;
+                goto finish;
             }
             else if (current_best == 0) {
                 /* The new match is not better, continue looking. */
@@ -462,11 +471,15 @@ resolve_implementation_info(PyUFuncObject *ufunc,
     if (best_dtypes == NULL) {
         /* The non-legacy lookup failed */
         *out_info = NULL;
-        return 0;
+        res = 0;
+        goto finish;
     }
 
     *out_info = best_resolver_info;
-    return 0;
+    res = 0;
+finish:
+    Py_DECREF(_loops);
+    return res;
 }
 
 
