@@ -92,6 +92,7 @@ HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, i
     int res;
     HPy DType_tuple = HPy_NULL;
     HPy loops = HPy_NULL;
+    HPy meth_or_promoter = HPy_NULL;
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
     /*
      * Validate the info object, this should likely move to a different
@@ -113,15 +114,21 @@ HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, i
     }
     for (HPy_ssize_t i = 0; i < n_DType_tuple; i++) {
         HPy item = HPy_GetItem_i(ctx, DType_tuple, i);
+        if (HPy_IsNull(item)) {
+            res = -1;
+            goto finish;
+        }
         if (!HPy_Is(ctx, item, ctx->h_None)
                 && !HPyGlobal_TypeCheck(ctx, item, HPyArrayDTypeMeta_Type)) {
             HPyErr_SetString(ctx, ctx->h_TypeError,
                     "DType tuple may only contain None and DType classes");
+            HPy_Close(ctx, item);
             res = -1;
             goto finish;
         }
+        HPy_Close(ctx, item);
     }
-    HPy meth_or_promoter = HPy_GetItem_i(ctx, info, 1);
+    meth_or_promoter = HPy_GetItem_i(ctx, info, 1);
     if (!HPyGlobal_TypeCheck(ctx, meth_or_promoter, HPyArrayMethod_Type)
             && !HPyCapsule_IsValid(ctx, meth_or_promoter, "numpy._ufunc_promoter")) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
@@ -182,6 +189,7 @@ HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, i
 finish:
     HPy_Close(ctx, DType_tuple);
     HPy_Close(ctx, loops);
+    HPy_Close(ctx, meth_or_promoter);
     return res;
 }
 
