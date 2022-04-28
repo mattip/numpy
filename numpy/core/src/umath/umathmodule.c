@@ -24,6 +24,9 @@
 #include "number.h"
 #include "dispatching.h"
 
+// Added for HPy port:
+#include "hpy_utils.h"
+
 static PyUFuncGenericFunction pyfunc_functions[] = {PyUFunc_On_Om};
 
 static int

@@ -104,6 +104,15 @@ static inline PyObject *HPyField_LoadPyObj(PyObject *owner, HPyField f) {
     return res;
 }
 
+static inline void HPyField_StorePyObj(PyObject *owner, HPyField *f, PyObject *value) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_owner = HPy_FromPyObject(ctx, owner);
+    HPy h_value = HPy_FromPyObject(ctx, value);
+    HPyField_Store(ctx, h_owner, f, h_value);
+    HPy_Close(ctx, h_value);
+    HPy_Close(ctx, h_owner);
+}
+
 static inline int
 HPyTuple_CheckExact(HPyContext *ctx, HPy h)
 {

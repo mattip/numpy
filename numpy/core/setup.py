@@ -809,6 +809,7 @@ def configuration(parent_package='', top_path=None):
             join('src', 'common', 'ufunc_override.c'),
             join('src', 'common', 'numpyos.c'),
             join('src', 'common', 'npy_cpu_features.c.src'),
+            join('src', 'common', 'hpy_utils.c')
             ]
 
     if os.environ.get('NPY_USE_BLAS_ILP64', "0") != "0":
@@ -927,7 +928,6 @@ def configuration(parent_package='', top_path=None):
             join('src', 'multiarray', 'flagsobject.c'),
             join('src', 'multiarray', 'getset.c'),
             join('src', 'multiarray', 'hashdescr.c'),
-            join('src', 'multiarray', 'hpy_utils.c'),
             join('src', 'multiarray', 'item_selection.c'),
             join('src', 'multiarray', 'iterators.c'),
             join('src', 'multiarray', 'legacy_dtype_implementation.c'),
