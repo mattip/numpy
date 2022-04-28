@@ -5116,7 +5116,6 @@ static HPyGlobal *module_globals[] = {
     &npy_ma_str_numpy,
 
     &g_dummy_arr,
-    &_global_pytype_to_type_dict,
     NULL
 };
 
