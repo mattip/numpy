@@ -166,8 +166,8 @@ _PyArray_MapPyTypeToDType(
     HPy d = HPy_NULL;
     HPy generic_arr_type = HPyGlobal_Load(ctx, HPyGenericArrType_Type);
 
-    // TODO HPY LABS PORT: PyObject_IsInstance
-    if (userdef && !HPy_TypeCheck(ctx, h_pytype, generic_arr_type)) {
+    // TODO HPY LABS PORT: PyObject_IsSubclass
+    if (userdef && !HPyType_IsSubtype(ctx, h_pytype, generic_arr_type)) {
         /*
          * We expect that user dtypes (for now) will subclass some numpy
          * scalar class to allow automatic discovery.
