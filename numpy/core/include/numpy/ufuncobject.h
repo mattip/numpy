@@ -126,8 +126,8 @@ typedef struct _tagPyUFuncObject {
         const char *doc;
 
         void *ptr;
-        PyObject *obj;
-        PyObject *userloops;
+        HPyField obj;
+        HPyField userloops;
 
         /* generalized ufunc parameters */
 
@@ -210,14 +210,14 @@ typedef struct _tagPyUFuncObject {
         npy_uint32 *core_dim_flags;
 
         /* Identity for reduction, when identity == PyUFunc_IdentityValue */
-        PyObject *identity_value;
+        HPyField identity_value;
 
         /* New in NPY_API_VERSION 0x0000000F and above */
 
         /* New private fields related to dispatching */
         void *_dispatch_cache;
-        /* A PyListObject of `(tuple of DTypes, ArrayMethod/Promoter)` */
-        PyObject *_loops;
+        /* A list object of `(tuple of DTypes, ArrayMethod/Promoter)` */
+        HPyField _loops;
 } PyUFuncObject;
 
 HPyType_LEGACY_HELPERS(PyUFuncObject)

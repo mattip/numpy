@@ -5134,8 +5134,8 @@ static HPyModuleDef moduledef = {
 /* Initialization function for the module */
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
-    PyObject *d, *s;
-    HPy h_mod, h_d, h_s;
+    PyObject *s;
+    HPy h_mod, h_d = HPy_NULL, h_s;
     HPy result = HPy_NULL;
     HPy h_array_type = HPy_NULL;
     HPy h_arrayIterType = HPy_NULL;
@@ -5175,10 +5175,6 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     /* Add some symbolic constants to the module */
     h_d = HPy_GetAttr_s(ctx, h_mod, "__dict__");
     if (HPy_IsNull(h_d)) {
-        goto err;
-    }
-    d = HPy_AsPyObject(ctx, h_d);
-    if (!d) {
         goto err;
     }
 
@@ -5452,7 +5448,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
 
     /* Load the ufunc operators into the array module's namespace */
-    if (InitOperators(d) < 0) {
+    if (InitOperators(ctx, h_d) < 0) {
         goto err;
     }
 

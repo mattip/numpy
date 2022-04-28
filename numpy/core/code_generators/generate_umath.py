@@ -4,14 +4,14 @@ import struct
 import sys
 import textwrap
 
-Zero = "PyLong_FromLong(0)"
-One = "PyLong_FromLong(1)"
-True_ = "(Py_INCREF(Py_True), Py_True)"
-False_ = "(Py_INCREF(Py_False), Py_False)"
+Zero = "HPyLong_FromLong(ctx, 0)"
+One = "HPyLong_FromLong(ctx, 1)"
+True_ = "HPy_Dup(ctx, ctx->h_True)"
+False_ = "HPy_Dup(ctx, ctx->h_False)"
 None_ = object()
-AllOnes = "PyLong_FromLong(-1)"
-MinusInfinity = 'PyFloat_FromDouble(-NPY_INFINITY)'
-ReorderableNone = "(Py_INCREF(Py_None), Py_None)"
+AllOnes = "HPyLong_FromLong(ctx, -1)"
+MinusInfinity = 'HPyFloat_FromDouble(ctx, -NPY_INFINITY)'
+ReorderableNone = "HPy_Dup(ctx, ctx->h_None)"
 
 class docstrings:
     @staticmethod
@@ -303,7 +303,7 @@ defdict = {
            TypeDescription('m', FullTypeDescr, 'mm', 'm'),
            TypeDescription('M', FullTypeDescr, 'mM', 'M'),
           ],
-          TD(O, f='PyNumber_Add'),
+          TD(O, f='HPy_Add'),
           ),
 'subtract':
     Ufunc(2, 1, None, # Zero is only a unit to the right, not the left
@@ -314,7 +314,7 @@ defdict = {
            TypeDescription('m', FullTypeDescr, 'mm', 'm'),
            TypeDescription('M', FullTypeDescr, 'MM', 'm'),
           ],
-          TD(O, f='PyNumber_Subtract'),
+          TD(O, f='HPy_Subtract'),
           ),
 'multiply':
     Ufunc(2, 1, One,
@@ -326,7 +326,7 @@ defdict = {
            TypeDescription('m', FullTypeDescr, 'md', 'm'),
            TypeDescription('m', FullTypeDescr, 'dm', 'm'),
           ],
-          TD(O, f='PyNumber_Multiply'),
+          TD(O, f='HPy_Multiply'),
           ),
 #'true_divide' : aliased to divide in umathmodule.c:initumath
 'floor_divide':
@@ -340,7 +340,7 @@ defdict = {
            TypeDescription('m', FullTypeDescr, 'md', 'm'),
            TypeDescription('m', FullTypeDescr, 'mm', 'q'),
           ],
-          TD(O, f='PyNumber_FloorDivide'),
+          TD(O, f='HPy_FloorDivide'),
           ),
 'divide':
     Ufunc(2, 1, None, # One is only a unit to the right, not the left
@@ -351,7 +351,7 @@ defdict = {
            TypeDescription('m', FullTypeDescr, 'md', 'm', cfunc_alias='divide'),
            TypeDescription('m', FullTypeDescr, 'mm', 'd', cfunc_alias='divide'),
           ],
-          TD(O, f='PyNumber_TrueDivide'),
+          TD(O, f='HPy_TrueDivide'),
           ),
 'conjugate':
     Ufunc(1, 1, None,
@@ -411,7 +411,7 @@ defdict = {
           'PyUFunc_AbsoluteTypeResolver',
           TD(bints+flts+timedeltaonly, dispatch=[('loops_unary_fp', 'fd')]),
           TD(cmplx, simd=[('avx512f', cmplxvec)], out=('f', 'd', 'g')),
-          TD(O, f='PyNumber_Absolute'),
+          TD(O, f='HPy_Absolute'),
           ),
 '_arg':
     Ufunc(1, 1, None,
@@ -425,7 +425,7 @@ defdict = {
           'PyUFunc_NegativeTypeResolver',
           TD(ints+flts+timedeltaonly, simd=[('avx2', ints)]),
           TD(cmplx, f='neg'),
-          TD(O, f='PyNumber_Negative'),
+          TD(O, f='HPy_Negative'),
           ),
 'positive':
     Ufunc(1, 1, None,
@@ -433,7 +433,7 @@ defdict = {
           'PyUFunc_SimpleUniformOperationTypeResolver',
           TD(ints+flts+timedeltaonly),
           TD(cmplx, f='pos'),
-          TD(O, f='PyNumber_Positive'),
+          TD(O, f='HPy_Positive'),
           ),
 'sign':
     Ufunc(1, 1, None,
@@ -572,42 +572,42 @@ defdict = {
           docstrings.get('numpy.core.umath.bitwise_and'),
           None,
           TD(bints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_And'),
+          TD(O, f='HPy_And'),
           ),
 'bitwise_or':
     Ufunc(2, 1, Zero,
           docstrings.get('numpy.core.umath.bitwise_or'),
           None,
           TD(bints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_Or'),
+          TD(O, f='HPy_Or'),
           ),
 'bitwise_xor':
     Ufunc(2, 1, Zero,
           docstrings.get('numpy.core.umath.bitwise_xor'),
           None,
           TD(bints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_Xor'),
+          TD(O, f='HPy_Xor'),
           ),
 'invert':
     Ufunc(1, 1, None,
           docstrings.get('numpy.core.umath.invert'),
           None,
           TD(bints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_Invert'),
+          TD(O, f='HPy_Invert'),
           ),
 'left_shift':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.left_shift'),
           None,
           TD(ints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_Lshift'),
+          TD(O, f='HPy_Lshift'),
           ),
 'right_shift':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.right_shift'),
           None,
           TD(ints, simd=[('avx2', ints)]),
-          TD(O, f='PyNumber_Rshift'),
+          TD(O, f='HPy_Rshift'),
           ),
 'heaviside':
     Ufunc(2, 1, None,
@@ -886,7 +886,7 @@ defdict = {
           'PyUFunc_RemainderTypeResolver',
           TD(intflt),
           [TypeDescription('m', FullTypeDescr, 'mm', 'm')],
-          TD(O, f='PyNumber_Remainder'),
+          TD(O, f='HPy_Remainder'),
           ),
 'divmod':
     Ufunc(2, 2, None,
@@ -894,7 +894,7 @@ defdict = {
           'PyUFunc_DivmodTypeResolver',
           TD(intflt),
           [TypeDescription('m', FullTypeDescr, 'mm', 'qm')],
-          # TD(O, f='PyNumber_Divmod'),  # gh-9730
+          # TD(O, f='HPy_Divmod'),  # gh-9730
           ),
 'hypot':
     Ufunc(2, 1, Zero,
@@ -1165,20 +1165,21 @@ def make_ufuncs(funcdict):
             sig = '"{}"'.format(uf.signature)
         fmt = textwrap.dedent("""\
             identity = {identity_expr};
-            if ({has_identity} && identity == NULL) {{
+            if ({has_identity} && HPy_IsNull(identity)) {{
                 return -1;
             }}
-            f = PyUFunc_FromFuncAndDataAndSignatureAndIdentity(
+            f = HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(ctx,
                 {name}_functions, {name}_data, {name}_signatures, {nloops},
                 {nin}, {nout}, {identity}, "{name}",
                 {doc}, 0, {sig}, identity
             );
             if ({has_identity}) {{
-                Py_DECREF(identity);
+                HPy_Close(ctx, identity);
             }}
-            if (f == NULL) {{
+            if (HPy_IsNull(f)) {{
                 return -1;
             }}
+            f_data = PyUFuncObject_AsStruct(ctx, f);
         """)
         args = dict(
             name=name, nloops=len(uf.type_descriptions),
@@ -1194,14 +1195,14 @@ def make_ufuncs(funcdict):
         # argument
         if uf.identity is None_:
             args['identity'] = 'PyUFunc_None'
-            args['identity_expr'] = 'NULL'
+            args['identity_expr'] = 'HPy_NULL'
 
         mlist.append(fmt.format(**args))
         if uf.typereso is not None:
             mlist.append(
-                r"((PyUFuncObject *)f)->type_resolver = &%s;" % uf.typereso)
-        mlist.append(r"""PyDict_SetItemString(dictionary, "%s", f);""" % name)
-        mlist.append(r"""Py_DECREF(f);""")
+                r"f_data->type_resolver = &%s;" % uf.typereso)
+        mlist.append(r"""HPy_SetItem_s(ctx, dictionary, "%s", f);""" % name)
+        mlist.append(r"""HPy_Close(ctx, f);""")
         code3list.append('\n'.join(mlist))
     return '\n'.join(code3list)
 
@@ -1226,8 +1227,9 @@ def make_code(funcdict, filename):
     %s
 
     static int
-    InitOperators(PyObject *dictionary) {
-        PyObject *f, *identity;
+    InitOperators(HPyContext *ctx, HPy dictionary) {
+        HPy f, identity;
+        PyUFuncObject *f_data = NULL;
 
     %s
     %s

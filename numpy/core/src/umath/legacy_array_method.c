@@ -16,7 +16,7 @@
 #include "dtype_transfer.h"
 #include "legacy_array_method.h"
 #include "dtypemeta.h"
-#include "../multiarray/hpy_utils.h"
+#include "hpy_utils.h"
 #include "ufunc_object.h"
 
 

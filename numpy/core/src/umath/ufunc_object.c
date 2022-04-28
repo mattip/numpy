@@ -2315,8 +2315,8 @@ _get_identity(PyUFuncObject *ufunc, npy_bool *reorderable) {
 
     case PyUFunc_IdentityValue:
         *reorderable = 1;
-        Py_INCREF(ufunc->identity_value);
-        return ufunc->identity_value;
+        // Py_INCREF(ufunc->identity_value);
+        return HPyField_LoadPyObj((PyObject *)ufunc, ufunc->identity_value);
 
     default:
         PyErr_Format(PyExc_ValueError,
@@ -5616,23 +5616,43 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
                                      const int unused, const char *signature,
                                      PyObject *identity_value)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_identity_value = HPy_FromPyObject(ctx, identity_value);
+    HPy h_res = HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(ctx, func, data, types, ntypes, nin, nout, identity, name, doc, unused, signature, h_identity_value);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_identity_value);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericFunction *func, void **data,
+                                     char *types, int ntypes,
+                                     int nin, int nout, int identity,
+                                     const char *name, const char *doc,
+                                     const int unused, const char *signature,
+                                     HPy identity_value)
+{
+    HPy h_ufunc;
     PyUFuncObject *ufunc;
     if (nin + nout > NPY_MAXARGS) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                      "Cannot construct a ufunc with more than %d operands "
                      "(requested number were: inputs = %d and outputs = %d)",
                      NPY_MAXARGS, nin, nout);
-        return NULL;
+        return HPy_NULL;
     }
 
-    ufunc = PyObject_GC_New(PyUFuncObject, &PyUFunc_Type);
+    HPy ufunc_type = HPyGlobal_Load(ctx, HPyUFunc_Type);
+    h_ufunc = HPy_New(ctx, ufunc_type, &ufunc);
+    HPy_Close(ctx, ufunc_type);
     /*
      * We use GC_New here for ufunc->obj, but do not use GC_Track since
      * ufunc->obj is still NULL at the end of this function.
      * See ufunc_frompyfunc where ufunc->obj is set and GC_Track is called.
      */
-    if (ufunc == NULL) {
-        return NULL;
+    if (HPy_IsNull(h_ufunc)) {
+        return HPy_NULL;
     }
 
     ufunc->nin = nin;
@@ -5640,11 +5660,11 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     ufunc->nargs = nin+nout;
     ufunc->identity = identity;
     if (ufunc->identity == PyUFunc_IdentityValue) {
-        Py_INCREF(identity_value);
-        ufunc->identity_value = identity_value;
+        // Py_INCREF(identity_value);
+        HPyField_Store(ctx, h_ufunc, &ufunc->identity_value, identity_value);
     }
     else {
-        ufunc->identity_value = NULL;
+        ufunc->identity_value = HPyField_NULL;
     }
 
     ufunc->functions = func;
@@ -5653,14 +5673,14 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     ufunc->ntypes = ntypes;
     ufunc->core_signature = NULL;
     ufunc->core_enabled = 0;
-    ufunc->obj = NULL;
+    ufunc->obj = HPyField_NULL;
     ufunc->core_num_dims = NULL;
     ufunc->core_num_dim_ix = 0;
     ufunc->core_offsets = NULL;
     ufunc->core_dim_ixs = NULL;
     ufunc->core_dim_sizes = NULL;
     ufunc->core_dim_flags = NULL;
-    ufunc->userloops = NULL;
+    ufunc->userloops = HPyField_NULL;
     ufunc->ptr = NULL;
     ufunc->vectorcall = &ufunc_generic_vectorcall;
     ufunc->reserved1 = 0;
@@ -5672,12 +5692,12 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
     ufunc->_always_null_previously_masked_innerloop_selector = NULL;
 
     ufunc->op_flags = NULL;
-    ufunc->_loops = NULL;
+    ufunc->_loops = HPyField_NULL;
     if (nin + nout != 0) {
         ufunc->_dispatch_cache = PyArrayIdentityHash_New(nin + nout);
         if (ufunc->_dispatch_cache == NULL) {
-            Py_DECREF(ufunc);
-            return NULL;
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
     else {
@@ -5687,11 +5707,12 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
          */
         ufunc->_dispatch_cache = NULL;
     }
-    ufunc->_loops = PyList_New(0);
-    if (ufunc->_loops == NULL) {
-        Py_DECREF(ufunc);
-        return NULL;
+    HPy loops = HPyList_New(ctx, 0);
+    if (HPy_IsNull(loops)) {
+        HPy_Close(ctx, h_ufunc);
+        return HPy_NULL;
     }
+    HPyField_Store(ctx, h_ufunc, &ufunc->_loops, loops);
 
     if (name == NULL) {
         ufunc->name = "?";
@@ -5703,15 +5724,15 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
 
     ufunc->op_flags = PyArray_malloc(sizeof(npy_uint32)*ufunc->nargs);
     if (ufunc->op_flags == NULL) {
-        Py_DECREF(ufunc);
-        return PyErr_NoMemory();
+        HPy_Close(ctx, h_ufunc);
+        return HPyErr_NoMemory(ctx);
     }
     memset(ufunc->op_flags, 0, sizeof(npy_uint32)*ufunc->nargs);
 
     if (signature != NULL) {
         if (_parse_signature(ufunc, signature) != 0) {
-            Py_DECREF(ufunc);
-            return NULL;
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
 
@@ -5723,19 +5744,20 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
          * ambiguous loops such as: `OO->?` and `OO->O` where in theory the
          * wrong loop could be picked if only the second one is added.
          */
-        PyObject *info;
-        PyArray_DTypeMeta *op_dtypes[NPY_MAXARGS];
+        HPy info;
+        HPy op_dtypes[NPY_MAXARGS]; /* (PyArray_DTypeMeta *) */
         for (int arg = 0; arg < nin + nout; arg++) {
-            op_dtypes[arg] = PyArray_DTypeFromTypeNum(curr_types[arg]);
-            /* These DTypes are immortal and adding INCREFs: so borrow it */
-            Py_DECREF(op_dtypes[arg]);
+            op_dtypes[arg] = HPyArray_DTypeFromTypeNum(ctx, curr_types[arg]);
         }
         curr_types += nin + nout;
 
-        info = add_and_return_legacy_wrapping_ufunc_loop(ufunc, op_dtypes, 1);
-        if (info == NULL) {
-            Py_DECREF(ufunc);
-            return NULL;
+        info = hpy_add_and_return_legacy_wrapping_ufunc_loop(ctx, h_ufunc, op_dtypes, 1);
+        for (int arg = 0; arg < nin + nout; arg++) {
+            HPy_Close(ctx, op_dtypes[arg]);
+        }
+        if (HPy_IsNull(info)) {
+            HPy_Close(ctx, h_ufunc);
+            return HPy_NULL;
         }
     }
     /*
@@ -5750,7 +5772,7 @@ PyUFunc_FromFuncAndDataAndSignatureAndIdentity(PyUFuncGenericFunction *func, voi
      *       datetimes, this meant that `timedelta.sum(dtype="f8")` returned
      *       datetimes (and not floats or error), arguably wrong, but...
      */
-    return (PyObject *)ufunc;
+    return h_ufunc;
 }
 
 
@@ -5892,7 +5914,9 @@ PyUFunc_RegisterLoopForDescr(PyUFuncObject *ufunc,
         function, arg_typenums, data);
 
     if (result == 0) {
-        cobj = PyDict_GetItemWithError(ufunc->userloops, key);
+        PyObject *userloops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->userloops);
+        cobj = PyDict_GetItemWithError(userloops, key);
+        Py_DECREF(userloops);
         if (cobj == NULL && PyErr_Occurred()) {
             result = -1;
         }
@@ -5967,6 +5991,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     PyObject *key, *cobj;
     PyArray_DTypeMeta *signature[NPY_MAXARGS];
     PyObject *signature_tuple = NULL;
+    PyObject *_loops = NULL;
+    PyObject *userloops = NULL;
     int i;
     int *newtypes=NULL;
 
@@ -5977,8 +6003,9 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     }
     Py_DECREF(descr);
 
-    if (ufunc->userloops == NULL) {
-        ufunc->userloops = PyDict_New();
+    if (HPyField_IsNull(ufunc->userloops)) {
+        userloops = PyDict_New();
+        HPyField_StorePyObj((PyObject *)ufunc, &ufunc->userloops, userloops);
     }
     key = PyLong_FromLong((long) usertype);
     if (key == NULL) {
@@ -6022,8 +6049,9 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
      * A new-style loop should not be replaced by an old-style one.
      */
     int add_new_loop = 1;
-    for (Py_ssize_t j = 0; j < PyList_GET_SIZE(ufunc->_loops); j++) {
-        PyObject *item = PyList_GET_ITEM(ufunc->_loops, j);
+    _loops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->_loops);
+    for (Py_ssize_t j = 0; j < PyList_GET_SIZE(_loops); j++) {
+        PyObject *item = PyList_GET_ITEM(_loops, j);
         PyObject *existing_tuple = PyTuple_GET_ITEM(item, 0);
 
         int cmp = PyObject_RichCompareBool(existing_tuple, signature_tuple, Py_EQ);
@@ -6047,6 +6075,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
         add_new_loop = 0;
         break;
     }
+    Py_XDECREF(_loops);
+
     if (add_new_loop) {
         PyObject *info = add_and_return_legacy_wrapping_ufunc_loop(
                 ufunc, signature, 0);
@@ -6065,7 +6095,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     funcdata->nargs = 0;
 
     /* Get entry for this user-defined type*/
-    cobj = PyDict_GetItemWithError(ufunc->userloops, key);
+    cobj = PyDict_GetItemWithError(userloops, key);
     if (cobj == NULL && PyErr_Occurred()) {
         goto fail;
     }
@@ -6075,7 +6105,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
         if (cobj == NULL) {
             goto fail;
         }
-        PyDict_SetItem(ufunc->userloops, key, cobj);
+        PyDict_SetItem(userloops, key, cobj);
+        Py_DECREF(userloops);
         Py_DECREF(cobj);
         Py_DECREF(key);
         return 0;
@@ -6124,12 +6155,15 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
             }
         }
     }
+    Py_XDECREF(userloops);
     Py_DECREF(key);
     return 0;
 
  fail:
+    Py_XDECREF(userloops);
     Py_DECREF(key);
     Py_XDECREF(signature_tuple);
+    Py_XDECREF(_loops);
     PyArray_free(funcdata);
     PyArray_free(newtypes);
     if (!PyErr_Occurred()) PyErr_NoMemory();
