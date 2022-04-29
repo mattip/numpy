@@ -1367,6 +1367,83 @@ check_for_trivial_loop(HPyContext *ctx, PyArrayMethodObject * ufuncimpl_data,
 }
 
 
+static int
+hprepare_ufunc_output(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
+                    HPy /* (PyArrayObject **) */ *op,
+                    HPy arr_prep,
+                    ufunc_hpy_full_args full_args,
+                    int i)
+{
+    if (!HPy_IsNull(arr_prep) && !HPy_Is(ctx, arr_prep, ctx->h_None)) {
+        HPy res;
+        HPy arr; /* (PyArrayObject *) */
+        HPy args_tup;
+
+        /* Call with the context argument */
+        args_tup = _hget_wrap_prepare_args(ctx, full_args);
+        if (HPy_IsNull(args_tup)) {
+            return -1;
+        }
+        HPy tmp_args = HPy_BuildValue(ctx, "O(OOi)", *op, ufunc, args_tup, i);
+        res = HPy_CallTupleDict(ctx, arr_prep, tmp_args, HPy_NULL);
+        // res = PyObject_CallFunction(
+        //     arr_prep, "O(OOi)", *op, ufunc, args_tup, i);
+        HPy_Close(ctx, tmp_args);
+        HPy_Close(ctx, args_tup);
+
+        if (HPy_IsNull(res)) {
+            return -1;
+        }
+        else if (!HPyArray_Check(ctx, res)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "__array_prepare__ must return an "
+                    "ndarray or subclass thereof");
+            HPy_Close(ctx, res);
+            return -1;
+        }
+        arr = res;
+
+
+        /* If the same object was returned, nothing to do */
+        if (HPy_Is(ctx, arr, *op)) {
+            HPy_Close(ctx, arr);
+        }
+        /* If the result doesn't match, throw an error */
+        else {
+            PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
+            PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+            HPy arr_descr = HPyArray_DESCR(ctx, arr, arr_data);
+            HPy op_descr = HPyArray_DESCR(ctx, *op, op_data);
+            if (PyArray_NDIM(arr_data) != PyArray_NDIM(op_data) ||
+                    !PyArray_CompareLists(PyArray_DIMS(arr_data),
+                                          PyArray_DIMS(op_data),
+                                          PyArray_NDIM(arr_data)) ||
+                    !PyArray_CompareLists(PyArray_STRIDES(arr_data),
+                                          PyArray_STRIDES(op_data),
+                                          PyArray_NDIM(arr_data)) ||
+                    !HPyArray_EquivTypes(ctx, arr_descr, op_descr)) {
+                HPy_Close(ctx, arr_descr);
+                HPy_Close(ctx, op_descr);
+                HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "__array_prepare__ must return an "
+                        "ndarray or subclass thereof which is "
+                        "otherwise identical to its input");
+                HPy_Close(ctx, arr);
+                return -1;
+            }
+            /* Replace the op value */
+            else {
+                HPy_Close(ctx, arr_descr);
+                HPy_Close(ctx, op_descr);
+                HPy_Close(ctx, *op);
+                *op = arr;
+            }
+        }
+    }
+
+    return 0;
+}
+
 /*
  * Calls the given __array_prepare__ function on the operand *op,
  * substituting it in place if a new array is returned and matches
@@ -1382,63 +1459,27 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
                     ufunc_full_args full_args,
                     int i)
 {
-    if (arr_prep != NULL && arr_prep != Py_None) {
-        PyObject *res;
-        PyArrayObject *arr;
-        PyObject *args_tup;
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_op = HPy_FromPyObject(ctx, (PyObject *)*op);
+    HPy h_arr_prep = HPy_FromPyObject(ctx, arr_prep);
+    ufunc_hpy_full_args hpy_full_args = {
+            .in = HPy_FromPyObject(ctx, full_args.in),
+            .out = HPy_FromPyObject(ctx, full_args.out)
+    };
 
-        /* Call with the context argument */
-        args_tup = _get_wrap_prepare_args(full_args);
-        if (args_tup == NULL) {
-            return -1;
-        }
-        res = PyObject_CallFunction(
-            arr_prep, "O(OOi)", *op, ufunc, args_tup, i);
-        Py_DECREF(args_tup);
+    int res = hprepare_ufunc_output(ctx, h_ufunc, &h_op, h_arr_prep, hpy_full_args, i);
 
-        if (res == NULL) {
-            return -1;
-        }
-        else if (!PyArray_Check(res)) {
-            PyErr_SetString(PyExc_TypeError,
-                    "__array_prepare__ must return an "
-                    "ndarray or subclass thereof");
-            Py_DECREF(res);
-            return -1;
-        }
-        arr = (PyArrayObject *)res;
+    Py_XSETREF(*op, (PyArrayObject *)HPy_AsPyObject(ctx, h_op));
 
-        /* If the same object was returned, nothing to do */
-        if (arr == *op) {
-            Py_DECREF(arr);
-        }
-        /* If the result doesn't match, throw an error */
-        else if (PyArray_NDIM(arr) != PyArray_NDIM(*op) ||
-                !PyArray_CompareLists(PyArray_DIMS(arr),
-                                      PyArray_DIMS(*op),
-                                      PyArray_NDIM(arr)) ||
-                !PyArray_CompareLists(PyArray_STRIDES(arr),
-                                      PyArray_STRIDES(*op),
-                                      PyArray_NDIM(arr)) ||
-                !PyArray_EquivTypes(PyArray_DESCR(arr),
-                                    PyArray_DESCR(*op))) {
-            PyErr_SetString(PyExc_TypeError,
-                    "__array_prepare__ must return an "
-                    "ndarray or subclass thereof which is "
-                    "otherwise identical to its input");
-            Py_DECREF(arr);
-            return -1;
-        }
-        /* Replace the op value */
-        else {
-            Py_DECREF(*op);
-            *op = arr;
-        }
-    }
+    HPy_Close(ctx, h_op);
+    HPy_Close(ctx, h_ufunc);
+    HPy_Close(ctx, h_arr_prep);
+    HPy_Close(ctx, hpy_full_args.in);
+    HPy_Close(ctx, hpy_full_args.out);
 
-    return 0;
+    return res;
 }
-
 
 /*
  * Check whether a trivial loop is possible and call the innerloop if it is.
