@@ -268,33 +268,55 @@ PyArray_MinCastSafety(NPY_CASTING casting1, NPY_CASTING casting2)
 NPY_NO_EXPORT PyObject *
 PyArray_CastToType(PyArrayObject *arr, PyArray_Descr *dtype, int is_f_order)
 {
-    PyObject *out;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    HPy h_dtype = HPy_FromPyObject(ctx, (PyObject *)dtype);
+    HPy h_res = HPyArray_CastToType(ctx, h_arr, h_dtype, is_f_order);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_arr);
+    // simulate stealing
+    Py_XDECREF(dtype);
+    return res;
+}
 
-    if (dtype == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+/*
+ * Similar to PyArray_CastToType but *DOES NOT* steal reference to dtype.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_CastToType(HPyContext *ctx, HPy /* (PyArrayObject *) */ arr, HPy /* (PyArray_Descr *) */ dtype, int is_f_order)
+{
+    HPy out;
+
+    if (HPy_IsNull(dtype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
             "dtype is NULL in PyArray_CastToType");
-        return NULL;
+        return HPy_NULL;
     }
 
-    Py_SETREF(dtype, PyArray_AdaptDescriptorToArray(arr, (PyObject *)dtype));
-    if (dtype == NULL) {
-        return NULL;
+    HPy updated_dtype = HPyArray_AdaptDescriptorToArray(ctx, arr, dtype);
+    if (HPy_IsNull(updated_dtype)) {
+        return HPy_NULL;
     }
 
-    out = PyArray_NewFromDescr(Py_TYPE(arr), dtype,
-                               PyArray_NDIM(arr),
-                               PyArray_DIMS(arr),
+    HPy arr_type = HPy_Type(ctx, arr);
+    PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+    out = HPyArray_NewFromDescr(ctx, arr_type, updated_dtype,
+                               PyArray_NDIM(arr_data),
+                               PyArray_DIMS(arr_data),
                                NULL, NULL,
                                is_f_order,
-                               (PyObject *)arr);
+                               arr);
+    HPy_Close(ctx, updated_dtype);
 
-    if (out == NULL) {
-        return NULL;
+    if (HPy_IsNull(out)){
+        return HPy_NULL;
     }
 
-    if (PyArray_CopyInto((PyArrayObject *)out, arr) < 0) {
-        Py_DECREF(out);
-        return NULL;
+    if (HPyArray_CopyInto(ctx, out, arr) < 0) {
+        HPy_Close(ctx, out);
+        return HPy_NULL;
     }
 
     return out;

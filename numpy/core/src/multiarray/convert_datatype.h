@@ -136,4 +136,7 @@ hpy_can_cast_scalar_to(HPyContext *ctx, HPy scal_type, char *scal_data,
 NPY_NO_EXPORT HPy
 HPyArray_CastDescrToDType(HPyContext *ctx, HPy descr, HPy given_DType);
 
+NPY_NO_EXPORT HPy
+HPyArray_CastToType(HPyContext *ctx, HPy arr, HPy dtype, int is_f_order);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERT_DATATYPE_H_ */
