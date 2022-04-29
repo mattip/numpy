@@ -1496,11 +1496,10 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
  */
 static int
 try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
-        PyArrayObject *op[], NPY_ORDER order,
-        PyObject *arr_prep[], ufunc_full_args full_args,
-        int errormask, PyObject *extobj)
+        HPy /* (PyArrayObject *) */ op[], NPY_ORDER order,
+        HPy arr_prep[], ufunc_hpy_full_args full_args,
+        int errormask, HPy extobj)
 {
-    CAPI_WARN("try_trivial_single_output_loop");
     PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(hctx, context->method);
     int nin = method_data->nin;
     int nop = nin + 1;
@@ -1520,13 +1519,14 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     npy_intp fixed_strides[NPY_MAXARGS];
 
     for (int iop = 0; iop < nop; iop++) {
-        if (op[iop] == NULL) {
+        if (HPy_IsNull(op[iop])) {
             /* The out argument may be NULL (and only that one); fill later */
             assert(iop == nin);
             continue;
         }
 
-        int op_ndim = PyArray_NDIM(op[iop]);
+        PyArrayObject *op_iop_data = PyArrayObject_AsStruct(hctx, op[iop]);
+        int op_ndim = PyArray_NDIM(op_iop_data);
 
         /* Special case 0-D since we can handle broadcasting using a 0-stride */
         if (op_ndim == 0) {
@@ -1537,24 +1537,24 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         /* First non 0-D op: fix dimensions, shape (order is fixed later) */
         if (operation_ndim == 0) {
             operation_ndim = op_ndim;
-            operation_shape = PyArray_SHAPE(op[iop]);
+            operation_shape = PyArray_SHAPE(op_iop_data);
         }
         else if (op_ndim != operation_ndim) {
             return -2;  /* dimension mismatch (except 0-d ops) */
         }
         else if (!PyArray_CompareLists(
-                operation_shape, PyArray_DIMS(op[iop]), op_ndim)) {
+                operation_shape, PyArray_DIMS(op_iop_data), op_ndim)) {
             return -2;  /* shape mismatch */
         }
 
         if (op_ndim == 1) {
-            fixed_strides[iop] = PyArray_STRIDES(op[iop])[0];
+            fixed_strides[iop] = PyArray_STRIDES(op_iop_data)[0];
         }
         else {
-            fixed_strides[iop] = PyArray_ITEMSIZE(op[iop]);  /* contiguous */
+            fixed_strides[iop] = HPyArray_ITEMSIZE(hctx, op[iop], op_iop_data);  /* contiguous */
 
             /* This op must match the operation order (and be contiguous) */
-            int op_order = (PyArray_FLAGS(op[iop]) &
+            int op_order = (PyArray_FLAGS(op_iop_data) &
                             (NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_F_CONTIGUOUS));
             if (op_order == 0) {
                 return -2;  /* N-dimensional op must be contiguous */
@@ -1568,13 +1568,15 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         }
     }
 
-    if (op[nin] == NULL) {
-        // Py_INCREF(context->descriptors[nin]);
-        PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(hctx, context->descriptors[nin]);
-        op[nin] = (PyArrayObject *) PyArray_NewFromDescr(&PyArray_Type,
-                descr, operation_ndim, operation_shape,
-                NULL, NULL, operation_order==NPY_ARRAY_F_CONTIGUOUS, NULL);
-        if (op[nin] == NULL) {
+    if (HPy_IsNull(op[nin])) {
+        /* Note: Dup for 'context->descriptors[nin]' is not necessary because
+           'HPyArray_NewFromDescr' does not steal references! */
+        HPy array_type = HPyGlobal_Load(hctx, HPyArray_Type);
+        op[nin] = HPyArray_NewFromDescr(hctx, array_type,
+                context->descriptors[nin], operation_ndim, operation_shape,
+                NULL, NULL, operation_order==NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
+        HPy_Close(hctx, array_type);
+        if (HPy_IsNull(op[nin])) {
             return -1;
         }
         fixed_strides[nin] = PyArray_Descr_AsStruct(hctx, context->descriptors[nin])->elsize;
@@ -1582,7 +1584,8 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     else {
         /* If any input overlaps with the output, we use the full path. */
         for (int iop = 0; iop < nin; iop++) {
-            if (!PyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(
+            if (!HPyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(
+                    hctx,
                     op[iop], op[nin],
                     PyArray_TRIVIALLY_ITERABLE_OP_READ,
                     PyArray_TRIVIALLY_ITERABLE_OP_NOREAD)) {
@@ -1590,21 +1593,19 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
             }
         }
         /* Check self-overlap (non 1-D are contiguous, perfect overlap is OK) */
+        PyArrayObject *op_nin_data = PyArrayObject_AsStruct(hctx, op[nin]);
         if (operation_ndim == 1 &&
-                PyArray_STRIDES(op[nin])[0] < PyArray_ITEMSIZE(op[nin]) &&
-                PyArray_STRIDES(op[nin])[0] != 0) {
+                PyArray_STRIDES(op_nin_data)[0] < HPyArray_ITEMSIZE(hctx, op[nin], op_nin_data) &&
+                PyArray_STRIDES(op_nin_data)[0] != 0) {
             return -2;
         }
     }
 
     /* Call the __prepare_array__ if necessary */
-    PyUFuncObject *ufunc = (PyUFuncObject *)HPy_AsPyObject(hctx, context->caller);
-    if (prepare_ufunc_output(ufunc, &op[nin],
+    if (hprepare_ufunc_output(hctx, context->caller, &op[nin],
             arr_prep[0], full_args, 0) < 0) {
-        Py_DECREF(ufunc);
         return -1;
     }
-    Py_DECREF(ufunc);
 
     /*
      * We can use the trivial (single inner-loop call) optimization
@@ -1623,7 +1624,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         return -1;
     }
     for (int iop=0; iop < nop; iop++) {
-        data[iop] = PyArray_BYTES(op[iop]);
+        data[iop] = HPyArray_GetBytes(hctx, op[iop]);
     }
 
     if (!(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
@@ -1649,7 +1650,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         /* NOTE: We could check float errors even when `res < 0` */
         const char *name = ufunc_get_name_cstr(PyUFuncObject_AsStruct(hctx, context->caller));
-        res = _check_ufunc_fperr(errormask, extobj, name);
+        res = _hpy_check_ufunc_fperr(hctx, errormask, extobj, name);
     }
     return res;
 }
