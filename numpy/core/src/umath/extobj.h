@@ -17,6 +17,9 @@ NPY_NO_EXPORT int
 _check_ufunc_fperr(int errmask, PyObject *extobj, const char *ufunc_name);
 
 NPY_NO_EXPORT int
+_hpy_check_ufunc_fperr(HPyContext *ctx, int errmask, HPy extobj, const char *ufunc_name);
+
+NPY_NO_EXPORT int
 _get_bufsize_errmask(PyObject * extobj, const char *ufunc_name,
                      int *buffersize, int *errormask);
 

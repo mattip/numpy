@@ -275,34 +275,54 @@ _extract_pyvals(PyObject *ref, const char *name, int *bufsize,
  */
 NPY_NO_EXPORT int
 _check_ufunc_fperr(int errmask, PyObject *extobj, const char *ufunc_name) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_extobj = HPy_FromPyObject(ctx, extobj);
+    int res = _hpy_check_ufunc_fperr(ctx, errmask, h_extobj, ufunc_name);
+    HPy_Close(ctx, h_extobj);
+    return res;
+}
+
+NPY_NO_EXPORT int
+_hpy_check_ufunc_fperr(HPyContext *ctx, int errmask, HPy extobj, const char *ufunc_name) {
     int fperr;
-    PyObject *errobj = NULL;
+    // HPy errobj = HPy_NULL;
     int ret;
     int first = 1;
+    int close_extobj = 0;
 
     if (!errmask) {
         return 0;
     }
-    fperr = npy_get_floatstatus_barrier((char*)extobj);
+    fperr = npy_get_floatstatus_barrier((char*)HPy_AsVoidP(extobj));
     if (!fperr) {
         return 0;
     }
 
+    CAPI_WARN("_hpy_check_ufunc_fperr");
+
     /* Get error object globals */
-    if (extobj == NULL) {
-        extobj = get_global_ext_obj();
-        if (extobj == NULL && PyErr_Occurred()) {
+    if (HPy_IsNull(extobj)) {
+        extobj = HPy_FromPyObject(ctx, get_global_ext_obj());
+        if (HPy_IsNull(extobj) && HPyErr_Occurred(ctx)) {
             return -1;
         }
+        close_extobj = 1;
     }
-    if (_extract_pyvals(extobj, ufunc_name,
-                        NULL, NULL, &errobj) < 0) {
-        Py_XDECREF(errobj);
+    PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
+    PyObject *py_errobj = NULL;
+    int r = _extract_pyvals(py_extobj, ufunc_name, NULL, NULL, &py_errobj);
+    if (close_extobj) {
+        HPy_Close(ctx, extobj);
+    }
+    if (r < 0) {
+        // HPy_Close(ctx, errobj);
+        Py_XDECREF(py_errobj);
         return -1;
     }
 
-    ret = PyUFunc_handlefperr(errmask, errobj, fperr, &first);
-    Py_XDECREF(errobj);
+    ret = PyUFunc_handlefperr(errmask, py_errobj, fperr, &first);
+    // HPy_Close(ctx, errobj);
+    Py_XDECREF(py_errobj);
 
     return ret;
 }
