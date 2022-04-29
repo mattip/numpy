@@ -1293,28 +1293,32 @@ fail:
  * -1 if there is an error.
  */
 static int
-check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
-        PyArrayObject **op, PyArray_Descr **dtypes,
+check_for_trivial_loop(HPyContext *ctx, PyArrayMethodObject * ufuncimpl_data,
+        HPy /* (PyArrayObject **) */ *op, HPy /* (PyArray_Descr **) */ *dtypes,
         NPY_CASTING casting, npy_intp buffersize)
 {
-    int force_cast_input = ufuncimpl->flags & _NPY_METH_FORCE_CAST_INPUTS;
-    int i, nin = ufuncimpl->nin, nop = nin + ufuncimpl->nout;
+    int force_cast_input = ufuncimpl_data->flags & _NPY_METH_FORCE_CAST_INPUTS;
+    int i, nin = ufuncimpl_data->nin, nop = nin + ufuncimpl_data->nout;
 
     for (i = 0; i < nop; ++i) {
+        PyArrayObject *op_i_data = PyArrayObject_AsStruct(ctx, op[i]);
         /*
          * If the dtype doesn't match, or the array isn't aligned,
          * indicate that the trivial loop can't be done.
          */
-        if (op[i] == NULL) {
+        if (HPy_IsNull(op[i])) {
             continue;
         }
-        int must_copy = !PyArray_ISALIGNED(op[i]);
+        int must_copy = !PyArray_ISALIGNED(op_i_data);
 
-        if (dtypes[i] != PyArray_DESCR(op[i])) {
+        HPy op_descr = HPyArray_DESCR(ctx, op[i], op_i_data);
+        if (!HPy_Is(ctx, dtypes[i], op_descr)) {
             npy_intp view_offset;
-            NPY_CASTING safety = PyArray_GetCastInfo(
-                    PyArray_DESCR(op[i]), dtypes[i], NULL, &view_offset);
-            if (safety < 0 && PyErr_Occurred()) {
+            NPY_CASTING safety = HPyArray_GetCastInfo(ctx,
+                    op_descr, dtypes[i], HPy_NULL, &view_offset);
+            HPy_Close(ctx, op_descr);
+
+            if (safety < 0 && HPyErr_Occurred(ctx)) {
                 /* A proper error during a cast check, should be rare */
                 return -1;
             }
@@ -1332,6 +1336,8 @@ check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
             else if (PyArray_MinCastSafety(safety, casting) != casting) {
                 return 0;  /* the cast is not safe enough */
             }
+        } else {
+            HPy_Close(ctx, op_descr);
         }
         if (must_copy) {
             /*
@@ -1339,16 +1345,16 @@ check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
              * array input, make a copy to keep the opportunity
              * for a trivial loop.  Outputs are not copied here.
              */
-            if (i < nin && (PyArray_NDIM(op[i]) == 0
-                            || (PyArray_NDIM(op[i]) == 1
-                                && PyArray_DIM(op[i], 0) <= buffersize))) {
-                PyArrayObject *tmp;
-                Py_INCREF(dtypes[i]);
-                tmp = (PyArrayObject *)PyArray_CastToType(op[i], dtypes[i], 0);
-                if (tmp == NULL) {
+            if (i < nin && (PyArray_NDIM(op_i_data) == 0
+                            || (PyArray_NDIM(op_i_data) == 1
+                                && PyArray_DIM(op_i_data, 0) <= buffersize))) {
+                // PyArrayObject *tmp;
+                HPy tmp;
+                tmp = HPyArray_CastToType(ctx, op[i], dtypes[i], 0);
+                if (HPy_IsNull(tmp)) {
                     return -1;
                 }
-                Py_DECREF(op[i]);
+                HPy_Close(ctx, op[i]);
                 op[i] = tmp;
             }
             else {
@@ -2913,18 +2919,16 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
          * This checks whether a trivial loop is ok, making copies of
          * scalar and one dimensional operands if that should help.
          */
-        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to check_for_trivial_loop");
-        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
         PyArrayMethodObject *ufuncimpl_data = PyArrayMethodObject_AsStruct(hctx, h_ufuncimpl);
-        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(hctx, operation_descrs, nop);
-        int trivial_ok = check_for_trivial_loop(ufuncimpl_data,
-                py_op, py_operation_descrs, casting, buffersize);
-        HPy_DecrefAndFreeArray(hctx, (PyObject **)py_operation_descrs, nop);
+        int trivial_ok = check_for_trivial_loop(hctx, ufuncimpl_data,
+                op, operation_descrs, casting, buffersize);
         if (trivial_ok < 0) {
             retval = -1;
             goto finish;
         }
+        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
         if (trivial_ok && PyArrayMethodObject_AsStruct(hctx, context.method)->nout == 1) {
+            CAPI_WARN("PyUFunc_GenericFunctionInternal: call to try_trivial_single_output_loop");
             /* Try to handle everything without using the (heavy) iterator */
             retval = try_trivial_single_output_loop(hctx, &context,
                     py_op, order, py_output_array_prepare, full_args,
