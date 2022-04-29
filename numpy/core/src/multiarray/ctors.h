@@ -158,4 +158,7 @@ HPyArray_FromObject(
     return res;
 }
 
+NPY_NO_EXPORT int
+HPyArray_CopyInto(HPyContext *ctx, HPy dst, HPy src);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */

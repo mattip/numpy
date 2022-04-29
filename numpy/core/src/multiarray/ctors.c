@@ -3284,6 +3284,12 @@ PyArray_CopyInto(PyArrayObject *dst, PyArrayObject *src)
     return PyArray_AssignArray(dst, src, NULL, NPY_UNSAFE_CASTING);
 }
 
+NPY_NO_EXPORT int
+HPyArray_CopyInto(HPyContext *ctx, HPy /* (PyArrayObject *) */ dst, HPy /* (PyArrayObject *) */ src)
+{
+    return HPyArray_AssignArray(ctx, dst, src, HPy_NULL, NPY_UNSAFE_CASTING);
+}
+
 /*NUMPY_API
  * Move the memory of one array into another, allowing for overlapping data.
  *
