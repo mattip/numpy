@@ -161,6 +161,15 @@ multi_DECREF(PyObject **objects, npy_intp n)
     }
 }
 
+static NPY_INLINE void
+multi_Close(HPyContext *ctx, HPy *objects, npy_intp n)
+{
+    npy_intp i;
+    for (i = 0; i < n; i++) {
+        HPy_Close(ctx, objects[i]);
+    }
+}
+
 /**
  * Unpack a tuple into an array of new references. Returns the number of objects
  * unpacked.
@@ -181,6 +190,22 @@ unpack_tuple(PyTupleObject *index, PyObject **result, npy_intp result_n)
     for (i = 0; i < n; i++) {
         result[i] = PyTuple_GET_ITEM(index, i);
         Py_INCREF(result[i]);
+    }
+    return n;
+}
+
+static NPY_INLINE npy_intp
+hpy_unpack_tuple(HPyContext *ctx, HPy index, HPy *result, npy_intp result_n)
+{
+    npy_intp n, i;
+    n = HPy_Length(ctx, index);
+    if (n > result_n) {
+        HPyErr_SetString(ctx, ctx->h_IndexError,
+                        "too many indices for array");
+        return -1;
+    }
+    for (i = 0; i < n; i++) {
+        result[i] = HPy_GetItem_i(ctx, index, i);
     }
     return n;
 }
@@ -351,6 +376,19 @@ unpack_indices(PyObject *index, PyObject **result, npy_intp result_n)
 fail:
     multi_DECREF(result, i);
     return -1;
+}
+
+NPY_NO_EXPORT npy_intp
+hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_n)
+{
+    npy_intp n, i;
+    npy_bool commit_to_unpack;
+
+    /* Fast route for passing a tuple */
+    if (HPyTuple_CheckExact(ctx, h_index)) {
+        return hpy_unpack_tuple(ctx, h_index, h_result, result_n);
+    }
+    hpy_abort_not_implemented("remainder of unpack_indices for non-tuple args");
 }
 
 /**
@@ -840,6 +878,240 @@ prepare_index(PyArrayObject *self, PyObject *index,
 }
 
 
+NPY_NO_EXPORT int
+hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
+              hpy_npy_index_info *indices,
+              int *num, int *ndim, int *out_fancy_ndim, int allow_boolean)
+{
+    int new_ndim, fancy_ndim, used_ndim, index_ndim;
+    int curr_idx, get_idx;
+
+    int i;
+    npy_intp n;
+
+    HPy obj = HPy_NULL;
+    HPy h_arr = HPy_NULL;
+    PyArrayObject *arr;
+
+    int index_type = 0;
+    int ellipsis_pos = -1;
+
+    /*
+     * The choice of only unpacking `2*NPY_MAXDIMS` items is historic.
+     * The longest "reasonable" index that produces a result of <= 32 dimensions
+     * is `(0,)*np.MAXDIMS + (None,)*np.MAXDIMS`. Longer indices can exist, but
+     * are uncommon.
+     */
+    HPy raw_indices[NPY_MAXDIMS*2];
+
+    index_ndim = hpy_unpack_indices(ctx, h_index, raw_indices, NPY_MAXDIMS*2);
+    if (index_ndim == -1) {
+        return -1;
+    }
+
+    /*
+     * Parse all indices into the `indices` array of index_info structs
+     */
+    used_ndim = 0;
+    new_ndim = 0;
+    fancy_ndim = 0;
+    get_idx = 0;
+    curr_idx = 0;
+
+    while (get_idx < index_ndim) {
+        if (curr_idx > NPY_MAXDIMS * 2) {
+            HPyErr_SetString(ctx, ctx->h_IndexError,
+                            "too many indices for array");
+            goto failed_building_indices;
+        }
+
+        obj = raw_indices[get_idx++];
+
+        /**** Try the cascade of possible indices ****/
+
+        /* Index is an ellipsis (`...`) */
+        if (HPy_Is(ctx, obj, ctx->h_Ellipsis)) {
+            /* At most one ellipsis in an index */
+            if (index_type & HAS_ELLIPSIS) {
+                HPyErr_SetString(ctx, ctx->h_IndexError,
+                    "an index can only have a single ellipsis ('...')");
+                goto failed_building_indices;
+            }
+            index_type |= HAS_ELLIPSIS;
+            indices[curr_idx].type = HAS_ELLIPSIS;
+            indices[curr_idx].object = HPy_NULL;
+            /* number of slices it is worth, won't update if it is 0: */
+            indices[curr_idx].value = 0;
+
+            ellipsis_pos = curr_idx;
+            /* the used and new ndim will be found later */
+            used_ndim += 0;
+            new_ndim += 0;
+            curr_idx += 1;
+            continue;
+        }
+
+        /* Index is np.newaxis/None */
+        else if (HPy_Is(ctx, obj, ctx->h_None)) {
+            index_type |= HAS_NEWAXIS;
+
+            indices[curr_idx].type = HAS_NEWAXIS;
+            indices[curr_idx].object = HPy_NULL;
+
+            used_ndim += 0;
+            new_ndim += 1;
+            curr_idx += 1;
+            continue;
+        }
+
+        /* Index is a slice object. */
+        // TODO HPY LABS PORT: No HPy API for slices yet...
+        // else if (PySlice_Check(ctx, obj)) {
+        //     index_type |= HAS_SLICE;
+
+        //     Py_INCREF(obj);
+        //     indices[curr_idx].object = obj;
+        //     indices[curr_idx].type = HAS_SLICE;
+        //     used_ndim += 1;
+        //     new_ndim += 1;
+        //     curr_idx += 1;
+        //     continue;
+        // }
+
+        /*
+         * Special case to allow 0-d boolean indexing with scalars.
+         * Should be removed after boolean as integer deprecation.
+         * Since this is always an error if it was not a boolean, we can
+         * allow the 0-d special case before the rest.
+         */
+        else if (PyArray_NDIM(self) != 0) {
+            /*
+             * Single integer index, there are two cases here.
+             * It could be an array, a 0-d array is handled
+             * a bit weird however, so need to special case it.
+             *
+             * Check for integers first, purely for performance -- not applicable in HPy yet
+             */
+            if (!HPyArray_Check(ctx, obj)) {
+                if (!HPy_TypeCheck(ctx, obj, ctx->h_LongType)) {
+                    hpy_abort_not_implemented("non integer indices");
+                }
+
+                npy_intp ind = HPyLong_AsLong(ctx, obj);
+
+                if (hpy_error_converting(ctx, ind)) {
+                    HPyErr_Clear(ctx);
+                }
+                else {
+                    index_type |= HAS_INTEGER;
+                    indices[curr_idx].object = HPy_NULL;
+                    indices[curr_idx].value = ind;
+                    indices[curr_idx].type = HAS_INTEGER;
+                    used_ndim += 1;
+                    new_ndim += 0;
+                    curr_idx += 1;
+                    continue;
+                }
+            }
+        }
+
+        /*
+         * At this point, we must have an index array (or array-like).
+         * It might still be a (purely) bool special case, a 0-d integer
+         * array (an array scalar) or something invalid.
+         */
+        hpy_abort_not_implemented("unimplemented branch in prepare_index");
+    }
+
+    /*
+     * Compare dimension of the index to the real ndim. this is
+     * to find the ellipsis value or append an ellipsis if necessary.
+     */
+    if (used_ndim < PyArray_NDIM(self)) {
+        if (index_type & HAS_ELLIPSIS) {
+            indices[ellipsis_pos].value = PyArray_NDIM(self) - used_ndim;
+            used_ndim = PyArray_NDIM(self);
+            new_ndim += indices[ellipsis_pos].value;
+        }
+        else {
+            /*
+             * There is no ellipsis yet, but it is not a full index
+             * so we append an ellipsis to the end.
+             */
+            index_type |= HAS_ELLIPSIS;
+            indices[curr_idx].object = HPy_NULL;
+            indices[curr_idx].type = HAS_ELLIPSIS;
+            indices[curr_idx].value = PyArray_NDIM(self) - used_ndim;
+            ellipsis_pos = curr_idx;
+
+            used_ndim = PyArray_NDIM(self);
+            new_ndim += indices[curr_idx].value;
+            curr_idx += 1;
+        }
+    }
+    else if (used_ndim > PyArray_NDIM(self)) {
+        HPyErr_SetString(ctx, ctx->h_IndexError,
+                     "too many indices for array: "
+                     "array is %d-dimensional, but %d were indexed"
+                     /*,PyArray_NDIM(self),
+                     used_ndim*/);
+        goto failed_building_indices;
+    }
+    else if (index_ndim == 0) {
+        /*
+         * 0-d index into 0-d array, i.e. array[()]
+         * We consider this an integer index. Which means it will return
+         * the scalar.
+         * This makes sense, because then array[...] gives
+         * an array and array[()] gives the scalar.
+         */
+        used_ndim = 0;
+        index_type = HAS_INTEGER;
+    }
+
+    /* HAS_SCALAR_ARRAY requires cleaning up the index_type */
+    if (index_type & HAS_SCALAR_ARRAY) {
+        /* clear as info is unnecessary and makes life harder later */
+        if (index_type & HAS_FANCY) {
+            index_type -= HAS_SCALAR_ARRAY;
+        }
+        /* A full integer index sees array scalars as part of itself */
+        else if (index_type == (HAS_INTEGER | HAS_SCALAR_ARRAY)) {
+            index_type -= HAS_SCALAR_ARRAY;
+        }
+    }
+
+    /*
+     * At this point indices are all set correctly, no bounds checking
+     * has been made and the new array may still have more dimensions
+     * than is possible and boolean indexing arrays may have an incorrect shape.
+     *
+     * Check this now so we do not have to worry about it later.
+     * It can happen for fancy indexing or with newaxis.
+     * This means broadcasting errors in the case of too many dimensions
+     * take less priority.
+     */
+    if (index_type & (HAS_NEWAXIS | HAS_FANCY)) {
+        hpy_abort_not_implemented("index_type & (HAS_NEWAXIS | HAS_FANCY)");
+    }
+
+    *num = curr_idx;
+    *ndim = new_ndim + fancy_ndim;
+    *out_fancy_ndim = fancy_ndim;
+
+    multi_Close(ctx, raw_indices, index_ndim);
+
+    return index_type;
+
+  failed_building_indices:
+    multi_Close(ctx, raw_indices, index_ndim);
+    for (i=0; i < curr_idx; i++) {
+        HPy_Close(ctx, indices[i].object);
+    }
+    return -1;
+}
+
+
 /**
  * Check if self has memory overlap with one of the index arrays, or with extra_op.
  *
@@ -896,6 +1168,21 @@ get_item_pointer(PyArrayObject *self, char **ptr,
     for (i=0; i < index_num; i++) {
         if ((check_and_adjust_index(&(indices[i].value),
                                PyArray_DIMS(self)[i], i, NULL)) < 0) {
+            return -1;
+        }
+        *ptr += PyArray_STRIDE(self, i) * indices[i].value;
+    }
+    return 0;
+}
+
+static int
+hpy_get_item_pointer(HPyContext *ctx, PyArrayObject *self, char **ptr,
+                    npy_index_info *indices, int index_num) {
+    int i;
+    *ptr = PyArray_BYTES(self);
+    for (i=0; i < index_num; i++) {
+        if ((hpy_check_and_adjust_index(ctx, &(indices[i].value),
+                               PyArray_DIMS(self)[i], i)) < 0) {
             return -1;
         }
         *ptr += PyArray_STRIDE(self, i) * indices[i].value;
@@ -1796,47 +2083,51 @@ array_assign_item(PyArrayObject *self, Py_ssize_t i, PyObject *op)
 /*
  * General assignment with python indexing objects.
  */
-NPY_NO_EXPORT int
-array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
+HPyDef_SLOT(array_assign_subscript, array_assign_subscript_impl, HPy_mp_ass_subscript);
+NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self, HPy h_ind,
+                                HPy h_op)
 {
     int index_type;
     int index_num;
     int i, ndim, fancy_ndim;
-    PyArray_Descr *descr = PyArray_DESCR(self);
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, h_self);
+    HPy h_descr = HPyArray_DESCR(ctx, h_self, self_struct);
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     PyArrayObject *view = NULL;
     PyArrayObject *tmp_arr = NULL;
-    npy_index_info indices[NPY_MAXDIMS * 2 + 1];
+    hpy_npy_index_info indices[NPY_MAXDIMS * 2 + 1];
 
     PyArrayMapIterObject *mit = NULL;
 
-    if (op == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+    if (HPy_IsNull(h_op)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot delete array elements");
         return -1;
     }
-    if (PyArray_FailUnlessWriteable(self, "assignment destination") < 0) {
+    if (HPyArray_FailUnlessWriteableWithStruct(ctx, h_self, self_struct, "assignment destination") < 0) {
         return -1;
     }
 
     /* field access */
-    if (PyDataType_HASFIELDS(PyArray_DESCR(self))){
-        PyArrayObject *view;
-        int ret = _get_field_view(self, ind, &view);
-        if (ret == 0){
-            if (view == NULL) {
-                return -1;
-            }
-            if (PyArray_CopyObject(view, op) < 0) {
-                Py_DECREF(view);
-                return -1;
-            }
-            Py_DECREF(view);
-            return 0;
-        }
+    if (PyDataType_HASFIELDS(descr)){
+        hpy_abort_not_implemented("'fields' field not converted to HPy");
+        // PyArrayObject *view;
+        // int ret = _get_field_view(self, ind, &view);
+        // if (ret == 0){
+        //     if (view == NULL) {
+        //         return -1;
+        //     }
+        //     if (PyArray_CopyObject(view, op) < 0) {
+        //         Py_DECREF(view);
+        //         return -1;
+        //     }
+        //     Py_DECREF(view);
+        //     return 0;
+        // }
     }
 
     /* Prepare the indices */
-    index_type = prepare_index(self, ind, indices, &index_num,
+    index_type = hpy_prepare_index(ctx, h_self, self_struct, h_ind, indices, &index_num,
                                &ndim, &fancy_ndim, 1);
 
     if (index_type < 0) {
@@ -1846,10 +2137,10 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
     /* Full integer index */
     if (index_type == HAS_INTEGER) {
         char *item;
-        if (get_item_pointer(self, &item, indices, index_num) < 0) {
+        if (hpy_get_item_pointer(ctx, self_struct, &item, indices, index_num) < 0) {
             return -1;
         }
-        if (PyArray_Pack(PyArray_DESCR(self), item, op) < 0) {
+        if (HPyArray_Pack(ctx, h_descr, item, h_op) < 0) {
             return -1;
         }
         /* integers do not store objects in indices */
@@ -1858,26 +2149,27 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
 
     /* Single boolean array */
     if (index_type == HAS_BOOL) {
-        if (!PyArray_Check(op)) {
-            Py_INCREF(PyArray_DESCR(self));
-            tmp_arr = (PyArrayObject *)PyArray_FromAny(op,
-                                                   PyArray_DESCR(self), 0, 0,
-                                                   NPY_ARRAY_FORCECAST, NULL);
-            if (tmp_arr == NULL) {
-                goto fail;
-            }
-        }
-        else {
-            Py_INCREF(op);
-            tmp_arr = (PyArrayObject *)op;
-        }
+        hpy_abort_not_implemented("HAS_BOOL");
+        // if (!PyArray_Check(op)) {
+        //     Py_INCREF(PyArray_DESCR(self));
+        //     tmp_arr = (PyArrayObject *)PyArray_FromAny(op,
+        //                                            PyArray_DESCR(self), 0, 0,
+        //                                            NPY_ARRAY_FORCECAST, NULL);
+        //     if (tmp_arr == NULL) {
+        //         goto fail;
+        //     }
+        // }
+        // else {
+        //     Py_INCREF(op);
+        //     tmp_arr = (PyArrayObject *)op;
+        // }
 
-        if (array_assign_boolean_subscript(self,
-                                           (PyArrayObject *)indices[0].object,
-                                           tmp_arr, NPY_CORDER) < 0) {
-            goto fail;
-        }
-        goto success;
+        // if (array_assign_boolean_subscript(self,
+        //                                    (PyArrayObject *)indices[0].object,
+        //                                    tmp_arr, NPY_CORDER) < 0) {
+        //     goto fail;
+        // }
+        // goto success;
     }
 
 
@@ -1887,18 +2179,19 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
      * (defchar array failed then, due to uninitialized values...)
      */
     else if (index_type == HAS_ELLIPSIS) {
-        if ((PyObject *)self == op) {
-            /*
-             * CopyObject does not handle this case gracefully and
-             * there is nothing to do. Removing the special case
-             * will cause segfaults, though it is unclear what exactly
-             * happens.
-             */
-            return 0;
-        }
-        /* we can just use self, but incref for error handling */
-        Py_INCREF((PyObject *)self);
-        view = self;
+        hpy_abort_not_implemented("HAS_ELLIPSIS");
+        // if ((PyObject *)self == op) {
+        //     /*
+        //      * CopyObject does not handle this case gracefully and
+        //      * there is nothing to do. Removing the special case
+        //      * will cause segfaults, though it is unclear what exactly
+        //      * happens.
+        //      */
+        //     return 0;
+        // }
+        // /* we can just use self, but incref for error handling */
+        // Py_INCREF((PyObject *)self);
+        // view = self;
     }
 
     /*
@@ -1909,16 +2202,17 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
      *          with a base class ndarray view to avoid this.
      */
     else if (!(index_type & (HAS_FANCY | HAS_SCALAR_ARRAY))
-                && !PyArray_CheckExact(self)) {
-        view = (PyArrayObject *)PyObject_GetItem((PyObject *)self, ind);
-        if (view == NULL) {
-            goto fail;
-        }
-        if (!PyArray_Check(view)) {
-            PyErr_SetString(PyExc_RuntimeError,
-                            "Getitem not returning array");
-            goto fail;
-        }
+                && !HPyArray_CheckExact(ctx, h_self)) {
+        hpy_abort_not_implemented("special rare case...");
+        // view = (PyArrayObject *)PyObject_GetItem((PyObject *)self, ind);
+        // if (view == NULL) {
+        //     goto fail;
+        // }
+        // if (!PyArray_Check(view)) {
+        //     PyErr_SetString(PyExc_RuntimeError,
+        //                     "Getitem not returning array");
+        //     goto fail;
+        // }
     }
 
     /*
@@ -1929,10 +2223,11 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
      */
     else if (index_type & (HAS_SLICE | HAS_NEWAXIS |
                            HAS_ELLIPSIS | HAS_INTEGER)) {
-        if (get_view_from_index(self, &view, indices, index_num,
-                                (index_type & HAS_FANCY)) < 0) {
-            goto fail;
-        }
+        hpy_abort_not_implemented("index_type & (HAS_SLICE | HAS_NEWAXIS | HAS_ELLIPSIS | HAS_INTEGER)");
+        // if (get_view_from_index(self, &view, indices, index_num,
+        //                         (index_type & HAS_FANCY)) < 0) {
+        //     goto fail;
+        // }
     }
     else {
         view = NULL;
@@ -1940,149 +2235,14 @@ array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op)
 
     /* If there is no fancy indexing, we have the array to assign to */
     if (!(index_type & HAS_FANCY)) {
-        if (PyArray_CopyObject(view, op) < 0) {
-            goto fail;
-        }
-        goto success;
+        hpy_abort_not_implemented("PyArray_CopyObject");
+        // if (PyArray_CopyObject(view, op) < 0) {
+        //     goto fail;
+        // }
+        // goto success;
     }
 
-    if (!PyArray_Check(op)) {
-        /*
-         * If the array is of object converting the values to an array
-         * might not be legal even though normal assignment works.
-         * So allocate a temporary array of the right size and use the
-         * normal assignment to handle this case.
-         */
-        if (PyDataType_REFCHK(descr) && PySequence_Check(op)) {
-            tmp_arr = NULL;
-        }
-        else {
-            /* There is nothing fancy possible, so just make an array */
-            Py_INCREF(descr);
-            tmp_arr = (PyArrayObject *)PyArray_FromAny(op, descr, 0, 0,
-                                                    NPY_ARRAY_FORCECAST, NULL);
-            if (tmp_arr == NULL) {
-                goto fail;
-            }
-        }
-    }
-    else {
-        Py_INCREF(op);
-        tmp_arr = (PyArrayObject *)op;
-    }
-
-    /*
-     * Special case for very simple 1-d fancy indexing, which however
-     * is quite common. This saves not only a lot of setup time in the
-     * iterator, but also is faster (must be exactly fancy because
-     * we don't support 0-d booleans here)
-     */
-    if (index_type == HAS_FANCY &&
-            index_num == 1 && tmp_arr) {
-        /* The array being indexed has one dimension and it is a fancy index */
-        PyArrayObject *ind = (PyArrayObject*)indices[0].object;
-
-        /* Check if the type is equivalent */
-        if (PyArray_EquivTypes(PyArray_DESCR(self),
-                                   PyArray_DESCR(tmp_arr)) &&
-                /*
-                 * Either they are equivalent, or the values must
-                 * be a scalar
-                 */
-                (PyArray_EQUIVALENTLY_ITERABLE(ind, tmp_arr,
-                                               PyArray_TRIVIALLY_ITERABLE_OP_READ,
-                                               PyArray_TRIVIALLY_ITERABLE_OP_READ) ||
-                 (PyArray_NDIM(tmp_arr) == 0 &&
-                        PyArray_TRIVIALLY_ITERABLE(ind))) &&
-                /* Check if the type is equivalent to INTP */
-                PyArray_ITEMSIZE(ind) == sizeof(npy_intp) &&
-                PyArray_DESCR(ind)->kind == 'i' &&
-                IsUintAligned(ind) &&
-                PyDataType_ISNOTSWAPPED(PyArray_DESCR(ind))) {
-
-            /* trivial_set checks the index for us */
-            if (mapiter_trivial_set(self, ind, tmp_arr) < 0) {
-                goto fail;
-            }
-            goto success;
-        }
-    }
-
-    /*
-     * NOTE: If tmp_arr was not allocated yet, mit should
-     *       handle the allocation.
-     *       The NPY_ITER_READWRITE is necessary for automatic
-     *       allocation. Readwrite would not allow broadcasting
-     *       correctly, but such an operand always has the full
-     *       size anyway.
-     */
-    mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices,
-                                             index_num, index_type,
-                                             ndim, fancy_ndim, self,
-                                             view, 0,
-                                             NPY_ITER_WRITEONLY,
-                                             ((tmp_arr == NULL) ?
-                                                  NPY_ITER_READWRITE :
-                                                  NPY_ITER_READONLY),
-                                             tmp_arr, descr);
-
-    if (mit == NULL) {
-        goto fail;
-    }
-
-    if (tmp_arr == NULL) {
-        /* Fill extra op, need to swap first */
-        tmp_arr = mit->extra_op;
-        Py_INCREF(tmp_arr);
-        if (mit->consec) {
-            PyArray_MapIterSwapAxes(mit, &tmp_arr, 1);
-            if (tmp_arr == NULL) {
-                goto fail;
-            }
-        }
-        if (PyArray_CopyObject(tmp_arr, op) < 0) {
-             goto fail;
-        }
-    }
-
-    /* Can now reset the outer iterator (delayed bufalloc) */
-    if (NpyIter_Reset(mit->outer, NULL) < 0) {
-        goto fail;
-    }
-
-    if (PyArray_MapIterCheckIndices(mit) < 0) {
-        goto fail;
-    }
-
-    /*
-     * Could add a casting check, but apparently most assignments do
-     * not care about safe casting.
-     */
-
-    if (mapiter_set(mit) < 0) {
-        goto fail;
-    }
-
-    Py_DECREF(mit);
-    goto success;
-
-    /* Clean up temporary variables and indices */
-  fail:
-    Py_XDECREF((PyObject *)view);
-    Py_XDECREF((PyObject *)tmp_arr);
-    Py_XDECREF((PyObject *)mit);
-    for (i=0; i < index_num; i++) {
-        Py_XDECREF(indices[i].object);
-    }
-    return -1;
-
-  success:
-    Py_XDECREF((PyObject *)view);
-    Py_XDECREF((PyObject *)tmp_arr);
-    for (i=0; i < index_num; i++) {
-        Py_XDECREF(indices[i].object);
-    }
-    return 0;
+    hpy_abort_not_implemented("remainder of array_assign_subscript_impl");
 }
 
 

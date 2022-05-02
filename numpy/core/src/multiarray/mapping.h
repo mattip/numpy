@@ -22,6 +22,21 @@ typedef struct {
     int type;
 } npy_index_info;
 
+typedef struct {
+    /*
+     * Object of index: slice, array, or NULL. Owns a reference.
+     */
+    HPy object;
+    /*
+     * Value of an integer index, number of slices an Ellipsis is worth,
+     * -1 if input was an integer array and the original size of the
+     * boolean array if it is a converted boolean array.
+     */
+    npy_intp value;
+    /* kind of index, see constants in mapping.c */
+    int type;
+} hpy_npy_index_info;
+
 
 NPY_NO_EXPORT Py_ssize_t
 array_length(PyArrayObject *self);
@@ -44,8 +59,7 @@ array_subscript(PyArrayObject *self, PyObject *op);
 NPY_NO_EXPORT int
 array_assign_item(PyArrayObject *self, Py_ssize_t i, PyObject *v);
 
-NPY_NO_EXPORT int
-array_assign_subscript(PyArrayObject *self, PyObject *ind, PyObject *op);
+NPY_NO_EXPORT extern HPyDef array_assign_subscript;
 
 /*
  * Prototypes for Mapping calls --- not part of the C-API

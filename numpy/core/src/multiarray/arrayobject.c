@@ -819,6 +819,12 @@ NPY_NO_EXPORT int
 HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name)
 {
     PyArrayObject *obj_data = PyArrayObject_AsStruct(ctx, obj);
+    return HPyArray_FailUnlessWriteableWithStruct(ctx, obj, obj_data, name);
+}
+
+NPY_NO_EXPORT int
+HPyArray_FailUnlessWriteableWithStruct(HPyContext *ctx, HPy obj, PyArrayObject *obj_data, const char *name)
+{
     if (!PyArray_ISWRITEABLE(obj_data)) {
         HPyErr_Format_p(ctx, ctx->h_ValueError, "%s is read-only", name);
         return -1;
@@ -1928,7 +1934,6 @@ array_iter(PyArrayObject *arr)
 static PyType_Slot PyArray_Type_slots[] = {
     {Py_mp_length, (lenfunc)array_length},
     {Py_mp_subscript, (binaryfunc)array_subscript},
-    {Py_mp_ass_subscript, (objobjargproc)array_assign_subscript},
 
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
@@ -1982,6 +1987,7 @@ static PyType_Slot PyArray_Type_slots[] = {
 
 static HPyDef *array_defines[] = {
     &array_getbuffer,
+    &array_assign_subscript,
     &array_new,
     &array_traverse,
     &array_finalize,

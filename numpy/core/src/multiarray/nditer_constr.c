@@ -1121,13 +1121,13 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
 
     if (HPyArray_Check(ctx, *op)) {
 
+        PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
         if ((*op_itflags) & NPY_OP_ITFLAG_WRITE) {
-            if (HPyArray_FailUnlessWriteable(ctx, *op,
+            if (HPyArray_FailUnlessWriteableWithStruct(ctx, *op, op_data,
                     "operand array with iterator write flag set") < 0) {
                 goto error;
             }
         }
-        PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
         if (!(flags & NPY_ITER_ZEROSIZE_OK) && PyArray_SIZE(op_data) == 0) {
             HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iteration of zero-sized operands is not enabled");
