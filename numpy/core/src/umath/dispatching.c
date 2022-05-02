@@ -672,6 +672,14 @@ legacy_promote_using_legacy_type_resolver(PyUFuncObject *ufunc,
     return 0;
 }
 
+static int
+hpy_legacy_promote_using_legacy_type_resolver(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
+        HPy /* (PyArrayObject *) */ const *ops, HPy /* (PyArray_DTypeMeta *) */ signature[],
+        HPy /* (PyArray_DTypeMeta *) */ operation_DTypes[], int *out_cacheable)
+{
+    hpy_abort_not_implemented("hpy_legacy_promote_using_legacy_type_resolver");
+    return -1;
+}
 
 /*
  * Note, this function *DOES NOT* return a borrowed reference to info.
