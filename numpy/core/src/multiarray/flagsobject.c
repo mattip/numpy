@@ -113,6 +113,36 @@ PyArray_UpdateFlags(PyArrayObject *ret, int flagmask)
     return;
 }
 
+NPY_NO_EXPORT void
+HPyArray_UpdateFlags(HPyContext *ctx, HPy h_ret, PyArrayObject *ret, int flagmask)
+{
+    /* Always update both, as its not trivial to guess one from the other */
+    if (flagmask & (NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_C_CONTIGUOUS)) {
+        _UpdateContiguousFlags(ret);
+    }
+    if (flagmask & NPY_ARRAY_ALIGNED) {
+        if (HPyIsAligned(ctx, h_ret, ret)) {
+            PyArray_ENABLEFLAGS(ret, NPY_ARRAY_ALIGNED);
+        }
+        else {
+            PyArray_CLEARFLAGS(ret, NPY_ARRAY_ALIGNED);
+        }
+    }
+    /*
+     * This is not checked by default WRITEABLE is not
+     * part of UPDATE_ALL
+     */
+    if (flagmask & NPY_ARRAY_WRITEABLE) {
+        if (_IsWriteable(ret)) {
+            PyArray_ENABLEFLAGS(ret, NPY_ARRAY_WRITEABLE);
+        }
+        else {
+            PyArray_CLEARFLAGS(ret, NPY_ARRAY_WRITEABLE);
+        }
+    }
+    return;
+}
+
 /*
  * Check whether the given array is stored contiguously
  * in memory. And update the passed in ap flags appropriately.

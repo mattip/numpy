@@ -38,6 +38,7 @@
 #include "descriptor.h"
 
 #include "hpy_utils.h"
+#include "flagsobject.h"
 
 /*
  * Reading from a file or a string.
@@ -895,7 +896,7 @@ HPyArray_NewFromDescr_int(
         fa->flags = (flags & ~NPY_ARRAY_WRITEBACKIFCOPY);
     }
     HPyField_Store(ctx, result, &fa->f_descr, h_descr);
-    fa->weakreflist = (PyObject *)NULL;
+    // fa->weakreflist = (PyObject *)NULL;
 
     if (nd > 0) {
         fa->dimensions = npy_alloc_cache_dim(2 * nd);
@@ -1014,7 +1015,7 @@ HPyArray_NewFromDescr_int(
      * not be aligned. Also on some platforms (debian sparc) malloc does not
      * provide enough alignment for long double types.
      */
-    PyArray_UpdateFlags((PyArrayObject *)fa, NPY_ARRAY_ALIGNED);
+    HPyArray_UpdateFlags(ctx, result, (PyArrayObject *)fa, NPY_ARRAY_ALIGNED);
 
     /* Set the base object. It's important to do it here so that
      * __array_finalize__ below receives it

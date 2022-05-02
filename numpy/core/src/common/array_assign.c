@@ -146,6 +146,16 @@ IsAligned(PyArrayObject *ap)
 }
 
 NPY_NO_EXPORT int
+HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap)
+{
+    HPy h_descr = HPyArray_DESCR(ctx, h_ap, ap);
+    int result = raw_array_is_aligned(PyArray_NDIM(ap), PyArray_DIMS(ap),
+                                PyArray_DATA(ap), PyArray_STRIDES(ap),
+                                PyArray_Descr_AsStruct(ctx, h_descr)->alignment);
+    HPy_Close(ctx, h_descr);
+}
+
+NPY_NO_EXPORT int
 IsUintAligned(PyArrayObject *ap)
 {
     return raw_array_is_aligned(PyArray_NDIM(ap), PyArray_DIMS(ap),

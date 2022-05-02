@@ -1608,7 +1608,7 @@ _convert_from_any(PyObject *obj, int align)
 static HPy
 _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
     // TODO: create instead global handles for those:
-    HPy h_PyGenericArrType_Type = HPy_FromPyObject(ctx, (PyObject*) &PyGenericArrType_Type);
+    HPy h_PyGenericArrType_Type = HPyGlobal_Load(ctx, HPyGenericArrType_Type);
 
     if (HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type)) {
         return HPyArray_DescrFromTypeObject(ctx, typ);
