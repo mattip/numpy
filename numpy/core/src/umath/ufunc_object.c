@@ -405,17 +405,18 @@ _hget_output_array_method(HPyContext *ctx, HPy obj, HPy method,
  * should just have PyArray_Return called.
  */
 static void
-_find_array_prepare(ufunc_full_args args,
-                    PyObject **output_prep, int nout)
+_hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
+                    HPy *output_prep, int nout)
 {
     int i;
-    PyObject *prep;
+    HPy prep;
+    HPy h_array_prepare_str = HPyGlobal_Load(ctx, npy_hpy_um_str_array_prepare);
 
     /*
      * Determine the prepping function given by the input arrays
      * (could be NULL).
      */
-    prep = _find_array_method(args.in, npy_um_str_array_prepare);
+    prep = _hfind_array_method(ctx, args.in, h_array_prepare_str);
     /*
      * For all the output arrays decide what to do.
      *
@@ -428,39 +429,24 @@ _find_array_prepare(ufunc_full_args args,
      * exact ndarray so that no PyArray_Return is
      * done in that case.
      */
-    if (args.out == NULL) {
+    if (HPy_IsNull(args.out)) {
         for (i = 0; i < nout; i++) {
-            Py_XINCREF(prep);
-            output_prep[i] = prep;
+            output_prep[i] = HPy_Dup(ctx, prep);
         }
     }
     else {
         for (i = 0; i < nout; i++) {
-            output_prep[i] = _get_output_array_method(
-                PyTuple_GET_ITEM(args.out, i), npy_um_str_array_prepare, prep);
+            HPy item = HPy_GetItem_i(ctx, args.out, i);
+            output_prep[i] = _hget_output_array_method(ctx,
+                item, 
+                h_array_prepare_str, 
+                prep);
+            HPy_Close(ctx, item);
         }
     }
-    Py_XDECREF(prep);
+    HPy_Close(ctx, prep);
+    HPy_Close(ctx, h_array_prepare_str);
     return;
-}
-
-static void
-_hfind_array_prepare(HPyContext *ctx, ufunc_hpy_full_args args,
-                    HPy *output_prep, int nout)
-{
-    PyObject **py_output_prep = (PyObject **) PyMem_RawCalloc(nout, sizeof(PyObject *));
-    ufunc_full_args py_args;
-    CAPI_WARN("_hfind_array_prepare: call to _find_array_prepare");
-    py_args.in = HPy_AsPyObject(ctx, args.in);
-    py_args.out = HPy_AsPyObject(ctx, args.out);
-
-    _find_array_prepare(py_args, py_output_prep, nout);
-
-    for (int i=0; i < nout; i++) {
-        output_prep[i] = HPy_FromPyObject(ctx, py_output_prep[i]);
-        Py_XDECREF(py_output_prep[i]);
-    }
-    PyMem_RawFree(py_output_prep);
 }
 
 #define NPY_UFUNC_DEFAULT_INPUT_FLAGS \
@@ -558,7 +544,7 @@ _hfind_array_wrap(HPyContext *ctx, ufunc_hpy_full_args args, npy_bool subok,
 {
     int i;
     HPy wrap = HPy_NULL;
-    HPy str_array_wrap = HPy_NULL;
+    HPy str_array_wrap = HPyGlobal_Load(ctx, npy_hpy_um_str_array_wrap);
 
     /*
      * If a 'subok' parameter is passed and isn't True, don't wrap but put None
@@ -572,8 +558,6 @@ _hfind_array_wrap(HPyContext *ctx, ufunc_hpy_full_args args, npy_bool subok,
      * Determine the wrapping function given by the input arrays
      * (could be NULL).
      */
-    // TODO HPY LABS PORT: used interned string: npy_um_str_array_wrap
-    str_array_wrap = HPyUnicode_FromString(ctx, "__array_wrap__");
     wrap = _hfind_array_method(ctx, args.in, str_array_wrap);
 
     /*
@@ -595,12 +579,8 @@ handle_out:
         }
     }
     else {
-        if (HPy_IsNull(str_array_wrap)) {
-            str_array_wrap = HPyUnicode_FromString(ctx, "__array_wrap__");
-        }
         for (i = 0; i < nout; i++) {
             HPy item = HPy_GetItem_i(ctx, args.out, i);
-            // TODO HPY LABS PORT: used interned string: npy_um_str_array_wrap
             output_wrap[i] = _hget_output_array_method(ctx, item, str_array_wrap, wrap);
             HPy_Close(ctx, item);
         }

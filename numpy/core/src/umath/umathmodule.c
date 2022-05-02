@@ -213,18 +213,30 @@ add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args)
  *****************************************************************************
  */
 
-NPY_VISIBILITY_HIDDEN PyObject *npy_um_str_array_prepare = NULL;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_hpy_um_str_array_prepare;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_hpy_um_str_array_wrap;
+
 NPY_VISIBILITY_HIDDEN PyObject *npy_um_str_array_wrap = NULL;
 NPY_VISIBILITY_HIDDEN PyObject *npy_um_str_pyvals_name = NULL;
 
 /* intern some strings used in ufuncs, returns 0 on success */
 static int
-intern_strings(void)
+intern_strings(HPyContext *ctx)
 {
-    npy_um_str_array_prepare = PyUnicode_InternFromString("__array_prepare__");
-    if (npy_um_str_array_prepare == NULL) {
+    HPy h__array_prepare__ = HPyUnicode_InternFromString(ctx, "__array_prepare__");
+    if (HPy_IsNull(h__array_prepare__)) {
         return -1;
     }
+    HPyGlobal_Store(ctx, &npy_hpy_um_str_array_prepare, h__array_prepare__);
+    HPy_Close(ctx, h__array_prepare__);
+    HPy h__array_wrap__ = HPyUnicode_InternFromString(ctx, "__array_wrap__");
+    if (HPy_IsNull(h__array_wrap__)) {
+        return -1;
+    }
+    HPyGlobal_Store(ctx, &npy_hpy_um_str_array_wrap, h__array_wrap__);
+    HPy_Close(ctx, h__array_wrap__);
+
+
     npy_um_str_array_wrap = PyUnicode_InternFromString("__array_wrap__");
     if (npy_um_str_array_wrap == NULL) {
         return -1;
@@ -315,7 +327,7 @@ int initumath(HPyContext *ctx, HPy m, HPy d)
     HPy_SetItem_s(ctx, d, "conj", s);
     HPy_SetItem_s(ctx, d, "mod", s2);
 
-    if (intern_strings() < 0) {
+    if (intern_strings(ctx) < 0) {
         HPyErr_SetString(ctx, ctx->h_RuntimeError,
            "cannot intern umath strings while initializing _multiarray_umath.");
         return -1;
