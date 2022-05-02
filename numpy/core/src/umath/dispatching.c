@@ -738,13 +738,17 @@ add_and_return_legacy_wrapping_ufunc_loop(PyUFuncObject *ufunc,
  * If value-based promotion is necessary, this is handled ahead of time by
  * `promote_and_get_ufuncimpl`.
  */
-static NPY_INLINE PyObject *
-promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
-        PyArrayObject *const ops[],
-        PyArray_DTypeMeta *signature[],
-        PyArray_DTypeMeta *op_dtypes[],
+static NPY_INLINE HPy
+hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
+        HPy /* (PyUFuncObject *) */ ufunc,
+        HPy /* (PyArrayObject *) */ const *ops,
+        HPy /* (PyArray_DTypeMeta *) */ signature[],
+        HPy /* (PyArray_DTypeMeta *) */ op_dtypes[],
         npy_bool allow_legacy_promotion)
 {
+    HPy res;
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    PyArray_DTypeMeta **py_op_dtypes = NULL;
     /*
      * Fetch the dispatching info which consists of the implementation and
      * the DType signature tuple.  There are three steps:
@@ -753,34 +757,52 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
      * 2. Check all registered loops/promoters to find the best match.
      * 3. Fall back to the legacy implementation if no match was found.
      */
-    PyObject *info = PyArrayIdentityHash_GetItem(ufunc->_dispatch_cache,
-                (PyObject **)op_dtypes);
-    if (info != NULL && PyObject_TypeCheck(
-            PyTuple_GET_ITEM(info, 1), PyArrayMethod_Type)) {
-        /* Found the ArrayMethod and NOT a promoter: return it */
-        return info;
+    HPy info = HPyArrayIdentityHash_GetItem(ctx, ufunc_data->_dispatch_cache, op_dtypes);
+    HPy array_method_type = HPyGlobal_Load(ctx, HPyArrayMethod_Type);
+    HPy info1 = HPy_NULL;
+    if (!HPy_IsNull(info)) {
+        info1 = HPy_GetItem_i(ctx, info, 1);
+        if (HPy_TypeCheck(ctx, info1, array_method_type)) {
+            /* Found the ArrayMethod and NOT a promoter: return it */
+            res = info;
+            goto finish;
+        }
     }
 
     /*
      * If `info == NULL`, loading from cache failed, use the full resolution
      * in `resolve_implementation_info` (which caches its result on success).
      */
-    if (info == NULL) {
-        if (resolve_implementation_info(ufunc,
-                op_dtypes, NPY_FALSE, &info) < 0) {
-            return NULL;
+    py_op_dtypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, op_dtypes, ufunc_data->nargs);
+    if (HPy_IsNull(info)) {
+        CAPI_WARN("hpy_promote_and_get_info_and_ufuncimpl: call to resolve_implementation_info");
+        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+        PyObject *py_info = NULL;
+        if (resolve_implementation_info(py_ufunc,
+                py_op_dtypes, NPY_FALSE, &py_info) < 0) {
+            res = HPy_NULL;
+            goto finish;
         }
-        if (info != NULL && PyObject_TypeCheck(
-                PyTuple_GET_ITEM(info, 1), PyArrayMethod_Type)) {
-            /*
-             * Found the ArrayMethod and NOT promoter.  Before returning it
-             * add it to the cache for faster lookup in the future.
-             */
-            if (PyArrayIdentityHash_SetItem(ufunc->_dispatch_cache,
-                    (PyObject **)op_dtypes, info, 0) < 0) {
-                return NULL;
+        /* we've updated 'info', so reload the element */
+        info = HPy_FromPyObject(ctx, py_info);
+        Py_DECREF(py_info);
+        Py_DECREF(py_ufunc);
+
+        if (!HPy_IsNull(info)) {
+            HPy_SETREF(ctx, info1, HPy_GetItem_i(ctx, info, 1));
+            if (HPy_TypeCheck(ctx, info1, array_method_type)) {
+                /*
+                 * Found the ArrayMethod and NOT promoter.  Before returning it
+                 * add it to the cache for faster lookup in the future.
+                 */
+                if (HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
+                        op_dtypes, info, 0) < 0) {
+                    res = HPy_NULL;
+                    goto finish;
+                }
+                res = info;
+                goto finish;
             }
-            return info;
         }
     }
 
@@ -788,21 +810,36 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
      * At this point `info` is NULL if there is no matching loop, or it is
      * a promoter that needs to be used/called:
      */
-    if (info != NULL) {
-        PyObject *promoter = PyTuple_GET_ITEM(info, 1);
+    if (!HPy_IsNull(info)) {
+        // HPy promoter = HPy_GetItem_i(ctx, info, 1);
+        HPy promoter = info1;
 
-        info = call_promoter_and_recurse(ufunc,
-                promoter, op_dtypes, signature, ops);
-        if (info == NULL && PyErr_Occurred()) {
-            return NULL;
+        CAPI_WARN("hpy_promote_and_get_info_and_ufuncimpl: call to call_promoter_and_recurse");
+        PyObject *py_promoter = HPy_AsPyObject(ctx, promoter);
+        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+        PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
+        PyArrayObject **py_ops = (PyArrayObject **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
+        PyObject *py_info = call_promoter_and_recurse(py_ufunc,
+                py_promoter, py_op_dtypes, py_signature, py_ops);
+        HPy_SETREF(ctx, info, HPy_FromPyObject(ctx, py_info));
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, ufunc_data->nargs);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_ops, ufunc_data->nargs);
+        Py_DECREF(py_info);
+        Py_DECREF(py_ufunc);
+        Py_DECREF(py_promoter);
+        if (HPy_IsNull(info) && HPyErr_Occurred(ctx)) {
+            res = HPy_NULL;
+            goto finish;
         }
-        else if (info != NULL) {
+        else if (!HPy_IsNull(info)) {
             /* Add result to the cache using the original types: */
-            if (PyArrayIdentityHash_SetItem(ufunc->_dispatch_cache,
-                    (PyObject **)op_dtypes, info, 0) < 0) {
-                return NULL;
+            if (HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
+                    op_dtypes, info, 0) < 0) {
+                res = HPy_NULL;
+                goto finish;
             }
-            return info;
+            res = info;
+            goto finish;
         }
     }
 
@@ -812,30 +849,72 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
      * However, we need to give the legacy implementation a chance here.
      * (it will modify `op_dtypes`).
      */
-    if (!allow_legacy_promotion || ufunc->type_resolver == NULL ||
-            (ufunc->ntypes == 0 && HPyField_IsNull(ufunc->userloops))) {
+    if (!allow_legacy_promotion || ufunc_data->type_resolver == NULL ||
+            (ufunc_data->ntypes == 0 && HPyField_IsNull(ufunc_data->userloops))) {
         /* Already tried or not a "legacy" ufunc (no loop found, return) */
-        return NULL;
+        res = HPy_NULL;
+        goto finish;
     }
 
-    PyArray_DTypeMeta *new_op_dtypes[NPY_MAXARGS] = {NULL};
+    HPy new_op_dtypes[NPY_MAXARGS] = {HPy_NULL}; /* (PyArray_DTypeMeta *) */
     int cacheable = 1;  /* TODO: only the comparison deprecation needs this */
-    if (legacy_promote_using_legacy_type_resolver(ufunc,
+    if (hpy_legacy_promote_using_legacy_type_resolver(ctx, ufunc,
             ops, signature, new_op_dtypes, &cacheable) < 0) {
-        return NULL;
+        res = HPy_NULL;
+        goto finish;
     }
-    info = promote_and_get_info_and_ufuncimpl(ufunc,
+    info = hpy_promote_and_get_info_and_ufuncimpl(ctx, ufunc,
             ops, signature, new_op_dtypes, NPY_FALSE);
-    for (int i = 0; i < ufunc->nargs; i++) {
-        Py_XDECREF(new_op_dtypes[i]);
+    for (int i = 0; i < ufunc_data->nargs; i++) {
+        HPy_Close(ctx, new_op_dtypes[i]);
     }
 
     /* Add this to the cache using the original types: */
-    if (cacheable && PyArrayIdentityHash_SetItem(ufunc->_dispatch_cache,
-            (PyObject **)op_dtypes, info, 0) < 0) {
-        return NULL;
+    if (cacheable && HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
+            op_dtypes, info, 0) < 0) {
+        res = HPy_NULL;
+        goto finish;
     }
-    return info;
+    res = info;
+finish:
+    if (py_op_dtypes) {
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_op_dtypes, ufunc_data->nargs);
+    }
+    HPy_Close(ctx, array_method_type);
+    HPy_Close(ctx, info1);
+    return res;
+}
+
+static NPY_INLINE PyObject *
+promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
+        PyArrayObject *const ops[],
+        PyArray_DTypeMeta *signature[],
+        PyArray_DTypeMeta *op_dtypes[],
+        npy_bool allow_legacy_promotion)
+{
+    HPyContext *ctx = npy_get_context();
+    int nargs = ufunc->nargs;
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy *h_ops = HPy_FromPyObjectArray(ctx, (PyObject **)ops, nargs);
+    HPy *h_signature = HPy_FromPyObjectArray(ctx, (PyObject **)signature, nargs);
+    HPy *h_op_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)op_dtypes, nargs);
+
+    HPy h_res = hpy_promote_and_get_info_and_ufuncimpl(ctx, h_ufunc, h_ops, h_signature, h_op_dtypes, allow_legacy_promotion);
+
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+
+    for (int i=0; i < nargs; i++) {
+        Py_SETREF(signature[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_signature[i]));
+        Py_SETREF(op_dtypes[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_op_dtypes[i]));
+    }
+
+    HPy_CloseAndFreeArray(ctx, h_op_dtypes, nargs);
+    HPy_CloseAndFreeArray(ctx, h_signature, nargs);
+    HPy_CloseAndFreeArray(ctx, h_ops, nargs);
+    HPy_Close(ctx, h_ufunc);
+
+    return res;
 }
 
 
