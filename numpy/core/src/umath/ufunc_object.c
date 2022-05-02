@@ -1273,28 +1273,32 @@ fail:
  * -1 if there is an error.
  */
 static int
-check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
-        PyArrayObject **op, PyArray_Descr **dtypes,
+check_for_trivial_loop(HPyContext *ctx, PyArrayMethodObject * ufuncimpl_data,
+        HPy /* (PyArrayObject **) */ *op, HPy /* (PyArray_Descr **) */ *dtypes,
         NPY_CASTING casting, npy_intp buffersize)
 {
-    int force_cast_input = ufuncimpl->flags & _NPY_METH_FORCE_CAST_INPUTS;
-    int i, nin = ufuncimpl->nin, nop = nin + ufuncimpl->nout;
+    int force_cast_input = ufuncimpl_data->flags & _NPY_METH_FORCE_CAST_INPUTS;
+    int i, nin = ufuncimpl_data->nin, nop = nin + ufuncimpl_data->nout;
 
     for (i = 0; i < nop; ++i) {
+        PyArrayObject *op_i_data = PyArrayObject_AsStruct(ctx, op[i]);
         /*
          * If the dtype doesn't match, or the array isn't aligned,
          * indicate that the trivial loop can't be done.
          */
-        if (op[i] == NULL) {
+        if (HPy_IsNull(op[i])) {
             continue;
         }
-        int must_copy = !PyArray_ISALIGNED(op[i]);
+        int must_copy = !PyArray_ISALIGNED(op_i_data);
 
-        if (dtypes[i] != PyArray_DESCR(op[i])) {
+        HPy op_descr = HPyArray_DESCR(ctx, op[i], op_i_data);
+        if (!HPy_Is(ctx, dtypes[i], op_descr)) {
             npy_intp view_offset;
-            NPY_CASTING safety = PyArray_GetCastInfo(
-                    PyArray_DESCR(op[i]), dtypes[i], NULL, &view_offset);
-            if (safety < 0 && PyErr_Occurred()) {
+            NPY_CASTING safety = HPyArray_GetCastInfo(ctx,
+                    op_descr, dtypes[i], HPy_NULL, &view_offset);
+            HPy_Close(ctx, op_descr);
+
+            if (safety < 0 && HPyErr_Occurred(ctx)) {
                 /* A proper error during a cast check, should be rare */
                 return -1;
             }
@@ -1312,6 +1316,8 @@ check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
             else if (PyArray_MinCastSafety(safety, casting) != casting) {
                 return 0;  /* the cast is not safe enough */
             }
+        } else {
+            HPy_Close(ctx, op_descr);
         }
         if (must_copy) {
             /*
@@ -1319,16 +1325,16 @@ check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
              * array input, make a copy to keep the opportunity
              * for a trivial loop.  Outputs are not copied here.
              */
-            if (i < nin && (PyArray_NDIM(op[i]) == 0
-                            || (PyArray_NDIM(op[i]) == 1
-                                && PyArray_DIM(op[i], 0) <= buffersize))) {
-                PyArrayObject *tmp;
-                Py_INCREF(dtypes[i]);
-                tmp = (PyArrayObject *)PyArray_CastToType(op[i], dtypes[i], 0);
-                if (tmp == NULL) {
+            if (i < nin && (PyArray_NDIM(op_i_data) == 0
+                            || (PyArray_NDIM(op_i_data) == 1
+                                && PyArray_DIM(op_i_data, 0) <= buffersize))) {
+                // PyArrayObject *tmp;
+                HPy tmp;
+                tmp = HPyArray_CastToType(ctx, op[i], dtypes[i], 0);
+                if (HPy_IsNull(tmp)) {
                     return -1;
                 }
-                Py_DECREF(op[i]);
+                HPy_Close(ctx, op[i]);
                 op[i] = tmp;
             }
             else {
@@ -1340,6 +1346,83 @@ check_for_trivial_loop(PyArrayMethodObject *ufuncimpl,
     return 1;
 }
 
+
+static int
+hprepare_ufunc_output(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
+                    HPy /* (PyArrayObject **) */ *op,
+                    HPy arr_prep,
+                    ufunc_hpy_full_args full_args,
+                    int i)
+{
+    if (!HPy_IsNull(arr_prep) && !HPy_Is(ctx, arr_prep, ctx->h_None)) {
+        HPy res;
+        HPy arr; /* (PyArrayObject *) */
+        HPy args_tup;
+
+        /* Call with the context argument */
+        args_tup = _hget_wrap_prepare_args(ctx, full_args);
+        if (HPy_IsNull(args_tup)) {
+            return -1;
+        }
+        HPy tmp_args = HPy_BuildValue(ctx, "O(OOi)", *op, ufunc, args_tup, i);
+        res = HPy_CallTupleDict(ctx, arr_prep, tmp_args, HPy_NULL);
+        // res = PyObject_CallFunction(
+        //     arr_prep, "O(OOi)", *op, ufunc, args_tup, i);
+        HPy_Close(ctx, tmp_args);
+        HPy_Close(ctx, args_tup);
+
+        if (HPy_IsNull(res)) {
+            return -1;
+        }
+        else if (!HPyArray_Check(ctx, res)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "__array_prepare__ must return an "
+                    "ndarray or subclass thereof");
+            HPy_Close(ctx, res);
+            return -1;
+        }
+        arr = res;
+
+
+        /* If the same object was returned, nothing to do */
+        if (HPy_Is(ctx, arr, *op)) {
+            HPy_Close(ctx, arr);
+        }
+        /* If the result doesn't match, throw an error */
+        else {
+            PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, *op);
+            PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+            HPy arr_descr = HPyArray_DESCR(ctx, arr, arr_data);
+            HPy op_descr = HPyArray_DESCR(ctx, *op, op_data);
+            if (PyArray_NDIM(arr_data) != PyArray_NDIM(op_data) ||
+                    !PyArray_CompareLists(PyArray_DIMS(arr_data),
+                                          PyArray_DIMS(op_data),
+                                          PyArray_NDIM(arr_data)) ||
+                    !PyArray_CompareLists(PyArray_STRIDES(arr_data),
+                                          PyArray_STRIDES(op_data),
+                                          PyArray_NDIM(arr_data)) ||
+                    !HPyArray_EquivTypes(ctx, arr_descr, op_descr)) {
+                HPy_Close(ctx, arr_descr);
+                HPy_Close(ctx, op_descr);
+                HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "__array_prepare__ must return an "
+                        "ndarray or subclass thereof which is "
+                        "otherwise identical to its input");
+                HPy_Close(ctx, arr);
+                return -1;
+            }
+            /* Replace the op value */
+            else {
+                HPy_Close(ctx, arr_descr);
+                HPy_Close(ctx, op_descr);
+                HPy_Close(ctx, *op);
+                *op = arr;
+            }
+        }
+    }
+
+    return 0;
+}
 
 /*
  * Calls the given __array_prepare__ function on the operand *op,
@@ -1356,63 +1439,27 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
                     ufunc_full_args full_args,
                     int i)
 {
-    if (arr_prep != NULL && arr_prep != Py_None) {
-        PyObject *res;
-        PyArrayObject *arr;
-        PyObject *args_tup;
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_op = HPy_FromPyObject(ctx, (PyObject *)*op);
+    HPy h_arr_prep = HPy_FromPyObject(ctx, arr_prep);
+    ufunc_hpy_full_args hpy_full_args = {
+            .in = HPy_FromPyObject(ctx, full_args.in),
+            .out = HPy_FromPyObject(ctx, full_args.out)
+    };
 
-        /* Call with the context argument */
-        args_tup = _get_wrap_prepare_args(full_args);
-        if (args_tup == NULL) {
-            return -1;
-        }
-        res = PyObject_CallFunction(
-            arr_prep, "O(OOi)", *op, ufunc, args_tup, i);
-        Py_DECREF(args_tup);
+    int res = hprepare_ufunc_output(ctx, h_ufunc, &h_op, h_arr_prep, hpy_full_args, i);
 
-        if (res == NULL) {
-            return -1;
-        }
-        else if (!PyArray_Check(res)) {
-            PyErr_SetString(PyExc_TypeError,
-                    "__array_prepare__ must return an "
-                    "ndarray or subclass thereof");
-            Py_DECREF(res);
-            return -1;
-        }
-        arr = (PyArrayObject *)res;
+    Py_XSETREF(*op, (PyArrayObject *)HPy_AsPyObject(ctx, h_op));
 
-        /* If the same object was returned, nothing to do */
-        if (arr == *op) {
-            Py_DECREF(arr);
-        }
-        /* If the result doesn't match, throw an error */
-        else if (PyArray_NDIM(arr) != PyArray_NDIM(*op) ||
-                !PyArray_CompareLists(PyArray_DIMS(arr),
-                                      PyArray_DIMS(*op),
-                                      PyArray_NDIM(arr)) ||
-                !PyArray_CompareLists(PyArray_STRIDES(arr),
-                                      PyArray_STRIDES(*op),
-                                      PyArray_NDIM(arr)) ||
-                !PyArray_EquivTypes(PyArray_DESCR(arr),
-                                    PyArray_DESCR(*op))) {
-            PyErr_SetString(PyExc_TypeError,
-                    "__array_prepare__ must return an "
-                    "ndarray or subclass thereof which is "
-                    "otherwise identical to its input");
-            Py_DECREF(arr);
-            return -1;
-        }
-        /* Replace the op value */
-        else {
-            Py_DECREF(*op);
-            *op = arr;
-        }
-    }
+    HPy_Close(ctx, h_op);
+    HPy_Close(ctx, h_ufunc);
+    HPy_Close(ctx, h_arr_prep);
+    HPy_Close(ctx, hpy_full_args.in);
+    HPy_Close(ctx, hpy_full_args.out);
 
-    return 0;
+    return res;
 }
-
 
 /*
  * Check whether a trivial loop is possible and call the innerloop if it is.
@@ -1429,11 +1476,10 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
  */
 static int
 try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
-        PyArrayObject *op[], NPY_ORDER order,
-        PyObject *arr_prep[], ufunc_full_args full_args,
-        int errormask, PyObject *extobj)
+        HPy /* (PyArrayObject *) */ op[], NPY_ORDER order,
+        HPy arr_prep[], ufunc_hpy_full_args full_args,
+        int errormask, HPy extobj)
 {
-    CAPI_WARN("try_trivial_single_output_loop");
     PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(hctx, context->method);
     int nin = method_data->nin;
     int nop = nin + 1;
@@ -1453,13 +1499,14 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     npy_intp fixed_strides[NPY_MAXARGS];
 
     for (int iop = 0; iop < nop; iop++) {
-        if (op[iop] == NULL) {
+        if (HPy_IsNull(op[iop])) {
             /* The out argument may be NULL (and only that one); fill later */
             assert(iop == nin);
             continue;
         }
 
-        int op_ndim = PyArray_NDIM(op[iop]);
+        PyArrayObject *op_iop_data = PyArrayObject_AsStruct(hctx, op[iop]);
+        int op_ndim = PyArray_NDIM(op_iop_data);
 
         /* Special case 0-D since we can handle broadcasting using a 0-stride */
         if (op_ndim == 0) {
@@ -1470,24 +1517,24 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         /* First non 0-D op: fix dimensions, shape (order is fixed later) */
         if (operation_ndim == 0) {
             operation_ndim = op_ndim;
-            operation_shape = PyArray_SHAPE(op[iop]);
+            operation_shape = PyArray_SHAPE(op_iop_data);
         }
         else if (op_ndim != operation_ndim) {
             return -2;  /* dimension mismatch (except 0-d ops) */
         }
         else if (!PyArray_CompareLists(
-                operation_shape, PyArray_DIMS(op[iop]), op_ndim)) {
+                operation_shape, PyArray_DIMS(op_iop_data), op_ndim)) {
             return -2;  /* shape mismatch */
         }
 
         if (op_ndim == 1) {
-            fixed_strides[iop] = PyArray_STRIDES(op[iop])[0];
+            fixed_strides[iop] = PyArray_STRIDES(op_iop_data)[0];
         }
         else {
-            fixed_strides[iop] = PyArray_ITEMSIZE(op[iop]);  /* contiguous */
+            fixed_strides[iop] = HPyArray_ITEMSIZE(hctx, op[iop], op_iop_data);  /* contiguous */
 
             /* This op must match the operation order (and be contiguous) */
-            int op_order = (PyArray_FLAGS(op[iop]) &
+            int op_order = (PyArray_FLAGS(op_iop_data) &
                             (NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_F_CONTIGUOUS));
             if (op_order == 0) {
                 return -2;  /* N-dimensional op must be contiguous */
@@ -1501,13 +1548,15 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         }
     }
 
-    if (op[nin] == NULL) {
-        // Py_INCREF(context->descriptors[nin]);
-        PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(hctx, context->descriptors[nin]);
-        op[nin] = (PyArrayObject *) PyArray_NewFromDescr(&PyArray_Type,
-                descr, operation_ndim, operation_shape,
-                NULL, NULL, operation_order==NPY_ARRAY_F_CONTIGUOUS, NULL);
-        if (op[nin] == NULL) {
+    if (HPy_IsNull(op[nin])) {
+        /* Note: Dup for 'context->descriptors[nin]' is not necessary because
+           'HPyArray_NewFromDescr' does not steal references! */
+        HPy array_type = HPyGlobal_Load(hctx, HPyArray_Type);
+        op[nin] = HPyArray_NewFromDescr(hctx, array_type,
+                context->descriptors[nin], operation_ndim, operation_shape,
+                NULL, NULL, operation_order==NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
+        HPy_Close(hctx, array_type);
+        if (HPy_IsNull(op[nin])) {
             return -1;
         }
         fixed_strides[nin] = PyArray_Descr_AsStruct(hctx, context->descriptors[nin])->elsize;
@@ -1515,7 +1564,8 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     else {
         /* If any input overlaps with the output, we use the full path. */
         for (int iop = 0; iop < nin; iop++) {
-            if (!PyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(
+            if (!HPyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(
+                    hctx,
                     op[iop], op[nin],
                     PyArray_TRIVIALLY_ITERABLE_OP_READ,
                     PyArray_TRIVIALLY_ITERABLE_OP_NOREAD)) {
@@ -1523,21 +1573,19 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
             }
         }
         /* Check self-overlap (non 1-D are contiguous, perfect overlap is OK) */
+        PyArrayObject *op_nin_data = PyArrayObject_AsStruct(hctx, op[nin]);
         if (operation_ndim == 1 &&
-                PyArray_STRIDES(op[nin])[0] < PyArray_ITEMSIZE(op[nin]) &&
-                PyArray_STRIDES(op[nin])[0] != 0) {
+                PyArray_STRIDES(op_nin_data)[0] < HPyArray_ITEMSIZE(hctx, op[nin], op_nin_data) &&
+                PyArray_STRIDES(op_nin_data)[0] != 0) {
             return -2;
         }
     }
 
     /* Call the __prepare_array__ if necessary */
-    PyUFuncObject *ufunc = (PyUFuncObject *)HPy_AsPyObject(hctx, context->caller);
-    if (prepare_ufunc_output(ufunc, &op[nin],
+    if (hprepare_ufunc_output(hctx, context->caller, &op[nin],
             arr_prep[0], full_args, 0) < 0) {
-        Py_DECREF(ufunc);
         return -1;
     }
-    Py_DECREF(ufunc);
 
     /*
      * We can use the trivial (single inner-loop call) optimization
@@ -1556,7 +1604,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         return -1;
     }
     for (int iop=0; iop < nop; iop++) {
-        data[iop] = PyArray_BYTES(op[iop]);
+        data[iop] = HPyArray_GetBytes(hctx, op[iop]);
     }
 
     if (!(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
@@ -1582,7 +1630,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         /* NOTE: We could check float errors even when `res < 0` */
         const char *name = ufunc_get_name_cstr(PyUFuncObject_AsStruct(hctx, context->caller));
-        res = _check_ufunc_fperr(errormask, extobj, name);
+        res = _hpy_check_ufunc_fperr(hctx, errormask, extobj, name);
     }
     return res;
 }
@@ -2817,7 +2865,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         HPy /* (PyArrayMethodObject *) */ h_ufuncimpl, HPy /* (PyArray_Descr *) */ operation_descrs[],
         HPy /* (PyArrayObject *) */ op[], HPy extobj,
         NPY_CASTING casting, NPY_ORDER order,
-        HPy output_array_prepare[], ufunc_full_args full_args,
+        HPy output_array_prepare[], ufunc_hpy_full_args full_args,
         HPy /* (PyArrayObject *) */ wheremask)
 {
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(hctx, h_ufunc);
@@ -2865,7 +2913,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     };
 
     /* Do the ufunc loop */
-    PyArrayObject **py_op;
+    PyArrayObject **py_op = NULL;
     PyObject **py_output_array_prepare = HPy_AsPyObjectArray(hctx, output_array_prepare, nout);
     if (!HPy_IsNull(wheremask)) {
         NPY_UF_DBG_PRINT("Executing masked inner loop\n");
@@ -2879,12 +2927,20 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         op[nop] = wheremask;
         operation_descrs[nop] = HPy_NULL;
 
+        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to execute_ufunc_loop");
         py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
+        ufunc_full_args py_full_args = {
+                .in = HPy_AsPyObject(hctx, full_args.in),
+                .out = HPy_AsPyObject(hctx, full_args.out)
+        };
         retval = execute_ufunc_loop(&context, 1,
                 py_op, order, buffersize, casting,
-                py_output_array_prepare, full_args, op_flags,
+                py_output_array_prepare, py_full_args, op_flags,
                 errormask, py_extobj);
         // fall through to 'finish'
+
+        Py_XDECREF(py_full_args.in);
+        Py_XDECREF(py_full_args.out);
     }
     else {
         NPY_UF_DBG_PRINT("Executing normal inner loop\n");
@@ -2893,13 +2949,9 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
          * This checks whether a trivial loop is ok, making copies of
          * scalar and one dimensional operands if that should help.
          */
-        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to check_for_trivial_loop");
-        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
         PyArrayMethodObject *ufuncimpl_data = PyArrayMethodObject_AsStruct(hctx, h_ufuncimpl);
-        PyArray_Descr **py_operation_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(hctx, operation_descrs, nop);
-        int trivial_ok = check_for_trivial_loop(ufuncimpl_data,
-                py_op, py_operation_descrs, casting, buffersize);
-        HPy_DecrefAndFreeArray(hctx, (PyObject **)py_operation_descrs, nop);
+        int trivial_ok = check_for_trivial_loop(hctx, ufuncimpl_data,
+                op, operation_descrs, casting, buffersize);
         if (trivial_ok < 0) {
             retval = -1;
             goto finish;
@@ -2907,26 +2959,36 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         if (trivial_ok && PyArrayMethodObject_AsStruct(hctx, context.method)->nout == 1) {
             /* Try to handle everything without using the (heavy) iterator */
             retval = try_trivial_single_output_loop(hctx, &context,
-                    py_op, order, py_output_array_prepare, full_args,
-                    errormask, py_extobj);
+                    op, order, output_array_prepare, full_args,
+                    errormask, extobj);
             if (retval != -2) {
                 goto finish;
             }
         }
 
         CAPI_WARN("PyUFunc_GenericFunctionInternal: call to execute_ufunc_loop");
+        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
+        ufunc_full_args py_full_args = {
+                .in = HPy_AsPyObject(hctx, full_args.in),
+                .out = HPy_AsPyObject(hctx, full_args.out)
+        };
         retval = execute_ufunc_loop(&context, 0,
                 py_op, order, buffersize, casting,
-                py_output_array_prepare, full_args, op_flags,
+                py_output_array_prepare, py_full_args, op_flags,
                 errormask, py_extobj);
         // fall through to 'finish'
+
+        Py_XDECREF(py_full_args.in);
+        Py_XDECREF(py_full_args.out);
     }
 finish:
     // we need to write back from 'py_op' to 'op'
-    for(int i=0; i < nop; i++) {
-        HPy_SETREF(hctx, op[i], HPy_FromPyObject(hctx, (PyObject *)py_op[i]));
+    if (py_op) {
+        for(int i=0; i < nop; i++) {
+            HPy_SETREF(hctx, op[i], HPy_FromPyObject(hctx, (PyObject *)py_op[i]));
+        }
+        HPy_DecrefAndFreeArray(hctx, (PyObject **)py_op, nop);
     }
-    HPy_DecrefAndFreeArray(hctx, (PyObject **)py_op, nop);
     Py_XDECREF(py_extobj);
     // we need to write back from 'py_output_array_prepare' to 'output_array_prepare'
     for(int i=0; i < nout; i++) {
@@ -3746,6 +3808,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     assert(PyArray_EquivTypes(descrs[0], descrs[1])
            && PyArray_EquivTypes(descrs[0], descrs[2]));
 
+    HPyContext *hctx = npy_get_context();
     if (PyDataType_REFCHK(descrs[2]) && descrs[2]->type_num != NPY_OBJECT) {
         /* This can be removed, but the initial element copy needs fixing */
         PyErr_SetString(PyExc_TypeError,
@@ -3759,7 +3822,6 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
         .method = ufuncimpl,
         .descriptors = descrs,
     };
-    HPyContext *hctx = npy_get_context();
     method_context_py2h(hctx, &context, &hcontext);
 
     ndim = PyArray_NDIM(arr);
@@ -5366,17 +5428,10 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
      */
     errval = -1;
     if (!ufunc->core_enabled) {
-        ufunc_full_args py_full_args = {
-                .in = HPy_AsPyObject(ctx, full_args.in),
-                .out = HPy_AsPyObject(ctx, full_args.out)
-        };
         errval = PyUFunc_GenericFunctionInternal(ctx, self, ufuncimpl,
                 operation_descrs, operands, extobj, casting, order,
-                output_array_prepare, py_full_args,  /* for __array_prepare__ */
+                output_array_prepare, full_args,  /* for __array_prepare__ */
                 wheremask);
-
-        Py_XDECREF(py_full_args.in);
-        Py_XDECREF(py_full_args.out);
     }
     else {
         CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GeneralizedFunctionInternal");
