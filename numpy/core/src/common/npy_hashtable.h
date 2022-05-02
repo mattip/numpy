@@ -29,4 +29,11 @@ PyArrayIdentityHash_New(int key_len);
 NPY_NO_EXPORT void
 PyArrayIdentityHash_Dealloc(PyArrayIdentityHash *tb);
 
+NPY_NO_EXPORT int
+HPyArrayIdentityHash_SetItem(HPyContext *ctx, PyArrayIdentityHash *tb,
+        HPy const *key, HPy value, int replace);
+
+NPY_NO_EXPORT HPy
+HPyArrayIdentityHash_GetItem(HPyContext *ctx, PyArrayIdentityHash const *tb, HPy const *key);
+
 #endif  /* NUMPY_CORE_SRC_COMMON_NPY_NPY_HASHTABLE_H_ */
