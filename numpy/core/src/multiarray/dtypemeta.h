@@ -19,8 +19,10 @@ typedef HPy (hdiscover_descr_from_pyobject_function)(
  * `np.array(np.array([0]), dtype=np.ndarray)`
  * Could consider arrays that are not `dtype=ndarray` "scalars".
  */
-typedef int (is_known_scalar_type_function)(
-        PyArray_DTypeMeta *cls, PyTypeObject *obj);
+//typedef int (is_known_scalar_type_function)(
+//        PyArray_DTypeMeta *cls, PyTypeObject *obj);
+typedef int (is_known_scalar_type_function)(HPyContext *ctx,
+        HPy cls, HPy obj);
 
 // typedef PyArray_Descr *(default_descr_function)(PyArray_DTypeMeta *cls);
 typedef HPy (default_descr_function)(HPyContext *ctx, HPy cls);
@@ -163,12 +165,7 @@ HNPY_DT_CALL_is_known_scalar_type(HPyContext *ctx, HPy h_meta, PyArray_DTypeMeta
     NPY_DType_Slots *slots = NPY_DT_SLOTS(meta);
     int res = 0;
     if (slots->is_known_scalar_type != NULL) {
-        CAPI_WARN("HNPY_DT_CALL_is_known_scalar_type: calling legacy DType slot 'is_known_scalar_type'");
-        PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_meta);
-        PyTypeObject *py_obj = (PyTypeObject *)HPy_AsPyObject(ctx, obj);
-        res = slots->is_known_scalar_type(py_cls, py_obj);
-        Py_DECREF(py_cls);
-        Py_DECREF(py_obj);
+        res = slots->is_known_scalar_type(ctx, h_meta, obj);
     }
     return res;
 }
@@ -236,8 +233,8 @@ dtypemeta_get_singleton(PyArray_DTypeMeta *meta)
 }
 
 NPY_NO_EXPORT int
-python_builtins_are_known_scalar_types(
-        PyArray_DTypeMeta *cls, PyTypeObject *pytype);
+python_builtins_are_known_scalar_types(HPyContext *ctx,
+        HPy cls, HPy pytype);
 
 NPY_NO_EXPORT int
 dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *dtypem);

@@ -1003,9 +1003,14 @@ PyArrayMethod_GetMaskedStridedLoop(
     data->unmasked_stridedloop = NULL;
     data->nargs = nargs;
 
-    if (context->method->get_strided_loop(npy_get_context(), method_context_py2h(context),
+    HPyContext *hctx = npy_get_context();
+    HPyArrayMethod_Context hcontext;
+    method_context_py2h(hctx, context, &hcontext);
+    int res = context->method->get_strided_loop(hctx, &hcontext,
             aligned, 0, fixed_strides,
-            &data->unmasked_stridedloop, &data->unmasked_auxdata, flags) < 0) {
+            &data->unmasked_stridedloop, &data->unmasked_auxdata, flags);
+    method_context_py2h_free(hctx, &hcontext);
+    if (res < 0) {
         PyMem_Free(data);
         return -1;
     }

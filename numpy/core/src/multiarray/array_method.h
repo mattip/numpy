@@ -7,6 +7,8 @@
 #include <Python.h>
 #include <numpy/ndarraytypes.h>
 
+#include "hpy_utils.h"
+
 
 typedef enum {
     /* Flag for whether the GIL is required */
@@ -71,20 +73,6 @@ typedef struct {
     /* Operand descriptors, filled in by resolve_descriptors */
     HPy *descriptors;
 } HPyArrayMethod_Context;
-
-// TODO HPY LABS PORT: remove this once all users are migrated
-static NPY_INLINE PyArrayMethod_Context *
-method_context_h2py(HPyArrayMethod_Context *hcontext) {
-    CAPI_WARN("method_context_h2py");
-    return (PyArrayMethod_Context *) hcontext;
-}
-
-// TODO HPY LABS PORT: remove this once all users are migrated
-static NPY_INLINE HPyArrayMethod_Context *
-method_context_py2h(PyArrayMethod_Context *context) {
-    CAPI_WARN("method_context_py2h");
-    return (HPyArrayMethod_Context *) context;
-}
 
 typedef int (HPyArrayMethod_StridedLoop)(HPyContext *hctx,
         HPyArrayMethod_Context *context,
@@ -308,5 +296,45 @@ resolve_descriptors_trampoline(
         PyArray_Descr **loop_descrs,
         npy_intp *view_offset);
 
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE PyArrayMethod_Context *
+method_context_h2py(HPyArrayMethod_Context *hcontext, PyArrayMethod_Context *out) {
+    HPyContext *ctx = npy_get_context();
+    out->caller = HPy_AsPyObject(ctx, hcontext->caller);
+    out->method = (PyArrayMethodObject *)HPy_AsPyObject(ctx, hcontext->method);
+    out->descriptors = (PyArray_Descr **)HPy_AsPyObjectArray(ctx,
+            hcontext->descriptors, out->method->nin + out->method->nout);
+    return (PyArrayMethod_Context *) hcontext;
+}
+
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE void
+method_context_h2py_free(PyArrayMethod_Context *context) {
+    Py_SETREF(context->caller, NULL);
+    HPy_DecrefAndFreeArray(NULL, (PyObject **)context->descriptors,
+            context->method->nin + context->method->nout);
+    context->descriptors = NULL;
+    Py_SETREF(context->method, NULL);
+}
+
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE void
+method_context_py2h(HPyContext *ctx, PyArrayMethod_Context *context, HPyArrayMethod_Context *out) {
+    CAPI_WARN("method_context_py2h");
+    out->caller = HPy_FromPyObject(ctx, context->caller);
+    out->method = HPy_FromPyObject(ctx, (PyObject *)context->method);
+    out->descriptors = HPy_FromPyObjectArray(ctx,
+            (PyObject **)context->descriptors, context->method->nin + context->method->nout);
+}
+
+// TODO HPY LABS PORT: remove this once all users are migrated
+static NPY_INLINE void
+method_context_py2h_free(HPyContext *ctx, HPyArrayMethod_Context *context) {
+    HPy_SETREF(ctx, context->caller, HPy_NULL);
+    PyArrayMethodObject *data = PyArrayMethodObject_AsStruct(ctx, context->method);
+    HPy_CloseAndFreeArray(ctx, context->descriptors, data->nin + data->nout);
+    context->descriptors = NULL;
+    HPy_SETREF(ctx, context->method, HPy_NULL);
+}
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAY_METHOD_H_ */

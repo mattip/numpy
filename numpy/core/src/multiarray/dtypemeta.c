@@ -311,8 +311,8 @@ void_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
 }
 
 NPY_NO_EXPORT int
-python_builtins_are_known_scalar_types(
-        PyArray_DTypeMeta *NPY_UNUSED(cls), PyTypeObject *pytype)
+python_builtins_are_known_scalar_types(HPyContext *ctx,
+        HPy NPY_UNUSED(cls), HPy pytype)
 {
     /*
      * Always accept the common Python types, this ensures that we do not
@@ -321,22 +321,22 @@ python_builtins_are_known_scalar_types(
      * This is necessary only for python scalar classes which we discover
      * as valid DTypes.
      */
-    if (pytype == &PyFloat_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_FloatType)) {
         return 1;
     }
-    if (pytype == &PyLong_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_LongType)) {
         return 1;
     }
-    if (pytype == &PyBool_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_BoolType)) {
         return 1;
     }
-    if (pytype == &PyComplex_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_ComplexType)) {
         return 1;
     }
-    if (pytype == &PyUnicode_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_UnicodeType)) {
         return 1;
     }
-    if (pytype == &PyBytes_Type) {
+    if (HPy_Is(ctx, pytype, ctx->h_BytesType)) {
         return 1;
     }
     return 0;
@@ -344,22 +344,24 @@ python_builtins_are_known_scalar_types(
 
 
 static int
-signed_integers_is_known_scalar_types(
-        PyArray_DTypeMeta *cls, PyTypeObject *pytype)
+signed_integers_is_known_scalar_types(HPyContext *ctx,
+        HPy cls, HPy pytype)
 {
-    if (python_builtins_are_known_scalar_types(cls, pytype)) {
+    if (python_builtins_are_known_scalar_types(ctx, cls, pytype)) {
         return 1;
     }
     /* Convert our scalars (raise on too large unsigned and NaN, etc.) */
-    return PyType_IsSubtype(pytype, &PyGenericArrType_Type);
+    HPy h_generic_type = HPyGlobal_Load(ctx, HPyGenericArrType_Type);
+    int res = HPyType_IsSubtype(ctx, pytype, h_generic_type);
+    HPy_Close(ctx, h_generic_type);
+    return res;
 }
 
 
 static int
-datetime_known_scalar_types(
-        PyArray_DTypeMeta *cls, PyTypeObject *pytype)
+datetime_known_scalar_types(HPyContext *ctx, HPy cls, HPy pytype)
 {
-    if (python_builtins_are_known_scalar_types(cls, pytype)) {
+    if (python_builtins_are_known_scalar_types(ctx, cls, pytype)) {
         return 1;
     }
     /*
@@ -367,18 +369,21 @@ datetime_known_scalar_types(
      * must take charge. Otherwise we would attempt casting which does not
      * truly support this. Only object arrays are special cased in this way.
      */
-    return (PyType_IsSubtype(pytype, &PyBytes_Type) ||
-            PyType_IsSubtype(pytype, &PyUnicode_Type));
+    return (HPyType_IsSubtype(ctx, pytype, ctx->h_BytesType) ||
+            HPyType_IsSubtype(ctx, pytype, ctx->h_UnicodeType));
 }
 
 
 static int
-string_known_scalar_types(
-        PyArray_DTypeMeta *cls, PyTypeObject *pytype) {
-    if (python_builtins_are_known_scalar_types(cls, pytype)) {
+string_known_scalar_types(HPyContext *ctx, HPy cls, HPy pytype) {
+    if (python_builtins_are_known_scalar_types(ctx, cls, pytype)) {
         return 1;
     }
-    if (PyType_IsSubtype(pytype, &PyDatetimeArrType_Type)) {
+
+    HPy h_datetime_type = HPyGlobal_Load(ctx, HPyDatetimeArrType_Type);
+    int res = HPyType_IsSubtype(ctx, pytype, h_datetime_type);
+    HPy_Close(ctx, h_datetime_type);
+    if (res) {
         /*
          * TODO: This should likely be deprecated or otherwise resolved.
          *       Deprecation has to occur in `String->setitem` unfortunately.
