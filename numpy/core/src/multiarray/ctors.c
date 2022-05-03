@@ -896,7 +896,7 @@ HPyArray_NewFromDescr_int(
         fa->flags = (flags & ~NPY_ARRAY_WRITEBACKIFCOPY);
     }
     HPyField_Store(ctx, result, &fa->f_descr, h_descr);
-    // fa->weakreflist = (PyObject *)NULL;
+    fa->weakreflist = (PyObject *)NULL;
 
     if (nd > 0) {
         fa->dimensions = npy_alloc_cache_dim(2 * nd);

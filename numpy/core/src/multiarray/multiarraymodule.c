@@ -4785,16 +4785,15 @@ setup_scalartypes(HPyContext *ctx)
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
     HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
         h_Py##child##ArrType_Type);                                     \
-    
-    // _Py##child##ArrType_Type_p =                                        \
-    //    (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
     HPy h_PyGenericArrType_Type = HPyType_FromSpec(ctx, &PyGenericArrType_Type_spec, NULL);
     if (HPy_IsNull(h_PyGenericArrType_Type)) {
         goto cleanup;
     }
     // HPY TODO: global variable + local variable to mimick the original global in the SINGLE_INHERIT&co macros
-    // _PyGenericArrType_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyGenericArrType_Type);
+    _PyGenericArrType_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyGenericArrType_Type);
     HPyGlobal_Store(ctx, &HPyGenericArrType_Type, h_PyGenericArrType_Type);
     HPy_Close(ctx, h_PyGenericArrType_Type);
 
@@ -4835,9 +4834,8 @@ setup_scalartypes(HPyContext *ctx)
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
     HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
         h_Py##child##ArrType_Type);                                     \
-    
-    // _Py##child##ArrType_Type_p =                                        \
-    //    (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
 #define DUAL_INHERIT2(child, parent1, parent2)                          \
     HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
@@ -4868,9 +4866,8 @@ setup_scalartypes(HPyContext *ctx)
     HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
     HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
         h_Py##child##ArrType_Type);                                     \
-
-    // _Py##child##ArrType_Type_p =                                        \
-    // (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
     SINGLE_INHERIT(Bool, Generic);
     SINGLE_INHERIT(Byte, SignedInteger);
@@ -5197,7 +5194,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_PyUFunc_Type)) {
         goto err;
     }
-    // _PyUFunc_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyUFunc_Type);
+    _PyUFunc_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyUFunc_Type);
     HPyGlobal_Store(ctx, &HPyUFunc_Type, h_PyUFunc_Type);
     HPy_Close(ctx, h_PyUFunc_Type);
 
@@ -5226,8 +5223,8 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     pyarry_descr_data->scalar_type = HPyField_NULL;
 
     // TODO HPY LABS PORT: storing the types to globals to support legacy code, and HPy code w/o module state
-    // _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
-    // PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
+    _PyArrayDescr_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDescr_Type);
+    PyArrayDTypeMeta_Type = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyArrayDTypeMeta_Type);
 
     HPyGlobal_Store(ctx, &HPyArrayDescr_Type, h_PyArrayDescr_Type);
     HPyGlobal_Store(ctx, &HPyArrayDTypeMeta_Type, h_PyArrayDTypeMeta_Type);
@@ -5245,9 +5242,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_array_type)) {
         goto err;
     }
-    // _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
+    _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
-    // PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
+    PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
 
     if (setup_scalartypes(ctx) < 0) {
         goto err;
@@ -5268,37 +5265,37 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_arrayIterType)) {
         goto err;
     }
-    // _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
+    _PyArrayIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayIterType);
 
     HPy h_arrayMapIterType = HPyType_FromSpec(ctx, &PyArrayMapIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayMapIterType)) {
         goto err;
     }
-    // PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
+    PyArrayMapIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMapIterType);
 
     h_arrayMultiIter_type = HPyType_FromSpec(ctx, &PyArrayMultiIter_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayMultiIter_type)) {
         goto err;
     }
-    // _PyArrayMultiIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMultiIter_type);
+    _PyArrayMultiIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayMultiIter_type);
 
     HPy h_neighborhoodIterType = HPyType_FromSpec(ctx, &PyArrayNeighborhoodIter_Type_Spec, NULL);
     if (HPy_IsNull(h_neighborhoodIterType)) {
         goto err;
     }
-    // PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
+    PyArrayNeighborhoodIter_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_neighborhoodIterType);
 
     h_npyiter_type = HPyType_FromSpec(ctx, &NpyIter_Type_Spec, NULL);
     if (HPy_IsNull(h_npyiter_type)) {
         goto err;
     }
-    // _NpyIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_npyiter_type);
+    _NpyIter_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_npyiter_type);
 
     h_arrayFlagsType = HPyType_FromSpec(ctx, &PyArrayFlags_Type_Spec, NULL);
     if (HPy_IsNull(h_arrayFlagsType)) {
         goto err;
     }
-    // _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
+    _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
 
     // Ignored for the HPy example port
     // NpyBusDayCalendar_Type.tp_new = PyType_GenericNew;
@@ -5432,7 +5429,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_array_method_type)) {
         goto err;
     }
-    // PyArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_method_type);
+    PyArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_method_type);
     HPyGlobal_Store(ctx, &HPyArrayMethod_Type, h_array_method_type);
     HPy_Close(ctx, h_array_method_type);
 
@@ -5440,7 +5437,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_bound_array_method_type)) {
         goto err;
     }
-    // PyBoundArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_bound_array_method_type);
+    PyBoundArrayMethod_Type = (PyTypeObject*)HPy_AsPyObject(ctx, h_bound_array_method_type);
     HPyGlobal_Store(ctx, &HPyBoundArrayMethod_Type, h_bound_array_method_type);
     HPy_Close(ctx, h_bound_array_method_type);
 
