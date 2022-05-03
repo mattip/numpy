@@ -106,27 +106,36 @@ NPY_NO_EXPORT int
 raise_no_loop_found_error(
         PyUFuncObject *ufunc, PyObject **dtypes)
 {
-    static PyObject *exc_type = NULL;
+    hpy_abort_not_implemented("raise_no_loop_found_error");
+    return -1;
+}
 
-    npy_cache_import(
+NPY_NO_EXPORT int
+hpy_raise_no_loop_found_error(HPyContext *ctx,
+        HPy /* (PyUFuncObject *)*/ ufunc, HPy *dtypes)
+{
+    // TODO HPY LABS PORT: use HPyGlobal
+    static HPy exc_type = HPy_NULL;
+
+    npy_hpy_cache_import(ctx,
         "numpy.core._exceptions", "_UFuncNoLoopError",
         &exc_type);
-    if (exc_type == NULL) {
+    if (HPy_IsNull(exc_type)) {
         return -1;
     }
 
-    PyObject *dtypes_tup = PyArray_TupleFromItems(ufunc->nargs, dtypes, 1);
-    if (dtypes_tup == NULL) {
+    HPy dtypes_tup = HPyArray_TupleFromItems(ctx, PyUFuncObject_AsStruct(ctx, ufunc)->nargs, dtypes, 1);
+    if (HPy_IsNull(dtypes_tup)) {
         return -1;
     }
     /* produce an error object */
-    PyObject *exc_value = PyTuple_Pack(2, ufunc, dtypes_tup);
-    Py_DECREF(dtypes_tup);
-    if (exc_value == NULL) {
+    HPy exc_value = HPyTuple_Pack(ctx, 2, ufunc, dtypes_tup);
+    HPy_Close(ctx, dtypes_tup);
+    if (HPy_IsNull(exc_value)) {
         return -1;
     }
-    PyErr_SetObject(exc_type, exc_value);
-    Py_DECREF(exc_value);
+    HPyErr_SetObject(ctx, exc_type, exc_value);
+    HPy_Close(ctx, exc_value);
 
     return -1;
 }

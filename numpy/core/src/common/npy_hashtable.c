@@ -14,6 +14,7 @@
 
 #include "templ_common.h"
 #include "npy_hashtable.h"
+#include "hpy_utils.h"
 
 
 
@@ -217,4 +218,29 @@ NPY_NO_EXPORT PyObject *
 PyArrayIdentityHash_GetItem(PyArrayIdentityHash const *tb, PyObject *const *key)
 {
     return find_item(tb, key)[0];
+}
+
+NPY_NO_EXPORT int
+HPyArrayIdentityHash_SetItem(HPyContext *ctx, PyArrayIdentityHash *tb,
+        HPy const *key, HPy value, int replace)
+{
+    CAPI_WARN("HPyArrayIdentityHash_SetItem");
+    PyObject **py_key = HPy_AsPyObjectArray(ctx, (HPy *)key, tb->key_len);
+    PyObject *py_value = HPy_AsPyObject(ctx, value);
+    int res = PyArrayIdentityHash_SetItem(tb, py_key, py_value, replace);
+    Py_XDECREF(py_value);
+    HPy_DecrefAndFreeArray(ctx, py_key, tb->key_len);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyArrayIdentityHash_GetItem(HPyContext *ctx, PyArrayIdentityHash const *tb, HPy const *key)
+{
+    CAPI_WARN("HPyArrayIdentityHash_GetItem");
+    PyObject **py_key = HPy_AsPyObjectArray(ctx, (HPy *)key, tb->key_len);
+    PyObject *py_res = PyArrayIdentityHash_GetItem(tb, py_key);
+    HPy res = HPy_FromPyObject(ctx, py_res);
+    Py_XDECREF(py_res);
+    HPy_DecrefAndFreeArray(ctx, py_key, tb->key_len);
+    return res;
 }

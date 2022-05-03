@@ -5392,26 +5392,12 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
      * in the future.  For now, we do it here.  The type resolution step can
      * be shared between the ufunc and gufunc code.
      */
-    CAPI_WARN("ufunc_generic_fastcall: call to promote_and_get_ufuncimpl");
-    int nargs = ufunc->nargs;
-    PyArrayObject *const *py_operands = (PyArrayObject *const *)HPy_AsPyObjectArray(ctx, operands, nargs);
-    PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, nargs);
-    PyArray_DTypeMeta **py_operand_DTypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, operand_DTypes, nargs);
-    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, self);
-    PyArrayMethodObject *py_ufuncimpl = promote_and_get_ufuncimpl(py_ufunc,
-            py_operands, py_signature,
-            py_operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
-            NPY_FALSE);
-    for (int i=0; i < nargs; i++) {
-        HPy_SETREF(ctx, signature[i], HPy_FromPyObject(ctx, (PyObject*)py_signature[i]));
-    }
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operand_DTypes, nargs);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, nargs);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, nargs);
-    if (py_ufuncimpl == NULL) {
+    HPy ufuncimpl = hpy_promote_and_get_ufuncimpl(ctx, self, operands,
+            signature, operand_DTypes, force_legacy_promotion,
+            allow_legacy_promotion, NPY_FALSE);
+    if (HPy_IsNull(ufuncimpl)) {
         goto fail;
     }
-    HPy ufuncimpl = HPy_FromPyObject(ctx, (PyObject *)py_ufuncimpl);
 
     /* Find the correct descriptors for the operation */
     if (hresolve_descriptors(ctx, nop, self, ufuncimpl,
@@ -5435,6 +5421,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
     }
     else {
         CAPI_WARN("ufunc_hpy_generic_fastcall: call to PyUFunc_GeneralizedFunctionInternal");
+        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, self);
+        PyArrayMethodObject *py_ufuncimpl = (PyArrayMethodObject *)HPy_AsPyObject(ctx, ufuncimpl);
         PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
         PyArrayObject **py_op = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, nop);
         PyObject *py_axis_obj = HPy_AsPyObject(ctx, axis_obj);
@@ -5452,8 +5440,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         Py_XDECREF(py_axes_obj);
         Py_XDECREF(py_axis_obj);
         Py_XDECREF(py_extobj);
-        Py_DECREF(py_ufunc);
         Py_DECREF(py_ufuncimpl);
+        Py_DECREF(py_ufunc);
     }
     if (errval < 0) {
         goto fail;

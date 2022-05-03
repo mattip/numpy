@@ -26,6 +26,16 @@ promote_and_get_ufuncimpl(PyUFuncObject *ufunc,
         npy_bool allow_legacy_promotion,
         npy_bool ensure_reduce_compatible);
 
+NPY_NO_EXPORT HPy
+hpy_promote_and_get_ufuncimpl(HPyContext *ctx,
+        HPy ufunc,
+        HPy const ops[],
+        HPy signature[],
+        HPy op_dtypes[],
+        npy_bool force_legacy_promotion,
+        npy_bool allow_legacy_promotion,
+        npy_bool ensure_reduce_compatible);
+
 NPY_NO_EXPORT PyObject *
 add_and_return_legacy_wrapping_ufunc_loop(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *operation_dtypes[], int ignore_duplicate);
