@@ -24,6 +24,8 @@
 #include "array_assign.h"
 #include "array_coercion.h"
 
+#include "conversion_utils.h"
+
 
 #define HAS_INTEGER 1
 #define HAS_NEWAXIS 2
@@ -964,20 +966,11 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
             continue;
         }
 
-        /* Index is a slice object. */
-        // TODO HPY LABS PORT: No HPy API for slices yet...
-        // else if (PySlice_Check(ctx, obj)) {
-        //     index_type |= HAS_SLICE;
-
-        //     Py_INCREF(obj);
-        //     indices[curr_idx].object = obj;
-        //     indices[curr_idx].type = HAS_SLICE;
-        //     used_ndim += 1;
-        //     new_ndim += 1;
-        //     curr_idx += 1;
-        //     continue;
-        // }
-
+        /* Index is a slice object. */        
+        else if (HPy_TypeCheck(ctx, obj, ctx->h_SliceType)) {
+            hpy_abort_not_implemented("slice");
+            // Note: HPy does not have API for slices yet...
+        }
         /*
          * Special case to allow 0-d boolean indexing with scalars.
          * Should be removed after boolean as integer deprecation.
@@ -1016,6 +1009,54 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
          * It might still be a (purely) bool special case, a 0-d integer
          * array (an array scalar) or something invalid.
          */
+        if (!HPyArray_Check(ctx, obj)) {
+            hpy_abort_not_implemented("!HPyArray_Check(ctx, obj)");
+        } else {
+            h_arr = HPy_Dup(ctx, obj);
+        }
+
+        arr = PyArrayObject_AsStruct(ctx, h_arr);
+        if (HPyArray_ISBOOL(ctx, h_arr)) {
+            hpy_abort_not_implemented("HPyArray_ISBOOL");
+        } else if (HPyArray_ISINTEGER(ctx, h_arr)) {
+            if (PyArray_NDIM(arr) == 0) {
+                /*
+                 * A 0-d integer array is an array scalar and can
+                 * be dealt with the HAS_SCALAR_ARRAY flag.
+                 * We could handle 0-d arrays early on, but this makes
+                 * sure that array-likes or odder arrays are always
+                 * handled right.
+                 */
+                npy_intp ind = HPyArray_PyIntAsIntp(ctx, h_arr);
+
+                if (hpy_error_converting(ctx, ind)) {
+                    goto failed_building_indices;
+                }
+                else {
+                    index_type |= (HAS_INTEGER | HAS_SCALAR_ARRAY);
+                    indices[curr_idx].object = HPy_NULL;
+                    indices[curr_idx].value = ind;
+                    indices[curr_idx].type = HAS_INTEGER;
+                    used_ndim += 1;
+                    new_ndim += 0;
+                    curr_idx += 1;
+                    continue;
+                }
+            }
+
+            index_type |= HAS_FANCY;
+            indices[curr_idx].type = HAS_FANCY;
+            indices[curr_idx].value = -1;
+            indices[curr_idx].object = h_arr;
+
+            used_ndim += 1;
+            if (fancy_ndim < PyArray_NDIM(arr)) {
+                fancy_ndim = PyArray_NDIM(arr);
+            }
+            curr_idx += 1;
+            continue;
+        }
+
         hpy_abort_not_implemented("unimplemented branch in prepare_index");
     }
 

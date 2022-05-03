@@ -1193,7 +1193,7 @@ HPyArray_PyIntAsIntp_ErrMsg(HPyContext *ctx, HPy o, const char * msg)
      * np.bool_ is also disallowed as Boolean arrays do not currently
      * support index.
      */
-    if (!HPy_IsNull(o) || HPy_TypeCheck(ctx, o, ctx->h_BoolType) || HPyArray_IsScalar(ctx, o, Bool)) {
+    if (HPy_IsNull(o) || HPy_TypeCheck(ctx, o, ctx->h_BoolType) || HPyArray_IsScalar(ctx, o, Bool)) {
         HPyErr_SetString(ctx, ctx->h_TypeError, msg);
         return -1;
     }
