@@ -993,11 +993,7 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
              * Check for integers first, purely for performance -- not applicable in HPy yet
              */
             if (!HPyArray_Check(ctx, obj)) {
-                if (!HPy_TypeCheck(ctx, obj, ctx->h_LongType)) {
-                    hpy_abort_not_implemented("non integer indices");
-                }
-
-                npy_intp ind = HPyLong_AsLong(ctx, obj);
+                npy_intp ind = HPyArray_PyIntAsIntp(ctx, obj);
 
                 if (hpy_error_converting(ctx, ind)) {
                     HPyErr_Clear(ctx);
