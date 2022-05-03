@@ -230,7 +230,8 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
     int allocated_src_data = 0;
     npy_longlong scalarbuffer[4];
 
-    if (HPyArray_FailUnlessWriteable(ctx, h_dst, "assignment destination") < 0) {
+    PyArrayObject *dst = PyArrayObject_AsStruct(ctx, h_dst);
+    if (HPyArray_FailUnlessWriteableWithStruct(ctx, h_dst, dst, "assignment destination") < 0) {
         return -1;
     }
 
@@ -252,7 +253,6 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
      * more than one element. To avoid having to manage object lifetimes,
      * we also skip this if 'dst' has an object dtype.
      */
-    PyArrayObject *dst = PyArrayObject_AsStruct(ctx, h_dst);
     if ((!HPyArray_EquivTypes(ctx, h_dst_dtype, h_src_dtype) ||
             !(npy_is_aligned(src_data, npy_uint_alignment(src_dtype->elsize)) &&
               npy_is_aligned(src_data, src_dtype->alignment))) &&

@@ -169,6 +169,31 @@ check_and_adjust_index(npy_intp *index, npy_intp max_item, int axis,
     return 0;
 }
 
+static NPY_INLINE int
+hpy_check_and_adjust_index(HPyContext *ctx, npy_intp *index, npy_intp max_item, int axis)
+{
+    /* Check that index is valid, taking into account negative indices */
+    if (NPY_UNLIKELY((*index < -max_item) || (*index >= max_item))) {
+        /* Try to be as clear as possible about what went wrong. */
+        if (axis >= 0) {
+            HPyErr_SetString(ctx, ctx->h_IndexError,
+                         "index %"NPY_INTP_FMT" is out of bounds "
+                         "for axis %d with size %"NPY_INTP_FMT/*,
+                         *index, axis, max_item*/);
+        } else {
+            HPyErr_SetString(ctx, ctx->h_IndexError,
+                         "index %"NPY_INTP_FMT" is out of bounds "
+                         "for size %"NPY_INTP_FMT/*, *index, max_item*/);
+        }
+        return -1;
+    }
+    /* adjust negative indices */
+    if (*index < 0) {
+        *index += max_item;
+    }
+    return 0;
+}
+
 /*
  * Returns -1 and sets an exception if *axis is an invalid axis for
  * an array of dimension ndim, otherwise adjusts it in place to be

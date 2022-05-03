@@ -41,4 +41,7 @@ HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_i
 NPY_NO_EXPORT int
 HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name);
 
+NPY_NO_EXPORT int
+HPyArray_FailUnlessWriteableWithStruct(HPyContext *ctx, HPy obj, PyArrayObject *obj_data, const char *name);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYOBJECT_H_ */

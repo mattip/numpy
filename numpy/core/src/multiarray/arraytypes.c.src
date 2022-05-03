@@ -368,7 +368,7 @@ static int
         }
         return -1;
     }
-    if (HPy_IsNull(ap) || PyArray_ISBEHAVED(PyArrayObject_AsStruct(ctx, ap))) {
+    if (HPy_IsNull(ap) || HPyArray_ISBEHAVED(ctx, ap, PyArrayObject_AsStruct(ctx, ap))) {
         assert(npy_is_aligned(ov, _ALIGN(@type@)));
         *((@type@ *)ov)=temp;
     }

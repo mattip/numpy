@@ -528,6 +528,7 @@ HPyDef_SLOT(array_finalize, array_finalize_impl, HPy_tp_finalize)
 static void
 array_finalize_impl(HPyContext *ctx, HPy h_self)
 {
+    CAPI_WARN("array finalize");
     PyObject *error_type, *error_value, *error_traceback;
     PyErr_Fetch(&error_type, &error_value, &error_traceback);
 
@@ -537,6 +538,7 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
     if (fa->weakreflist != NULL) {
         // HACK: subtype_dealloc doesn't clear weakrefs, so we do it here,
         // but PyObject_ClearWeakRefs() checks that ob_refcnt == 0 ...
+        CAPI_WARN("array finalize: fa->weakreflist != NULL");
         PyObject *obj = (PyObject*)self;
         // 2 refs: h_self and self
         obj->ob_refcnt -= 2;
@@ -819,6 +821,12 @@ NPY_NO_EXPORT int
 HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name)
 {
     PyArrayObject *obj_data = PyArrayObject_AsStruct(ctx, obj);
+    return HPyArray_FailUnlessWriteableWithStruct(ctx, obj, obj_data, name);
+}
+
+NPY_NO_EXPORT int
+HPyArray_FailUnlessWriteableWithStruct(HPyContext *ctx, HPy obj, PyArrayObject *obj_data, const char *name)
+{
     if (!PyArray_ISWRITEABLE(obj_data)) {
         HPyErr_Format_p(ctx, ctx->h_ValueError, "%s is read-only", name);
         return -1;
@@ -1926,55 +1934,7 @@ array_iter(PyArrayObject *arr)
 
 
 static PyType_Slot PyArray_Type_slots[] = {
-    {Py_mp_length, (lenfunc)array_length},
     {Py_mp_subscript, (binaryfunc)array_subscript},
-    {Py_mp_ass_subscript, (objobjargproc)array_assign_subscript},
-
-    {Py_nb_multiply, array_multiply},
-    {Py_nb_remainder, array_remainder},
-    {Py_nb_divmod, array_divmod},
-    {Py_nb_negative, (unaryfunc)array_negative},
-    {Py_nb_positive, (unaryfunc)array_positive},
-    {Py_nb_absolute, (unaryfunc)array_absolute},
-    {Py_nb_bool, (inquiry)_array_nonzero},
-    {Py_nb_invert, (unaryfunc)array_invert},
-    {Py_nb_lshift, array_left_shift},
-    {Py_nb_rshift, array_right_shift},
-    {Py_nb_and, array_bitwise_and},
-    {Py_nb_xor, array_bitwise_xor},
-    {Py_nb_or, array_bitwise_or},
-
-    {Py_nb_int, (unaryfunc)array_int},
-    {Py_nb_float, (unaryfunc)array_float},
-    {Py_nb_index, (unaryfunc)array_index},
-
-    {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
-    {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
-    {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
-    {Py_nb_inplace_power, (ternaryfunc)array_inplace_power},
-    {Py_nb_inplace_lshift, (binaryfunc)array_inplace_left_shift},
-    {Py_nb_inplace_rshift, (binaryfunc)array_inplace_right_shift},
-    {Py_nb_inplace_and, (binaryfunc)array_inplace_bitwise_and},
-    {Py_nb_inplace_xor, (binaryfunc)array_inplace_bitwise_xor},
-    {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
-
-    {Py_nb_floor_divide, array_floor_divide},
-    {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
-    {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
-
-    {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
-    {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
-
-    {Py_sq_length, (lenfunc)array_length},
-    {Py_sq_concat, (binaryfunc)array_concat},
-    {Py_sq_item, (ssizeargfunc)array_item},
-    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
-    {Py_sq_contains, (objobjproc)array_contains},
-
-    {Py_tp_repr, (reprfunc)array_repr},
-    {Py_tp_str, (reprfunc)array_str},
-
-    {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
     {Py_tp_getset, array_getsetlist},
     {0, NULL},
@@ -1982,6 +1942,7 @@ static PyType_Slot PyArray_Type_slots[] = {
 
 static HPyDef *array_defines[] = {
     &array_getbuffer,
+    &array_assign_subscript,
     &array_new,
     &array_traverse,
     &array_finalize,
@@ -1991,6 +1952,9 @@ static HPyDef *array_defines[] = {
     &array_true_divide,
     &array_add,
     &array_richcompare_def,
+
+    // methods:
+    &array_ravel,
     NULL,
 };
 
