@@ -410,6 +410,39 @@ find_scalar_descriptor(
     return descr;
 }
 
+static NPY_INLINE HPy
+hpy_find_scalar_descriptor(HPyContext *ctx,
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType, HPy /* (PyArray_DTypeMeta *) */ DType,
+        HPy obj)
+{
+    HPy descr; /* (PyArray_Descr *) */
+
+    if (HPy_IsNull(DType) && HPy_IsNull(fixed_DType)) {
+        /* No known DType and no fixed one means we go to object. */
+        return HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    }
+    else if (HPy_IsNull(DType)) {
+        /*
+         * If no DType is known/found, give the fixed give one a second
+         * chance.  This allows for example string, to call `str(obj)` to
+         * figure out the length for arbitrary objects.
+         */
+        descr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, fixed_DType, obj);
+    }
+    else {
+        descr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, DType, obj);
+    }
+    if (HPy_IsNull(descr)) {
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(fixed_DType)) {
+        return descr;
+    }
+
+    HPy_SETREF(ctx, descr, HPyArray_CastDescrToDType(ctx, descr, fixed_DType));
+    return descr;
+}
+
 
 /**
  * Assign a single element in an array from a python value.
