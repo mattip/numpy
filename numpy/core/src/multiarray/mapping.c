@@ -968,8 +968,14 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
 
         /* Index is a slice object. */        
         else if (HPy_TypeCheck(ctx, obj, ctx->h_SliceType)) {
-            hpy_abort_not_implemented("slice");
-            // Note: HPy does not have API for slices yet...
+            index_type |= HAS_SLICE;
+
+            indices[curr_idx].object = HPy_Dup(ctx, obj);
+            indices[curr_idx].type = HAS_SLICE;
+            used_ndim += 1;
+            new_ndim += 1;
+            curr_idx += 1;
+            continue;
         }
         /*
          * Special case to allow 0-d boolean indexing with scalars.
@@ -1323,6 +1329,88 @@ get_view_from_index(PyArrayObject *self, PyArrayObject **view,
             ensure_array ? NULL : (PyObject *)self,
             (PyObject *)self);
     if (*view == NULL) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+hpy_get_view_from_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy *view,
+                    hpy_npy_index_info *indices, int index_num, int ensure_array) {
+    npy_intp new_strides[NPY_MAXDIMS];
+    npy_intp new_shape[NPY_MAXDIMS];
+    int i, j;
+    int new_dim = 0;
+    int orig_dim = 0;
+    char *data_ptr = PyArray_BYTES(self);
+
+    /* for slice parsing */
+    npy_intp start, stop, step, n_steps;
+
+    for (i=0; i < index_num; i++) {
+        switch (indices[i].type) {
+            case HAS_INTEGER:
+                if ((hpy_check_and_adjust_index(ctx, &indices[i].value,
+                                PyArray_DIMS(self)[orig_dim], orig_dim)) < 0) {
+                    return -1;
+                }
+                data_ptr += PyArray_STRIDE(self, orig_dim) * indices[i].value;
+
+                new_dim += 0;
+                orig_dim += 1;
+                break;
+            case HAS_ELLIPSIS:
+                for (j=0; j < indices[i].value; j++) {
+                    new_strides[new_dim] = PyArray_STRIDE(self, orig_dim);
+                    new_shape[new_dim] = PyArray_DIMS(self)[orig_dim];
+                    new_dim += 1;
+                    orig_dim += 1;
+                }
+                break;
+            case HAS_SLICE:
+                if (HPySlice_Unpack(ctx, indices[i].object, &start, &stop, &step) < 0) {
+                    return -1;
+                }
+                n_steps = HPySlice_AdjustIndices(PyArray_DIMS(self)[orig_dim], &start, &stop, step);
+                if (n_steps <= 0) {
+                    /* TODO: Always points to start then, could change that */
+                    n_steps = 0;
+                    step = 1;
+                    start = 0;
+                }
+
+                data_ptr += PyArray_STRIDE(self, orig_dim) * start;
+                new_strides[new_dim] = PyArray_STRIDE(self, orig_dim) * step;
+                new_shape[new_dim] = n_steps;
+                new_dim += 1;
+                orig_dim += 1;
+                break;
+            case HAS_NEWAXIS:
+                new_strides[new_dim] = 0;
+                new_shape[new_dim] = 1;
+                new_dim += 1;
+                break;
+            /* Fancy and 0-d boolean indices are ignored here */
+            case HAS_0D_BOOL:
+                break;
+            default:
+                new_dim += 0;
+                orig_dim += 1;
+                break;
+        }
+    }
+
+    /* Create the new view and set the base array */
+    HPy h_type = ensure_array ? HPyGlobal_Load(ctx, HPyArray_Type) : HPy_Type(ctx, h_self);
+    HPy h_descr = HPyArray_DESCR(ctx, h_self, self);
+    *view = HPyArray_NewFromDescrAndBase(
+            ctx, h_type, h_descr,
+            new_dim, new_shape, new_strides, data_ptr,
+            PyArray_FLAGS(self),
+            ensure_array ? HPy_NULL : h_self,
+            h_self);
+    if (HPy_IsNull(*view)) {
         return -1;
     }
 
@@ -2131,7 +2219,7 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, h_self);
     HPy h_descr = HPyArray_DESCR(ctx, h_self, self_struct);
     PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
-    PyArrayObject *view = NULL;
+    HPy view = HPy_NULL;
     PyArrayObject *tmp_arr = NULL;
     hpy_npy_index_info indices[NPY_MAXDIMS * 2 + 1];
 
@@ -2267,14 +2355,14 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
      */
     else if (index_type & (HAS_SLICE | HAS_NEWAXIS |
                            HAS_ELLIPSIS | HAS_INTEGER)) {
-        hpy_abort_not_implemented("index_type & (HAS_SLICE | HAS_NEWAXIS | HAS_ELLIPSIS | HAS_INTEGER)");
-        // if (get_view_from_index(self, &view, indices, index_num,
-        //                         (index_type & HAS_FANCY)) < 0) {
-        //     goto fail;
-        // }
+        if (hpy_get_view_from_index(ctx, h_self, self_struct, &view, indices, index_num,
+                                (index_type & HAS_FANCY)) < 0) {
+            result = -1;
+            goto cleanup;
+        }
     }
     else {
-        view = NULL;
+        view = HPy_NULL;
     }
 
     /* If there is no fancy indexing, we have the array to assign to */
