@@ -24,6 +24,7 @@
 #include "alloc.h"
 
 #include "hpy_utils.h"
+#include "flagsobject.h"
 
 static int
 _fix_unknown_dimension(PyArray_Dims *newshape, PyArrayObject *arr);
@@ -900,6 +901,75 @@ PyArray_Transpose(PyArrayObject *ap, PyArray_Dims *permute)
     PyArray_UpdateFlags(ret, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_F_CONTIGUOUS |
                         NPY_ARRAY_ALIGNED);
     return (PyObject *)ret;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_Transpose(HPyContext *ctx, HPy h_ap, PyArrayObject *ap, PyArray_Dims *permute)
+{
+    npy_intp *axes;
+    int i, n;
+    int permutation[NPY_MAXDIMS], reverse_permutation[NPY_MAXDIMS];
+    int flags;
+
+    if (permute == NULL) {
+        n = PyArray_NDIM(ap);
+        for (i = 0; i < n; i++) {
+            permutation[i] = n-1-i;
+        }
+    }
+    else {
+        n = permute->len;
+        axes = permute->ptr;
+        if (n != PyArray_NDIM(ap)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "axes don't match array");
+            return HPy_NULL;
+        }
+        for (i = 0; i < n; i++) {
+            reverse_permutation[i] = -1;
+        }
+        for (i = 0; i < n; i++) {
+            int axis = axes[i];
+            if (check_and_adjust_axis(&axis, PyArray_NDIM(ap)) < 0) {
+                return HPy_NULL;
+            }
+            if (reverse_permutation[axis] != -1) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                                "repeated axis in transpose");
+                return HPy_NULL;
+            }
+            reverse_permutation[axis] = i;
+            permutation[i] = axis;
+        }
+    }
+
+    flags = PyArray_FLAGS(ap);
+
+    /*
+     * this allocates memory for dimensions and strides (but fills them
+     * incorrectly), sets up descr, and points data at PyArray_DATA(ap).
+     */
+    HPy ap_type = HPy_Type(ctx, h_ap);
+    HPy ap_descr = HPyArray_DESCR(ctx, h_ap, ap);
+    HPy h_ret = HPyArray_NewFromDescrAndBase(
+            ctx, ap_type, ap_descr,
+            n, PyArray_DIMS(ap), NULL, PyArray_DATA(ap),
+            flags, h_ap, h_ap);
+    HPy_Close(ctx, ap_type);
+    HPy_Close(ctx, ap_descr);
+    if (HPy_IsNull(h_ret)) {
+        return HPy_NULL;
+    }
+
+    /* fix the dimensions and strides of the return-array */
+    PyArrayObject *ret = PyArrayObject_AsStruct(ctx, h_ret);
+    for (i = 0; i < n; i++) {
+        PyArray_DIMS(ret)[i] = PyArray_DIMS(ap)[permutation[i]];
+        PyArray_STRIDES(ret)[i] = PyArray_STRIDES(ap)[permutation[i]];
+    }
+    HPyArray_UpdateFlags(ctx, h_ret, ret, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_F_CONTIGUOUS |
+                        NPY_ARRAY_ALIGNED);
+    return h_ret;
 }
 
 /*

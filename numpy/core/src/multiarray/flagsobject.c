@@ -113,12 +113,14 @@ PyArray_UpdateFlags(PyArrayObject *ret, int flagmask)
     return;
 }
 
+static void _hpy_UpdateContiguousFlags(HPyContext *ctx, HPy h_ap, PyArrayObject *ap);
+
 NPY_NO_EXPORT void
 HPyArray_UpdateFlags(HPyContext *ctx, HPy h_ret, PyArrayObject *ret, int flagmask)
 {
     /* Always update both, as its not trivial to guess one from the other */
     if (flagmask & (NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_C_CONTIGUOUS)) {
-        _UpdateContiguousFlags(ret);
+        _hpy_UpdateContiguousFlags(ctx, h_ret, ret);
     }
     if (flagmask & NPY_ARRAY_ALIGNED) {
         if (HPyIsAligned(ctx, h_ret, ret)) {
@@ -220,6 +222,76 @@ _UpdateContiguousFlags(PyArrayObject *ap)
 
     /* check if fortran contiguous */
     sd = PyArray_ITEMSIZE(ap);
+    for (i = 0; i < PyArray_NDIM(ap); ++i) {
+        dim = PyArray_DIMS(ap)[i];
+#if NPY_RELAXED_STRIDES_CHECKING
+        if (dim != 1) {
+            if (PyArray_STRIDES(ap)[i] != sd) {
+                PyArray_CLEARFLAGS(ap, NPY_ARRAY_F_CONTIGUOUS);
+                return;
+            }
+            sd *= dim;
+        }
+#else /* not NPY_RELAXED_STRIDES_CHECKING */
+        if (PyArray_STRIDES(ap)[i] != sd) {
+            PyArray_CLEARFLAGS(ap, NPY_ARRAY_F_CONTIGUOUS);
+            return;
+        }
+        if (dim == 0) {
+            break;
+        }
+        sd *= dim;
+#endif /* not NPY_RELAXED_STRIDES_CHECKING */
+    }
+    PyArray_ENABLEFLAGS(ap, NPY_ARRAY_F_CONTIGUOUS);
+    return;
+}
+
+static void
+_hpy_UpdateContiguousFlags(HPyContext *ctx, HPy h_ap, PyArrayObject *ap)
+{
+    npy_intp sd;
+    npy_intp dim;
+    int i;
+    npy_bool is_c_contig = 1;
+
+    sd = HPyArray_ITEMSIZE(ctx, h_ap, ap);
+    for (i = PyArray_NDIM(ap) - 1; i >= 0; --i) {
+        dim = PyArray_DIMS(ap)[i];
+#if NPY_RELAXED_STRIDES_CHECKING
+        /* contiguous by definition */
+        if (dim == 0) {
+            PyArray_ENABLEFLAGS(ap, NPY_ARRAY_C_CONTIGUOUS);
+            PyArray_ENABLEFLAGS(ap, NPY_ARRAY_F_CONTIGUOUS);
+            return;
+        }
+        if (dim != 1) {
+            if (PyArray_STRIDES(ap)[i] != sd) {
+                is_c_contig = 0;
+            }
+            sd *= dim;
+        }
+#else /* not NPY_RELAXED_STRIDES_CHECKING */
+        if (PyArray_STRIDES(ap)[i] != sd) {
+            is_c_contig = 0;
+            break;
+        }
+        /* contiguous, if it got this far */
+        if (dim == 0) {
+            break;
+        }
+        sd *= dim;
+#endif /* not NPY_RELAXED_STRIDES_CHECKING */
+    }
+    if (is_c_contig) {
+        PyArray_ENABLEFLAGS(ap, NPY_ARRAY_C_CONTIGUOUS);
+    }
+    else {
+        PyArray_CLEARFLAGS(ap, NPY_ARRAY_C_CONTIGUOUS);
+    }
+
+    /* check if fortran contiguous */
+    sd = HPyArray_ITEMSIZE(ctx, h_ap, ap);
     for (i = 0; i < PyArray_NDIM(ap); ++i) {
         dim = PyArray_DIMS(ap)[i];
 #if NPY_RELAXED_STRIDES_CHECKING

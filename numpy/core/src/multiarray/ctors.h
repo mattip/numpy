@@ -161,4 +161,10 @@ HPyArray_FromObject(
 NPY_NO_EXPORT int
 HPyArray_CopyInto(HPyContext *ctx, HPy dst, HPy src);
 
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescrAndBase(HPyContext *ctx,
+        /*PyTypeObject*/ HPy subtype, /*PyArray_Descr*/ HPy descr,
+        int nd, npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy obj, HPy base);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */
