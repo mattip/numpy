@@ -242,6 +242,9 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *dt
 NPY_NO_EXPORT PyArray_Descr *
 default_descr_function_trampoline(PyArray_DTypeMeta *cls);
 
+NPY_NO_EXPORT HPy
+hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy obj);
+
 extern NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;
 

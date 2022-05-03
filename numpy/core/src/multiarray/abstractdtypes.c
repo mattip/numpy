@@ -324,17 +324,20 @@ NPY_NO_EXPORT PyArray_DTypeMeta *PyArray_PyComplexAbstractDType;
 NPY_DType_Slots pyintabstractdtype_slots = {
     .default_descr = int_default_descriptor,
     .discover_descr_from_pyobject = discover_descriptor_from_pyint,
+    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
     .common_dtype = int_common_dtype,
 };
 
 NPY_DType_Slots pyfloatabstractdtype_slots = {
     .default_descr = float_default_descriptor,
     .discover_descr_from_pyobject = discover_descriptor_from_pyfloat,
+    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
     .common_dtype = float_common_dtype,
 };
 
 NPY_DType_Slots pycomplexabstractdtype_slots = {
     .default_descr = complex_default_descriptor,
     .discover_descr_from_pyobject = discover_descriptor_from_pycomplex,
+    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
     .common_dtype = complex_common_dtype,
 };
