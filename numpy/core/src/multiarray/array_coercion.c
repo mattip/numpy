@@ -896,6 +896,37 @@ handle_scalar(
     return *max_dims;
 }
 
+static NPY_INLINE int
+hpy_handle_scalar(HPyContext *ctx,
+        HPy obj, int curr_dims, int *max_dims,
+        HPy /* (PyArray_Descr **) */ *out_descr, npy_intp *out_shape,
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType,
+        enum _dtype_discovery_flags *flags, HPy /* PyArray_DTypeMeta *) */ DType)
+{
+    HPy descr; /* (PyArray_Descr *) */
+
+    if (update_shape(curr_dims, max_dims, out_shape,
+            0, NULL, NPY_FALSE, flags) < 0) {
+        *flags |= FOUND_RAGGED_ARRAY;
+        return *max_dims;
+    }
+    if (*flags & DESCRIPTOR_WAS_SET) {
+        /* no need to do any promotion */
+        return *max_dims;
+    }
+    /* This is a scalar, so find the descriptor */
+    descr = hpy_find_scalar_descriptor(ctx, fixed_DType, DType, obj);
+    if (HPy_IsNull(descr)) {
+        return -1;
+    }
+    if (hpy_handle_promotion(ctx, out_descr, descr, fixed_DType, flags) < 0) {
+        HPy_Close(ctx, descr);
+        return -1;
+    }
+    HPy_Close(ctx, descr);
+    return *max_dims;
+}
+
 
 /**
  * Return the correct descriptor given an array object and a DType class.
@@ -1199,8 +1230,7 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
         HPy_Close(ctx, DType);
     }
     else {
-        CAPI_WARN("HPyArray_DiscoverDTypeAndShape_Recursive: call to handle_scalar");
-        max_dims = handle_scalar(
+        max_dims = hpy_handle_scalar(ctx,
                 obj, curr_dims, &max_dims, out_descr, out_shape, fixed_DType,
                 flags, DType);
         HPy_Close(ctx, DType);
@@ -1361,9 +1391,9 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
     }
     if (curr_dims == max_dims || !is_sequence) {
         /* Clear any PySequence_Size error which would corrupts further calls */
-        max_dims = handle_scalar(
+        max_dims = hpy_handle_scalar(ctx,
                 obj, curr_dims, &max_dims, out_descr, out_shape, fixed_DType,
-                flags, NULL);
+                flags, HPy_NULL);
         if (is_sequence) {
             /* Flag as ragged or too deep array */
             *flags |= FOUND_RAGGED_ARRAY;
