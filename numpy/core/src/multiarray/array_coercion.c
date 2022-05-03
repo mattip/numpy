@@ -780,6 +780,43 @@ handle_promotion(PyArray_Descr **out_descr, PyArray_Descr *descr,
     return 0;
 }
 
+static NPY_INLINE int
+hpy_handle_promotion(HPyContext *ctx, HPy /* (PyArray_Descr **) */ *out_descr, HPy /* (PyArray_Descr *) */ descr,
+        HPy /* (PyArray_DTypeMeta *) */ fixed_DType, enum _dtype_discovery_flags *flags)
+{
+    assert(!(*flags & DESCRIPTOR_WAS_SET));
+
+    if (HPy_IsNull(*out_descr)) {
+        *out_descr = HPy_Dup(ctx, descr);
+        return 0;
+    }
+    CAPI_WARN("hpy_handle_promotion: call to PyArray_PromoteTypes");
+    PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
+    PyArray_Descr *py_out_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, *out_descr);
+    PyArray_Descr *py_new_descr = PyArray_PromoteTypes(py_descr, py_out_descr);
+    HPy new_descr = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
+    Py_XDECREF(py_new_descr);
+    Py_XDECREF(py_out_descr);
+    Py_XDECREF(py_descr);
+
+    if (NPY_UNLIKELY(HPy_IsNull(new_descr))) {
+        if (!HPy_IsNull(fixed_DType) || HPyErr_ExceptionMatches(ctx, ctx->h_FutureWarning)) {
+            /*
+             * If a DType is fixed, promotion must not fail. Do not catch
+             * FutureWarning (raised for string+numeric promotions). We could
+             * only catch TypeError here or even always raise the error.
+             */
+            return -1;
+        }
+        HPyErr_Clear(ctx);
+        *flags |= PROMOTION_FAILED;
+        /* Continue with object, since we may need the dimensionality */
+        new_descr = HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    }
+    HPy_SETREF(ctx, *out_descr, new_descr);
+    return 0;
+}
+
 
 /**
  * Handle a leave node (known scalar) during dtype and shape discovery.
@@ -1201,10 +1238,12 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
                     Py_DECREF(arr);
                     return max_dims;
                 }
-                if (!(*flags & DESCRIPTOR_WAS_SET) && handle_promotion(
-                        out_descr, PyArray_DESCR(arr), fixed_DType, flags) < 0) {
-                    Py_DECREF(arr);
-                    return -1;
+                if (!(*flags & DESCRIPTOR_WAS_SET)) {
+                    HPy arr_descr = HPyArray_GetDescr(ctx, arr);
+                    if (hpy_handle_promotion(ctx, out_descr, arr_descr, fixed_DType, flags) < 0) {
+                        HPy_Close(ctx, arr);
+                        return -1;
+                    }
                 }
                 Py_DECREF(arr);
                 return max_dims;
