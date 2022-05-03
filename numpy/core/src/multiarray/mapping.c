@@ -2087,6 +2087,7 @@ HPyDef_SLOT(array_assign_subscript, array_assign_subscript_impl, HPy_mp_ass_subs
 NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self, HPy h_ind,
                                 HPy h_op)
 {
+    int result;
     int index_type;
     int index_num;
     int i, ndim, fancy_ndim;
@@ -2102,10 +2103,12 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     if (HPy_IsNull(h_op)) {
         HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot delete array elements");
-        return -1;
+        result = -1;
+        goto cleanup;
     }
     if (HPyArray_FailUnlessWriteableWithStruct(ctx, h_self, self_struct, "assignment destination") < 0) {
-        return -1;
+        result = -1;
+        goto cleanup;
     }
 
     /* field access */
@@ -2131,20 +2134,24 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
                                &ndim, &fancy_ndim, 1);
 
     if (index_type < 0) {
-        return -1;
+        result = -1;
+        goto cleanup;
     }
 
     /* Full integer index */
     if (index_type == HAS_INTEGER) {
         char *item;
         if (hpy_get_item_pointer(ctx, self_struct, &item, indices, index_num) < 0) {
-            return -1;
+            result = -1;
+            goto cleanup;
         }
         if (HPyArray_Pack(ctx, h_descr, item, h_op) < 0) {
-            return -1;
+            result = -1;
+            goto cleanup;
         }
         /* integers do not store objects in indices */
-        return 0;
+        result = 0;
+        goto cleanup;
     }
 
     /* Single boolean array */
@@ -2243,6 +2250,11 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     }
 
     hpy_abort_not_implemented("remainder of array_assign_subscript_impl");
+    result = 0;
+
+cleanup:
+    HPy_Close(ctx, h_descr);
+    return result;
 }
 
 
