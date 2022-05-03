@@ -294,17 +294,107 @@ PyArray_Newshape(PyArrayObject *self, PyArray_Dims *newdims,
     return (PyObject *)ret;
 }
 
+static int _hpy_fix_unknown_dimension(HPyContext *ctx, PyArray_Dims *newshape, PyArrayObject *arr);
+
 NPY_NO_EXPORT HPy
-HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */self,
+HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObject* self,
         PyArray_Dims *newdims, NPY_ORDER order)
 {
-    CAPI_WARN("HPyArray_Newshape");
-    PyArrayObject *py_self = (PyArrayObject *)HPy_AsPyObject(ctx, self);
-    PyObject *py_res = PyArray_Newshape(py_self, newdims, order);
-    HPy res = HPy_FromPyObject(ctx, py_res);
-    Py_XDECREF(py_res);
-    Py_XDECREF(py_self);
-    return res;
+    npy_intp i;
+    npy_intp *dimensions = newdims->ptr;
+    int ndim = newdims->len;
+    npy_bool same;
+    npy_intp *strides = NULL;
+    npy_intp newstrides[NPY_MAXDIMS];
+    int flags;
+
+    if (order == NPY_ANYORDER) {
+        order = PyArray_ISFORTRAN(self);
+    }
+    else if (order == NPY_KEEPORDER) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "order 'K' is not permitted for reshaping");
+        return HPy_NULL;
+    }
+    /*  Quick check to make sure anything actually needs to be done */
+    if (ndim == PyArray_NDIM(self)) {
+        same = NPY_TRUE;
+        i = 0;
+        while (same && i < ndim) {
+            if (PyArray_DIM(self,i) != dimensions[i]) {
+                same=NPY_FALSE;
+            }
+            i++;
+        }
+        if (same) {
+            CAPI_WARN("HPyArray_Newshape->PyArray_View");
+            PyObject *res = PyArray_View(self, NULL, NULL);
+            HPy hres = HPy_FromPyObject(ctx, res);
+            Py_DECREF(res);
+            return hres;
+        }
+    }
+
+    /*
+     * fix any -1 dimensions and check new-dimensions against old size
+     */
+    if (_hpy_fix_unknown_dimension(ctx, newdims, self) < 0) {
+        return HPy_NULL;
+    }
+    /*
+     * sometimes we have to create a new copy of the array
+     * in order to get the right orientation and
+     * because we can't just re-use the buffer with the
+     * data in the order it is in.
+     * NPY_RELAXED_STRIDES_CHECKING: size check is unnecessary when set.
+     */
+    if ((PyArray_SIZE(self) > 1) &&
+        ((order == NPY_CORDER && !PyArray_IS_C_CONTIGUOUS(self)) ||
+         (order == NPY_FORTRANORDER && !PyArray_IS_F_CONTIGUOUS(self)))) {
+        hpy_abort_not_implemented("Unusual combinations of C/F orcer and C/F contiguous");
+        // int success = 0;
+        // success = _attempt_nocopy_reshape(self, ndim, dimensions,
+        //                                   newstrides, order);
+        // if (success) {
+        //     /* no need to copy the array after all */
+        //     strides = newstrides;
+        // }
+        // else {
+        //     PyObject *newcopy;
+        //     newcopy = PyArray_NewCopy(self, order);
+        //     Py_DECREF(self);
+        //     if (newcopy == NULL) {
+        //         return NULL;
+        //     }
+        //     self = (PyArrayObject *)newcopy;
+        // }
+    }
+    /* We always have to interpret the contiguous buffer correctly */
+
+    /* Make sure the flags argument is set. */
+    flags = PyArray_FLAGS(self);
+    if (ndim > 1) {
+        if (order == NPY_FORTRANORDER) {
+            flags &= ~NPY_ARRAY_C_CONTIGUOUS;
+            flags |= NPY_ARRAY_F_CONTIGUOUS;
+        }
+        else {
+            flags &= ~NPY_ARRAY_F_CONTIGUOUS;
+            flags |= NPY_ARRAY_C_CONTIGUOUS;
+        }
+    }
+
+    HPy self_type = HPy_Type(ctx, h_self);
+    HPy self_h_descr = HPyArray_DESCR(ctx, h_self, self);
+    HPy ret = HPyArray_NewFromDescr_int(ctx,
+            self_type, self_h_descr,
+            ndim, dimensions, strides, PyArray_DATA(self),
+            flags, h_self, h_self,
+            0, 1);
+
+    HPy_Close(ctx, self_type);
+    HPy_Close(ctx, self_h_descr);
+    return ret;
 }
 
 
@@ -531,6 +621,65 @@ _fix_unknown_dimension(PyArray_Dims *newshape, PyArrayObject *arr)
     else {
         if (s_original != s_known) {
             raise_reshape_size_mismatch(newshape, arr);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static void
+hpy_raise_reshape_size_mismatch(HPyContext *ctx, PyArray_Dims *newshape, PyArrayObject *arr)
+{
+    HPy tmp = HPyUnicode_FromString(ctx, "<convert_shape_to_string not implemented in HPy port>");
+    if (!HPy_IsNull(tmp)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "cannot reshape array of size %zd into shape %S"/*,
+                PyArray_SIZE(arr), tmp*/);
+        HPy_Close(ctx, tmp);
+    }
+}
+
+static int
+_hpy_fix_unknown_dimension(HPyContext *ctx, PyArray_Dims *newshape, PyArrayObject *arr)
+{
+    npy_intp *dimensions;
+    npy_intp s_original = PyArray_SIZE(arr);
+    npy_intp i_unknown, s_known;
+    int i, n;
+
+    dimensions = newshape->ptr;
+    n = newshape->len;
+    s_known = 1;
+    i_unknown = -1;
+
+    for (i = 0; i < n; i++) {
+        if (dimensions[i] < 0) {
+            if (i_unknown == -1) {
+                i_unknown = i;
+            }
+            else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                                "can only specify one unknown dimension");
+                return -1;
+            }
+        }
+        else if (npy_mul_with_overflow_intp(&s_known, s_known,
+                                            dimensions[i])) {
+            hpy_raise_reshape_size_mismatch(ctx, newshape, arr);
+            return -1;
+        }
+    }
+
+    if (i_unknown >= 0) {
+        if (s_known == 0 || s_original % s_known != 0) {
+            hpy_raise_reshape_size_mismatch(ctx, newshape, arr);
+            return -1;
+        }
+        dimensions[i_unknown] = s_original / s_known;
+    }
+    else {
+        if (s_original != s_known) {
+            hpy_raise_reshape_size_mismatch(ctx, newshape, arr);
             return -1;
         }
     }
@@ -972,6 +1121,34 @@ PyArray_Ravel(PyArrayObject *arr, NPY_ORDER order)
     }
 
     return PyArray_Flatten(arr, order);
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_Ravel(HPyContext *ctx, /*PyArrayObject*/ HPy h_arr, NPY_ORDER order)
+{
+    PyArray_Dims newdim = {NULL,1};
+    npy_intp val[1] = {-1};
+
+    newdim.ptr = val;
+    PyArrayObject *arr = PyArrayObject_AsStruct(ctx, h_arr);
+
+    if (order == NPY_KEEPORDER) {
+        /* This handles some corner cases, such as 0-d arrays as well */
+        if (PyArray_IS_C_CONTIGUOUS(arr)) {
+            order = NPY_CORDER;
+        }
+        else if (PyArray_IS_F_CONTIGUOUS(arr)) {
+            order = NPY_FORTRANORDER;
+        }
+    }
+    else if (order == NPY_ANYORDER) {
+        order = PyArray_ISFORTRAN(arr) ? NPY_FORTRANORDER : NPY_CORDER;
+    }
+
+    if (order == NPY_CORDER && PyArray_IS_C_CONTIGUOUS(arr)) {
+        return HPyArray_Newshape(ctx, h_arr, arr, &newdim, NPY_CORDER);
+    }
+    hpy_abort_not_implemented("remainder of HPyArray_Ravel");
 }
 
 /*NUMPY_API

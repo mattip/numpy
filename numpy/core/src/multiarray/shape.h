@@ -21,4 +21,7 @@ PyArray_CreateMultiSortedStridePerm(int narrays, PyArrayObject **arrays,
 NPY_NO_EXPORT PyObject *
 PyArray_SqueezeSelected(PyArrayObject *self, npy_bool *axis_flags);
 
+NPY_NO_EXPORT HPy
+HPyArray_Ravel(HPyContext *ctx, /*PyArrayObject*/ HPy h_arr, NPY_ORDER order);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SHAPE_H_ */

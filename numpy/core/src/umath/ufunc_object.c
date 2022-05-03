@@ -6378,7 +6378,8 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
     PyArray_Dims newdims;
     npy_intp newshape[NPY_MAXDIMS];
 
-    int ap1_ndim = HPyArray_GetNDim(ctx, ap1);
+    PyArrayObject *ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
+    int ap1_ndim = PyArray_NDIM(ap1_struct);
     newdims.len = ap1_ndim + HPyArray_GetNDim(ctx, ap2);
     newdims.ptr = newshape;
 
@@ -6392,13 +6393,13 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
     if (newdims.ptr == NULL) {
         goto fail;
     }
-    memcpy(newshape, HPyArray_GetDims(ctx, ap1), ap1_ndim * sizeof(npy_intp));
+    memcpy(newshape, PyArray_DIMS(ap1_struct), ap1_ndim * sizeof(npy_intp));
     for (int i = ap1_ndim; i < newdims.len; i++) {
         newshape[i] = 1;
     }
 
     HPy ap_new; /* PyArrayObject *ap_new */
-    ap_new = HPyArray_Newshape(ctx, ap1, &newdims, NPY_CORDER);
+    ap_new = HPyArray_Newshape(ctx, ap1, ap1_struct, &newdims, NPY_CORDER);
     if (HPy_IsNull(ap_new)) {
         goto fail;
     }

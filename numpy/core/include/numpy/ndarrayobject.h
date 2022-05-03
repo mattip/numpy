@@ -36,7 +36,9 @@ extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
 NPY_NO_EXPORT HPy HPyArray_DescrFromType(HPyContext *ctx, int type);
 
 /* shape.c */
-NPY_NO_EXPORT HPy HPyArray_Newshape(HPyContext *ctx, HPy self, PyArray_Dims *newdims, NPY_ORDER order);
+NPY_NO_EXPORT HPy
+HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObject* self,
+        PyArray_Dims *newdims, NPY_ORDER order);
 
 
 /* C-API that requires previous API to be defined */

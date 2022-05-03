@@ -2635,20 +2635,28 @@ array_flatten(PyArrayObject *self,
     return PyArray_Flatten(self, order);
 }
 
-
-static PyObject *
-array_ravel(PyArrayObject *self,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_ravel, "ravel", array_ravel_impl, HPyFunc_KEYWORDS)
+static HPy 
+array_ravel_impl(HPyContext *ctx, HPy self,
+        HPy *args, HPy_ssize_t len_args, HPy kw)
 {
     NPY_ORDER order = NPY_CORDER;
     NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("ravel", args, len_args, kwnames,
-            "|order", PyArray_OrderConverter, &order,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    HPyTracker ht;
+    static const char *kwlist[] = {{ "order", NULL }};
+    HPy h_order = HPy_NULL;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &order)) {
+        return HPy_NULL;
     }
-    return PyArray_Ravel(self, order);
+    if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    HPy result = HPyArray_Ravel(ctx, self, order);
+    HPyTracker_Close(ctx, ht);
+    return result;
 }
 
 
@@ -3022,9 +3030,6 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"put",
         (PyCFunction)array_put,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"ravel",
-        (PyCFunction)array_ravel,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
     {"repeat",
         (PyCFunction)array_repeat,
         METH_VARARGS | METH_KEYWORDS, NULL},
