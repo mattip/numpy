@@ -402,6 +402,99 @@ PyArray_CopyObject(PyArrayObject *dest, PyObject *src_object)
     return -1;
 }
 
+NPY_NO_EXPORT int
+HPyArray_CopyObject(HPyContext *ctx, HPy h_dest, PyArrayObject *dest, HPy h_src_object)
+{
+    int ret = 0;
+    HPy h_view;
+    PyArrayObject *view;
+    int ndim;
+    npy_intp dims[NPY_MAXDIMS];
+    coercion_cache_obj *cache = NULL;
+
+    /*
+     * We have to set the maximum number of dimensions here to support
+     * sequences within object arrays.
+     */
+    HPy h_dest_descr = HPyArray_DESCR(ctx, h_dest, dest);
+    HPy h_dest_descr_dtype = HNPY_DTYPE(ctx, h_dest_descr);
+    HPy h_dtype = HPy_NULL;
+    ndim = HPyArray_DiscoverDTypeAndShape(ctx, h_src_object,
+            PyArray_NDIM(dest), dims, &cache,
+            h_dest_descr_dtype, h_dest_descr, &h_dtype, 0);
+    HPy_Close(ctx, h_dest_descr_dtype);
+    HPy_Close(ctx, h_dest_descr);
+    if (ndim < 0) {
+        return -1;
+    }
+
+    if (cache != NULL && !(cache->sequence)) {
+        /* The input is an array or array object, so assign directly */
+        ret = HPyArray_AssignArray(ctx, h_dest, cache->arr_or_sequence, HPy_NULL, NPY_UNSAFE_CASTING);
+        HPy_Close(ctx, cache->converted_obj);
+        hnpy_free_coercion_cache(ctx, cache);
+        return ret;
+    }
+
+    /*
+     * We may need to broadcast, due to shape mismatches, in this case
+     * create a temporary array first, and assign that after filling
+     * it from the sequences/scalar.
+     */
+    if (ndim != PyArray_NDIM(dest) ||
+            !PyArray_CompareLists(PyArray_DIMS(dest), dims, ndim)) {
+        /*
+         * Broadcasting may be necessary, so assign to a view first.
+         * This branch could lead to a shape mismatch error later.
+         */
+        assert (ndim <= PyArray_NDIM(dest));  /* would error during discovery */
+        HPy hpy_arr_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        h_view = HPyArray_NewFromDescr(
+                ctx, hpy_arr_type, h_dtype, ndim, dims, NULL, NULL,
+                PyArray_FLAGS(dest) & NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
+        HPy_Close(ctx, hpy_arr_type);
+        if (HPy_IsNull(h_view)) {
+            npy_free_coercion_cache(cache);
+            return -1;
+        }
+        view = PyArrayObject_AsStruct(ctx, h_view);
+    }
+    else {
+        h_view = HPy_Dup(ctx, h_dest);
+        view = dest;
+    }
+    HPy_Close(ctx, h_dtype);
+
+    /* Assign the values to `view` (whichever array that is) */
+    if (cache == NULL) {
+        /* single (non-array) item, assign immediately */
+        HPy h_view_descr = HPyArray_DESCR(ctx, h_view, view);
+        if (HPyArray_Pack(
+                ctx, h_view_descr, PyArray_DATA(view), h_src_object) < 0) {
+            HPy_Close(ctx, h_view_descr);
+            goto fail;
+        }
+        HPy_Close(ctx, h_view_descr);
+    }
+    else {
+        if (HPyArray_AssignFromCache(ctx, h_view, cache) < 0) {
+            goto fail;
+        }
+    }
+    if (HPy_Is(ctx, h_view, h_dest)) {
+        return 0;
+    }
+    ret = HPyArray_AssignArray(ctx, h_dest, h_view, HPy_NULL, NPY_UNSAFE_CASTING);
+    HPy_Close(ctx, h_view);
+    return ret;
+
+  fail:
+    if (view != dest) {
+        HPy_Close(ctx, h_view);
+    }
+    return -1;
+}
+
 
 /* returns an Array-Scalar Object of the type of arr
    from the given pointer to memory -- main Scalar creation function
@@ -1934,7 +2027,54 @@ array_iter(PyArrayObject *arr)
 
 
 static PyType_Slot PyArray_Type_slots[] = {
+    {Py_mp_length, (lenfunc)array_length},
     {Py_mp_subscript, (binaryfunc)array_subscript},
+
+    {Py_nb_multiply, array_multiply},
+    {Py_nb_remainder, array_remainder},
+    {Py_nb_divmod, array_divmod},
+    {Py_nb_negative, (unaryfunc)array_negative},
+    {Py_nb_positive, (unaryfunc)array_positive},
+    {Py_nb_absolute, (unaryfunc)array_absolute},
+    {Py_nb_bool, (inquiry)_array_nonzero},
+    {Py_nb_invert, (unaryfunc)array_invert},
+    {Py_nb_lshift, array_left_shift},
+    {Py_nb_rshift, array_right_shift},
+    {Py_nb_and, array_bitwise_and},
+    {Py_nb_xor, array_bitwise_xor},
+    {Py_nb_or, array_bitwise_or},
+
+    {Py_nb_int, (unaryfunc)array_int},
+    {Py_nb_float, (unaryfunc)array_float},
+    {Py_nb_index, (unaryfunc)array_index},
+
+    {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
+    {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
+    {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
+    {Py_nb_inplace_power, (ternaryfunc)array_inplace_power},
+    {Py_nb_inplace_lshift, (binaryfunc)array_inplace_left_shift},
+    {Py_nb_inplace_rshift, (binaryfunc)array_inplace_right_shift},
+    {Py_nb_inplace_and, (binaryfunc)array_inplace_bitwise_and},
+    {Py_nb_inplace_xor, (binaryfunc)array_inplace_bitwise_xor},
+    {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
+
+    {Py_nb_floor_divide, array_floor_divide},
+    {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
+    {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
+
+    {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
+    {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
+
+    {Py_sq_length, (lenfunc)array_length},
+    {Py_sq_concat, (binaryfunc)array_concat},
+    {Py_sq_item, (ssizeargfunc)array_item},
+    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
+    {Py_sq_contains, (objobjproc)array_contains},
+
+    {Py_tp_repr, (reprfunc)array_repr},
+    {Py_tp_str, (reprfunc)array_str},
+
+    {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
     {Py_tp_getset, array_getsetlist},
     {0, NULL},
@@ -1955,6 +2095,7 @@ static HPyDef *array_defines[] = {
 
     // methods:
     &array_ravel,
+    &array_transpose,
     NULL,
 };
 

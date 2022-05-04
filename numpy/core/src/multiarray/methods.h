@@ -6,6 +6,7 @@
 extern NPY_NO_EXPORT PyMethodDef array_methods[];
 
 extern NPY_NO_EXPORT HPyDef array_ravel;
+extern NPY_NO_EXPORT HPyDef array_transpose;
 
 
 /*

@@ -118,4 +118,7 @@ HPyArray_BoolConverter(HPyContext *ctx, HPy object, npy_bool *val);
 NPY_NO_EXPORT int
 HPyArray_CastingConverter(HPyContext *ctx, HPy obj, NPY_CASTING *casting);
 
+NPY_NO_EXPORT npy_intp
+HPyArray_PyIntAsIntp(HPyContext *ctx, HPy o);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERSION_UTILS_H_ */

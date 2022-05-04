@@ -4734,10 +4734,6 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
 #define _MAX_LETTER 128
 static char _letter_to_num[_MAX_LETTER];
 
-// HPY HACK: storing handles into globals, those handles are
-// returned as borrowed references and so switching them to
-// HPyGlobals would require updates to all the callers.
-// This array is filled in the module init
 HPyGlobal _hpy_builtin_descrs[NPY_NTYPES];
 
 NPY_NO_EXPORT void init_static_descrs_type_objs(HPyContext *ctx) {

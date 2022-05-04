@@ -1179,6 +1179,92 @@ PyArray_PyIntAsIntp(PyObject *o)
 }
 
 
+static npy_intp
+HPyArray_PyIntAsIntp_ErrMsg(HPyContext *ctx, HPy o, const char * msg)
+{
+#if (NPY_SIZEOF_LONG < NPY_SIZEOF_INTP)
+    long long long_value = -1;
+#else
+    long long_value = -1;
+#endif
+
+    /*
+     * Be a bit stricter and not allow bools.
+     * np.bool_ is also disallowed as Boolean arrays do not currently
+     * support index.
+     */
+    if (HPy_IsNull(o) || HPy_TypeCheck(ctx, o, ctx->h_BoolType) || HPyArray_IsScalar(ctx, o, Bool)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, msg);
+        return -1;
+    }
+
+    /*
+     * Since it is the usual case, first check if o is an integer. This is
+     * an exact check, since otherwise __index__ is used.
+     */
+    // TODO HPY LABS PORT: PyLong_CheckExact
+    if (HPy_TypeCheck(ctx, o, ctx->h_LongType)) {
+#if (NPY_SIZEOF_LONG < NPY_SIZEOF_INTP)
+        long_value = HPyLong_AsLongLong(ctx, o);
+#else
+        long_value = HPyLong_AsLong(ctx, o);
+#endif
+        return (npy_intp)long_value;
+    }
+
+    /*
+     * The most general case. PyNumber_Index(o) covers everything
+     * including arrays. In principle it may be possible to replace
+     * the whole function by PyIndex_AsSSize_t after deprecation.
+     */
+    HPy obj = HPy_Index(ctx, o);
+    if (HPy_IsNull(obj)) {
+        return -1;
+    }
+#if (NPY_SIZEOF_LONG < NPY_SIZEOF_INTP)
+    long_value = HPyLong_AsLongLong(ctx, obj);
+#else
+    long_value = HPyLong_AsLong(ctx, obj);
+#endif
+    HPy_Close(ctx, obj);
+
+    if (hpy_error_converting(ctx, long_value)) {
+        /* Only replace TypeError's here, which are the normal errors. */
+        if (HPyErr_ExceptionMatches(ctx, ctx->h_TypeError)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError, msg);
+        }
+        return -1;
+    }
+    goto overflow_check; /* silence unused warning */
+
+overflow_check:
+#if (NPY_SIZEOF_LONG < NPY_SIZEOF_INTP)
+  #if (NPY_SIZEOF_LONGLONG > NPY_SIZEOF_INTP)
+    if ((long_value < NPY_MIN_INTP) || (long_value > NPY_MAX_INTP)) {
+        HPyErr_SetString(ctx, ctx->h_OverflowError,
+                "Python int too large to convert to C numpy.intp");
+        return -1;
+    }
+  #endif
+#else
+  #if (NPY_SIZEOF_LONG > NPY_SIZEOF_INTP)
+    if ((long_value < NPY_MIN_INTP) || (long_value > NPY_MAX_INTP)) {
+        HPyErr_SetString(ctx, ctx->h_OverflowError,
+                "Python int too large to convert to C numpy.intp");
+        return -1;
+    }
+  #endif
+#endif
+    return long_value;
+}
+
+NPY_NO_EXPORT npy_intp
+HPyArray_PyIntAsIntp(HPyContext *ctx, HPy o)
+{
+    return HPyArray_PyIntAsIntp_ErrMsg(ctx, o, "an integer is required");
+}
+
+
 NPY_NO_EXPORT int
 PyArray_IntpFromPyIntConverter(PyObject *o, npy_intp *val)
 {

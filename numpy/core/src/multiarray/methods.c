@@ -2356,34 +2356,14 @@ array_sizeof(PyArrayObject *self, PyObject *NPY_UNUSED(args))
     return PyLong_FromSsize_t(nbytes);
 }
 
-
-static PyObject *
-array_transpose(PyArrayObject *self, PyObject *args)
+HPyDef_METH(array_transpose, "transpose", array_transpose_impl, HPyFunc_VARARGS)
+static HPy
+array_transpose_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy *args, HPy_ssize_t n)
 {
-    PyObject *shape = Py_None;
-    Py_ssize_t n = PyTuple_Size(args);
-    PyArray_Dims permute;
-    PyObject *ret;
-
-    if (n > 1) {
-        shape = args;
+    if (n != 0) {
+        hpy_abort_not_implemented("transpose with a shape");
     }
-    else if (n == 1) {
-        shape = PyTuple_GET_ITEM(args, 0);
-    }
-
-    if (shape == Py_None) {
-        ret = PyArray_Transpose(self, NULL);
-    }
-    else {
-        if (!PyArray_IntpConverter(shape, &permute)) {
-            return NULL;
-        }
-        ret = PyArray_Transpose(self, &permute);
-        npy_free_cache_dim_obj(permute);
-    }
-
-    return ret;
+    return HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), NULL);
 }
 
 #define _CHKTYPENUM(typ) ((typ) ? (typ)->type_num : NPY_NOTYPE)
@@ -3084,9 +3064,6 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"trace",
         (PyCFunction)array_trace,
         METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"transpose",
-        (PyCFunction)array_transpose,
-        METH_VARARGS, NULL},
     {"var",
         (PyCFunction)array_variance,
         METH_VARARGS | METH_KEYWORDS, NULL},
