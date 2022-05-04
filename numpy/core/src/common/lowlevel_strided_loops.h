@@ -789,6 +789,13 @@ PyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(PyArrayObject *arr1, PyArrayObject *arr
                         PyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK( \
                             arr1, arr2, arr1_read, arr2_read))
 
+#define HPyArray_EQUIVALENTLY_ITERABLE(ctx, arr1, arr2, arr1_read, arr2_read) ( \
+                        PyArray_EQUIVALENTLY_ITERABLE_BASE(                   \
+                            PyArrayObject_AsStruct(ctx, arr1),                 \
+                            PyArrayObject_AsStruct(ctx, arr2)) && \
+                        HPyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK( \
+                            ctx, arr1, arr2, arr1_read, arr2_read))
+
 #define PyArray_PREPARE_TRIVIAL_ITERATION(arr, count, data, stride) \
                     count = PyArray_SIZE(arr); \
                     data = PyArray_BYTES(arr); \
