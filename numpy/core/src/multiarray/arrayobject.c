@@ -2028,7 +2028,6 @@ array_iter(PyArrayObject *arr)
 
 static PyType_Slot PyArray_Type_slots[] = {
     {Py_mp_length, (lenfunc)array_length},
-    {Py_mp_subscript, (binaryfunc)array_subscript},
 
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
