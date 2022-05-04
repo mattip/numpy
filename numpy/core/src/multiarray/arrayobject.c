@@ -2083,6 +2083,7 @@ static PyType_Slot PyArray_Type_slots[] = {
 static HPyDef *array_defines[] = {
     &array_getbuffer,
     &array_assign_subscript,
+    &array_subscript,
     &array_new,
     &array_traverse,
     &array_finalize,

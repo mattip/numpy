@@ -1993,7 +1993,7 @@ array_item(PyArrayObject *self, Py_ssize_t i)
 NPY_NO_EXPORT PyObject *
 array_subscript_asarray(PyArrayObject *self, PyObject *op)
 {
-    return PyArray_EnsureAnyArray(array_subscript(self, op));
+    return PyArray_EnsureAnyArray(array_subscript_trampoline(self, op));
 }
 
 /*
@@ -2106,9 +2106,13 @@ _get_field_view(PyArrayObject *arr, PyObject *ind, PyArrayObject **view)
 /*
  * General function for indexing a NumPy array with a Python object.
  */
-NPY_NO_EXPORT PyObject *
-array_subscript(PyArrayObject *self, PyObject *op)
+HPyDef_SLOT(array_subscript, array_subscript_impl, HPy_mp_subscript)
+NPY_NO_EXPORT HPy
+array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 {
+    PyArrayObject *self = HPy_AsPyObject(ctx, h_self);
+    PyObject *op = HPy_AsPyObject(ctx, h_op);
+
     int index_type;
     int index_num;
     int i, ndim, fancy_ndim;
@@ -2129,9 +2133,9 @@ array_subscript(PyArrayObject *self, PyObject *op)
         int ret = _get_field_view(self, op, &view);
         if (ret == 0){
             if (view == NULL) {
-                return NULL;
+                return HPy_NULL;
             }
-            return (PyObject*)view;
+            return HPy_FromPyObject(ctx, (PyObject*)view);
         }
     }
 
@@ -2140,7 +2144,7 @@ array_subscript(PyArrayObject *self, PyObject *op)
                                &ndim, &fancy_ndim, 1);
 
     if (index_type < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Full integer index */
@@ -2152,7 +2156,7 @@ array_subscript(PyArrayObject *self, PyObject *op)
         result = (PyObject *) PyArray_Scalar(item, PyArray_DESCR(self),
                                              (PyObject *)self);
         /* Because the index is full integer, we do not need to decref */
-        return result;
+        return HPy_FromPyObject(ctx, result);
     }
 
     /* Single boolean array */
@@ -2172,7 +2176,7 @@ array_subscript(PyArrayObject *self, PyObject *op)
          */
         result = PyArray_View(self, NULL, NULL);
         /* A single ellipsis, so no need to decref */
-        return result;
+        return HPy_FromPyObject(ctx, result);
     }
 
     /*
@@ -2249,44 +2253,45 @@ array_subscript(PyArrayObject *self, PyObject *op)
     }
 
     /* fancy indexing has to be used. And view is the subspace. */
-    mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices, index_num,
-                                                     index_type,
-                                                     ndim, fancy_ndim,
-                                                     self, view, 0,
-                                                     NPY_ITER_READONLY,
-                                                     NPY_ITER_WRITEONLY,
-                                                     NULL, PyArray_DESCR(self));
-    if (mit == NULL) {
-        goto finish;
-    }
+    hpy_abort_not_implemented("fancy indexing in array_subscript");
+    // mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices, index_num,
+    //                                                  index_type,
+    //                                                  ndim, fancy_ndim,
+    //                                                  self, view, 0,
+    //                                                  NPY_ITER_READONLY,
+    //                                                  NPY_ITER_WRITEONLY,
+    //                                                  NULL, PyArray_DESCR(self));
+    // if (mit == NULL) {
+    //     goto finish;
+    // }
 
-    if (mit->numiter > 1 || mit->size == 0) {
-        /*
-         * If it is one, the inner loop checks indices, otherwise
-         * check indices beforehand, because it is much faster if
-         * broadcasting occurs and most likely no big overhead.
-         * The inner loop optimization skips index checks for size == 0 though.
-         */
-        if (PyArray_MapIterCheckIndices(mit) < 0) {
-            goto finish;
-        }
-    }
+    // if (mit->numiter > 1 || mit->size == 0) {
+    //     /*
+    //      * If it is one, the inner loop checks indices, otherwise
+    //      * check indices beforehand, because it is much faster if
+    //      * broadcasting occurs and most likely no big overhead.
+    //      * The inner loop optimization skips index checks for size == 0 though.
+    //      */
+    //     if (PyArray_MapIterCheckIndices(mit) < 0) {
+    //         goto finish;
+    //     }
+    // }
 
-    /* Reset the outer iterator */
-    if (NpyIter_Reset(mit->outer, NULL) < 0) {
-        goto finish;
-    }
+    // /* Reset the outer iterator */
+    // if (NpyIter_Reset(mit->outer, NULL) < 0) {
+    //     goto finish;
+    // }
 
-    if (mapiter_get(mit) < 0) {
-        goto finish;
-    }
+    // if (mapiter_get(mit) < 0) {
+    //     goto finish;
+    // }
 
-    result = (PyObject *)mit->extra_op;
-    Py_INCREF(result);
+    // result = (PyObject *)mit->extra_op;
+    // Py_INCREF(result);
 
-    if (mit->consec) {
-        PyArray_MapIterSwapAxes(mit, (PyArrayObject **)&result, 1);
-    }
+    // if (mit->consec) {
+    //     PyArray_MapIterSwapAxes(mit, (PyArrayObject **)&result, 1);
+    // }
 
   wrap_out_array:
     if (!PyArray_CheckExact(self)) {
@@ -2318,7 +2323,7 @@ array_subscript(PyArrayObject *self, PyObject *op)
     for (i=0; i < index_num; i++) {
         Py_XDECREF(indices[i].object);
     }
-    return result;
+    return HPy_FromPyObject(ctx, result);
 }
 
 
