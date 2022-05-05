@@ -2014,15 +2014,17 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 }
 
 
-static PyObject *
-array_iter(PyArrayObject *arr)
+HPyDef_SLOT(array_iter, array_iter_impl, HPy_tp_iter)
+static HPy
+array_iter_impl(HPyContext *ctx, HPy h_arr)
 {
+    PyArrayObject *arr = PyArrayObject_AsStruct(ctx, h_arr);
     if (PyArray_NDIM(arr) == 0) {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                         "iteration over a 0-d array");
-        return NULL;
+        return HPy_NULL;
     }
-    return PySeqIter_New((PyObject *)arr);
+    return HPySeqIter_New(ctx, h_arr);
 }
 
 
@@ -2066,7 +2068,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
-    {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
     {Py_tp_getset, array_getsetlist},
     {0, NULL},
@@ -2091,6 +2092,7 @@ static HPyDef *array_defines[] = {
     &array_bitwise_and,
     &array_bitwise_or,
     &array_bitwise_xor,
+    &array_iter,
 
     // methods:
     &array_ravel,
