@@ -61,6 +61,7 @@ maintainer email:  oliphant.travis@ieee.org
 
 #include "binop_override.h"
 #include "array_coercion.h"
+#include "getset.h"
 
 /*NUMPY_API
   Compute the size of an array (in number of items)
@@ -2069,7 +2070,7 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_tp_str, (reprfunc)array_str},
 
     {Py_tp_methods, array_methods},
-    {Py_tp_getset, array_getsetlist},
+    // {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
     {0, NULL},
 };
 
@@ -2093,6 +2094,9 @@ static HPyDef *array_defines[] = {
     &array_bitwise_or,
     &array_bitwise_xor,
     &array_iter,
+
+    // getset
+    &array_shape,
 
     // methods:
     &array_ravel,
