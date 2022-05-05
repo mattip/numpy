@@ -336,6 +336,7 @@ PyArray_GetCastFunc(PyArray_Descr *descr, int type_num)
         castfunc = descr->f->cast[type_num];
     }
     else {
+        CAPI_WARN("PyArray_GetCastFunc: Accessing castdict without going through field\n");
         PyObject *obj = descr->f->castdict;
         if (obj && PyDict_Check(obj)) {
             PyObject *key;

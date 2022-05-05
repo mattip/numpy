@@ -543,6 +543,16 @@ PyObject_Cmp(PyObject *i1, PyObject *i2, int *cmp)
  * The main job here is to get rid of the improved error handling
  * of PyCapsules. It's a shame...
  */
+static NPY_INLINE HPy
+NhpyCapsule_FromVoidPtr(HPyContext *ctx, void *ptr, HPyCapsule_Destructor dtor)
+{
+    HPy ret = HPyCapsule_New(ctx, ptr, NULL, dtor);
+    if (HPy_IsNull(ret)) {
+        HPyErr_Clear(ctx);
+    }
+    return ret;
+}
+
 static NPY_INLINE PyObject *
 NpyCapsule_FromVoidPtr(void *ptr, void (*dtor)(PyObject *))
 {

@@ -608,6 +608,7 @@ typedef struct {
          * to other registered types. Can be NULL
          */
         PyObject *castdict;
+        HPyField h_castdict;
 
         /*
          * Functions useful for generalizing
