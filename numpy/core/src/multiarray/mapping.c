@@ -2246,8 +2246,7 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
                 goto finish;
             }
 
-            CAPI_WARN("array_subscript:mapiter_trivial_get");
-            if (mapiter_trivial_get(self, ind, PyArrayObject_AsStruct(ctx, h_result)) < 0) {
+            if (hpy_mapiter_trivial_get(ctx, h_self, self, h_ind, ind, h_result, PyArrayObject_AsStruct(ctx, h_result)) < 0) {
                 HPy_Close(ctx, h_result);
                 h_result = HPy_NULL;
                 goto finish;
