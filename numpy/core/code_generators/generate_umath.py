@@ -1199,8 +1199,16 @@ def make_ufuncs(funcdict):
 
         mlist.append(fmt.format(**args))
         if uf.typereso is not None:
-            mlist.append(
-                r"f_data->type_resolver = &%s;" % uf.typereso)
+            if uf.typereso.startswith("HPy"):
+                mlist.append(
+                    r"f_data->hpy_type_resolver = &%s;" % uf.typereso)
+                mlist.append(
+                    r"f_data->type_resolver = &ufunc_type_resolution_trampoline;")
+            else:
+                mlist.append(
+                    r"f_data->hpy_type_resolver = &ufunc_hpy_type_resolution_trampoline;")
+                mlist.append(
+                    r"f_data->type_resolver = &%s;" % uf.typereso)
         mlist.append(r"""HPy_SetItem_s(ctx, dictionary, "%s", f);""" % name)
         mlist.append(r"""HPy_Close(ctx, f);""")
         code3list.append('\n'.join(mlist))

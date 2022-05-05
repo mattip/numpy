@@ -64,6 +64,12 @@ typedef int (PyUFunc_TypeResolutionFunc)(
                                 PyArrayObject **operands,
                                 PyObject *type_tup,
                                 PyArray_Descr **out_dtypes);
+typedef int (HPyUFunc_TypeResolutionFunc)(HPyContext *ctx,
+                                HPy ufunc,
+                                NPY_CASTING casting,
+                                HPy *operands,
+                                HPy type_tup,
+                                HPy *out_dtypes);
 
 /*
  * Legacy loop selector. (This should NOT normally be used and we can expect
@@ -161,6 +167,11 @@ typedef struct _tagPyUFuncObject {
          * with the dtypes for the inputs and outputs.
          */
         PyUFunc_TypeResolutionFunc *type_resolver;
+
+        /*
+         * HPy variant of 'type_resolver'
+         */
+        HPyUFunc_TypeResolutionFunc *hpy_type_resolver;
         /*
          * A function which returns an inner loop written for
          * NumPy 1.6 and earlier ufuncs. This is for backwards

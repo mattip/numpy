@@ -145,4 +145,13 @@ raise_no_loop_found_error(PyUFuncObject *ufunc, PyObject **dtypes);
 NPY_NO_EXPORT int
 hpy_raise_no_loop_found_error(HPyContext *ctx, HPy ufunc, HPy *dtypes);
 
+NPY_NO_EXPORT int
+ufunc_type_resolution_trampoline(PyUFuncObject *ufunc, NPY_CASTING casting,
+        PyArrayObject **operands, PyObject *type_tup,
+        PyArray_Descr **out_dtypes);
+
+NPY_NO_EXPORT int
+ufunc_hpy_type_resolution_trampoline(HPyContext *ctx, HPy ufunc,
+        NPY_CASTING casting, HPy *operands, HPy type_tup, HPy *out_dtypes);
+
 #endif

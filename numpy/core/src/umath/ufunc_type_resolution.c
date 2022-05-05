@@ -49,6 +49,63 @@
 
 #include <stdbool.h>
 
+NPY_NO_EXPORT int
+ufunc_type_resolution_trampoline(PyUFuncObject *ufunc,
+                          NPY_CASTING casting,
+                          PyArrayObject **operands,
+                          PyObject *type_tup,
+                          PyArray_Descr **out_dtypes)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_operands[NPY_MAXARGS];
+    HPy h_out_dtypes[NPY_MAXARGS] = {HPy_NULL};
+    HPy h_type_tup = HPy_FromPyObject(ctx, type_tup);
+    for (int i=0; i < ufunc->nargs; i++) {
+        h_operands[i] = HPy_FromPyObject(ctx, (PyObject *)operands[i]);
+    }
+
+    int res = ufunc->hpy_type_resolver(ctx, h_ufunc, casting, h_operands, h_type_tup, h_out_dtypes);
+
+    HPy_Close(ctx, h_type_tup);
+    for (int i=0; i < ufunc->nargs; i++) {
+        HPy_Close(ctx, h_operands[i]);
+        out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, h_out_dtypes[i]);
+        HPy_Close(ctx, h_out_dtypes[i]);
+    }
+    HPy_Close(ctx, h_ufunc);
+    return res;
+}
+
+NPY_NO_EXPORT int
+ufunc_hpy_type_resolution_trampoline(HPyContext *ctx,
+                                HPy ufunc,
+                                NPY_CASTING casting,
+                                HPy *operands,
+                                HPy type_tup,
+                                HPy *out_dtypes)
+{
+    CAPI_WARN("ufunc_type_resolution_trampoline");
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+    PyArrayObject *py_operands[NPY_MAXARGS];
+    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+    PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+    for (int i=0; i < py_ufunc->nargs; i++) {
+        py_operands[i] = (PyArrayObject *)HPy_AsPyObject(ctx, operands[i]);
+    }
+
+    int res = py_ufunc->type_resolver(py_ufunc, casting, py_operands, py_type_tup, py_out_dtypes);
+
+    Py_XDECREF(py_type_tup);
+    for (int i=0; i < py_ufunc->nargs; i++) {
+        Py_XDECREF(py_operands[i]);
+        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+        Py_XDECREF(py_out_dtypes[i]);
+    }
+    Py_XDECREF(py_ufunc);
+    return res;
+}
+
 static PyObject *
 npy_casting_to_py_object(NPY_CASTING casting)
 {
