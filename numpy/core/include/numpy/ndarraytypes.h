@@ -2072,6 +2072,11 @@ static inline bool HPyArray_ISBOOL(HPyContext *ctx, HPy obj) {
     _PyArray_ISX(ctx, obj, BOOL);
 }
 
+static inline bool HPyArray_ISFLEXIBLE(HPyContext *ctx, HPy obj) {
+    int typenum = HPyArray_GetType(ctx, obj);
+    return PyTypeNum_ISFLEXIBLE(typenum);
+}
+
 static inline bool HPyArrayDescr_ISSIGNED(PyArray_Descr *descr) {
     return PyTypeNum_ISSIGNED(descr->type_num);
 }

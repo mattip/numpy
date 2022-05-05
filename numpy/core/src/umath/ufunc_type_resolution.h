@@ -2,11 +2,12 @@
 #define _NPY_PRIVATE__UFUNC_TYPE_RESOLUTION_H_
 
 NPY_NO_EXPORT int
-PyUFunc_SimpleBinaryComparisonTypeResolver(PyUFuncObject *ufunc,
-                                           NPY_CASTING casting,
-                                           PyArrayObject **operands,
-                                           PyObject *type_tup,
-                                           PyArray_Descr **out_dtypes);
+HPyUFunc_SimpleBinaryComparisonTypeResolver(HPyContext *ctx,
+                                HPy ufunc,
+                                NPY_CASTING casting,
+                                HPy *operands,
+                                HPy type_tup,
+                                HPy *out_dtypes);
 
 NPY_NO_EXPORT int
 PyUFunc_NegativeTypeResolver(PyUFuncObject *ufunc,
