@@ -355,6 +355,15 @@ mapiter_trivial_set(PyArrayObject *self, PyArrayObject *ind,
                        PyArrayObject *result);
 
 NPY_NO_EXPORT int
+hpy_mapiter_trivial_set(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_ind, PyArrayObject *ind,
+                       HPy h_result, PyArrayObject *result);
+
+NPY_NO_EXPORT int
+hpy_mapiter_trivial_get(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_ind, PyArrayObject *ind,
+                       HPy h_result, PyArrayObject *result);
+
+
+NPY_NO_EXPORT int
 mapiter_get(PyArrayMapIterObject *mit);
 
 NPY_NO_EXPORT int

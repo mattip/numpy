@@ -27,6 +27,8 @@
 #include "conversion_utils.h"
 #include "multiarraymodule.h"
 
+#include "scalarapi.h"
+
 
 #define HAS_INTEGER 1
 #define HAS_NEWAXIS 2
@@ -384,9 +386,6 @@ fail:
 NPY_NO_EXPORT npy_intp
 hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_n)
 {
-    npy_intp n, i;
-    npy_bool commit_to_unpack;
-
     /* Fast route for passing a tuple */
     if (HPyTuple_CheckExact(ctx, h_index)) {
         return hpy_unpack_tuple(ctx, h_index, h_result, result_n);
@@ -414,10 +413,10 @@ hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_
     if (!PySequence_Check(idx) || PyUnicode_Check(idx)) {
         ires = unpack_scalar(idx, res, result_n);
     } else {
-        ires = unpack_indices(idx, &res, result_n);
+        ires = unpack_indices(idx, res, result_n);
     }
     Py_DECREF(idx);
-    for (size_t i = 0; i < ires; ++i) {
+    for (int i = 0; i < ires; ++i) {
         if (res[i] == NULL) break;
         h_result[i] = HPy_FromPyObject(ctx, res[i]);
         Py_DECREF(res[i]);
@@ -1396,7 +1395,7 @@ get_item_pointer(PyArrayObject *self, char **ptr,
 
 static int
 hpy_get_item_pointer(HPyContext *ctx, PyArrayObject *self, char **ptr,
-                    npy_index_info *indices, int index_num) {
+                    hpy_npy_index_info *indices, int index_num) {
     int i;
     *ptr = PyArray_BYTES(self);
     for (i=0; i < index_num; i++) {
@@ -1993,7 +1992,7 @@ array_item(PyArrayObject *self, Py_ssize_t i)
 NPY_NO_EXPORT PyObject *
 array_subscript_asarray(PyArrayObject *self, PyObject *op)
 {
-    return PyArray_EnsureAnyArray(array_subscript(self, op));
+    return PyArray_EnsureAnyArray(array_subscript_cpy(self, op));
 }
 
 /*
@@ -2106,8 +2105,9 @@ _get_field_view(PyArrayObject *arr, PyObject *ind, PyArrayObject **view)
 /*
  * General function for indexing a NumPy array with a Python object.
  */
-NPY_NO_EXPORT PyObject *
-array_subscript(PyArrayObject *self, PyObject *op)
+HPyDef_SLOT(array_subscript, array_subscript_impl, HPy_mp_subscript)
+NPY_NO_EXPORT HPy
+array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 {
     int index_type;
     int index_num;
@@ -2116,51 +2116,54 @@ array_subscript(PyArrayObject *self, PyObject *op)
      * Index info array. We can have twice as many indices as dimensions
      * (because of None). The + 1 is to not need to check as much.
      */
-    npy_index_info indices[NPY_MAXDIMS * 2 + 1];
+    hpy_npy_index_info indices[NPY_MAXDIMS * 2 + 1];
 
-    PyArrayObject *view = NULL;
-    PyObject *result = NULL;
+    HPy h_view = HPy_NULL;
+    HPy h_result = HPy_NULL;
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+    PyArray_Descr *self_descr = PyArray_Descr_AsStruct(ctx, h_self_descr);
 
-    PyArrayMapIterObject * mit = NULL;
 
     /* return fields if op is a string index */
-    if (PyDataType_HASFIELDS(PyArray_DESCR(self))) {
-        PyArrayObject *view;
-        int ret = _get_field_view(self, op, &view);
-        if (ret == 0){
-            if (view == NULL) {
-                return NULL;
-            }
-            return (PyObject*)view;
-        }
+    if (PyDataType_HASFIELDS(self_descr)) {
+        hpy_abort_not_implemented("array_subscript:PyDataType_HASFIELDS branch");
+        // PyArrayObject *view;
+        // int ret = _get_field_view(self, op, &view);
+        // if (ret == 0){
+        //     if (view == NULL) {
+        //         return HPy_NULL;
+        //     }
+        //     return HPy_FromPyObject(ctx, (PyObject*)view);
+        // }
     }
 
     /* Prepare the indices */
-    index_type = prepare_index(self, op, indices, &index_num,
+    index_type = hpy_prepare_index(ctx, h_self, self, h_op, indices, &index_num,
                                &ndim, &fancy_ndim, 1);
 
     if (index_type < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Full integer index */
     else if (index_type == HAS_INTEGER) {
         char *item;
-        if (get_item_pointer(self, &item, indices, index_num) < 0) {
+        if (hpy_get_item_pointer(ctx, self, &item, indices, index_num) < 0) {
             goto finish;
         }
-        result = (PyObject *) PyArray_Scalar(item, PyArray_DESCR(self),
-                                             (PyObject *)self);
-        /* Because the index is full integer, we do not need to decref */
-        return result;
+        HPy fast_res = HPyArray_Scalar(ctx, item, h_self_descr, h_self, self);
+        HPy_Close(ctx, h_self_descr);
+        return fast_res;
     }
 
     /* Single boolean array */
     else if (index_type == HAS_BOOL) {
-        result = (PyObject *)array_boolean_subscript(self,
-                                    (PyArrayObject *)indices[0].object,
-                                    NPY_CORDER);
-        goto finish;
+        hpy_abort_not_implemented("array_subscript:HAS_BOOL");
+        // result = (PyObject *)array_boolean_subscript(self,
+        //                             (PyArrayObject *)indices[0].object,
+        //                             NPY_CORDER);
+        // goto finish;
     }
 
     /* If it is only a single ellipsis, just return a view */
@@ -2170,9 +2173,10 @@ array_subscript(PyArrayObject *self, PyObject *op)
          *       optimization (i.e. of array[...] += 1) I think.
          *       Before, it was just self for a single ellipsis.
          */
-        result = PyArray_View(self, NULL, NULL);
-        /* A single ellipsis, so no need to decref */
-        return result;
+        hpy_abort_not_implemented("array_subscript:HAS_ELLIPSIS");
+        // result = PyArray_View(self, NULL, NULL);
+        // /* A single ellipsis, so no need to decref */
+        // return HPy_FromPyObject(ctx, result);
     }
 
     /*
@@ -2184,7 +2188,7 @@ array_subscript(PyArrayObject *self, PyObject *op)
 
     else if (index_type & (HAS_SLICE | HAS_NEWAXIS |
                            HAS_ELLIPSIS | HAS_INTEGER)) {
-        if (get_view_from_index(self, &view, indices, index_num,
+        if (hpy_get_view_from_index(ctx, h_self, self, &h_view, indices, index_num,
                                 (index_type & HAS_FANCY)) < 0) {
             goto finish;
         }
@@ -2194,15 +2198,15 @@ array_subscript(PyArrayObject *self, PyObject *op)
          * fancy indexing.
          */
         if (index_type & HAS_SCALAR_ARRAY) {
-            result = PyArray_NewCopy(view, NPY_KEEPORDER);
-            goto finish;
+            hpy_abort_not_implemented("array_subscript:index_type & HAS_SCALAR_ARRAY");
+            // result = PyArray_NewCopy(view, NPY_KEEPORDER);
+            // goto finish;
         }
     }
 
     /* If there is no fancy indexing, we have the result */
     if (!(index_type & HAS_FANCY)) {
-        result = (PyObject *)view;
-        Py_INCREF(result);
+        h_result = HPy_Dup(ctx, h_view);
         goto finish;
     }
 
@@ -2214,33 +2218,37 @@ array_subscript(PyArrayObject *self, PyObject *op)
      */
     if (index_type == HAS_FANCY && index_num == 1) {
         /* The array being indexed has one dimension and it is a fancy index */
-        PyArrayObject *ind = (PyArrayObject*)indices[0].object;
+        HPy h_ind = indices[0].object;
+        PyArrayObject *ind = PyArrayObject_AsStruct(ctx, h_ind);
+        HPy h_ind_descr = HPyArray_DESCR(ctx, h_ind, ind);
+        PyArray_Descr *ind_descr = PyArray_Descr_AsStruct(ctx, h_ind_descr);
 
         /* Check if the index is simple enough */
         if (PyArray_TRIVIALLY_ITERABLE(ind) &&
                 /* Check if the type is equivalent to INTP */
                 PyArray_ITEMSIZE(ind) == sizeof(npy_intp) &&
-                PyArray_DESCR(ind)->kind == 'i' &&
-                IsUintAligned(ind) &&
-                PyDataType_ISNOTSWAPPED(PyArray_DESCR(ind))) {
+                ind_descr->kind == 'i' &&
+                HIsUintAligned(ctx, h_ind, ind) &&
+                HPyArray_ISNOTSWAPPED(ctx, h_ind, ind)) {
 
-            Py_INCREF(PyArray_DESCR(self));
-            result = PyArray_NewFromDescr(&PyArray_Type,
-                                          PyArray_DESCR(self),
+            HPy hpy_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+            h_result = HPyArray_NewFromDescr(ctx, hpy_array_type,
+                                          h_self_descr,
                                           PyArray_NDIM(ind),
                                           PyArray_SHAPE(ind),
                                           NULL, NULL,
                                           /* Same order as indices */
                                           PyArray_ISFORTRAN(ind) ?
                                               NPY_ARRAY_F_CONTIGUOUS : 0,
-                                          NULL);
-            if (result == NULL) {
+                                          HPy_NULL);
+            HPy_Close(ctx, hpy_array_type);
+            if (HPy_IsNull(h_result)) {
                 goto finish;
             }
 
-            if (mapiter_trivial_get(self, ind, (PyArrayObject *)result) < 0) {
-                Py_DECREF(result);
-                result = NULL;
+            if (hpy_mapiter_trivial_get(ctx, h_self, self, h_ind, ind, h_result, PyArrayObject_AsStruct(ctx, h_result)) < 0) {
+                HPy_Close(ctx, h_result);
+                h_result = HPy_NULL;
                 goto finish;
             }
 
@@ -2249,76 +2257,87 @@ array_subscript(PyArrayObject *self, PyObject *op)
     }
 
     /* fancy indexing has to be used. And view is the subspace. */
-    mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices, index_num,
-                                                     index_type,
-                                                     ndim, fancy_ndim,
-                                                     self, view, 0,
-                                                     NPY_ITER_READONLY,
-                                                     NPY_ITER_WRITEONLY,
-                                                     NULL, PyArray_DESCR(self));
-    if (mit == NULL) {
-        goto finish;
-    }
+    hpy_abort_not_implemented("fancy indexing in array_subscript");
+    // PyArrayMapIterObject * mit = NULL;
+    // mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices, index_num,
+    //                                                  index_type,
+    //                                                  ndim, fancy_ndim,
+    //                                                  self, view, 0,
+    //                                                  NPY_ITER_READONLY,
+    //                                                  NPY_ITER_WRITEONLY,
+    //                                                  NULL, PyArray_DESCR(self));
+    // if (mit == NULL) {
+    //     goto finish;
+    // }
 
-    if (mit->numiter > 1 || mit->size == 0) {
-        /*
-         * If it is one, the inner loop checks indices, otherwise
-         * check indices beforehand, because it is much faster if
-         * broadcasting occurs and most likely no big overhead.
-         * The inner loop optimization skips index checks for size == 0 though.
-         */
-        if (PyArray_MapIterCheckIndices(mit) < 0) {
-            goto finish;
-        }
-    }
+    // if (mit->numiter > 1 || mit->size == 0) {
+    //     /*
+    //      * If it is one, the inner loop checks indices, otherwise
+    //      * check indices beforehand, because it is much faster if
+    //      * broadcasting occurs and most likely no big overhead.
+    //      * The inner loop optimization skips index checks for size == 0 though.
+    //      */
+    //     if (PyArray_MapIterCheckIndices(mit) < 0) {
+    //         goto finish;
+    //     }
+    // }
 
-    /* Reset the outer iterator */
-    if (NpyIter_Reset(mit->outer, NULL) < 0) {
-        goto finish;
-    }
+    // /* Reset the outer iterator */
+    // if (NpyIter_Reset(mit->outer, NULL) < 0) {
+    //     goto finish;
+    // }
 
-    if (mapiter_get(mit) < 0) {
-        goto finish;
-    }
+    // if (mapiter_get(mit) < 0) {
+    //     goto finish;
+    // }
 
-    result = (PyObject *)mit->extra_op;
-    Py_INCREF(result);
+    // result = (PyObject *)mit->extra_op;
+    // Py_INCREF(result);
 
-    if (mit->consec) {
-        PyArray_MapIterSwapAxes(mit, (PyArrayObject **)&result, 1);
-    }
+    // if (mit->consec) {
+    //     PyArray_MapIterSwapAxes(mit, (PyArrayObject **)&result, 1);
+    // }
 
   wrap_out_array:
-    if (!PyArray_CheckExact(self)) {
-        /*
-         * Need to create a new array as if the old one never existed.
-         */
-        PyArrayObject *tmp_arr = (PyArrayObject *)result;
+    if (!HPyArray_CheckExact(ctx, h_self)) {
+        hpy_abort_not_implemented("array_subscript:wrap_out_array");
+        // /*
+        //  * Need to create a new array as if the old one never existed.
+        //  */
+        // PyArrayObject *tmp_arr = (PyArrayObject *)result;
 
-        Py_INCREF(PyArray_DESCR(tmp_arr));
-        result = PyArray_NewFromDescrAndBase(
-                Py_TYPE(self),
-                PyArray_DESCR(tmp_arr),
-                PyArray_NDIM(tmp_arr),
-                PyArray_SHAPE(tmp_arr),
-                PyArray_STRIDES(tmp_arr),
-                PyArray_BYTES(tmp_arr),
-                PyArray_FLAGS(tmp_arr),
-                (PyObject *)self, (PyObject *)tmp_arr);
-        Py_DECREF(tmp_arr);
-        if (result == NULL) {
-            goto finish;
-        }
+        // Py_INCREF(PyArray_DESCR(tmp_arr));
+        // HPy self_type = HPy_Type(ctx, h_self);
+
+        // result = HPyArray_NewFromDescrAndBase(
+        //         ctx,
+        //         self_type,
+        //         PyArray_DESCR(tmp_arr),
+        //         PyArray_NDIM(tmp_arr),
+        //         PyArray_SHAPE(tmp_arr),
+        //         PyArray_STRIDES(tmp_arr),
+        //         PyArray_BYTES(tmp_arr),
+        //         PyArray_FLAGS(tmp_arr),
+        //         (PyObject *)self, (PyObject *)tmp_arr);
+        // Py_DECREF(tmp_arr);
+        // if (result == NULL) {
+        //     goto finish;
+        // }
     }
 
   finish:
-    Py_XDECREF(mit);
-    Py_XDECREF(view);
+    HPy_Close(ctx, h_self_descr);
+    // Py_XDECREF(mit); -- relevant code pushed behind hpy_abort_not_implemented
+    HPy_Close(ctx, h_view);
     /* Clean up indices */
     for (i=0; i < index_num; i++) {
-        Py_XDECREF(indices[i].object);
+        HPy_Close(ctx, indices[i].object);
     }
-    return result;
+    return h_result;
+}
+
+PyObject *array_subscript_cpy(PyArrayObject *a, PyObject *b) {
+    return array_subscript_trampoline((PyObject*) a, b);
 }
 
 
@@ -2391,7 +2410,7 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     int result;
     int index_type;
     int index_num;
-    int i, ndim, fancy_ndim;
+    int ndim, fancy_ndim;
     PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, h_self);
     HPy h_descr = HPyArray_DESCR(ctx, h_self, self_struct);
     PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
@@ -2399,7 +2418,7 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     HPy tmp_arr = HPy_NULL;
     hpy_npy_index_info indices[NPY_MAXDIMS * 2 + 1];
 
-    PyArrayMapIterObject *mit = NULL;
+    // PyArrayMapIterObject *mit = NULL;
 
     if (HPy_IsNull(h_op)) {
         HPyErr_SetString(ctx, ctx->h_ValueError,
@@ -2473,7 +2492,7 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
         PyObject *py_tmp_arr = HPy_AsPyObject(ctx, tmp_arr);
         if (array_assign_boolean_subscript(self_struct,
                                            (PyArrayObject *) py_tmp_ind_obj,
-                                           py_tmp_arr, NPY_CORDER) < 0) {
+                                           (PyArrayObject*) py_tmp_arr, NPY_CORDER) < 0) {
             result = -1;
         } else {
             result = 0;
@@ -2628,77 +2647,81 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
      *       correctly, but such an operand always has the full
      *       size anyway.
      */
-    CAPI_WARN("remainder of array_assign_subscript");
-    PyObject *self = HPy_AsPyObject(ctx, h_self);
-    PyObject *py_view = HPy_AsPyObject(ctx, view);
-    PyObject *py_tmp_arr = HPy_AsPyObject(ctx, tmp_arr);
-    mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices,
-                                             index_num, index_type,
-                                             ndim, fancy_ndim, self,
-                                             py_view, 0,
-                                             NPY_ITER_WRITEONLY,
-                                             ((py_tmp_arr == NULL) ?
-                                                  NPY_ITER_READWRITE :
-                                                  NPY_ITER_READONLY),
-                                             py_tmp_arr, descr);
+    hpy_abort_not_implemented("remainder of array_assign_subscript");
+    // NOTE: DANGER for the commented out code below: indices contains HPy handles now
+    // PyObject *self = HPy_AsPyObject(ctx, h_self);
+    // PyObject *py_view = HPy_AsPyObject(ctx, view);
+    // PyObject *py_tmp_arr = HPy_AsPyObject(ctx, tmp_arr);
+    // mit = (PyArrayMapIterObject *)PyArray_MapIterNew(indices,
+    //                                          index_num, index_type,
+    //                                          ndim, fancy_ndim, (PyArrayObject*) self,
+    //                                          py_view, 0,
+    //                                          NPY_ITER_WRITEONLY,
+    //                                          ((py_tmp_arr == NULL) ?
+    //                                               NPY_ITER_READWRITE :
+    //                                               NPY_ITER_READONLY),
+    //                                          py_tmp_arr, descr);
 
-    if (mit == NULL) {
-        result = -1;
-        Py_DECREF(self);
-        Py_DECREF(py_view);
-        Py_DECREF(py_tmp_arr);
-        goto cleanup;
-    }
+    // if (mit == NULL) {
+    //     result = -1;
+    //     Py_DECREF(self);
+    //     Py_DECREF(py_view);
+    //     Py_DECREF(py_tmp_arr);
+    //     goto cleanup;
+    // }
 
-    if (py_tmp_arr == NULL) {
-        /* Fill extra op, need to swap first */
-        py_tmp_arr = mit->extra_op;
-        Py_INCREF(py_tmp_arr);
-        if (mit->consec) {
-            PyArray_MapIterSwapAxes(mit, &py_tmp_arr, 1);
-            if (py_tmp_arr == NULL) {
-                Py_DECREF(self);
-                Py_DECREF(py_view);
-                Py_DECREF(py_tmp_arr);
-                result = -1;
-                goto cleanup;
-            }
-        }
-        PyObject *py_op = HPy_AsPyObject(ctx, h_op);
-        if (PyArray_CopyObject(py_tmp_arr, py_op) < 0) {
-            Py_DECREF(self);
-            Py_DECREF(py_view);
-            Py_DECREF(py_tmp_arr);
-            Py_DECREF(py_op);
-            result = -1;
-            goto cleanup;
-        }
-        Py_DECREF(py_op);
-    }
+    // if (py_tmp_arr == NULL) {
+    //     /* Fill extra op, need to swap first */
+    //     py_tmp_arr = mit->extra_op;
+    //     Py_INCREF(py_tmp_arr);
+    //     if (mit->consec) {
+    //         PyArray_MapIterSwapAxes(mit, &py_tmp_arr, 1);
+    //         if (py_tmp_arr == NULL) {
+    //             Py_DECREF(self);
+    //             Py_DECREF(py_view);
+    //             Py_DECREF(py_tmp_arr);
+    //             result = -1;
+    //             goto cleanup;
+    //         }
+    //     }
+    //     PyObject *py_op = HPy_AsPyObject(ctx, h_op);
+    //     if (PyArray_CopyObject(py_tmp_arr, py_op) < 0) {
+    //         Py_DECREF(self);
+    //         Py_DECREF(py_view);
+    //         Py_DECREF(py_tmp_arr);
+    //         Py_DECREF(py_op);
+    //         result = -1;
+    //         goto cleanup;
+    //     }
+    //     Py_DECREF(py_op);
+    // }
+    // Py_DECREF(self);
+    // Py_DECREF(py_view);
+    // Py_DECREF(py_tmp_arr);
 
-    /* Can now reset the outer iterator (delayed bufalloc) */
-    if (NpyIter_Reset(mit->outer, NULL) < 0) {
-        result = -1;
-        goto cleanup;
-    }
+    // /* Can now reset the outer iterator (delayed bufalloc) */
+    // if (NpyIter_Reset(mit->outer, NULL) < 0) {
+    //     result = -1;
+    //     goto cleanup;
+    // }
 
-    if (PyArray_MapIterCheckIndices(mit) < 0) {
-        result = -1;
-        goto cleanup;
-    }
+    // if (PyArray_MapIterCheckIndices(mit) < 0) {
+    //     result = -1;
+    //     goto cleanup;
+    // }
 
-    /*
-     * Could add a casting check, but apparently most assignments do
-     * not care about safe casting.
-     */
+    // /*
+    //  * Could add a casting check, but apparently most assignments do
+    //  * not care about safe casting.
+    //  */
 
-    if (mapiter_set(mit) < 0) {
-        result = -1;
-        goto cleanup;
-    }
+    // if (mapiter_set(mit) < 0) {
+    //     result = -1;
+    //     goto cleanup;
+    // }
 
-    Py_DECREF(mit);
-    result = 0;
+    // Py_DECREF(mit);
+    // result = 0;
 
 cleanup:
     HPy_Close(ctx, h_descr);

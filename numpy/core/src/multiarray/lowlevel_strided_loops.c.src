@@ -1563,6 +1563,119 @@ mapiter_trivial_@name@(PyArrayObject *self, PyArrayObject *ind,
 }
 
 
+NPY_NO_EXPORT int
+hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_ind, PyArrayObject *ind,
+                       HPy h_result, PyArrayObject *result)
+{
+    char *base_ptr, *ind_ptr, *result_ptr;
+    npy_intp self_stride, ind_stride, result_stride;
+    npy_intp fancy_dim = PyArray_DIM(self, 0);
+
+    npy_intp itersize;
+
+    int is_aligned = HIsUintAligned(ctx, h_self, self) && HIsUintAligned(ctx, h_result, result);
+    HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+    PyArray_Descr *self_descr = PyArray_Descr_AsStruct(ctx, h_self_descr);
+    int needs_api = PyDataType_REFCHK(self_descr);
+
+    // XXX: sadness
+    // HPy: well, keeping this to be faithful to the original...
+    needs_api = 1;
+
+    PyArray_CopySwapFunc *copyswap = self_descr->f->copyswap;
+    // TODO HPY LABS PORT: NPY_BEGIN_THREADS_DEF;
+    // ATTENTION: check_and_adjust_index takes the GIL again if it needs to report an error
+
+    base_ptr = PyArray_BYTES(self);
+    self_stride = PyArray_STRIDE(self, 0);
+
+    PyArray_PREPARE_TRIVIAL_PAIR_ITERATION(ind, result, itersize,
+                                           ind_ptr, result_ptr,
+                                           ind_stride, result_stride);
+
+    if (!needs_api) {
+        hpy_abort_not_implemented("should not be reached even in normal numpy");
+        // NPY_BEGIN_THREADS_THRESHOLDED(PyArray_SIZE(ind));
+    }
+#if !@isget@
+    /* Check the indices beforehand */
+    while (itersize--) {
+        npy_intp indval = *((npy_intp*)ind_ptr);
+        if (hpy_check_and_adjust_index(ctx, &indval, fancy_dim, 0/*, _save*/) < 0 ) {
+            return -1;
+        }
+        ind_ptr += ind_stride;
+    }
+
+    /*
+     * Reset the ind_ptr and itersize, due to broadcasting it is always
+     * the size of ind.
+     */
+    ind_ptr = PyArray_BYTES(ind);
+    itersize = PyArray_SIZE(ind);
+#endif
+
+    /* Optimization for aligned types that do not need the api */
+    switch ((is_aligned && !needs_api) ? PyArray_ITEMSIZE(self) : 0) {
+
+/**begin repeat1
+ * #elsize = 1, 2, 4, 8, 0#
+ * #copytype = npy_uint8, npy_uint16, npy_uint32, npy_uint64, 0#
+ */
+
+#if @elsize@
+    case @elsize@:
+#else
+    default:
+#endif
+        while (itersize--) {
+            char * self_ptr;
+            npy_intp indval = *((npy_intp*)ind_ptr);
+            assert(npy_is_aligned(ind_ptr, _UINT_ALIGN(npy_intp)));
+#if @isget@
+            if (hpy_check_and_adjust_index(ctx, &indval, fancy_dim, 0/*, _save*/) < 0 ) {
+                return -1;
+            }
+#else
+            if (indval < 0) {
+                indval += fancy_dim;
+            }
+#endif
+            self_ptr = base_ptr + indval * self_stride;
+
+#if @isget@
+#if @elsize@
+            assert(npy_is_aligned(result_ptr, _UINT_ALIGN(@copytype@)));
+            assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
+            *(@copytype@ *)result_ptr = *(@copytype@ *)self_ptr;
+#else
+            copyswap(result_ptr, self_ptr, 0, self);
+#endif
+
+#else /* !@isget@ */
+#if @elsize@
+            assert(npy_is_aligned(result_ptr, _UINT_ALIGN(@copytype@)));
+            assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
+            *(@copytype@ *)self_ptr = *(@copytype@ *)result_ptr;
+#else
+            copyswap(self_ptr, result_ptr, 0, self);
+#endif
+#endif
+
+            ind_ptr += ind_stride;
+            result_ptr += result_stride;
+        }
+        break;
+
+/**end repeat1**/
+    }
+
+    // NPY_END_THREADS;
+
+    return 0;
+}
+
+
 /*
  * General advanced indexing iteration.
  */
