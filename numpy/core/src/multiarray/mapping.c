@@ -1971,12 +1971,14 @@ array_item_asarray(PyArrayObject *self, npy_intp i)
  * Negative indices are not accepted because PySequence_GetItem converts
  * them to positive indices before calling this.
  */
-NPY_NO_EXPORT PyObject *
-array_item(PyArrayObject *self, Py_ssize_t i)
+HPyDef_SLOT(array_item, array_item_impl, HPy_sq_item)
+NPY_NO_EXPORT HPy
+array_item_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, Py_ssize_t i)
 {
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     if (PyArray_NDIM(self) == 1) {
         char *item;
-        npy_index_info index;
+        hpy_npy_index_info index;
 
         if (i < 0) {
             /* This is an error, but undo PySequence_GetItem fix for message */
@@ -1985,13 +1987,15 @@ array_item(PyArrayObject *self, Py_ssize_t i)
 
         index.value = i;
         index.type = HAS_INTEGER;
-        if (get_item_pointer(self, &item, &index, 1) < 0) {
-            return NULL;
+        if (hpy_get_item_pointer(ctx, self, &item, &index, 1) < 0) {
+            return HPy_NULL;
         }
-        return PyArray_Scalar(item, PyArray_DESCR(self), (PyObject *)self);
+        HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+        return HPyArray_Scalar(ctx, item, h_self_descr, h_self, self);
     }
     else {
-        return array_item_asarray(self, i);
+        hpy_abort_not_implemented("array_item_asarray");
+        // return array_item_asarray(self, i);
     }
 }
 

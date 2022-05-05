@@ -1861,7 +1861,7 @@ HPyDef_SLOT(array_new, array_new_impl, HPy_tp_new)
 static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
                           HPy_ssize_t nargs, HPy h_kwds)
 {
-    static char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
+    static const char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
                              "order", NULL};
     HPy h_descr_in;
     int itemsize;
@@ -2060,7 +2060,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
     {Py_sq_concat, (binaryfunc)array_concat},
-    {Py_sq_item, (ssizeargfunc)array_item},
     {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
     {Py_sq_contains, (objobjproc)array_contains},
 
@@ -2075,6 +2074,7 @@ static PyType_Slot PyArray_Type_slots[] = {
 
 static HPyDef *array_defines[] = {
     &array_length,
+    &array_item,
     &mp_array_length,
     &array_getbuffer,
     &array_assign_subscript,
