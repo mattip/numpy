@@ -4977,7 +4977,6 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         return -1;
     }
     cobj = NhpyCapsule_FromVoidPtr(ctx, (void *)@name1@_to_@name2@, NULL);
-    printf("capsule created\n");
     if (HPy_IsNull(cobj)) {
         HPy_Close(ctx, key);
         HPy_Close(ctx, h_descr);
