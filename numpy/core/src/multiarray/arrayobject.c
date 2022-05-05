@@ -2037,9 +2037,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_invert, (unaryfunc)array_invert},
     {Py_nb_lshift, array_left_shift},
     {Py_nb_rshift, array_right_shift},
-    {Py_nb_and, array_bitwise_and},
-    {Py_nb_xor, array_bitwise_xor},
-    {Py_nb_or, array_bitwise_or},
 
     {Py_nb_int, (unaryfunc)array_int},
     {Py_nb_float, (unaryfunc)array_float},
@@ -2091,6 +2088,9 @@ static HPyDef *array_defines[] = {
     &array_true_divide,
     &array_add,
     &array_richcompare_def,
+    &array_bitwise_and,
+    &array_bitwise_or,
+    &array_bitwise_xor,
 
     // methods:
     &array_ravel,
