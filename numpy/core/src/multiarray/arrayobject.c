@@ -2027,8 +2027,6 @@ array_iter(PyArrayObject *arr)
 
 
 static PyType_Slot PyArray_Type_slots[] = {
-    {Py_mp_length, (lenfunc)array_length},
-
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
     {Py_nb_divmod, array_divmod},
@@ -2064,7 +2062,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
-    {Py_sq_length, (lenfunc)array_length},
     {Py_sq_concat, (binaryfunc)array_concat},
     {Py_sq_item, (ssizeargfunc)array_item},
     {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
@@ -2080,6 +2077,8 @@ static PyType_Slot PyArray_Type_slots[] = {
 };
 
 static HPyDef *array_defines[] = {
+    &array_length,
+    &mp_array_length,
     &array_getbuffer,
     &array_assign_subscript,
     &array_subscript,

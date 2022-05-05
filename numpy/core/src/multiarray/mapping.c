@@ -54,15 +54,23 @@ _nonzero_indices(PyObject *myBool, PyArrayObject **arrays);
  ***                    IMPLEMENT MAPPING PROTOCOL                          ***
  *****************************************************************************/
 
-NPY_NO_EXPORT Py_ssize_t
-array_length(PyArrayObject *self)
+HPyDef_SLOT(array_length, array_length_impl, HPy_sq_length)
+NPY_NO_EXPORT HPy_ssize_t
+array_length_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self)
 {
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     if (PyArray_NDIM(self) != 0) {
         return PyArray_DIMS(self)[0];
     } else {
-        PyErr_SetString(PyExc_TypeError, "len() of unsized object");
+        HPyErr_SetString(ctx, ctx->h_TypeError, "len() of unsized object");
         return -1;
     }
+}
+
+HPyDef_SLOT(mp_array_length, mp_array_length_impl, HPy_mp_length)
+NPY_NO_EXPORT HPy_ssize_t
+mp_array_length_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self) {
+    return array_length_impl(ctx, h_self);
 }
 
 

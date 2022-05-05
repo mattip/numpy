@@ -38,8 +38,8 @@ typedef struct {
 } hpy_npy_index_info;
 
 
-NPY_NO_EXPORT Py_ssize_t
-array_length(PyArrayObject *self);
+NPY_NO_EXPORT extern HPyDef array_length;
+NPY_NO_EXPORT extern HPyDef mp_array_length;
 
 NPY_NO_EXPORT PyObject *
 array_item_asarray(PyArrayObject *self, npy_intp i);
