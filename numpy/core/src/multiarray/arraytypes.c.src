@@ -4918,9 +4918,10 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     int i;
 
     PyArray_Descr *dtype;
-    PyObject *cobj, *key;
-    PyObject *py;
+    HPy cobj, key;
+    HPy py;
     HPy h_descr;
+    HPy castdict = HPy_NULL;
 
     /*
      * Override the base class for all types, eventually all of this logic
@@ -4958,33 +4959,40 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      */
     h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@name1@]);
     dtype = PyArray_Descr_AsStruct(ctx, h_descr);
-    if (dtype->f->castdict == NULL) {
-        dtype->f->castdict = PyDict_New();
-        if (dtype->f->castdict == NULL) {
+    if (HPyField_IsNull(dtype->f->h_castdict)) {
+        castdict = HPyDict_New(ctx);
+        if (HPy_IsNull(castdict)) {
             HPy_Close(ctx, h_descr);
             return -1;
         }
+        dtype->f->castdict = HPy_AsPyObject(ctx, castdict);
+        HPyField_Store(ctx, h_descr, &dtype->f->h_castdict, castdict);
+    } else {
+        castdict = HPyField_Load(ctx, h_descr, dtype->f->h_castdict);
     }
-    key = PyLong_FromLong(NPY_@name2@);
-    if (key == NULL) {
+    key = HPyLong_FromLong(ctx, NPY_@name2@);
+    if (HPy_IsNull(key)) {
+        HPy_Close(ctx, h_descr);
+        HPy_Close(ctx, castdict);
+        return -1;
+    }
+    cobj = NhpyCapsule_FromVoidPtr(ctx, (void *)@name1@_to_@name2@, NULL);
+    if (HPy_IsNull(cobj)) {
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, h_descr);
+        HPy_Close(ctx, castdict);
+        return -1;
+    }
+    if (HPy_SetItem(ctx, castdict, key, cobj) < 0) {
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, cobj);
         HPy_Close(ctx, h_descr);
         return -1;
     }
-    cobj = NpyCapsule_FromVoidPtr((void *)@name1@_to_@name2@, NULL);
-    if (cobj == NULL) {
-        Py_DECREF(key);
-        HPy_Close(ctx, h_descr);
-        return -1;
-    }
-    if (PyDict_SetItem(dtype->f->castdict, key, cobj) < 0) {
-        Py_DECREF(key);
-        Py_DECREF(cobj);
-        HPy_Close(ctx, h_descr);
-        return -1;
-    }
+    HPy_Close(ctx, castdict);
     HPy_Close(ctx, h_descr);
-    Py_DECREF(key);
-    Py_DECREF(cobj);
+    HPy_Close(ctx, key);
+    HPy_Close(ctx, cobj);
 
     /**end repeat1**/
 

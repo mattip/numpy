@@ -12,7 +12,7 @@
 #include "extobj.h"
 #include "numpy/ufuncobject.h"
 
-#include "ufunc_object.h"  /* for npy_um_str_pyvals_name */
+#include "ufunc_object.h"  /* for npy_hpy_um_str_pyvals_name */
 #include "common.h"
 
 #if USE_USE_DEFAULTS==1
@@ -166,7 +166,9 @@ get_global_ext_obj(void)
         if (thedict == NULL) {
             thedict = PyEval_GetBuiltins();
         }
-        ref = PyDict_GetItemWithError(thedict, npy_um_str_pyvals_name);
+        HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_pyvals_name);
+        ref = PyDict_GetItemWithError(thedict, HPy_AsPyObject(npy_get_context(), s));
+        HPy_Close(npy_get_context(), s);
 #if USE_USE_DEFAULTS==1
     }
 #endif

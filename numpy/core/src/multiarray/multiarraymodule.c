@@ -4760,7 +4760,7 @@ setup_scalartypes(HPyContext *ctx)
 
     // HPY TODO: is HPyTracker good fit for this?, we ignore tracker error
     // handling for now
-    HPyTracker tracker = HPyTracker_New(ctx, 30);
+    HPyTracker tracker = HPyTracker_New(ctx, 40);
     int result = -1;
 
 #define SINGLE_INHERIT(child, parent)                                   \
@@ -4794,8 +4794,8 @@ setup_scalartypes(HPyContext *ctx)
     }
     // HPY TODO: global variable + local variable to mimick the original global in the SINGLE_INHERIT&co macros
     _PyGenericArrType_Type_p = (PyTypeObject*) HPy_AsPyObject(ctx, h_PyGenericArrType_Type);
+    HPyTracker_Add(ctx, tracker, h_PyGenericArrType_Type);
     HPyGlobal_Store(ctx, &HPyGenericArrType_Type, h_PyGenericArrType_Type);
-    HPy_Close(ctx, h_PyGenericArrType_Type);
 
     SINGLE_INHERIT(Number, Generic);
     SINGLE_INHERIT(Integer, Number);
@@ -5244,7 +5244,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
+#ifndef NO_LEGACY
     PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
+#endif
 
     if (setup_scalartypes(ctx) < 0) {
         goto err;

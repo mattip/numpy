@@ -129,6 +129,7 @@ PyArray_InitArrFuncs(PyArray_ArrFuncs *f)
         f->argsort[i] = NULL;
     }
     f->castdict = NULL;
+    f->h_castdict = HPyField_NULL;
     f->scalarkind = NULL;
     f->cancastscalarkindto = NULL;
     f->cancastto = NULL;
@@ -329,6 +330,7 @@ PyArray_RegisterCastFunc(PyArray_Descr *descr, int totype,
 {
     PyObject *cobj, *key;
     int ret;
+    HPy h_castdict;
 
     if (totype >= NPY_NTYPES && !PyTypeNum_ISUSERDEF(totype)) {
         PyErr_SetString(PyExc_TypeError, "invalid type number.");
@@ -343,6 +345,7 @@ PyArray_RegisterCastFunc(PyArray_Descr *descr, int totype,
         descr->f->cast[totype] = castfunc;
         return 0;
     }
+    CAPI_WARN("PyArray_GetCastFunc: Accessing castdict without going through field\n");
     if (descr->f->castdict == NULL) {
         descr->f->castdict = PyDict_New();
         if (descr->f->castdict == NULL) {

@@ -2104,6 +2104,8 @@ NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec = {
     .basicsize = sizeof(PyArrayObject_fields),
     .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | HPy_TPFLAGS_HAVE_GC),
     .defines = array_defines,
+#ifndef NO_LEGACY
     .legacy_slots = PyArray_Type_slots,
     .legacy = true,
+#endif
 };

@@ -4600,7 +4600,9 @@ PyUFunc_GenericReduction(PyUFuncObject *ufunc,
             Py_INCREF(wrap);
         }
         else if (Py_TYPE(op) != Py_TYPE(ret)) {
-            wrap = PyObject_GetAttr(op, npy_um_str_array_wrap);
+            HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_array_wrap);
+            wrap = PyObject_GetAttr(op, HPy_AsPyObject(npy_get_context(), s));
+            HPy_Close(npy_get_context(), s);
             if (wrap == NULL) {
                 PyErr_Clear();
             }
@@ -5544,7 +5546,9 @@ ufunc_geterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
     if (thedict == NULL) {
         thedict = PyEval_GetBuiltins();
     }
-    res = PyDict_GetItemWithError(thedict, npy_um_str_pyvals_name);
+    HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_pyvals_name);
+    res = PyDict_GetItemWithError(thedict, HPy_AsPyObject(npy_get_context(), s));
+    HPy_Close(npy_get_context(), s);
     if (res == NULL && PyErr_Occurred()) {
         return NULL;
     }
@@ -5583,7 +5587,9 @@ ufunc_seterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
     if (thedict == NULL) {
         thedict = PyEval_GetBuiltins();
     }
-    res = PyDict_SetItem(thedict, npy_um_str_pyvals_name, val);
+    HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_pyvals_name);
+    res = PyDict_SetItem(thedict, HPy_AsPyObject(npy_get_context(), s), val);
+    HPy_Close(npy_get_context(), s);
     if (res < 0) {
         return NULL;
     }
@@ -7111,8 +7117,10 @@ NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec = {
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .defines = ufunc_defines,
     // .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
+#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = ufunc_slots
+#endif
 };
 
 /* End of code for ufunc objects */

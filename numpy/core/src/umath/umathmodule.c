@@ -215,9 +215,7 @@ add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args)
 
 NPY_VISIBILITY_HIDDEN HPyGlobal npy_hpy_um_str_array_prepare;
 NPY_VISIBILITY_HIDDEN HPyGlobal npy_hpy_um_str_array_wrap;
-
-NPY_VISIBILITY_HIDDEN PyObject *npy_um_str_array_wrap = NULL;
-NPY_VISIBILITY_HIDDEN PyObject *npy_um_str_pyvals_name = NULL;
+NPY_VISIBILITY_HIDDEN HPyGlobal npy_hpy_um_str_pyvals_name;
 
 /* intern some strings used in ufuncs, returns 0 on success */
 static int
@@ -236,15 +234,12 @@ intern_strings(HPyContext *ctx)
     HPyGlobal_Store(ctx, &npy_hpy_um_str_array_wrap, h__array_wrap__);
     HPy_Close(ctx, h__array_wrap__);
 
-
-    npy_um_str_array_wrap = PyUnicode_InternFromString("__array_wrap__");
-    if (npy_um_str_array_wrap == NULL) {
+    HPy h_pyvals_name = HPyUnicode_InternFromString(ctx, UFUNC_PYVALS_NAME);
+    if (HPy_IsNull(h_pyvals_name)) {
         return -1;
     }
-    npy_um_str_pyvals_name = PyUnicode_InternFromString(UFUNC_PYVALS_NAME);
-    if (npy_um_str_pyvals_name == NULL) {
-        return -1;
-    }
+    HPyGlobal_Store(ctx, &npy_hpy_um_str_pyvals_name, h_pyvals_name);
+    HPy_Close(ctx, h_pyvals_name);
     return 0;
 }
 
