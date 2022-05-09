@@ -2002,63 +2002,84 @@ PyArray_ResultType(
         npy_intp narrs, PyArrayObject *arrs[],
         npy_intp ndtypes, PyArray_Descr *descrs[])
 {
-    PyArray_Descr *result = NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy *h_arrs = HPy_FromPyObjectArray(ctx, arrs, narrs);
+    HPy *h_descrs = HPy_FromPyObjectArray(ctx, descrs, ndtypes);
+    HPy h_result = HPyArray_ResultType(ctx,
+            narrs, h_arrs, ndtypes, h_descrs);
+    PyArray_Descr *result = (PyArray_Descr *)HPy_AsPyObject(ctx, h_result);
+    HPy_Close(ctx, h_result);
+    HPy_CloseAndFreeArray(ctx, h_descrs, ndtypes);
+    HPy_CloseAndFreeArray(ctx, h_arrs, narrs);
+    return result;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_ResultType(HPyContext *ctx,
+        npy_intp narrs, HPy /* (PyArrayObject *) */ arrs[],
+        npy_intp ndtypes, HPy /* (PyArray_Descr *) */ descrs[])
+{
+    HPy result = HPy_NULL; /* (PyArray_Descr *) */
 
     if (narrs + ndtypes <= 1) {
         /* If the input is a single value, skip promotion. */
         if (narrs == 1) {
-            result = PyArray_DTYPE(arrs[0]);
+            result = HPyArray_DTYPE(ctx, arrs[0]);
         }
         else if (ndtypes == 1) {
-            result = descrs[0];
+            result = HPy_Dup(ctx, descrs[0]);
         }
         else {
-            PyErr_SetString(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "no arrays or types available to calculate result type");
-            return NULL;
+            return HPy_NULL;
         }
-        return ensure_dtype_nbo(result);
+        HPy_SETREF(ctx, result, hensure_dtype_nbo(ctx, result));
+        return result;
     }
 
-    void **info_on_heap = NULL;
-    void *_info_on_stack[NPY_MAXARGS * 2];
-    PyArray_DTypeMeta **all_DTypes;
-    PyArray_Descr **all_descriptors;
+    HPy *info_on_heap = NULL;
+    HPy _info_on_stack[NPY_MAXARGS * 2];
+    HPy *all_DTypes; /* (PyArray_DTypeMeta *) */
+    HPy *all_descriptors; /* (PyArray_Descr *) */
 
     if (narrs + ndtypes > NPY_MAXARGS) {
-        info_on_heap = PyMem_Malloc(2 * (narrs+ndtypes) * sizeof(PyObject *));
+        // TODO HPY LABS PORT: PyMem_Malloc
+        // info_on_heap = PyMem_Malloc(2 * (narrs+ndtypes) * sizeof(PyObject *));
+        info_on_heap = (HPy *)malloc(2 * (narrs+ndtypes) * sizeof(HPy));
         if (info_on_heap == NULL) {
-            PyErr_NoMemory();
-            return NULL;
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
         }
-        all_DTypes = (PyArray_DTypeMeta **)info_on_heap;
-        all_descriptors = (PyArray_Descr **)(info_on_heap + narrs + ndtypes);
+        all_DTypes = info_on_heap;
+        all_descriptors = (info_on_heap + narrs + ndtypes);
     }
     else {
-        all_DTypes = (PyArray_DTypeMeta **)_info_on_stack;
-        all_descriptors = (PyArray_Descr **)(_info_on_stack + narrs + ndtypes);
+        all_DTypes = _info_on_stack;
+        all_descriptors = (_info_on_stack + narrs + ndtypes);
     }
 
     /* Copy all dtypes into a single array defining non-value-based behaviour */
     for (npy_intp i=0; i < ndtypes; i++) {
-        all_DTypes[i] = NPY_DTYPE(descrs[i]);
-        Py_INCREF(all_DTypes[i]);
-        all_descriptors[i] = descrs[i];
+        all_DTypes[i] = HNPY_DTYPE(ctx, descrs[i]); /* new ref */
+         // Py_INCREF(all_DTypes[i_all]);
+        all_descriptors[i] = HPy_Dup(ctx, descrs[i]);
     }
 
     int at_least_one_scalar = 0;
     int all_pyscalar = ndtypes == 0;
     for (npy_intp i=0, i_all=ndtypes; i < narrs; i++, i_all++) {
+        PyArray_Descr *arrs_i_data = PyArray_Descr_AsStruct(ctx, arrs[i]);
         /* Array descr is also the correct "default" for scalars: */
-        if (PyArray_NDIM(arrs[i]) == 0) {
+        if (PyArray_NDIM(arrs_i_data) == 0) {
             at_least_one_scalar = 1;
         }
 
-        if (!(PyArray_FLAGS(arrs[i]) & _NPY_ARRAY_WAS_PYSCALAR)) {
+        if (!(PyArray_FLAGS(arrs_i_data) & _NPY_ARRAY_WAS_PYSCALAR)) {
             /* This was not a scalar with an abstract DType */
-            all_descriptors[i_all] = PyArray_DTYPE(arrs[i]);
-            all_DTypes[i_all] = NPY_DTYPE(all_descriptors[i_all]);
-            Py_INCREF(all_DTypes[i_all]);
+            all_descriptors[i_all] = HPyArray_DTYPE(ctx, arrs[i]);
+            all_DTypes[i_all] = HNPY_DTYPE(ctx, all_descriptors[i_all]); /* new ref */
+            // Py_INCREF(all_DTypes[i_all]);
             all_pyscalar = 0;
             continue;
         }
@@ -2071,71 +2092,79 @@ PyArray_ResultType(
          * and do it here to allow for a transition without losing all of
          * our remaining sanity.
          */
-        if (PyArray_ISFLOAT(arrs[i])) {
-            all_DTypes[i_all] = PyArray_PyFloatAbstractDType;
+        if (PyArray_ISFLOAT(arrs_i_data)) {
+            all_DTypes[i_all] = HPyGlobal_Load(ctx, HPyArray_PyFloatAbstractDType);
         }
-        else if (PyArray_ISCOMPLEX(arrs[i])) {
-            all_DTypes[i_all] = PyArray_PyComplexAbstractDType;
+        else if (PyArray_ISCOMPLEX(arrs_i_data)) {
+            all_DTypes[i_all] = HPyGlobal_Load(ctx, HPyArray_PyComplexAbstractDType);
         }
         else {
             /* N.B.: Could even be an object dtype here for large ints */
-            all_DTypes[i_all] = PyArray_PyIntAbstractDType;
+            all_DTypes[i_all] = HPyGlobal_Load(ctx, HPyArray_PyIntAbstractDType);
         }
-        Py_INCREF(all_DTypes[i_all]);
+        // Py_INCREF(all_DTypes[i_all]);
         /*
          * Leave the descriptor empty, if we need it, we will have to go
          * to more extreme lengths unfortunately.
          */
-        all_descriptors[i_all] = NULL;
+        all_descriptors[i_all] = HPy_NULL;
     }
 
-    PyArray_DTypeMeta *common_dtype = PyArray_PromoteDTypeSequence(
-            narrs+ndtypes, all_DTypes);
+    CAPI_WARN("HPyArray_ResultType: call to PyArray_PromoteDTypeSequence");
+    PyArray_DTypeMeta **py_all_DTypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, all_DTypes, narrs+ndtypes);
+    PyArray_DTypeMeta *py_common_dtype = PyArray_PromoteDTypeSequence(
+            narrs+ndtypes, py_all_DTypes);
+    HPy common_dtype = HPy_FromPyObject(ctx, (PyObject *)py_common_dtype);
+    Py_XDECREF(py_common_dtype);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_all_DTypes, narrs+ndtypes);
     for (npy_intp i=0; i < narrs+ndtypes; i++) {
-        Py_DECREF(all_DTypes[i]);
+        HPy_Close(ctx, all_DTypes[i]);
     }
-    if (common_dtype == NULL) {
+    if (HPy_IsNull(common_dtype)) {
         goto error;
     }
 
-    if (NPY_DT_is_abstract(common_dtype)) {
-        /* (ab)use default descriptor to define a default */
-        PyArray_Descr *tmp_descr = NPY_DT_CALL_default_descr(common_dtype);
-        if (tmp_descr == NULL) {
-            goto error;
-        }
-        Py_INCREF(NPY_DTYPE(tmp_descr));
-        Py_SETREF(common_dtype, NPY_DTYPE(tmp_descr));
-        Py_DECREF(tmp_descr);
+    PyArray_DTypeMeta *common_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, common_dtype);
+    if (NPY_DT_is_abstract(common_dtype_data)) {
+        hpy_abort_not_implemented("HPyArray_ResultType: branch is_abstract");
+//        /* (ab)use default descriptor to define a default */
+//        PyArray_Descr *tmp_descr = NPY_DT_CALL_default_descr(common_dtype);
+//        if (tmp_descr == NULL) {
+//            goto error;
+//        }
+//        Py_INCREF(NPY_DTYPE(tmp_descr));
+//        Py_SETREF(common_dtype, NPY_DTYPE(tmp_descr));
+//        Py_DECREF(tmp_descr);
     }
 
     /*
      * NOTE: Code duplicates `PyArray_CastToDTypeAndPromoteDescriptors`, but
      *       supports special handling of the abstract values.
      */
-    if (!NPY_DT_is_parametric(common_dtype)) {
+    if (!NPY_DT_is_parametric(common_dtype_data)) {
         /* Note that this "fast" path loses all metadata */
-        result = NPY_DT_CALL_default_descr(common_dtype);
+        result = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_data);
     }
     else {
-        result = get_descr_from_cast_or_value(
-                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
-        if (result == NULL) {
-            goto error;
-        }
-
-        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
-            PyArray_Descr *curr = get_descr_from_cast_or_value(
-                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
-            if (curr == NULL) {
-                goto error;
-            }
-            Py_SETREF(result, NPY_DT_SLOTS(common_dtype)->common_instance(result, curr));
-            Py_DECREF(curr);
-            if (result == NULL) {
-                goto error;
-            }
-        }
+        hpy_abort_not_implemented("HPyArray_ResultType: branch is_parametric");
+//        result = get_descr_from_cast_or_value(
+//                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
+//        if (result == NULL) {
+//            goto error;
+//        }
+//
+//        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
+//            PyArray_Descr *curr = get_descr_from_cast_or_value(
+//                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
+//            if (curr == NULL) {
+//                goto error;
+//            }
+//            Py_SETREF(result, NPY_DT_SLOTS(common_dtype)->common_instance(result, curr));
+//            Py_DECREF(curr);
+//            if (result == NULL) {
+//                goto error;
+//            }
+//        }
     }
 
     /*
@@ -2146,10 +2175,17 @@ PyArray_ResultType(
      * It may be possible to micro-optimize this to skip some of the above
      * logic when this path is necessary.
      */
-    if (at_least_one_scalar && !all_pyscalar && result->type_num < NPY_NTYPES) {
-        PyArray_Descr *legacy_result = PyArray_LegacyResultType(
-                narrs, arrs, ndtypes, descrs);
-        if (legacy_result == NULL) {
+    if (at_least_one_scalar && !all_pyscalar && PyArray_Descr_AsStruct(ctx, result)->type_num < NPY_NTYPES) {
+        CAPI_WARN("HPyArray_ResultType: call to PyArray_LegacyResultType");
+        PyArrayObject **py_arrs = (PyArrayObject **)HPy_AsPyObjectArray(ctx, arrs, narrs);
+        PyArray_Descr **py_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, descrs, ndtypes);
+        PyArray_Descr *py_legacy_result = PyArray_LegacyResultType(
+                narrs, py_arrs, ndtypes, py_descrs);
+        HPy legacy_result = HPy_FromPyObject(ctx, (PyObject *)py_legacy_result);
+        Py_XDECREF(py_legacy_result);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_arrs, narrs);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_descrs, ndtypes);
+        if (HPy_IsNull(legacy_result)) {
             /*
              * Going from error to success should not really happen, but is
              * probably OK if it does.
@@ -2157,18 +2193,29 @@ PyArray_ResultType(
             goto error;
         }
         /* Return the old "legacy" result (could warn here if different) */
-        Py_SETREF(result, legacy_result);
+        HPy_SETREF(ctx, result, legacy_result);
     }
 
-    Py_DECREF(common_dtype);
-    PyMem_Free(info_on_heap);
+    for(int i=0; i < narrs+ndtypes; i++) {
+        HPy_Close(ctx, all_descriptors[i]);
+    }
+
+    HPy_Close(ctx, common_dtype);
+    // TODO HPY LABS PORT: PyMem_Free
+    // PyMem_Free(info_on_heap);
+    free(info_on_heap);
     return result;
 
   error:
-    Py_XDECREF(result);
-    Py_XDECREF(common_dtype);
-    PyMem_Free(info_on_heap);
-    return NULL;
+    for(int i=0; i < narrs+ndtypes; i++) {
+        HPy_Close(ctx, all_descriptors[i]);
+    }
+    HPy_Close(ctx, result);
+    HPy_Close(ctx, common_dtype);
+    // TODO HPY LABS PORT: PyMem_Free
+    // PyMem_Free(info_on_heap);
+    free(info_on_heap);
+    return HPy_NULL;
 }
 
 

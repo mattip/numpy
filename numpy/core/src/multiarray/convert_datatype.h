@@ -139,4 +139,9 @@ HPyArray_CastDescrToDType(HPyContext *ctx, HPy descr, HPy given_DType);
 NPY_NO_EXPORT HPy
 HPyArray_CastToType(HPyContext *ctx, HPy arr, HPy dtype, int is_f_order);
 
+NPY_NO_EXPORT HPy
+HPyArray_ResultType(HPyContext *ctx,
+        npy_intp narrs, HPy arrs[],
+        npy_intp ndtypes, HPy descrs[]);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERT_DATATYPE_H_ */

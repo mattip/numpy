@@ -450,14 +450,10 @@ HPyUFunc_SimpleBinaryComparisonTypeResolver(HPyContext *ctx,
          */
         if (!HPyArray_ISFLEXIBLE(ctx, operands[0]) &&
                 !HPyArray_ISFLEXIBLE(ctx, operands[1])) {
-            CAPI_WARN("HPyUFunc_SimpleBinaryComparisonTypeResolver: call to PyArray_ResultType");
-            PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
-            PyArray_Descr *py_out_dtype = PyArray_ResultType(2, py_operands, 0, NULL);
-            out_dtypes[0] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtype);
+            out_dtypes[0] = HPyArray_ResultType(ctx, 2, operands, 0, NULL);
             if (HPy_IsNull(out_dtypes[0])) {
                 return -1;
             }
-            Py_XDECREF(py_out_dtype);
             out_dtypes[1] = HPy_Dup(ctx, out_dtypes[0]);
         }
         else {
