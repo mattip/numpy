@@ -463,7 +463,7 @@ HPyUFunc_SimpleBinaryComparisonTypeResolver(HPyContext *ctx,
         }
     }
     else {
-        HPy descr;
+        HPy descr = HPy_NULL;
         /*
          * DEPRECATED 2021-03, NumPy 1.20
          *
