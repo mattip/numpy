@@ -49,6 +49,63 @@
 
 #include <stdbool.h>
 
+NPY_NO_EXPORT int
+ufunc_type_resolution_trampoline(PyUFuncObject *ufunc,
+                          NPY_CASTING casting,
+                          PyArrayObject **operands,
+                          PyObject *type_tup,
+                          PyArray_Descr **out_dtypes)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy h_operands[NPY_MAXARGS];
+    HPy h_out_dtypes[NPY_MAXARGS] = {HPy_NULL};
+    HPy h_type_tup = HPy_FromPyObject(ctx, type_tup);
+    for (int i=0; i < ufunc->nargs; i++) {
+        h_operands[i] = HPy_FromPyObject(ctx, (PyObject *)operands[i]);
+    }
+
+    int res = ufunc->hpy_type_resolver(ctx, h_ufunc, casting, h_operands, h_type_tup, h_out_dtypes);
+
+    HPy_Close(ctx, h_type_tup);
+    for (int i=0; i < ufunc->nargs; i++) {
+        HPy_Close(ctx, h_operands[i]);
+        out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, h_out_dtypes[i]);
+        HPy_Close(ctx, h_out_dtypes[i]);
+    }
+    HPy_Close(ctx, h_ufunc);
+    return res;
+}
+
+NPY_NO_EXPORT int
+ufunc_hpy_type_resolution_trampoline(HPyContext *ctx,
+                                HPy ufunc,
+                                NPY_CASTING casting,
+                                HPy *operands,
+                                HPy type_tup,
+                                HPy *out_dtypes)
+{
+    CAPI_WARN("ufunc_type_resolution_trampoline");
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+    PyArrayObject *py_operands[NPY_MAXARGS];
+    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+    PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+    for (int i=0; i < py_ufunc->nargs; i++) {
+        py_operands[i] = (PyArrayObject *)HPy_AsPyObject(ctx, operands[i]);
+    }
+
+    int res = py_ufunc->type_resolver(py_ufunc, casting, py_operands, py_type_tup, py_out_dtypes);
+
+    Py_XDECREF(py_type_tup);
+    for (int i=0; i < py_ufunc->nargs; i++) {
+        Py_XDECREF(py_operands[i]);
+        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+        Py_XDECREF(py_out_dtypes[i]);
+    }
+    Py_XDECREF(py_ufunc);
+    return res;
+}
+
 static PyObject *
 npy_casting_to_py_object(NPY_CASTING casting)
 {
@@ -335,17 +392,19 @@ PyUFunc_DefaultTypeResolver(PyUFuncObject *ufunc,
  * Returns 0 on success, -1 on error.
  */
 NPY_NO_EXPORT int
-PyUFunc_SimpleBinaryComparisonTypeResolver(PyUFuncObject *ufunc,
+HPyUFunc_SimpleBinaryComparisonTypeResolver(HPyContext *ctx,
+                                HPy /* (PyUFuncObject *) */ ufunc,
                                 NPY_CASTING casting,
-                                PyArrayObject **operands,
-                                PyObject *type_tup,
-                                PyArray_Descr **out_dtypes)
+                                HPy /* (PyArrayObject **) */ *operands,
+                                HPy type_tup,
+                                HPy /* (PyArray_Descr **) */ *out_dtypes)
 {
     int i, type_num1, type_num2;
-    const char *ufunc_name = ufunc_get_name_cstr(ufunc);
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    const char *ufunc_name = ufunc_get_name_cstr(ufunc_data);
 
-    if (ufunc->nin != 2 || ufunc->nout != 1) {
-        PyErr_Format(PyExc_RuntimeError, "ufunc %s is configured "
+    if (ufunc_data->nin != 2 || ufunc_data->nout != 1) {
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError, "ufunc %s is configured "
                 "to use binary comparison type resolution but has "
                 "the wrong number of inputs or outputs",
                 ufunc_name);
@@ -356,40 +415,55 @@ PyUFunc_SimpleBinaryComparisonTypeResolver(PyUFuncObject *ufunc,
      * Use the default type resolution if there's a custom data type
      * or object arrays.
      */
-    type_num1 = PyArray_DESCR(operands[0])->type_num;
-    type_num2 = PyArray_DESCR(operands[1])->type_num;
+    HPy operands0_descr = HPyArray_GetDescr(ctx, operands[0]);
+    HPy operands1_descr = HPyArray_GetDescr(ctx, operands[1]);
+    type_num1 = PyArray_Descr_AsStruct(ctx, operands0_descr)->type_num;
+    type_num2 = PyArray_Descr_AsStruct(ctx, operands1_descr)->type_num;
     if (type_num1 >= NPY_NTYPES || type_num2 >= NPY_NTYPES ||
             type_num1 == NPY_OBJECT || type_num2 == NPY_OBJECT) {
-        return PyUFunc_DefaultTypeResolver(ufunc, casting, operands,
-                type_tup, out_dtypes);
+        CAPI_WARN("HPyUFunc_SimpleBinaryComparisonTypeResolver: call to PyUFunc_DefaultTypeResolver");
+        PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+        PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+        PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
+        for (int i=0; i < ufunc_data->nargs; i++) {
+            py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+        }
+        int res = PyUFunc_DefaultTypeResolver(py_ufunc, casting, py_operands,
+                py_type_tup, py_out_dtypes);
+        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
+        Py_DECREF(py_ufunc);
+        Py_DECREF(py_type_tup);
+        for (int i=0; i < ufunc_data->nargs; i++) {
+            out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+            Py_XDECREF(py_out_dtypes[i]);
+        }
+        return res;
     }
 
-    if (type_tup == NULL) {
+    if (HPy_IsNull(type_tup)) {
         /*
          * DEPRECATED NumPy 1.20, 2020-12.
          * This check is required to avoid the FutureWarning that
          * ResultType will give for number->string promotions.
          * (We never supported flexible dtypes here.)
          */
-        if (!PyArray_ISFLEXIBLE(operands[0]) &&
-                !PyArray_ISFLEXIBLE(operands[1])) {
-            out_dtypes[0] = PyArray_ResultType(2, operands, 0, NULL);
-            if (out_dtypes[0] == NULL) {
+        if (!HPyArray_ISFLEXIBLE(ctx, operands[0]) &&
+                !HPyArray_ISFLEXIBLE(ctx, operands[1])) {
+            out_dtypes[0] = HPyArray_ResultType(ctx, 2, operands, 0, NULL);
+            if (HPy_IsNull(out_dtypes[0])) {
                 return -1;
             }
-            out_dtypes[1] = out_dtypes[0];
-            Py_INCREF(out_dtypes[1]);
+            out_dtypes[1] = HPy_Dup(ctx, out_dtypes[0]);
         }
         else {
             /* Not doing anything will lead to a loop no found error. */
-            out_dtypes[0] = PyArray_DESCR(operands[0]);
-            Py_INCREF(out_dtypes[0]);
-            out_dtypes[1] = PyArray_DESCR(operands[1]);
-            Py_INCREF(out_dtypes[1]);
+            out_dtypes[0] = HPyArray_GetDescr(ctx, operands[0]); /* already a new ref */
+            out_dtypes[1] = HPyArray_GetDescr(ctx, operands[1]); /* already a new ref */
         }
     }
     else {
-        PyArray_Descr *descr;
+        HPy descr = HPy_NULL;
         /*
          * DEPRECATED 2021-03, NumPy 1.20
          *
@@ -402,57 +476,90 @@ PyUFunc_SimpleBinaryComparisonTypeResolver(PyUFuncObject *ufunc,
          *       `PyUFunc_SimpleBinaryComparisonTypeResolver` in dispatching.c
          *       can be removed.
          */
-        if (PyTuple_Check(type_tup) && PyTuple_GET_SIZE(type_tup) == 3 &&
-                PyTuple_GET_ITEM(type_tup, 0) == Py_None &&
-                PyTuple_GET_ITEM(type_tup, 1) == Py_None &&
-                PyArray_DescrCheck(PyTuple_GET_ITEM(type_tup, 2))) {
-            descr = (PyArray_Descr *)PyTuple_GET_ITEM(type_tup, 2);
-            if (descr->type_num == NPY_OBJECT) {
-                if (DEPRECATE_FUTUREWARNING(
-                        "using `dtype=object` (or equivalent signature) will "
-                        "return object arrays in the future also when the "
-                        "inputs do not already have `object` dtype.") < 0) {
-                    return -1;
+        if (HPyTuple_Check(ctx, type_tup) && HPy_Length(ctx, type_tup) == 3 && 1) {
+            HPy type_tup0 = HPy_GetItem_i(ctx, type_tup, 0);
+            HPy type_tup1 = HPy_GetItem_i(ctx, type_tup, 1);
+            HPy type_tup2 = HPy_GetItem_i(ctx, type_tup, 2);
+            if (HPy_Is(ctx, type_tup0, ctx->h_None) &&
+                    HPy_Is(ctx, type_tup1, ctx->h_None) &&
+                    HPyArray_DescrCheck(ctx, type_tup2)) {
+
+                descr = type_tup2;
+                PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+                if (descr_data->type_num == NPY_OBJECT) {
+                    if (HPY_DEPRECATE_FUTUREWARNING(ctx,
+                            "using `dtype=object` (or equivalent signature) will "
+                            "return object arrays in the future also when the "
+                            "inputs do not already have `object` dtype.") < 0) {
+                        return -1;
+                    }
                 }
-            }
-            else if (descr->type_num != NPY_BOOL) {
-                if (DEPRECATE(
-                        "using `dtype=` in comparisons is only useful for "
-                        "`dtype=object` (and will do nothing for bool). "
-                        "This operation will fail in the future.") < 0) {
-                    return -1;
+                else if (descr_data->type_num != NPY_BOOL) {
+                    if (HPY_DEPRECATE(ctx,
+                            "using `dtype=` in comparisons is only useful for "
+                            "`dtype=object` (and will do nothing for bool). "
+                            "This operation will fail in the future.") < 0) {
+                        return -1;
+                    }
                 }
             }
         }
         else {
             /* Usually a failure, but let the default version handle it */
-            return PyUFunc_DefaultTypeResolver(ufunc, casting,
-                    operands, type_tup, out_dtypes);
+            PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+            PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+            PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+            PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
+            for (int i=0; i < ufunc_data->nargs; i++) {
+                py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+            }
+            int res = PyUFunc_DefaultTypeResolver(py_ufunc, casting, py_operands,
+                    py_type_tup, py_out_dtypes);
+            HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
+            Py_DECREF(py_ufunc);
+            Py_DECREF(py_type_tup);
+            for (int i=0; i < ufunc_data->nargs; i++) {
+                out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+                Py_XDECREF(py_out_dtypes[i]);
+            }
+            return res;
         }
 
-        out_dtypes[0] = ensure_dtype_nbo(descr);
-        if (out_dtypes[0] == NULL) {
+        out_dtypes[0] = hensure_dtype_nbo(ctx, descr);
+        if (HPy_IsNull(out_dtypes[0])) {
             return -1;
         }
-        out_dtypes[1] = out_dtypes[0];
-        Py_INCREF(out_dtypes[1]);
+        out_dtypes[1] = HPy_Dup(ctx, out_dtypes[0]);
     }
 
     /* Output type is always boolean */
-    out_dtypes[2] = PyArray_DescrFromType(NPY_BOOL);
-    if (out_dtypes[2] == NULL) {
+    out_dtypes[2] = HPyArray_DescrFromType(ctx, NPY_BOOL);
+    if (HPy_IsNull(out_dtypes[2])) {
         for (i = 0; i < 2; ++i) {
-            Py_DECREF(out_dtypes[i]);
-            out_dtypes[i] = NULL;
+            HPy_Close(ctx, out_dtypes[i]);
+            out_dtypes[i] = HPy_NULL;
         }
         return -1;
     }
 
     /* Check against the casting rules */
-    if (PyUFunc_ValidateCasting(ufunc, casting, operands, out_dtypes) < 0) {
+    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+    PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+    }
+    int res = PyUFunc_ValidateCasting(py_ufunc, casting, py_operands, py_out_dtypes);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
+    Py_DECREF(py_ufunc);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+        Py_XDECREF(py_out_dtypes[i]);
+    }
+    if (res < 0) {
         for (i = 0; i < 3; ++i) {
-            Py_DECREF(out_dtypes[i]);
-            out_dtypes[i] = NULL;
+            HPy_Close(ctx, out_dtypes[i]);
+            out_dtypes[i] = HPy_NULL;
         }
         return -1;
     }

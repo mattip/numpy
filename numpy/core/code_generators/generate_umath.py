@@ -444,7 +444,7 @@ defdict = {
 'greater':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.greater'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -452,7 +452,7 @@ defdict = {
 'greater_equal':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.greater_equal'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -460,7 +460,7 @@ defdict = {
 'less':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.less'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -468,7 +468,7 @@ defdict = {
 'less_equal':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.less_equal'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -476,7 +476,7 @@ defdict = {
 'equal':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.equal'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -484,7 +484,7 @@ defdict = {
 'not_equal':
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.not_equal'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(all, out='?', simd=[('avx2', ints)]),
           [TypeDescription('O', FullTypeDescr, 'OO', 'O')],
           TD('O', out='?'),
@@ -492,7 +492,7 @@ defdict = {
 'logical_and':
     Ufunc(2, 1, True_,
           docstrings.get('numpy.core.umath.logical_and'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(nodatetime_or_obj, out='?', simd=[('avx2', ints)]),
           TD(O, f='npy_ObjectLogicalAnd'),
           ),
@@ -506,14 +506,14 @@ defdict = {
 'logical_or':
     Ufunc(2, 1, False_,
           docstrings.get('numpy.core.umath.logical_or'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(nodatetime_or_obj, out='?', simd=[('avx2', ints)]),
           TD(O, f='npy_ObjectLogicalOr'),
           ),
 'logical_xor':
     Ufunc(2, 1, False_,
           docstrings.get('numpy.core.umath.logical_xor'),
-          'PyUFunc_SimpleBinaryComparisonTypeResolver',
+          'HPyUFunc_SimpleBinaryComparisonTypeResolver',
           TD(nodatetime_or_obj, out='?'),
           # TODO: using obj.logical_xor() seems pretty much useless:
           TD(P, f='logical_xor'),
@@ -1199,8 +1199,16 @@ def make_ufuncs(funcdict):
 
         mlist.append(fmt.format(**args))
         if uf.typereso is not None:
-            mlist.append(
-                r"f_data->type_resolver = &%s;" % uf.typereso)
+            if uf.typereso.startswith("HPy"):
+                mlist.append(
+                    r"f_data->hpy_type_resolver = &%s;" % uf.typereso)
+                mlist.append(
+                    r"f_data->type_resolver = &ufunc_type_resolution_trampoline;")
+            else:
+                mlist.append(
+                    r"f_data->hpy_type_resolver = &ufunc_hpy_type_resolution_trampoline;")
+                mlist.append(
+                    r"f_data->type_resolver = &%s;" % uf.typereso)
         mlist.append(r"""HPy_SetItem_s(ctx, dictionary, "%s", f);""" % name)
         mlist.append(r"""HPy_Close(ctx, f);""")
         code3list.append('\n'.join(mlist))

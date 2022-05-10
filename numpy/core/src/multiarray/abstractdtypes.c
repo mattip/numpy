@@ -136,6 +136,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     int_abstract_dtype_data->dt_slots = &pyintabstractdtype_slots;
     int_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyIntAbstractDType, &int_abstract_dtype_data->scalar_type, ctx->h_LongType);
+    HPyGlobal_Store(ctx, &HPyArray_PyIntAbstractDType, h_PyArray_PyIntAbstractDType);
 
     h_PyArray_PyFloatAbstractDType = HPyType_FromSpec(ctx, &HPyArray_PyFloatAbstractDType_spec, abstract_dtype_params);
     if (HPy_IsNull(h_PyArray_PyFloatAbstractDType)) {
@@ -145,6 +146,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     float_abstract_dtype_data->dt_slots = &pyfloatabstractdtype_slots;
     float_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyFloatAbstractDType, &float_abstract_dtype_data->scalar_type, ctx->h_FloatType);
+    HPyGlobal_Store(ctx, &HPyArray_PyFloatAbstractDType, h_PyArray_PyFloatAbstractDType);
 
     h_PyArray_PyComplexAbstractDType = HPyType_FromSpec(ctx, &HPyArray_PyComplexAbstractDType_spec, abstract_dtype_params);
     if (HPy_IsNull(h_PyArray_PyComplexAbstractDType)) {
@@ -154,6 +156,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     complex_abstract_dtype_data->dt_slots = &pycomplexabstractdtype_slots;
     complex_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyComplexAbstractDType, &complex_abstract_dtype_data->scalar_type, ctx->h_ComplexType);
+    HPyGlobal_Store(ctx, &HPyArray_PyComplexAbstractDType, h_PyArray_PyComplexAbstractDType);
 
     /* Register the new DTypes for discovery */
     if (_PyArray_MapPyTypeToDType(
@@ -320,6 +323,9 @@ complex_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
 NPY_NO_EXPORT PyArray_DTypeMeta *PyArray_PyIntAbstractDType;
 NPY_NO_EXPORT PyArray_DTypeMeta *PyArray_PyFloatAbstractDType;
 NPY_NO_EXPORT PyArray_DTypeMeta *PyArray_PyComplexAbstractDType;
+NPY_NO_EXPORT HPyGlobal HPyArray_PyIntAbstractDType;
+NPY_NO_EXPORT HPyGlobal HPyArray_PyFloatAbstractDType;
+NPY_NO_EXPORT HPyGlobal HPyArray_PyComplexAbstractDType;
 
 NPY_DType_Slots pyintabstractdtype_slots = {
     .default_descr = int_default_descriptor,

@@ -5064,6 +5064,11 @@ static HPyGlobal *module_globals[] = {
     &_hpy_builtin_descrs[NPY_DATETIME],
     &_hpy_builtin_descrs[NPY_TIMEDELTA],
 
+    // abstract dtypes
+    &HPyArray_PyIntAbstractDType,
+    &HPyArray_PyFloatAbstractDType,
+    &HPyArray_PyComplexAbstractDType,
+
     // hpy_n_ops struct/cache:
     &hpy_n_ops.add,
     &hpy_n_ops.subtract,

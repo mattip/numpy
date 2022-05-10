@@ -1145,7 +1145,7 @@ default_ufunc_promoter(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *op_dtypes[], PyArray_DTypeMeta *signature[],
         PyArray_DTypeMeta *new_op_dtypes[])
 {
-    if (ufunc->type_resolver == &PyUFunc_SimpleBinaryComparisonTypeResolver
+    if (ufunc->hpy_type_resolver == &HPyUFunc_SimpleBinaryComparisonTypeResolver
             && signature[0] == NULL && signature[1] == NULL
             && signature[2] != NULL && signature[2]->type_num != NPY_BOOL) {
         /* bail out, this is _only_ to give future/deprecation warning! */
