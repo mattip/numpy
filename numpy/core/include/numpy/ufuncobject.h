@@ -89,8 +89,9 @@ typedef int (HPyUFunc_TypeResolutionFunc)(HPyContext *ctx,
  *                    this untouched.
  */
 typedef int (PyUFunc_LegacyInnerLoopSelectionFunc)(
-                            struct _tagPyUFuncObject *ufunc,
-                            PyArray_Descr **dtypes,
+                            HPyContext *ctx,
+                            HPy ufunc,
+                            HPy *dtypes,
                             PyUFuncGenericFunction *out_innerloop,
                             void **out_innerloopdata,
                             int *out_needs_api);

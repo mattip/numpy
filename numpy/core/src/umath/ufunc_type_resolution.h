@@ -134,11 +134,12 @@ type_tuple_type_resolver(PyUFuncObject *self,
                          PyArray_Descr **out_dtype);
 
 NPY_NO_EXPORT int
-PyUFunc_DefaultLegacyInnerLoopSelector(PyUFuncObject *ufunc,
-                                       PyArray_Descr **dtypes,
-                                       PyUFuncGenericFunction *out_innerloop,
-                                       void **out_innerloopdata,
-                                       int *out_needs_api);
+PyUFunc_DefaultLegacyInnerLoopSelector(HPyContext *ctx,
+                                HPy ufunc,
+                                HPy *dtypes,
+                                PyUFuncGenericFunction *out_innerloop,
+                                void **out_innerloopdata,
+                                int *out_needs_api);
 
 NPY_NO_EXPORT int
 raise_no_loop_found_error(PyUFuncObject *ufunc, PyObject **dtypes);
