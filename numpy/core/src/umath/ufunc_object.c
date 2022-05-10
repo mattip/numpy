@@ -5743,7 +5743,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->op_flags = NULL;
     ufunc->_loops = HPyField_NULL;
     if (nin + nout != 0) {
-        ufunc->_dispatch_cache = PyArrayIdentityHash_New(nin + nout);
+        ufunc->_dispatch_cache = HPyArrayIdentityHash_New(ctx, nin + nout);
         if (ufunc->_dispatch_cache == NULL) {
             HPy_Close(ctx, h_ufunc);
             return HPy_NULL;
