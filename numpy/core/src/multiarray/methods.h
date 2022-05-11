@@ -7,7 +7,8 @@ extern NPY_NO_EXPORT PyMethodDef array_methods[];
 
 extern NPY_NO_EXPORT HPyDef array_ravel;
 extern NPY_NO_EXPORT HPyDef array_transpose;
-
+extern NPY_NO_EXPORT HPyDef array_compress;
+extern NPY_NO_EXPORT HPyDef array_nonzero;
 
 /*
  * Pathlib support, takes a borrowed reference and returns a new one.

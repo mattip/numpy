@@ -3357,6 +3357,54 @@ PyArray_CheckAxis(PyArrayObject *arr, int *axis, int flags)
     return temp2;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_CheckAxis(HPyContext *ctx, HPy h_arr, int *axis, int flags)
+{
+    HPy temp1, temp2;
+    int n = HPyArray_GetNDim(ctx, h_arr);
+
+    if (*axis == NPY_MAXDIMS || n == 0) {
+        if (n != 1) {
+            temp1 = HPyArray_Ravel(ctx, h_arr, 0);
+            if (HPy_IsNull(temp1)) {
+                *axis = 0;
+                return HPy_NULL;
+            }
+            if (*axis == NPY_MAXDIMS) {
+                *axis = HPyArray_GetNDim(ctx, temp1) - 1;
+            }
+        }
+        else {
+            temp1 = HPy_Dup(ctx, h_arr);
+            *axis = 0;
+        }
+        if (!flags && *axis == 0) {
+            return temp1;
+        }
+    }
+    else {
+        temp1 = HPy_Dup(ctx, h_arr);
+    }
+    if (flags) {
+        temp2 = HPyArray_CheckFromAny(ctx, temp1, HPy_NULL,
+                                     0, 0, flags, HPy_NULL);
+        HPy_Close(ctx, temp1);
+        if (HPy_IsNull(temp2)) {
+            return HPy_NULL;
+        }
+    }
+    else {
+        temp2 = temp1;
+    }
+    n = HPyArray_GetNDim(ctx, temp2);
+    CAPI_WARN("check_and_adjust_axis");
+    if (check_and_adjust_axis(axis, n) < 0) {
+        HPy_Close(ctx, temp2);
+        return HPy_NULL;
+    }
+    return temp2;
+}
+
 /*NUMPY_API
  * Zeros
  *
