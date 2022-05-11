@@ -1991,7 +1991,9 @@ array_item_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, Py_ssize_t i)
             return HPy_NULL;
         }
         HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
-        return HPyArray_Scalar(ctx, item, h_self_descr, h_self, self);
+        HPy result = HPyArray_Scalar(ctx, item, h_self_descr, h_self, self);
+        HPy_Close(ctx, h_self_descr);
+        return result;
     }
     else {
         hpy_abort_not_implemented("array_item_asarray");
