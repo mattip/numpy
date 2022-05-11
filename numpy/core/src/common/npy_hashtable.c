@@ -60,28 +60,31 @@ identity_list_hash(HPyContext *ctx, HPy const *v, int len)
 #undef _NpyHASH_XXROTATE
 
 
-static NPY_INLINE HPy *
-find_item(HPyContext *ctx, PyArrayIdentityHash const *tb, HPy const *key)
+static NPY_INLINE HPyField *
+find_item(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash const *tb, HPy const *key)
 {
     HPy_hash_t hash = identity_list_hash(ctx, key, tb->key_len);
     npy_uintp perturb = (npy_uintp)hash;
     npy_intp bucket;
     npy_intp mask = tb->size - 1 ;
-    HPy *item;
+    HPyField *item;
 
     bucket = (npy_intp)hash & mask;
     while (1) {
         item = &(tb->buckets[bucket * (tb->key_len + 1)]);
 
-        if (HPy_IsNull(item[0])) {
+        if (HPyField_IsNull(item[0])) {
             /* The item is not in the cache; return the empty bucket */
             return item;
         }
         int eq = 1;
         for (int i=0; eq && i < tb->key_len; i++) {
-            if (!HPy_Is(ctx, item[i+1], key[i])) {
+            HPy h_item = HPyField_IsNull(item[i+1]) ? HPy_NULL :
+                    HPyField_Load(ctx, cache_owner, item[i+1]);
+            if (!HPy_Is(ctx, h_item, key[i])) {
                 eq = 0;
             }
+            HPy_Close(ctx, h_item);
         }
         if (eq) {
             /* This is a match, so return the item/bucket */
@@ -121,7 +124,7 @@ HPyArrayIdentityHash_New(HPyContext *ctx, int key_len)
     res->nelem = 0;
 
     // TODO HPY LABS PORT: PyMem_Calloc
-    res->buckets = calloc(4 * (key_len + 1), sizeof(HPy));
+    res->buckets = calloc(4 * (key_len + 1), sizeof(HPyField));
     if (res->buckets == NULL) {
         HPyErr_NoMemory(ctx);
         // TODO HPY LABS PORT: PyMem_Free
@@ -143,12 +146,23 @@ PyArrayIdentityHash_Dealloc(PyArrayIdentityHash *tb)
     free(tb);
 }
 
+NPY_NO_EXPORT int
+HPyArrayIdentityHash_Traverse(PyArrayIdentityHash *tb, HPyFunc_visitproc visit, void *arg)
+{
+    /* Buckets stores: val1, key1[0], key1[1], ..., val2, key2[0], ... */
+    const npy_intp nitems = tb->size * (tb->key_len + 1);
+    for (npy_intp i = 0; i < nitems; i++) {
+        HPy_VISIT(&tb->buckets[i]);
+    }
+    return 0;
+}
+
 
 static int
-_resize_if_necessary(HPyContext *ctx, PyArrayIdentityHash *tb)
+_resize_if_necessary(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb)
 {
     npy_intp new_size, prev_size = tb->size;
-    PyObject **old_table = tb->buckets;
+    HPyField *old_table = tb->buckets;
     assert(prev_size > 0);
 
     if ((tb->nelem + 1) * 2 > prev_size) {
@@ -177,21 +191,35 @@ _resize_if_necessary(HPyContext *ctx, PyArrayIdentityHash *tb)
     }
     // TODO HPY LABS PORT: PyMem_Calloc
     // tb->buckets = PyMem_Calloc(alloc_size, sizeof(PyObject *));
-    tb->buckets = calloc(alloc_size, sizeof(HPy));
+    tb->buckets = calloc(alloc_size, sizeof(HPyField));
     if (tb->buckets == NULL) {
         tb->buckets = old_table;
         HPyErr_NoMemory(ctx);
         return -1;
     }
 
+    HPy *tmp = calloc(tb->key_len + 1, sizeof(HPy));
     tb->size = new_size;
     for (npy_intp i = 0; i < prev_size; i++) {
-        HPy *item = &old_table[i * (tb->key_len + 1)];
-        if (!HPy_IsNull(item[0])) {
+        /*
+         * We need to fully re-insert the element. So, load all objects (i.e.
+         * all key objects and the value object) and store HPy_NULL to the old
+         * fields.
+         */
+        HPyField *item = &old_table[i * (tb->key_len + 1)];
+        if (!HPyField_IsNull(item[0])) {
+            for (int j = 0; j < tb->key_len + 1; j++) {
+                tmp[j] = HPyField_Load(ctx, cache_owner, item[j]);
+                HPyField_Store(ctx, cache_owner, item+j, HPy_NULL);
+            }
             tb->nelem -= 1;  /* Decrement, setitem will increment again */
-            HPyArrayIdentityHash_SetItem(ctx, tb, item+1, item[0], 1);
+            HPyArrayIdentityHash_SetItem(ctx, cache_owner, tb, tmp+1, tmp[0], 1);
+            for (int j = 0; j < tb->key_len + 1; j++) {
+                HPy_Close(ctx, tmp[j]);
+            }
         }
     }
+    free(tmp);
     // TODO HPY LABS PORT: PyMem_Calloc
     // PyMem_Free(old_table);
     free(old_table);
@@ -215,69 +243,74 @@ _resize_if_necessary(HPyContext *ctx, PyArrayIdentityHash *tb)
  *        the RuntimeError.
  */
 NPY_NO_EXPORT int
-PyArrayIdentityHash_SetItem(PyArrayIdentityHash *tb,
+PyArrayIdentityHash_SetItem(PyArrayIdentityHash *tb, PyObject *cache_owner,
         PyObject *const *key, PyObject *value, int replace)
 {
     HPyContext *ctx = npy_get_context();
+    HPy h_cache_owner = HPy_FromPyObject(ctx, cache_owner);
     HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, key, tb->key_len);
     HPy h_value = HPy_FromPyObject(ctx, value);
-    int res = HPyArrayIdentityHash_SetItem(ctx, tb, h_key, h_value, replace);
+    int res = HPyArrayIdentityHash_SetItem(ctx, h_cache_owner, tb, h_key, h_value, replace);
     HPy_Close(ctx, h_value);
     HPy_CloseAndFreeArray(ctx, (HPy *)h_key, tb->key_len);
+    HPy_Close(ctx, h_cache_owner);
     return res;
 }
 
 
 NPY_NO_EXPORT PyObject *
-PyArrayIdentityHash_GetItem(PyArrayIdentityHash const *tb, PyObject *const *key)
+PyArrayIdentityHash_GetItem(PyObject *cache_owner, PyArrayIdentityHash const *tb, PyObject *const *key)
 {
     HPyContext *ctx = npy_get_context();
+    HPy h_cache_owner = HPy_FromPyObject(ctx, cache_owner);
     HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, key, tb->key_len);
-    HPy h_res = find_item(ctx, tb, h_key)[0];
+    HPy h_res = HPyArrayIdentityHash_GetItem(ctx, h_cache_owner, tb, h_key);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_res);
     HPy_CloseAndFreeArray(ctx, (HPy *)h_key, tb->key_len);
+    HPy_Close(ctx, h_cache_owner);
     return res;
 }
 
 NPY_NO_EXPORT int
-HPyArrayIdentityHash_SetItem(HPyContext *ctx, PyArrayIdentityHash *tb,
+HPyArrayIdentityHash_SetItem(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb,
         HPy const *key, HPy value, int replace)
 {
-//    CAPI_WARN("HPyArrayIdentityHash_SetItem");
-//    PyObject **py_key = HPy_AsPyObjectArray(ctx, (HPy *)key, tb->key_len);
-//    PyObject *py_value = HPy_AsPyObject(ctx, value);
-//    int res = PyArrayIdentityHash_SetItem(tb, py_key, py_value, replace);
-//    Py_XDECREF(py_value);
-//    HPy_DecrefAndFreeArray(ctx, py_key, tb->key_len);
-//    return res;
-    if (!HPy_IsNull(value) && _resize_if_necessary(ctx, tb) < 0) {
+    if (!HPy_IsNull(value) && _resize_if_necessary(ctx, cache_owner, tb) < 0) {
         /* Shrink, only if a new value is added. */
         return -1;
     }
 
-    HPy *tb_item = find_item(ctx, tb, key);
+    HPyField *tb_item = find_item(ctx, cache_owner, tb, key);
     if (!HPy_IsNull(value)) {
-        if (!HPy_IsNull(tb_item[0]) && !replace) {
+        if (!HPyField_IsNull(tb_item[0]) && !replace) {
             HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Identity cache already includes the item.");
             return -1;
         }
-        tb_item[0] = value;
-        // TODO HPY LABS PORT: not sure if that is correct
-        memcpy(tb_item+1, key, tb->key_len * sizeof(HPy));
+        HPyField_Store(ctx, cache_owner, tb_item, value);
+        for (int i=0; i < tb->key_len; i++) {
+            HPyField_Store(ctx, cache_owner, tb_item+1+i, key[i]);
+        }
         tb->nelem += 1;
     }
     else {
         /* Clear the bucket -- just the value should be enough though. */
-        memset(tb_item, 0, (tb->key_len + 1) * sizeof(HPy));
+        for (int i=0; i < tb->key_len + 1; i++) {
+            HPyField_Store(ctx, cache_owner, tb_item+i, HPy_NULL);
+        }
     }
 
     return 0;
 }
 
 NPY_NO_EXPORT HPy
-HPyArrayIdentityHash_GetItem(HPyContext *ctx, PyArrayIdentityHash const *tb, HPy const *key)
+HPyArrayIdentityHash_GetItem(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash const *tb, HPy const *key)
 {
-    return find_item(ctx, tb, key)[0];
+    HPyField f_item = find_item(ctx, cache_owner, tb, key)[0];
+    if (!HPyField_IsNull(f_item)) {
+        return HPyField_Load(ctx, cache_owner, f_item);
+    }
+    return HPy_NULL;
 }
+

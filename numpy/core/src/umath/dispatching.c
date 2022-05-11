@@ -786,7 +786,8 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
      * 2. Check all registered loops/promoters to find the best match.
      * 3. Fall back to the legacy implementation if no match was found.
      */
-    HPy info = HPyArrayIdentityHash_GetItem(ctx, ufunc_data->_dispatch_cache, op_dtypes);
+    HPy info = HPyArrayIdentityHash_GetItem(ctx, ufunc,
+            ufunc_data->_dispatch_cache, op_dtypes);
     HPy array_method_type = HPyGlobal_Load(ctx, HPyArrayMethod_Type);
     HPy info1 = HPy_NULL;
     if (!HPy_IsNull(info)) {
@@ -824,8 +825,8 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
                  * Found the ArrayMethod and NOT promoter.  Before returning it
                  * add it to the cache for faster lookup in the future.
                  */
-                if (HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
-                        op_dtypes, info, 0) < 0) {
+                if (HPyArrayIdentityHash_SetItem(ctx, ufunc,
+                        ufunc_data->_dispatch_cache, op_dtypes, info, 0) < 0) {
                     res = HPy_NULL;
                     goto finish;
                 }
@@ -862,8 +863,8 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
         }
         else if (!HPy_IsNull(info)) {
             /* Add result to the cache using the original types: */
-            if (HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
-                    op_dtypes, info, 0) < 0) {
+            if (HPyArrayIdentityHash_SetItem(ctx, ufunc,
+                    ufunc_data->_dispatch_cache, op_dtypes, info, 0) < 0) {
                 res = HPy_NULL;
                 goto finish;
             }
@@ -899,8 +900,8 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
     }
 
     /* Add this to the cache using the original types: */
-    if (cacheable && HPyArrayIdentityHash_SetItem(ctx, ufunc_data->_dispatch_cache,
-            op_dtypes, info, 0) < 0) {
+    if (cacheable && HPyArrayIdentityHash_SetItem(ctx, ufunc,
+            ufunc_data->_dispatch_cache, op_dtypes, info, 0) < 0) {
         res = HPy_NULL;
         goto finish;
     }

@@ -1107,7 +1107,7 @@ get_all_cast_information(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
  * hashtable.
  */
 static PyObject *
-identityhash_tester(PyObject *NPY_UNUSED(mod),
+identityhash_tester(PyObject *mod,
         PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
 {
     NPY_PREPARE_ARGPARSER;
@@ -1164,12 +1164,12 @@ identityhash_tester(PyObject *NPY_UNUSED(mod),
             keys[j] = PyTuple_GET_ITEM(key, j);
         }
         if (i != length - 1) {
-            if (PyArrayIdentityHash_SetItem(tb, keys, value, replace) < 0) {
+            if (PyArrayIdentityHash_SetItem(tb, mod, keys, value, replace) < 0) {
                 goto finish;
             }
         }
         else {
-            result = PyArrayIdentityHash_GetItem(tb, keys);
+            result = PyArrayIdentityHash_GetItem(tb, mod, keys);
             if (result == NULL) {
                 result = Py_None;
             }
