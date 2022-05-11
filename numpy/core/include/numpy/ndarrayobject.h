@@ -178,6 +178,10 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \
                               max_depth, NPY_ARRAY_DEFAULT, NULL)
 
+#define HPyArray_ContiguousFromAny(ctx, op, type, min_depth, max_depth) \
+        HPyArray_FromAny(ctx, op, HPyArray_DescrFromType(ctx, type), min_depth, \
+                              max_depth, NPY_ARRAY_DEFAULT, HPy_NULL)
+
 #define PyArray_EquivArrTypes(a1, a2) \
         PyArray_EquivTypes(PyArray_DESCR(a1), PyArray_DESCR(a2))
 
@@ -324,6 +328,17 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
 
 NPY_NO_EXPORT int
 HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self);
+
+NPY_NO_EXPORT HPy
+HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
+                 HPy h_out, NPY_CLIPMODE clipmode);
+
+NPY_NO_EXPORT HPy
+HPyArray_Nonzero(HPyContext *ctx, HPy h_self);
+
+NPY_NO_EXPORT HPy
+HPyArray_Compress(HPyContext *ctx, HPy h_self, HPy condition, int axis,
+                 HPy out);
 
 /*
    Check to see if this key in the dictionary is the "title"

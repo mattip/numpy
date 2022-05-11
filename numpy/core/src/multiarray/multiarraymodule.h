@@ -17,4 +17,7 @@ HPyArray_EquivTypes(HPyContext *ctx, /*PyArray_Descr*/HPy type1, /*PyArray_Descr
 NPY_NO_EXPORT double
 HPyArray_GetPriority(HPyContext *ctx, HPy obj, double default_);
 
+NPY_NO_EXPORT HPy
+HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_MULTIARRAYMODULE_H_ */

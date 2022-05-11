@@ -579,6 +579,21 @@ NpyIter_New(PyArrayObject *op, npy_uint32 flags,
                             -1, NULL, NULL, 0);
 }
 
+NPY_NO_EXPORT NpyIter *
+HNpyIter_New(HPyContext *ctx, HPy op, npy_uint32 flags,
+                  NPY_ORDER order, NPY_CASTING casting,
+                  HPy dtype)
+{
+    /* Split the flags into separate global and op flags */
+    npy_uint32 op_flags = flags & NPY_ITER_PER_OP_FLAGS;
+    flags &= NPY_ITER_GLOBAL_FLAGS;
+
+    // TODO (check): HNpyIter_AdvancedNew is expecting an array for `op` and `dtype` 
+    return HNpyIter_AdvancedNew(ctx, 1, &op, flags, order, casting,
+                            &op_flags, &dtype,
+                            -1, NULL, NULL, 0);
+}
+
 /*NUMPY_API
  * Makes a copy of the iterator
  */

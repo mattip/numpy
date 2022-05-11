@@ -23,6 +23,11 @@ static int
 PyArray_PyIntAsInt_ErrMsg(PyObject *o, const char * msg) NPY_GCC_NONNULL(2);
 static npy_intp
 PyArray_PyIntAsIntp_ErrMsg(PyObject *o, const char * msg) NPY_GCC_NONNULL(2);
+// HPy
+static int
+HPyArray_PyIntAsInt_ErrMsg(HPyContext *ctx, HPy o, const char * msg) NPY_GCC_NONNULL(3);
+static npy_intp
+HPyArray_PyIntAsIntp_ErrMsg(HPyContext *ctx, HPy o, const char * msg) NPY_GCC_NONNULL(3);
 
 /****************************************************************
 * Useful function for conversion when used with PyArg_ParseTuple
@@ -75,6 +80,25 @@ PyArray_OutputConverter(PyObject *object, PyArrayObject **address)
         PyErr_SetString(PyExc_TypeError,
                         "output must be an array");
         *address = NULL;
+        return NPY_FAIL;
+    }
+}
+
+NPY_NO_EXPORT int
+HPyArray_OutputConverter(HPyContext *ctx, HPy object, HPy *address)
+{
+    if (HPy_IsNull(object) || HPy_Is(ctx, object, ctx->h_None)) {
+        *address = HPy_NULL;
+        return NPY_SUCCEED;
+    }
+    if (HPyArray_Check(ctx, object)) {
+        *address = object;
+        return NPY_SUCCEED;
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "output must be an array");
+        *address = HPy_NULL;
         return NPY_FAIL;
     }
 }
@@ -402,6 +426,22 @@ PyArray_AxisConverter(PyObject *obj, int *axis)
         *axis = PyArray_PyIntAsInt_ErrMsg(obj,
                                "an integer is required for the axis");
         if (error_converting(*axis)) {
+            return NPY_FAIL;
+        }
+    }
+    return NPY_SUCCEED;
+}
+
+NPY_NO_EXPORT int
+HPyArray_AxisConverter(HPyContext *ctx, HPy obj, int *axis)
+{
+    if (HPy_Is(ctx, obj, ctx->h_None)) {
+        *axis = NPY_MAXDIMS;
+    }
+    else {
+        *axis = HPyArray_PyIntAsInt_ErrMsg(ctx, obj,
+                               "an integer is required for the axis");
+        if (hpy_error_converting(ctx, *axis)) {
             return NPY_FAIL;
         }
     }
@@ -1078,6 +1118,22 @@ PyArray_PyIntAsInt_ErrMsg(PyObject *o, const char * msg)
 #if (NPY_SIZEOF_INTP > NPY_SIZEOF_INT)
     if ((long_value < INT_MIN) || (long_value > INT_MAX)) {
         PyErr_SetString(PyExc_ValueError, "integer won't fit into a C int");
+        return -1;
+    }
+#endif
+    return (int) long_value;
+}
+
+static int
+HPyArray_PyIntAsInt_ErrMsg(HPyContext *ctx, HPy o, const char * msg)
+{
+    npy_intp long_value;
+    /* This assumes that NPY_SIZEOF_INTP >= NPY_SIZEOF_INT */
+    long_value = HPyArray_PyIntAsIntp_ErrMsg(ctx, o, msg);
+
+#if (NPY_SIZEOF_INTP > NPY_SIZEOF_INT)
+    if ((long_value < INT_MIN) || (long_value > INT_MAX)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "integer won't fit into a C int");
         return -1;
     }
 #endif

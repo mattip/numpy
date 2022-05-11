@@ -96,6 +96,9 @@ PyArray_CopyAnyInto(PyArrayObject *dest, PyArrayObject *src);
 NPY_NO_EXPORT PyObject *
 PyArray_CheckAxis(PyArrayObject *arr, int *axis, int flags);
 
+NPY_NO_EXPORT HPy
+HPyArray_CheckAxis(HPyContext *ctx, HPy h_arr, int *axis, int flags);
+
 /* TODO: Put the order parameter in PyArray_CopyAnyInto and remove this */
 NPY_NO_EXPORT int
 PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src,

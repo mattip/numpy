@@ -134,4 +134,10 @@ HPyArray_PyIntAsIntp(HPyContext *ctx, HPy o);
 NPY_NO_EXPORT HPy
 HPyArray_IntTupleFromIntp(HPyContext *ctx, int len, npy_intp const *vals);
 
+NPY_NO_EXPORT int
+HPyArray_AxisConverter(HPyContext *ctx, HPy obj, int *axis);
+
+NPY_NO_EXPORT int
+HPyArray_OutputConverter(HPyContext *ctx, HPy object, HPy *address);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERSION_UTILS_H_ */

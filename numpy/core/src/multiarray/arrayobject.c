@@ -2101,6 +2101,8 @@ static HPyDef *array_defines[] = {
     // methods:
     &array_ravel,
     &array_transpose,
+    &array_compress,
+    &array_nonzero,
     NULL,
 };
 

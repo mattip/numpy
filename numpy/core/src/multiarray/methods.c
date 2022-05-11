@@ -33,6 +33,7 @@
 
 #include <stdarg.h>
 
+#include "scalarapi.h"
 
 /* NpyArg_ParseKeywords
  *
@@ -124,15 +125,18 @@ array_take(PyArrayObject *self,
             NULL, NULL, NULL) < 0) {
         return NULL;
     }
-
-    PyObject *ret = PyArray_TakeFrom(self, indices, dimension, out, mode);
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+    HPy h_out = HPy_FromPyObject(ctx, (PyObject *)out);
+    HPy h_indices = HPy_FromPyObject(ctx, indices);
+    HPy ret = HPyArray_TakeFrom(ctx, h_self, h_indices, dimension, h_out, mode);
 
     /* this matches the unpacking behavior of ufuncs */
-    if (out == NULL) {
-        return PyArray_Return((PyArrayObject *)ret);
+    if (HPy_IsNull(h_out)) {
+        return HPy_AsPyObject(ctx, HPyArray_Return(ctx, ret));
     }
     else {
-        return ret;
+        return HPy_AsPyObject(ctx, ret);
     }
 }
 
@@ -2487,26 +2491,40 @@ array_variance(PyArrayObject *self, PyObject *args, PyObject *kwds)
     NPY_FORWARD_NDARRAY_METHOD("_var");
 }
 
-static PyObject *
-array_compress(PyArrayObject *self, PyObject *args, PyObject *kwds)
+HPyDef_METH(array_compress, "compress", array_compress_impl, HPyFunc_KEYWORDS)
+static HPy
+array_compress_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     int axis = NPY_MAXDIMS;
-    PyObject *condition;
-    PyArrayObject *out = NULL;
-    static char *kwlist[] = {"condition", "axis", "out", NULL};
+    HPy condition;
+    HPy out = HPy_NULL;
+    HPy h_axis = HPy_NULL;
+    HPy h_out = HPy_NULL;
+    static const char *kwlist[] = {"condition", "axis", "out", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&O&:compress", kwlist,
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OO:compress", kwlist,
                                      &condition,
-                                     PyArray_AxisConverter, &axis,
-                                     PyArray_OutputConverter, &out)) {
-        return NULL;
+                                     &h_axis,
+                                     &h_out)) {
+        return HPy_NULL;
     }
 
-    PyObject *ret = PyArray_Compress(self, condition, axis, out);
+    if (HPyArray_AxisConverter(ctx, h_axis, &axis) != NPY_SUCCEED){
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
 
+    if (HPyArray_OutputConverter(ctx, h_out, &out) != NPY_SUCCEED){
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    HPy ret = HPyArray_Compress(ctx, h_self, condition, axis, out);
+    HPyTracker_Close(ctx, ht);
     /* this matches the unpacking behavior of ufuncs */
-    if (out == NULL) {
-        return PyArray_Return((PyArrayObject *)ret);
+    if (HPy_IsNull(out)) {
+        return HPyArray_Return(ctx, ret);
     }
     else {
         return ret;
@@ -2514,13 +2532,14 @@ array_compress(PyArrayObject *self, PyObject *args, PyObject *kwds)
 }
 
 
-static PyObject *
-array_nonzero(PyArrayObject *self, PyObject *args)
+HPyDef_METH(array_nonzero, "nonzero", array_nonzero_impl, HPyFunc_VARARGS)
+static HPy
+array_nonzero_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs)
 {
-    if (!PyArg_ParseTuple(args, "")) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "")) {
+        return HPy_NULL;
     }
-    return PyArray_Nonzero(self);
+    return HPyArray_Nonzero(ctx, h_self);
 }
 
 
@@ -2944,9 +2963,6 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"clip",
         (PyCFunction)array_clip,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"compress",
-        (PyCFunction)array_compress,
-        METH_VARARGS | METH_KEYWORDS, NULL},
     {"conj",
         (PyCFunction)array_conjugate,
         METH_VARARGS, NULL},
@@ -2994,9 +3010,6 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"newbyteorder",
         (PyCFunction)array_newbyteorder,
-        METH_VARARGS, NULL},
-    {"nonzero",
-        (PyCFunction)array_nonzero,
         METH_VARARGS, NULL},
     {"partition",
         (PyCFunction)array_partition,

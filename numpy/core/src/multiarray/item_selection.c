@@ -31,6 +31,7 @@
 #include "simd/simd.h"
 
 #include "hpy_utils.h"
+#include "nditer_hpy.h"
 
 static NPY_GCC_OPT_3 NPY_INLINE int
 npy_fasttake_impl(
@@ -187,32 +188,32 @@ npy_fasttake(
 }
 
 
-/*NUMPY_API
- * Take
- */
-NPY_NO_EXPORT PyObject *
-PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
-                 PyArrayObject *out, NPY_CLIPMODE clipmode)
+NPY_NO_EXPORT HPy
+HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
+                 HPy h_out, NPY_CLIPMODE clipmode)
 {
+    HPy h_dtype;
     PyArray_Descr *dtype;
-    PyArrayObject *obj = NULL, *self, *indices;
+    HPy h_obj = HPy_NULL, h_self, h_indices = HPy_NULL;
+    PyArrayObject *obj = NULL, *self, *indices, *out;
     npy_intp nd, i, n, m, max_item, chunk, itemsize, nelem;
     npy_intp shape[NPY_MAXDIMS];
 
     npy_bool needs_refcounting;
 
-    indices = NULL;
-    self = (PyArrayObject *)PyArray_CheckAxis(self0, &axis,
+    h_self = HPyArray_CheckAxis(ctx, h_self0, &axis,
                                     NPY_ARRAY_CARRAY_RO);
-    if (self == NULL) {
-        return NULL;
+    if (HPy_IsNull(h_self)) {
+        return HPy_NULL;
     }
-    indices = (PyArrayObject *)PyArray_ContiguousFromAny(indices0,
-                                                         NPY_INTP,
-                                                         0, 0);
-    if (indices == NULL) {
+    self = PyArrayObject_AsStruct(ctx, h_self);
+    h_indices = HPyArray_ContiguousFromAny(ctx, h_indices0,
+                                                NPY_INTP,
+                                                0, 0);
+    if (HPy_IsNull(h_indices)) {
         goto fail;
     }
+    indices = PyArrayObject_AsStruct(ctx, h_indices);
 
     n = m = chunk = 1;
     nd = PyArray_NDIM(self) + PyArray_NDIM(indices) - 1;
@@ -232,31 +233,32 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
             }
         }
     }
-    if (!out) {
-        dtype = PyArray_DESCR(self);
-        Py_INCREF(dtype);
-        obj = (PyArrayObject *)PyArray_NewFromDescr(Py_TYPE(self),
-                                                    dtype,
-                                                    nd, shape,
-                                                    NULL, NULL, 0,
-                                                    (PyObject *)self);
+    if (HPy_IsNull(h_out)) {
+        h_dtype = HPyArray_DESCR(ctx, h_self, self);
+        dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_dtype);
+        HPy h_self_type = HPy_Type(ctx, h_self);
+        h_obj = HPyArray_NewFromDescr(ctx, h_self_type,
+                                                h_dtype,
+                                                nd, shape,
+                                                NULL, NULL, 0,
+                                                h_self);
 
-        if (obj == NULL) {
+        if (HPy_IsNull(h_obj)) {
             goto fail;
         }
 
     }
     else {
         int flags = NPY_ARRAY_CARRAY | NPY_ARRAY_WRITEBACKIFCOPY;
-
+        out = PyArrayObject_AsStruct(ctx, h_out);
         if ((PyArray_NDIM(out) != nd) ||
             !PyArray_CompareLists(PyArray_DIMS(out), shape, nd)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                         "output array does not match result of ndarray.take");
             goto fail;
         }
 
-        if (arrays_overlap(out, self)) {
+        if (hpy_arrays_overlap(ctx, h_out, h_self)) {
             flags |= NPY_ARRAY_ENSURECOPY;
         }
 
@@ -268,54 +270,82 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
              */
             flags |= NPY_ARRAY_ENSURECOPY;
         }
-        dtype = PyArray_DESCR(self);
-        Py_INCREF(dtype);
-        obj = (PyArrayObject *)PyArray_FromArray(out, dtype, flags);
-        if (obj == NULL) {
+        h_dtype = HPyArray_DESCR(ctx, h_self, self);
+        dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_dtype);
+        // Py_INCREF(dtype); not borrowed since we use our HPyArray_DESCR
+        CAPI_WARN("PyArray_FromArray");
+        PyObject *py_obj = PyArray_FromArray(
+                                (PyArrayObject *)HPy_AsPyObject(ctx, h_out), 
+                                dtype, flags);
+        if (py_obj == NULL) {
             goto fail;
         }
+        h_obj = HPy_FromPyObject(ctx, py_obj);
     }
 
     max_item = PyArray_DIMS(self)[axis];
     nelem = chunk;
-    itemsize = PyArray_ITEMSIZE(obj);
+    obj = PyArrayObject_AsStruct(ctx, h_obj);
+    itemsize = HPyArray_ITEMSIZE(ctx, h_obj, obj);
     chunk = chunk * itemsize;
     char *src = PyArray_DATA(self);
     char *dest = PyArray_DATA(obj);
-    needs_refcounting = PyDataType_REFCHK(PyArray_DESCR(self));
+    needs_refcounting = HPyDataType_REFCHK(ctx, HPyArray_DESCR(ctx, h_self, self));
     npy_intp *indices_data = (npy_intp *)PyArray_DATA(indices);
 
     if ((max_item == 0) && (PyArray_SIZE(obj) != 0)) {
         /* Index error, since that is the usual error for raise mode */
-        PyErr_SetString(PyExc_IndexError,
+        HPyErr_SetString(ctx, ctx->h_IndexError,
                     "cannot do a non-empty take from an empty axes.");
         goto fail;
     }
 
+    CAPI_WARN("npy_fasttake");
     if (npy_fasttake(
             dest, src, indices_data, n, m, max_item, nelem, chunk,
             clipmode, itemsize, needs_refcounting, dtype, axis) < 0) {
         goto fail;
     }
 
-    Py_XDECREF(indices);
-    Py_XDECREF(self);
-    if (out != NULL && out != obj) {
-        Py_INCREF(out);
-        PyArray_ResolveWritebackIfCopy(obj);
-        Py_DECREF(obj);
-        obj = out;
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_indices);
+    HPy_Close(ctx, h_self);
+    if (!HPy_IsNull(h_out) && !HPy_Is(ctx, h_out, h_obj)) {
+        HPyArray_ResolveWritebackIfCopy(ctx, h_obj);
+        HPy_Close(ctx, h_obj);
+        h_obj = HPy_Dup(ctx, h_out);
     }
-    return (PyObject *)obj;
+    return h_obj;
 
  fail:
-    PyArray_DiscardWritebackIfCopy(obj);
-    Py_XDECREF(obj);
-    Py_XDECREF(indices);
-    Py_XDECREF(self);
-    return NULL;
+    HPyArray_DiscardWritebackIfCopy(ctx, h_obj);
+    HPy_Close(ctx, h_dtype);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_indices);
+    HPy_Close(ctx, h_self);
+    return HPy_NULL;
 }
 
+/*NUMPY_API
+ * Take
+ */
+NPY_NO_EXPORT PyObject *
+PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
+                 PyArrayObject *out, NPY_CLIPMODE clipmode)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_self0 = HPy_FromPyObject(ctx, self0);
+    HPy h_indices0 = HPy_FromPyObject(ctx, indices0);
+    HPy h_out = HPy_FromPyObject(ctx, out);
+    HPy h_res = HPyArray_TakeFrom(ctx, h_self0, h_indices0, axis, h_out, clipmode);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_self0);
+    HPy_Close(ctx, h_indices0);
+    HPy_Close(ctx, h_out);
+    HPy_Close(ctx, h_res);
+    return res;
+
+}
 /*NUMPY_API
  * Put values into an array
  */
@@ -2070,6 +2100,46 @@ PyArray_Diagonal(PyArrayObject *self, int offset, int axis1, int axis2)
     return ret;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_Compress(HPyContext *ctx, HPy h_self, HPy condition, int axis,
+                 HPy out)
+{
+    HPy cond;
+    HPy res, ret;
+
+    if (HPyArray_Check(ctx, condition)) {
+        cond = HPy_Dup(ctx, condition);
+    }
+    else {
+        HPy dtype = HPyArray_DescrFromType(ctx, NPY_BOOL);
+        if (HPy_IsNull(dtype)) {
+            return HPy_NULL;
+        }
+        cond = HPyArray_FromAny(ctx, condition, dtype,
+                                    0, 0, 0, HPy_NULL);
+        if (HPy_IsNull(cond)) {
+            return HPy_NULL;
+        }
+    }
+
+    if (HPyArray_GetNDim(ctx, cond) != 1) {
+        HPy_Close(ctx, cond);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "condition must be a 1-d array");
+        return HPy_NULL;
+    }
+
+    res = HPyArray_Nonzero(ctx, cond);
+    HPy_Close(ctx, cond);
+    if (HPy_IsNull(res)) {
+        return res;
+    }
+    ret = HPyArray_TakeFrom(ctx, h_self, HPy_GetItem_i(ctx, res, 0), axis,
+                           out, NPY_RAISE);
+    HPy_Close(ctx, res);
+    return ret;
+}
+
 /*NUMPY_API
  * Compress
  */
@@ -2077,43 +2147,18 @@ NPY_NO_EXPORT PyObject *
 PyArray_Compress(PyArrayObject *self, PyObject *condition, int axis,
                  PyArrayObject *out)
 {
-    PyArrayObject *cond;
-    PyObject *res, *ret;
-
-    if (PyArray_Check(condition)) {
-        cond = (PyArrayObject *)condition;
-        Py_INCREF(cond);
-    }
-    else {
-        PyArray_Descr *dtype = PyArray_DescrFromType(NPY_BOOL);
-        if (dtype == NULL) {
-            return NULL;
-        }
-        cond = (PyArrayObject *)PyArray_FromAny(condition, dtype,
-                                    0, 0, 0, NULL);
-        if (cond == NULL) {
-            return NULL;
-        }
-    }
-
-    if (PyArray_NDIM(cond) != 1) {
-        Py_DECREF(cond);
-        PyErr_SetString(PyExc_ValueError,
-                        "condition must be a 1-d array");
-        return NULL;
-    }
-
-    res = PyArray_Nonzero(cond);
-    Py_DECREF(cond);
-    if (res == NULL) {
-        return res;
-    }
-    ret = PyArray_TakeFrom(self, PyTuple_GET_ITEM(res, 0), axis,
-                           out, NPY_RAISE);
-    Py_DECREF(res);
-    return ret;
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_condition = HPy_FromPyObject(ctx, condition);
+    HPy h_out = HPy_FromPyObject(ctx, out);
+    HPy h_res = HPyArray_Compress(ctx, h_self, h_condition, axis, h_out);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_self);
+    HPy_Close(ctx, h_condition);
+    HPy_Close(ctx, h_out);
+    HPy_Close(ctx, h_res);
+    return res;
 }
-
 /*
  * count number of nonzero bytes in 48 byte block
  * w must be aligned to 8 bytes
@@ -2525,20 +2570,37 @@ finish:
     return nonzero_count;
 }
 
-/*NUMPY_API
- * Nonzero
- *
- * TODO: In NumPy 2.0, should make the iteration order a parameter.
- */
-NPY_NO_EXPORT PyObject *
-PyArray_Nonzero(PyArrayObject *self)
+// partial port without custom data-types
+NPY_NO_EXPORT npy_intp
+HPyArray_CountNonzero_hpy_partial(PyArrayObject *self, PyArray_Descr *dtype)
 {
-    int i, ndim = PyArray_NDIM(self);
+
+    /* Special low-overhead version specific to the boolean/int types */
+    if (PyArray_ISALIGNED(self) && (
+            PyDataType_ISBOOL(dtype) || PyDataType_ISINTEGER(dtype))) {
+        return count_nonzero_int(
+            PyArray_NDIM(self), PyArray_BYTES(self), PyArray_DIMS(self),
+            PyArray_STRIDES(self), dtype->elsize
+        );
+    }
+
+    // PyArray_NonzeroFunc *nonzero = PyArray_DESCR(self)->f->nonzero;
+    hpy_abort_not_implemented("custom data-types");
+    // see usertypes.c:188:PyArray_RegisterDataType
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
+{
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    int i, ndim = HPyArray_GetNDim(ctx, h_self);
+    HPy h_ret = HPy_NULL;
     PyArrayObject *ret = NULL;
-    PyObject *ret_tuple;
+    HPy ret_tuple;
     npy_intp ret_dims[2];
 
-    PyArray_NonzeroFunc *nonzero;
+    // PyArray_NonzeroFunc *nonzero;
+    HPy h_dtype;
     PyArray_Descr *dtype;
 
     npy_intp nonzero_count;
@@ -2551,14 +2613,15 @@ PyArray_Nonzero(PyArrayObject *self)
     NpyIter_GetMultiIndexFunc *get_multi_index;
     char **dataptr;
 
-    dtype = PyArray_DESCR(self);
-    nonzero = dtype->f->nonzero;
+    h_dtype = HPyArray_DESCR(ctx, h_self, self);
+    dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
+    // nonzero = dtype->f->nonzero;
     needs_api = PyDataType_FLAGCHK(dtype, NPY_NEEDS_PYAPI);
 
     /* Special case - nonzero(zero_d) is nonzero(atleast_1d(zero_d)) */
     if (ndim == 0) {
         char const* msg;
-        if (PyArray_ISBOOL(self)) {
+        if (HPyArray_ISBOOL(ctx, h_self)) {
             msg =
                 "Calling nonzero on 0d arrays is deprecated, as it behaves "
                 "surprisingly. Use `atleast_1d(cond).nonzero()` if the old "
@@ -2571,46 +2634,50 @@ PyArray_Nonzero(PyArrayObject *self)
                 "surprisingly. Use `atleast_1d(arr).nonzero()` if the old "
                 "behavior was intended.";
         }
-        if (DEPRECATE(msg) < 0) {
-            return NULL;
+        if (HPY_DEPRECATE(ctx, msg) < 0) {
+            return HPy_NULL;
         }
 
         static npy_intp const zero_dim_shape[1] = {1};
         static npy_intp const zero_dim_strides[1] = {0};
 
-        Py_INCREF(PyArray_DESCR(self));  /* array creation steals reference */
-        PyArrayObject *self_1d = (PyArrayObject *)PyArray_NewFromDescrAndBase(
-            Py_TYPE(self), PyArray_DESCR(self),
-            1, zero_dim_shape, zero_dim_strides, PyArray_BYTES(self),
-            PyArray_FLAGS(self), (PyObject *)self, (PyObject *)self);
-        if (self_1d == NULL) {
-            return NULL;
+        // Py_INCREF(PyArray_DESCR(self));  /* array creation steals reference */
+        HPy descr = HPyArray_DESCR(ctx, h_self, self);
+        HPy h_self_type = HPy_Type(ctx, h_self);
+        HPy self_1d = HPyArray_NewFromDescrAndBase(ctx, h_self_type, descr,
+                        1, zero_dim_shape, zero_dim_strides, PyArray_BYTES(self),
+                        PyArray_FLAGS(self), h_self, h_self);
+        HPy_Close(ctx, h_self_type);
+        if (HPy_IsNull(self_1d)) {
+            return HPy_NULL;
         }
-        ret_tuple = PyArray_Nonzero(self_1d);
-        Py_DECREF(self_1d);
+        ret_tuple = HPyArray_Nonzero(ctx, self_1d);
+        HPy_Close(ctx, self_1d);
         return ret_tuple;
     }
 
     /*
      * First count the number of non-zeros in 'self'.
      */
-    nonzero_count = PyArray_CountNonzero(self);
+    nonzero_count = HPyArray_CountNonzero_hpy_partial(self, dtype);
     if (nonzero_count < 0) {
-        return NULL;
+        return HPy_NULL;
     }
-
-    is_bool = PyArray_ISBOOL(self);
+    is_bool = HPyArray_ISBOOL(ctx, h_self);
 
     /* Allocate the result as a 2D array */
     ret_dims[0] = nonzero_count;
     ret_dims[1] = ndim;
-    ret = (PyArrayObject *)PyArray_NewFromDescr(
-            &PyArray_Type, PyArray_DescrFromType(NPY_INTP),
+    HPy arr_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    h_ret = HPyArray_NewFromDescr(
+            ctx, arr_type, HPyArray_DescrFromType(ctx, NPY_INTP),
             2, ret_dims, NULL, NULL,
-            0, NULL);
-    if (ret == NULL) {
-        return NULL;
+            0, HPy_NULL);
+    HPy_Close(ctx, arr_type);
+    if (HPy_IsNull(h_ret)) {
+        return HPy_NULL;
     }
+    ret = PyArrayObject_AsStruct(ctx, h_ret);
 
     /* If it's a one-dimensional result, don't use an iterator */
     if (ndim == 1) {
@@ -2660,19 +2727,21 @@ PyArray_Nonzero(PyArrayObject *self)
             }
         }
         else {
-            npy_intp j;
-            for (j = 0; j < count; ++j) {
-                if (nonzero(data, self)) {
-                    if (++added_count > nonzero_count) {
-                        break;
-                    }
-                    *multi_index++ = j;
-                }
-                if (needs_api && PyErr_Occurred()) {
-                    break;
-                }
-                data += stride;
-            }
+            hpy_abort_not_implemented("custom data-types");
+            // see usertypes.c:188:PyArray_RegisterDataType
+            // npy_intp j;
+            // for (j = 0; j < count; ++j) {
+            //     if (nonzero(data, self)) {
+            //         if (++added_count > nonzero_count) {
+            //             break;
+            //         }
+            //         *multi_index++ = j;
+            //     }
+            //     if (needs_api && PyErr_Occurred()) {
+            //         break;
+            //     }
+            //     data += stride;
+            // }
         }
 
         NPY_END_THREADS;
@@ -2683,16 +2752,16 @@ PyArray_Nonzero(PyArrayObject *self)
     /*
      * Build an iterator tracking a multi-index, in C order.
      */
-    iter = NpyIter_New(self, NPY_ITER_READONLY |
+    iter = HNpyIter_New(ctx, h_self, NPY_ITER_READONLY |
                              NPY_ITER_MULTI_INDEX |
                              NPY_ITER_ZEROSIZE_OK |
                              NPY_ITER_REFS_OK,
                         NPY_CORDER, NPY_NO_CASTING,
-                        NULL);
+                        HPy_NULL);
 
     if (iter == NULL) {
-        Py_DECREF(ret);
-        return NULL;
+        HPy_Close(ctx, h_ret);
+        return HPy_NULL;
     }
 
     if (NpyIter_GetIterSize(iter) != 0) {
@@ -2702,14 +2771,14 @@ PyArray_Nonzero(PyArrayObject *self)
         iternext = NpyIter_GetIterNext(iter, NULL);
         if (iternext == NULL) {
             NpyIter_Deallocate(iter);
-            Py_DECREF(ret);
-            return NULL;
+            HPy_Close(ctx, h_ret);
+            return HPy_NULL;
         }
         get_multi_index = NpyIter_GetGetMultiIndex(iter, NULL);
         if (get_multi_index == NULL) {
             NpyIter_Deallocate(iter);
-            Py_DECREF(ret);
-            return NULL;
+            HPy_Close(ctx, h_ret);
+            return HPy_NULL;
         }
 
         needs_api = NpyIter_IterationNeedsAPI(iter);
@@ -2731,18 +2800,20 @@ PyArray_Nonzero(PyArrayObject *self)
             } while(iternext(iter));
         }
         else {
-            do {
-                if (nonzero(*dataptr, self)) {
-                    if (++added_count > nonzero_count) {
-                        break;
-                    }
-                    get_multi_index(iter, multi_index);
-                    multi_index += ndim;
-                }
-                if (needs_api && PyErr_Occurred()) {
-                    break;
-                }
-            } while(iternext(iter));
+            hpy_abort_not_implemented("custom data-types");
+            // see usertypes.c:188:PyArray_RegisterDataType
+            // do {
+            //     if (nonzero(*dataptr, self)) {
+            //         if (++added_count > nonzero_count) {
+            //             break;
+            //         }
+            //         get_multi_index(iter, multi_index);
+            //         multi_index += ndim;
+            //     }
+            //     if (needs_api && HPyErr_Occurred(ctx)) {
+            //         break;
+            //     }
+            // } while(iternext(iter));
         }
 
         NPY_END_THREADS;
@@ -2751,48 +2822,70 @@ PyArray_Nonzero(PyArrayObject *self)
     NpyIter_Deallocate(iter);
 
 finish:
-    if (PyErr_Occurred()) {
-        Py_DECREF(ret);
-        return NULL;
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, h_ret);
+        return HPy_NULL;
     }
 
     /* if executed `nonzero()` check for miscount due to side-effect */
     if (!is_bool && added_count != nonzero_count) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
             "number of non-zero array elements "
             "changed during function execution.");
-        Py_DECREF(ret);
-        return NULL;
+        HPy_Close(ctx, h_ret);
+        return HPy_NULL;
     }
 
-    ret_tuple = PyTuple_New(ndim);
-    if (ret_tuple == NULL) {
-        Py_DECREF(ret);
-        return NULL;
+    HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, ndim);
+    if (HPyTupleBuilder_IsNull(builder)) {
+        HPy_Close(ctx, h_ret);
+        return HPy_NULL;
     }
 
     /* Create views into ret, one for each dimension */
+    HPy h_ret_type = ndim > 0 ? HPy_Type(ctx, h_ret) : HPy_NULL;
     for (i = 0; i < ndim; ++i) {
         npy_intp stride = ndim * NPY_SIZEOF_INTP;
         /* the result is an empty array, the view must point to valid memory */
         npy_intp data_offset = nonzero_count == 0 ? 0 : i * NPY_SIZEOF_INTP;
 
-        PyArrayObject *view = (PyArrayObject *)PyArray_NewFromDescrAndBase(
-            Py_TYPE(ret), PyArray_DescrFromType(NPY_INTP),
+        HPy view = HPyArray_NewFromDescrAndBase(
+            ctx, h_ret_type, HPyArray_DescrFromType(ctx, NPY_INTP),
             1, &nonzero_count, &stride, PyArray_BYTES(ret) + data_offset,
-            PyArray_FLAGS(ret), (PyObject *)ret, (PyObject *)ret);
-        if (view == NULL) {
-            Py_DECREF(ret);
-            Py_DECREF(ret_tuple);
-            return NULL;
+            PyArray_FLAGS(ret), h_ret, h_ret);
+        if (HPy_IsNull(view)) {
+            HPy_Close(ctx, h_ret_type);
+            HPy_Close(ctx, h_ret);
+            HPyTupleBuilder_Cancel(ctx, builder);
+        return HPy_NULL;
         }
-        PyTuple_SET_ITEM(ret_tuple, i, (PyObject *)view);
+        HPyTupleBuilder_Set(ctx, builder, i, view);
     }
-    Py_DECREF(ret);
+    ret_tuple = HPyTupleBuilder_Build(ctx, builder);
+    if (!HPy_IsNull(h_ret_type)) {
+        HPy_Close(ctx, h_ret_type);
+    }
+    HPy_Close(ctx, h_ret);
 
     return ret_tuple;
 }
 
+/*NUMPY_API
+ * Nonzero
+ *
+ * TODO: In NumPy 2.0, should make the iteration order a parameter.
+ */
+NPY_NO_EXPORT PyObject *
+PyArray_Nonzero(PyArrayObject *self)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_res = HPyArray_Nonzero(ctx, h_self);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_self);
+    HPy_Close(ctx, h_res);
+    return res;
+}
 /*
  * Gets a single item from the array, based on a single multi-index
  * array of values, which must be of length PyArray_NDIM(self).

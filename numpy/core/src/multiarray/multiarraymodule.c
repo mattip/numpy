@@ -3454,64 +3454,74 @@ array_set_datetimeparse_function(PyObject *NPY_UNUSED(self),
     } while(0)
 
 
-/*NUMPY_API
- * Where
- */
-NPY_NO_EXPORT PyObject *
-PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
+NPY_NO_EXPORT HPy
+HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
 {
+    HPy h_arr, h_ax, h_ay;
     PyArrayObject *arr, *ax, *ay;
+    HPy h_ret = HPy_NULL;
     PyObject *ret = NULL;
 
-    arr = (PyArrayObject *)PyArray_FROM_O(condition);
-    if (arr == NULL) {
-        return NULL;
+    h_arr = HPyArray_FROM_O(ctx, condition);
+    if (HPy_IsNull(h_arr)) {
+        return HPy_NULL;
     }
-    if ((x == NULL) && (y == NULL)) {
-        ret = PyArray_Nonzero(arr);
-        Py_DECREF(arr);
-        return ret;
+    if (HPy_IsNull(x) && HPy_IsNull(y)) {
+        h_ret = HPyArray_Nonzero(ctx, h_arr);
+        HPy_Close(ctx, h_arr);
+        return h_ret;
     }
-    if ((x == NULL) || (y == NULL)) {
-        Py_DECREF(arr);
+    if (HPy_IsNull(x) || HPy_IsNull(y)) {
+        HPy_Close(ctx, h_arr);
         PyErr_SetString(PyExc_ValueError,
                 "either both or neither of x and y should be given");
-        return NULL;
+        return HPy_NULL;
     }
 
-    ax = (PyArrayObject*)PyArray_FROM_O(x);
-    ay = (PyArrayObject*)PyArray_FROM_O(y);
-    if (ax == NULL || ay == NULL) {
+    h_ax = HPyArray_FROM_O(ctx, x);
+    h_ay = HPyArray_FROM_O(ctx, y);
+    if (HPy_IsNull(h_ax) || HPy_IsNull(h_ay)) {
         goto fail;
     }
     else {
         npy_uint32 flags = NPY_ITER_EXTERNAL_LOOP | NPY_ITER_BUFFERED |
                            NPY_ITER_REFS_OK | NPY_ITER_ZEROSIZE_OK;
-        PyArrayObject * op_in[4] = {
-            NULL, arr, ax, ay
+        HPy h_op_in[4] = {
+            HPy_NULL, h_arr, h_ax, h_ay
         };
         npy_uint32 op_flags[4] = {
             NPY_ITER_WRITEONLY | NPY_ITER_ALLOCATE | NPY_ITER_NO_SUBTYPE,
             NPY_ITER_READONLY, NPY_ITER_READONLY, NPY_ITER_READONLY
         };
-        PyArray_Descr * common_dt = PyArray_ResultType(2, &op_in[0] + 2,
+        HPy h_npy_bool = HPyArray_DescrFromType(ctx, NPY_BOOL);
+        HPy h_common_dt = HPyArray_ResultType(ctx, 2, &h_op_in[0] + 2,
                                                        0, NULL);
-        PyArray_Descr * op_dt[4] = {common_dt, PyArray_DescrFromType(NPY_BOOL),
-                                    common_dt, common_dt};
+        HPy h_op_dt[4] = {h_common_dt, h_npy_bool,
+                          h_common_dt, h_common_dt};
         NpyIter * iter;
         int needs_api;
         NPY_BEGIN_THREADS_DEF;
 
-        if (common_dt == NULL || op_dt[1] == NULL) {
-            Py_XDECREF(op_dt[1]);
-            Py_XDECREF(common_dt);
+        if (HPy_IsNull(h_common_dt) || HPy_IsNull(h_op_dt[1])) {
+            HPy_Close(ctx, h_op_dt[1]);
+            HPy_Close(ctx, h_common_dt);
             goto fail;
         }
+        CAPI_WARN("NpyIter_MultiNew");
+        PyArrayObject * op_in[4] = {
+            NULL, 
+            (PyArrayObject *)HPy_AsPyObject(ctx, h_arr), 
+            (PyArrayObject *)HPy_AsPyObject(ctx, h_ax),
+            (PyArrayObject *)HPy_AsPyObject(ctx, h_ay)
+        };
+        PyArray_Descr * common_dt = (PyArray_Descr *)HPy_AsPyObject(ctx, h_common_dt);
+        PyArray_Descr * op_dt[4] = {common_dt, (PyArray_Descr *)HPy_AsPyObject(ctx, h_npy_bool),
+                                    common_dt, common_dt};
         iter =  NpyIter_MultiNew(4, op_in, flags,
                                  NPY_KEEPORDER, NPY_UNSAFE_CASTING,
                                  op_flags, op_dt);
-        Py_DECREF(op_dt[1]);
-        Py_DECREF(common_dt);
+        HPy_Close(ctx, h_op_dt[1]);
+        HPy_Close(ctx, h_common_dt);
         if (iter == NULL) {
             goto fail;
         }
@@ -3521,6 +3531,7 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
         /* Get the result from the iterator object array */
         ret = (PyObject*)NpyIter_GetOperandArray(iter)[0];
 
+        CAPI_WARN("NPY_BEGIN_THREADS_NDITER and other NpyIter_*");
         NPY_BEGIN_THREADS_NDITER(iter);
 
         if (NpyIter_GetIterSize(iter) != 0) {
@@ -3566,6 +3577,7 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
                     /* copyswap is faster than memcpy even if we are native */
                     npy_intp i;
                     for (i = 0; i < n; i++) {
+                        CAPI_WARN("Not clear what dtx/y->f->copyswap may call...");
                         if (*csrc) {
                             copyswapx(dst, xsrc, axswap, ret);
                         }
@@ -3584,36 +3596,58 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
         NPY_END_THREADS;
 
         Py_INCREF(ret);
-        Py_DECREF(arr);
-        Py_DECREF(ax);
-        Py_DECREF(ay);
+        HPy_Close(ctx, h_arr);
+        HPy_Close(ctx, h_ax);
+        HPy_Close(ctx, h_ay);
 
         if (NpyIter_Deallocate(iter) != NPY_SUCCEED) {
             Py_DECREF(ret);
-            return NULL;
+            return HPy_NULL;
         }
 
-        return ret;
+        return HPy_FromPyObject(ctx, ret);
     }
 
 fail:
-    Py_DECREF(arr);
-    Py_XDECREF(ax);
-    Py_XDECREF(ay);
-    return NULL;
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_ax);
+    HPy_Close(ctx, h_ay);
+    return HPy_NULL;
+}
+
+/*NUMPY_API
+ * Where
+ */
+NPY_NO_EXPORT PyObject *
+PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_condition = HPy_FromPyObject(ctx, condition);
+    HPy h_x = HPy_FromPyObject(ctx, x);
+    HPy h_y = HPy_FromPyObject(ctx, y);
+    HPy h_res = HPyArray_Where(ctx, h_condition, h_x, h_y);
+    PyObject *res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_condition);
+    HPy_Close(ctx, h_x);
+    HPy_Close(ctx, h_y);
+    HPy_Close(ctx, h_res);
+    return res;
 }
 
 #undef INNER_WHERE_LOOP
 
-static PyObject *
-array_where(PyObject *NPY_UNUSED(ignored), PyObject *args)
+static HPy
+array_where(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *obj = NULL, *x = NULL, *y = NULL;
+    HPy obj = HPy_NULL, x = HPy_NULL, y = HPy_NULL;
 
-    if (!PyArg_ParseTuple(args, "O|OO:where", &obj, &x, &y)) {
-        return NULL;
+    HPyTracker ht;
+    if (!HPyArg_Parse(ctx, &ht, args, nargs, "O|OO:where", &obj, &x, &y)) {
+        return HPy_NULL;
     }
-    return PyArray_Where(obj, x, y);
+    HPy res = HPyArray_Where(ctx, obj, x, y);
+    HPyTracker_Close(ctx, ht);
+    return res;
 }
 
 static PyObject *
