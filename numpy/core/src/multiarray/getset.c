@@ -23,6 +23,8 @@
 #include "alloc.h"
 #include "npy_buffer.h"
 
+#include "conversion_utils.h"
+
 /*******************  array attribute get and set routines ******************/
 
 static PyObject *
@@ -37,27 +39,33 @@ array_flags_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     return PyArray_NewFlagsObject((PyObject *)self);
 }
 
-static PyObject *
-array_shape_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GETSET(array_shape, "shape", array_shape_get, array_shape_set)
+static HPy
+array_shape_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    return PyArray_IntTupleFromIntp(PyArray_NDIM(self), PyArray_DIMS(self));
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    return HPyArray_IntTupleFromIntp(ctx, PyArray_NDIM(self), PyArray_DIMS(self));
 }
 
-
 static int
-array_shape_set(PyArrayObject *self, PyObject *val, void* NPY_UNUSED(ignored))
+array_shape_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_val, void *NPY_UNUSED(ignored))
 {
     int nd;
     PyArrayObject *ret;
 
-    if (val == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(h_val)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete array shape");
         return -1;
     }
+    CAPI_WARN("array_shape_set");
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    PyObject *val = HPy_AsPyObject(ctx, h_val);
+
     /* Assumes C-order */
     ret = (PyArrayObject *)PyArray_Reshape(self, val);
     if (ret == NULL) {
+        Py_DECREF(val);
         return -1;
     }
     if (PyArray_DATA(ret) != PyArray_DATA(self)) {
@@ -65,6 +73,7 @@ array_shape_set(PyArrayObject *self, PyObject *val, void* NPY_UNUSED(ignored))
         PyErr_SetString(PyExc_AttributeError,
                         "Incompatible shape for in-place modification. Use "
                         "`.reshape()` to make a copy with the desired shape.");
+        Py_DECREF(val);
         return -1;
     }
 
@@ -75,6 +84,7 @@ array_shape_set(PyArrayObject *self, PyObject *val, void* NPY_UNUSED(ignored))
         if (_dimensions == NULL) {
             Py_DECREF(ret);
             PyErr_NoMemory();
+            Py_DECREF(val);
             return -1;
         }
         /* Free old dimensions and strides */
@@ -310,7 +320,12 @@ array_interface_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
         return NULL;
     }
 
-    obj = array_shape_get(self, NULL);
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_obj = array_shape_get(ctx, h_self, NULL);
+    obj = HPy_AsPyObject(ctx, h_obj);
+    HPy_Close(ctx, h_self);
+    HPy_Close(ctx, h_obj);
     ret = PyDict_SetItemString(dict, "shape", obj);
     Py_DECREF(obj);
     if (ret < 0) {
@@ -939,10 +954,6 @@ NPY_NO_EXPORT PyGetSetDef array_getsetlist[] = {
     {"flags",
         (getter)array_flags_get,
         NULL,
-        NULL, NULL},
-    {"shape",
-        (getter)array_shape_get,
-        (setter)array_shape_set,
         NULL, NULL},
     {"strides",
         (getter)array_strides_get,

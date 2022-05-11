@@ -62,6 +62,16 @@ PyArray_PyIntFromIntp(npy_intp const value)
 #endif
 }
 
+static NPY_INLINE HPy
+HPyArray_PyIntFromIntp(HPyContext *ctx, npy_intp const value)
+{
+#if NPY_SIZEOF_INTP <= NPY_SIZEOF_LONG
+    return HPyLong_FromLong(ctx, (long)value);
+#else
+    return HPyLong_FromLongLong(ctx, (npy_longlong)value);
+#endif
+}
+
 NPY_NO_EXPORT PyObject *
 PyArray_IntTupleFromIntp(int len, npy_intp const *vals);
 
@@ -120,5 +130,8 @@ HPyArray_CastingConverter(HPyContext *ctx, HPy obj, NPY_CASTING *casting);
 
 NPY_NO_EXPORT npy_intp
 HPyArray_PyIntAsIntp(HPyContext *ctx, HPy o);
+
+NPY_NO_EXPORT HPy
+HPyArray_IntTupleFromIntp(HPyContext *ctx, int len, npy_intp const *vals);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERSION_UTILS_H_ */

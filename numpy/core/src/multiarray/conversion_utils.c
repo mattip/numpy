@@ -1612,3 +1612,21 @@ PyArray_IntTupleFromIntp(int len, npy_intp const *vals)
  fail:
     return intTuple;
 }
+
+NPY_NO_EXPORT HPy
+HPyArray_IntTupleFromIntp(HPyContext *ctx, int len, npy_intp const *vals)
+{
+    int i;
+    HPyTupleBuilder tb = HPyTupleBuilder_New(ctx, len);
+    for (i = 0; i < len; i++) {
+        HPy o = HPyArray_PyIntFromIntp(ctx, vals[i]);
+        if (HPy_IsNull(o)) {
+            HPyTupleBuilder_Cancel(ctx, tb);
+            return HPy_NULL;
+        }
+        HPyTupleBuilder_Set(ctx, tb, i, o);
+        HPy_Close(ctx, o);
+    }
+
+    return HPyTupleBuilder_Build(ctx, tb);
+}

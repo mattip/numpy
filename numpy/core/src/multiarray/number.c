@@ -670,40 +670,41 @@ array_right_shift(PyObject *m1, PyObject *m2)
     return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(right_shift));
 }
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_and(PyObject *m1, PyObject *m2)
+HPyDef_SLOT(array_bitwise_and, array_bitwise_and_impl, HPy_nb_and)
+NPY_NO_EXPORT HPy
+array_bitwise_and_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
-    PyObject *res;
-
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_and, array_bitwise_and);
-    if (try_binary_elide(m1, m2, &array_inplace_bitwise_and, &res, 1)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_and));
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_bitwise_and);
+    // This hack is too much for HPy
+    // if (try_binary_elide(m1, m2, &array_inplace_bitwise_and, &res, 1)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.bitwise_and);
 }
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_or(PyObject *m1, PyObject *m2)
-{
-    PyObject *res;
 
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_or, array_bitwise_or);
-    if (try_binary_elide(m1, m2, &array_inplace_bitwise_or, &res, 1)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_or));
+HPyDef_SLOT(array_bitwise_or, array_bitwise_or_impl, HPy_nb_or)
+NPY_NO_EXPORT HPy
+array_bitwise_or_impl(HPyContext *ctx, HPy m1, HPy m2)
+{
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_bitwise_or);
+    // This hack is too much for HPy
+    // if (try_binary_elide(m1, m2, &array_inplace_bitwise_and, &res, 1)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.bitwise_or);
 }
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_xor(PyObject *m1, PyObject *m2)
+HPyDef_SLOT(array_bitwise_xor, array_bitwise_xor_impl, HPy_nb_xor)
+NPY_NO_EXPORT HPy
+array_bitwise_xor_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
-    PyObject *res;
-
-    BINOP_GIVE_UP_IF_NEEDED(m1, m2, nb_xor, array_bitwise_xor);
-    if (try_binary_elide(m1, m2, &array_inplace_bitwise_xor, &res, 1)) {
-        return res;
-    }
-    return PyArray_GenericBinaryFunction(m1, m2, N_OPS_GET(bitwise_xor));
+    HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_bitwise_xor);
+    // This hack is too much for HPy
+    // if (try_binary_elide(m1, m2, &array_inplace_bitwise_and, &res, 1)) {
+    //     return res;
+    // }
+    return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.bitwise_xor);
 }
 
 HPyDef_SLOT(array_inplace_add, array_inplace_add_impl, HPy_nb_inplace_add)

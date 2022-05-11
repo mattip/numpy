@@ -138,14 +138,11 @@ array_left_shift(PyObject *m1, PyObject *m2);
 NPY_NO_EXPORT PyObject *
 array_right_shift(PyObject *m1, PyObject *m2);
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_and(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_bitwise_and;
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_or(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_bitwise_or;
 
-NPY_NO_EXPORT PyObject *
-array_bitwise_xor(PyObject *m1, PyObject *m2);
+NPY_NO_EXPORT extern HPyDef array_bitwise_xor;
 
 NPY_NO_EXPORT extern HPyDef array_inplace_add;
 

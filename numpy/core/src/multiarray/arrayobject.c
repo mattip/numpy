@@ -61,6 +61,7 @@ maintainer email:  oliphant.travis@ieee.org
 
 #include "binop_override.h"
 #include "array_coercion.h"
+#include "getset.h"
 
 /*NUMPY_API
   Compute the size of an array (in number of items)
@@ -1861,7 +1862,7 @@ HPyDef_SLOT(array_new, array_new_impl, HPy_tp_new)
 static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
                           HPy_ssize_t nargs, HPy h_kwds)
 {
-    static char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
+    static const char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
                              "order", NULL};
     HPy h_descr_in;
     int itemsize;
@@ -2014,21 +2015,21 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 }
 
 
-static PyObject *
-array_iter(PyArrayObject *arr)
+HPyDef_SLOT(array_iter, array_iter_impl, HPy_tp_iter)
+static HPy
+array_iter_impl(HPyContext *ctx, HPy h_arr)
 {
+    PyArrayObject *arr = PyArrayObject_AsStruct(ctx, h_arr);
     if (PyArray_NDIM(arr) == 0) {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                         "iteration over a 0-d array");
-        return NULL;
+        return HPy_NULL;
     }
-    return PySeqIter_New((PyObject *)arr);
+    return HPySeqIter_New(ctx, h_arr);
 }
 
 
 static PyType_Slot PyArray_Type_slots[] = {
-    {Py_mp_length, (lenfunc)array_length},
-
     {Py_nb_multiply, array_multiply},
     {Py_nb_remainder, array_remainder},
     {Py_nb_divmod, array_divmod},
@@ -2039,9 +2040,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_invert, (unaryfunc)array_invert},
     {Py_nb_lshift, array_left_shift},
     {Py_nb_rshift, array_right_shift},
-    {Py_nb_and, array_bitwise_and},
-    {Py_nb_xor, array_bitwise_xor},
-    {Py_nb_or, array_bitwise_or},
 
     {Py_nb_int, (unaryfunc)array_int},
     {Py_nb_float, (unaryfunc)array_float},
@@ -2064,22 +2062,22 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
-    {Py_sq_length, (lenfunc)array_length},
     {Py_sq_concat, (binaryfunc)array_concat},
-    {Py_sq_item, (ssizeargfunc)array_item},
     {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
     {Py_sq_contains, (objobjproc)array_contains},
 
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
-    {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
-    {Py_tp_getset, array_getsetlist},
+    // {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
     {0, NULL},
 };
 
 static HPyDef *array_defines[] = {
+    &array_length,
+    &array_item,
+    &mp_array_length,
     &array_getbuffer,
     &array_assign_subscript,
     &array_subscript,
@@ -2092,6 +2090,13 @@ static HPyDef *array_defines[] = {
     &array_true_divide,
     &array_add,
     &array_richcompare_def,
+    &array_bitwise_and,
+    &array_bitwise_or,
+    &array_bitwise_xor,
+    &array_iter,
+
+    // getset
+    &array_shape,
 
     // methods:
     &array_ravel,
