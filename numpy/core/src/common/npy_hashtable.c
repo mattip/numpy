@@ -248,7 +248,7 @@ PyArrayIdentityHash_SetItem(PyArrayIdentityHash *tb, PyObject *cache_owner,
 {
     HPyContext *ctx = npy_get_context();
     HPy h_cache_owner = HPy_FromPyObject(ctx, cache_owner);
-    HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, key, tb->key_len);
+    HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, (PyObject **)key, tb->key_len);
     HPy h_value = HPy_FromPyObject(ctx, value);
     int res = HPyArrayIdentityHash_SetItem(ctx, h_cache_owner, tb, h_key, h_value, replace);
     HPy_Close(ctx, h_value);
@@ -263,7 +263,7 @@ PyArrayIdentityHash_GetItem(PyObject *cache_owner, PyArrayIdentityHash const *tb
 {
     HPyContext *ctx = npy_get_context();
     HPy h_cache_owner = HPy_FromPyObject(ctx, cache_owner);
-    HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, key, tb->key_len);
+    HPy const *h_key = (HPy const *)HPy_FromPyObjectArray(ctx, (PyObject **)key, tb->key_len);
     HPy h_res = HPyArrayIdentityHash_GetItem(ctx, h_cache_owner, tb, h_key);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_res);
