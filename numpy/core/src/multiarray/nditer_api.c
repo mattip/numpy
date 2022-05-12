@@ -1167,6 +1167,15 @@ NpyIter_GetOperandArray(NpyIter *iter)
     return operands;
 }
 
+NPY_NO_EXPORT HPy *
+HNpyIter_GetOperandArray(NpyIter *iter)
+{
+    /*npy_uint32 itflags = NIT_ITFLAGS(iter);*/
+    /*int ndim = NIT_NDIM(iter);*/
+    int nop = NIT_NOP(iter);
+    return NIT_OPERANDS(iter);
+}
+
 /*NUMPY_API
  * Returns a view to the i-th object with the iterator's internal axes
  */
