@@ -36,8 +36,8 @@ dtype_kind_to_ordering(char kind);
 
 /* Used by PyArray_CanCastArrayTo and in the legacy ufunc type resolution */
 NPY_NO_EXPORT npy_bool
-can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
-                    PyArray_Descr *to, NPY_CASTING casting);
+can_cast_scalar_to(HPyContext *ctx, HPy scal_type, char *scal_data,
+                    HPy to, NPY_CASTING casting);
 
 NPY_NO_EXPORT PyArray_Descr *
 ensure_dtype_nbo(PyArray_Descr *type);
@@ -143,5 +143,8 @@ NPY_NO_EXPORT HPy
 HPyArray_ResultType(HPyContext *ctx,
         npy_intp narrs, HPy arrs[],
         npy_intp ndtypes, HPy descrs[]);
+
+NPY_NO_EXPORT npy_bool
+HPyArray_CanCastArrayTo(HPyContext *ctx, HPy arr, HPy to, NPY_CASTING casting);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERT_DATATYPE_H_ */
