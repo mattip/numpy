@@ -58,12 +58,14 @@
 #include "abstractdtypes.h"
 
 
+// TODO HPY LABS PORT: maybe all these headers should go to 'common'
 #include "../multiarray/multiarraymodule.h"
 #include "../multiarray/descriptor.h"
 #include "../multiarray/ctors.h"
 #include "../multiarray/conversion_utils.h"
 #include "../multiarray/arrayobject.h"
 #include "../multiarray/scalarapi.h"
+#include "../multiarray/nditer_hpy.h"
 
 /********** PRINTF DEBUG TRACING **************/
 #define NPY_UF_DBG_TRACING 0
@@ -1666,6 +1668,31 @@ validate_casting(PyArrayMethodObject *method, PyUFuncObject *ufunc,
     return 0;
 }
 
+static NPY_INLINE int
+hpy_validate_casting(HPyContext *ctx, PyArrayMethodObject *method_data, HPy ufunc, PyUFuncObject *ufunc_data,
+        HPy /* (PyArrayObject *) */ ops[], HPy /* (PyArray_Descr *) */ descriptors[],
+        NPY_CASTING casting)
+{
+    if (method_data->resolve_descriptors == &wrapped_legacy_resolve_descriptors) {
+        /*
+         * In this case the legacy type resolution was definitely called
+         * and we do not need to check (astropy/pyerfa relied on this).
+         */
+        return 0;
+    }
+    if (method_data->flags & _NPY_METH_FORCE_CAST_INPUTS) {
+        if (HPyUFunc_ValidateOutCasting(ctx, ufunc, ufunc_data, casting, ops, descriptors) < 0) {
+            return -1;
+        }
+    }
+    else {
+        if (HPyUFunc_ValidateCasting(ctx, ufunc, ufunc_data, casting, ops, descriptors) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 
 /*
  * The ufunc loop implementation for both normal ufunc calls and masked calls
@@ -1675,36 +1702,36 @@ validate_casting(PyArrayMethodObject *method, PyUFuncObject *ufunc,
  * called from).
  */
 static int
-execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
-        PyArrayObject **op, NPY_ORDER order, npy_intp buffersize,
+execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked,
+        HPy /* (PyArrayObject **) */ *op, NPY_ORDER order, npy_intp buffersize,
         NPY_CASTING casting,
-        PyObject **arr_prep, ufunc_full_args full_args,
+        HPy /* (PyObject **) */ *arr_prep, ufunc_hpy_full_args full_args,
         npy_uint32 *op_flags, int errormask, PyObject *extobj)
 {
-    PyArrayMethod_Context context_s;
-    PyArrayMethod_Context *context = &context_s;
-    method_context_h2py(hcontext, context);
-
-    PyUFuncObject *ufunc = (PyUFuncObject *)context->caller;
-    int nin = context->method->nin, nout = context->method->nout;
+    HPy h_ufunc = context->caller;
+    PyUFuncObject *ufunc = PyUFuncObject_AsStruct(hctx, h_ufunc);
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(hctx, context->method);
+    int nin = method_data->nin, nout = method_data->nout;
     int nop = nin + nout;
 
-    if (validate_casting(context->method,
-            ufunc, op, context->descriptors, casting) < 0) {
+    if (hpy_validate_casting(hctx, method_data,
+            h_ufunc, ufunc, op, context->descriptors, casting) < 0) {
         return -1;
     }
 
     if (masked) {
-        assert(PyArray_TYPE(op[nop]) == NPY_BOOL);
+        assert(HPyArray_GetType(hctx, op[nop]) == NPY_BOOL);
         if (ufunc->_always_null_previously_masked_innerloop_selector != NULL) {
-            if (PyErr_WarnFormat(PyExc_UserWarning, 1,
+            if (HPyErr_WarnEx(hctx, hctx->h_UserWarning,
                     "The ufunc %s has a custom masked-inner-loop-selector."
                     "NumPy assumes that this is NEVER used. If you do make "
                     "use of this please notify the NumPy developers to discuss "
                     "future solutions. (See NEP 41 and 43)\n"
                     "NumPy will continue, but ignore the custom loop selector. "
-                    "This should only affect performance.",
-                    ufunc_get_name_cstr(ufunc)) < 0) {
+                    "This should only affect performance.", 1) < 0) {
+                // TODO HPY LABS PORT: PyErr_WarnFormat
+                // ...
+                //    ufunc_get_name_cstr(ufunc)) < 0) {
                 return -1;
             }
         }
@@ -1717,7 +1744,7 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
          *       In that case `__array_prepare__` is called before it happens.
          */
         for (int i = nin; i < nop; ++i) {
-            op_flags[i] |= (op[i] != NULL ? NPY_ITER_READWRITE : NPY_ITER_WRITEONLY);
+            op_flags[i] |= (!HPy_IsNull(op[i]) ? NPY_ITER_READWRITE : NPY_ITER_WRITEONLY);
         }
         op_flags[nop] = NPY_ITER_READONLY | NPY_ITER_ARRAYMASK;  /* mask */
     }
@@ -1739,10 +1766,10 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
      * some of them.
      */
     for (int i = 0; i < nout; i++) {
-        if (op[nin+i] == NULL) {
+        if (HPy_IsNull(op[nin+i])) {
             continue;
         }
-        if (prepare_ufunc_output(ufunc, &op[nin+i],
+        if (hprepare_ufunc_output(hctx, h_ufunc, &op[nin+i],
                 arr_prep[i], full_args, i) < 0) {
             return -1;
         }
@@ -1753,7 +1780,7 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
      * were already checked, we use the casting rule 'unsafe' which
      * is faster to calculate.
      */
-    NpyIter *iter = NpyIter_AdvancedNew(nop + masked, op,
+    NpyIter *iter = HNpyIter_AdvancedNew(hctx, nop + masked, op,
                         iter_flags,
                         order, NPY_UNSAFE_CASTING,
                         op_flags, context->descriptors,
@@ -1765,18 +1792,17 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
     NPY_UF_DBG_PRINT("Made iterator\n");
 
     /* Call the __array_prepare__ functions for newly allocated arrays */
-    PyArrayObject **op_it = NpyIter_GetOperandArray(iter);
+    HPy /* (PyArrayObject **) */ *op_it = HNpyIter_GetOperandArray(iter);
     char *baseptrs[NPY_MAXARGS];
 
     for (int i = 0; i < nout; ++i) {
-        if (op[nin + i] == NULL) {
-            op[nin + i] = op_it[nin + i];
-            Py_INCREF(op[nin + i]);
+        if (HPy_IsNull(op[nin + i])) {
+            op[nin + i] = HPy_Dup(hctx, op_it[nin + i]);
 
             /* Call the __array_prepare__ functions for the new array */
-            if (prepare_ufunc_output(ufunc,
+            if (hprepare_ufunc_output(hctx, h_ufunc,
                     &op[nin + i], arr_prep[i], full_args, i) < 0) {
-                NpyIter_Deallocate(iter);
+                HNpyIter_Deallocate(hctx, iter);
                 return -1;
             }
 
@@ -1790,16 +1816,16 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
              * with other operands --- the op[nin+i] array passed to it is newly
              * allocated and doesn't have any overlap.
              */
-            baseptrs[nin + i] = PyArray_BYTES(op[nin + i]);
+            baseptrs[nin + i] = HPyArray_GetBytes(hctx, op[nin + i]);
         }
         else {
-            baseptrs[nin + i] = PyArray_BYTES(op_it[nin + i]);
+            baseptrs[nin + i] = HPyArray_GetBytes(hctx, op_it[nin + i]);
         }
     }
     /* Only do the loop if the iteration size is non-zero */
     npy_intp full_size = NpyIter_GetIterSize(iter);
     if (full_size == 0) {
-        if (!NpyIter_Deallocate(iter)) {
+        if (!HNpyIter_Deallocate(hctx, iter)) {
             return -1;
         }
         return 0;
@@ -1810,13 +1836,13 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
      * `__array_prepare__`.
      */
     for (int i = 0; i < nin; i++) {
-        baseptrs[i] = PyArray_BYTES(op_it[i]);
+        baseptrs[i] = HPyArray_GetBytes(hctx, op_it[i]);
     }
     if (masked) {
-        baseptrs[nop] = PyArray_BYTES(op_it[nop]);
+        baseptrs[nop] = HPyArray_GetBytes(hctx, op_it[nop]);
     }
-    if (NpyIter_ResetBasePointers(iter, baseptrs, NULL) != NPY_SUCCEED) {
-        NpyIter_Deallocate(iter);
+    if (HNpyIter_ResetBasePointers(hctx, iter, baseptrs, NULL) != NPY_SUCCEED) {
+        HNpyIter_Deallocate(hctx, iter);
         return -1;
     }
 
@@ -1831,25 +1857,25 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
     NpyIter_GetInnerFixedStrideArray(iter, fixed_strides);
     NPY_ARRAYMETHOD_FLAGS flags = 0;
     if (masked) {
-        if (PyArrayMethod_GetMaskedStridedLoop(context,
+        if (HPyArrayMethod_GetMaskedStridedLoop(hctx, context,
                 1, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             NpyIter_Deallocate(iter);
             return -1;
         }
     }
     else {
-        if (context->method->get_strided_loop(npy_get_context(), hcontext,
+        if (method_data->get_strided_loop(hctx, context,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(hctx, iter);
             return -1;
         }
     }
 
     /* Get the variables needed for the loop */
-    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+    NpyIter_IterNextFunc *iternext = HNpyIter_GetIterNext(hctx, iter, NULL);
     if (iternext == NULL) {
         NPY_AUXDATA_FREE(auxdata);
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(hctx, iter);
         return -1;
     }
     char **dataptr = NpyIter_GetDataPtrArray(iter);
@@ -1871,7 +1897,7 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
     int res;
     do {
         NPY_UF_DBG_PRINT1("iterator loop count %d\n", (int)*countptr);
-        res = strided_loop(npy_get_context(), hcontext, dataptr, countptr, strides, auxdata);
+        res = strided_loop(hctx, context, dataptr, countptr, strides, auxdata);
     } while (res == 0 && iternext(iter));
 
     NPY_END_THREADS;
@@ -1879,14 +1905,13 @@ execute_ufunc_loop(HPyArrayMethod_Context *hcontext, int masked,
 
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         /* NOTE: We could check float errors even when `res < 0` */
-        const char *name = ufunc_get_name_cstr((PyUFuncObject *)context->caller);
+        const char *name = ufunc_get_name_cstr(ufunc);
         res = _check_ufunc_fperr(errormask, extobj, name);
     }
 
-    if (!NpyIter_Deallocate(iter)) {
+    if (!HNpyIter_Deallocate(hctx, iter)) {
         return -1;
     }
-    method_context_h2py_free(context);
     return res;
 }
 
@@ -2913,7 +2938,6 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     };
 
     /* Do the ufunc loop */
-    PyArrayObject **py_op = NULL;
     PyObject **py_output_array_prepare = HPy_AsPyObjectArray(hctx, output_array_prepare, nout);
     if (!HPy_IsNull(wheremask)) {
         NPY_UF_DBG_PRINT("Executing masked inner loop\n");
@@ -2927,20 +2951,11 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         op[nop] = wheremask;
         operation_descrs[nop] = HPy_NULL;
 
-        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to execute_ufunc_loop");
-        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
-        ufunc_full_args py_full_args = {
-                .in = HPy_AsPyObject(hctx, full_args.in),
-                .out = HPy_AsPyObject(hctx, full_args.out)
-        };
-        retval = execute_ufunc_loop(&context, 1,
-                py_op, order, buffersize, casting,
-                py_output_array_prepare, py_full_args, op_flags,
+        retval = execute_ufunc_loop(hctx, &context, 1,
+                op, order, buffersize, casting,
+                output_array_prepare, full_args, op_flags,
                 errormask, py_extobj);
         // fall through to 'finish'
-
-        Py_XDECREF(py_full_args.in);
-        Py_XDECREF(py_full_args.out);
     }
     else {
         NPY_UF_DBG_PRINT("Executing normal inner loop\n");
@@ -2966,35 +2981,14 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
             }
         }
 
-        CAPI_WARN("PyUFunc_GenericFunctionInternal: call to execute_ufunc_loop");
-        py_op = (PyArrayObject **)HPy_AsPyObjectArray(hctx, op, nop);
-        ufunc_full_args py_full_args = {
-                .in = HPy_AsPyObject(hctx, full_args.in),
-                .out = HPy_AsPyObject(hctx, full_args.out)
-        };
-        retval = execute_ufunc_loop(&context, 0,
-                py_op, order, buffersize, casting,
-                py_output_array_prepare, py_full_args, op_flags,
+        retval = execute_ufunc_loop(hctx, &context, 0,
+                op, order, buffersize, casting,
+                output_array_prepare, full_args, op_flags,
                 errormask, py_extobj);
         // fall through to 'finish'
-
-        Py_XDECREF(py_full_args.in);
-        Py_XDECREF(py_full_args.out);
     }
 finish:
-    // we need to write back from 'py_op' to 'op'
-    if (py_op) {
-        for(int i=0; i < nop; i++) {
-            HPy_SETREF(hctx, op[i], HPy_FromPyObject(hctx, (PyObject *)py_op[i]));
-        }
-        HPy_DecrefAndFreeArray(hctx, (PyObject **)py_op, nop);
-    }
     Py_XDECREF(py_extobj);
-    // we need to write back from 'py_output_array_prepare' to 'output_array_prepare'
-    for(int i=0; i < nout; i++) {
-        HPy_SETREF(hctx, output_array_prepare[i], HPy_FromPyObject(hctx, py_output_array_prepare[i]));
-    }
-    HPy_DecrefAndFreeArray(hctx, py_output_array_prepare, nout);
     return retval;
 }
 
