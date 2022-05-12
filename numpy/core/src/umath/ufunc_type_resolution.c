@@ -254,6 +254,17 @@ raise_input_casting_error(
     return raise_casting_error(exc_type, ufunc, casting, from, to, i);
 }
 
+static int
+hpy_raise_input_casting_error(HPyContext *ctx,
+        HPy ufunc,
+        NPY_CASTING casting,
+        HPy /* (PyArray_Descr *) */ from,
+        HPy /* (PyArray_Descr *) */ to,
+        npy_intp i)
+{
+    hpy_abort_not_implemented("hpy_raise_input_casting_error");
+    return -1;
+}
 
 /** Helper function to raise UFuncOutputCastingError
  * Always returns -1 to indicate the exception was raised, for convenience
@@ -277,6 +288,17 @@ raise_output_casting_error(
     return raise_casting_error(exc_type, ufunc, casting, from, to, i);
 }
 
+static int
+hpy_raise_output_casting_error(HPyContext *ctx,
+        HPy ufunc,
+        NPY_CASTING casting,
+        HPy /* (PyArray_Descr *) */ from,
+        HPy /* (PyArray_Descr *) */ to,
+        npy_intp i)
+{
+    hpy_abort_not_implemented("hpy_raise_output_casting_error");
+    return -1;
+}
 
 /*UFUNC_API
  *
@@ -292,20 +314,42 @@ PyUFunc_ValidateCasting(PyUFuncObject *ufunc,
                             PyArrayObject **operands,
                             PyArray_Descr **dtypes)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *)ufunc);
+    HPy *h_operands = HPy_FromPyObjectArray(ctx, (PyObject **)operands, ufunc->nargs);
+    HPy *h_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)dtypes, ufunc->nargs);
+    int res = HPyUFunc_ValidateCasting(ctx, h_ufunc, PyUFuncObject_AsStruct(ctx, h_ufunc), casting, h_operands, h_dtypes);
+    HPy_CloseAndFreeArray(ctx, h_dtypes, ufunc->nargs);
+    HPy_CloseAndFreeArray(ctx, h_operands, ufunc->nargs);
+    HPy_Close(ctx, h_ufunc);
+    return res;
+}
+
+NPY_NO_EXPORT int
+HPyUFunc_ValidateCasting(HPyContext *ctx, HPy h_ufunc, PyUFuncObject *ufunc,
+                            NPY_CASTING casting,
+                            HPy /* (PyArrayObject **) */ *operands,
+                            HPy /* (PyArray_Descr **) */ *dtypes)
+{
     int i, nin = ufunc->nin, nop = nin + ufunc->nout;
 
     for (i = 0; i < nop; ++i) {
         if (i < nin) {
-            if (!PyArray_CanCastArrayTo(operands[i], dtypes[i], casting)) {
-                return raise_input_casting_error(
-                    ufunc, casting, PyArray_DESCR(operands[i]), dtypes[i], i);
+            HPy descr = HPyArray_GetDescr(ctx, operands[i]);
+            if (!HPyArray_CanCastArrayTo(ctx, operands[i], dtypes[i], casting)) {
+                int res = hpy_raise_input_casting_error(ctx,
+                    h_ufunc, casting, descr, dtypes[i], i);
+                return res;
             }
-        } else if (operands[i] != NULL) {
-            if (!PyArray_CanCastTypeTo(dtypes[i],
-                                    PyArray_DESCR(operands[i]), casting)) {
-                return raise_output_casting_error(
-                    ufunc, casting, dtypes[i], PyArray_DESCR(operands[i]), i);
+        } else if (!HPy_IsNull(operands[i])) {
+            HPy descr = HPyArray_GetDescr(ctx, operands[i]);
+            if (!HPyArray_CanCastTypeTo(ctx, dtypes[i], descr, casting)) {
+                int res = hpy_raise_output_casting_error(ctx,
+                    h_ufunc, casting, dtypes[i], descr, i);
+                HPy_Close(ctx, descr);
+                return res;
             }
+            HPy_Close(ctx, descr);
         }
     }
 
@@ -331,6 +375,30 @@ PyUFunc_ValidateOutCasting(PyUFuncObject *ufunc,
             return raise_output_casting_error(
                     ufunc, casting, dtypes[i], PyArray_DESCR(operands[i]), i);
         }
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+HPyUFunc_ValidateOutCasting(HPyContext *ctx, HPy h_ufunc, PyUFuncObject *ufunc,
+        NPY_CASTING casting,
+        HPy /* (PyArrayObject **) */ *operands,
+        HPy /* (PyArray_Descr **) */ *dtypes)
+{
+    int i, nin = ufunc->nin, nop = nin + ufunc->nout;
+
+    for (i = nin; i < nop; ++i) {
+        if (HPy_IsNull(operands[i])) {
+            continue;
+        }
+        HPy descr = HPyArray_GetDescr(ctx, operands[i]);
+        if (!HPyArray_CanCastTypeTo(ctx, dtypes[i], descr, casting)) {
+            int res = hpy_raise_output_casting_error(ctx,
+                    h_ufunc, casting, dtypes[i], descr, i);
+            HPy_Close(ctx, descr);
+            return res;
+        }
+        HPy_Close(ctx, descr);
     }
     return 0;
 }

@@ -155,4 +155,11 @@ NPY_NO_EXPORT int
 ufunc_hpy_type_resolution_trampoline(HPyContext *ctx, HPy ufunc,
         NPY_CASTING casting, HPy *operands, HPy type_tup, HPy *out_dtypes);
 
+NPY_NO_EXPORT int
+HPyUFunc_ValidateCasting(HPyContext *ctx, HPy h_ufunc, PyUFuncObject *ufunc,
+                            NPY_CASTING casting, HPy *operands, HPy *dtypes);
+
+NPY_NO_EXPORT int
+HPyUFunc_ValidateOutCasting(HPyContext *ctx, HPy h_ufunc, PyUFuncObject *ufunc,
+                            NPY_CASTING casting, HPy *operands, HPy *dtypes);
 #endif
