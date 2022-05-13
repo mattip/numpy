@@ -4885,7 +4885,9 @@ PyArray_DescrFromType(int type)
     if (HPy_IsNull(ret)) {
         return NULL;
     }
-    return PyArray_Descr_AsStruct(ctx, ret);
+    PyArray_Descr *py_pres = (PyArray_Descr *)HPy_AsPyObject(ctx, ret);
+    HPy_Close(ctx, ret);
+    return py_res;
 }
 
 /*
