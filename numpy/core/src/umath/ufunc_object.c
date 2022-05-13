@@ -5743,7 +5743,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->op_flags = NULL;
     ufunc->_loops = HPyField_NULL;
     if (nin + nout != 0) {
-        ufunc->_dispatch_cache = PyArrayIdentityHash_New(nin + nout);
+        ufunc->_dispatch_cache = HPyArrayIdentityHash_New(ctx, nin + nout);
         if (ufunc->_dispatch_cache == NULL) {
             HPy_Close(ctx, h_ufunc);
             return HPy_NULL;
@@ -6222,29 +6222,23 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
 #undef _SETCPTR
 
 
-//static void
-//ufunc_dealloc(PyUFuncObject *ufunc)
-//{
-//    PyObject_GC_UnTrack((PyObject *)ufunc);
-//    PyArray_free(ufunc->core_num_dims);
-//    PyArray_free(ufunc->core_dim_ixs);
-//    PyArray_free(ufunc->core_dim_sizes);
-//    PyArray_free(ufunc->core_dim_flags);
-//    PyArray_free(ufunc->core_offsets);
-//    PyArray_free(ufunc->core_signature);
-//    PyArray_free(ufunc->ptr);
-//    PyArray_free(ufunc->op_flags);
-//    Py_XDECREF(ufunc->userloops);
-//    if (ufunc->identity == PyUFunc_IdentityValue) {
-//        Py_DECREF(ufunc->identity_value);
-//    }
-//    Py_XDECREF(ufunc->obj);
-//    Py_XDECREF(ufunc->_loops);
-//    if (ufunc->_dispatch_cache != NULL) {
-//        PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
-//    }
-//    PyObject_GC_Del(ufunc);
-//}
+HPyDef_SLOT(ufunc_destroy, ufunc_destroy_impl, HPy_tp_destroy)
+static void
+ufunc_destroy_impl(void *self_p)
+{
+    PyUFuncObject *ufunc = (PyUFuncObject *)self_p;
+    PyArray_free(ufunc->core_num_dims);
+    PyArray_free(ufunc->core_dim_ixs);
+    PyArray_free(ufunc->core_dim_sizes);
+    PyArray_free(ufunc->core_dim_flags);
+    PyArray_free(ufunc->core_offsets);
+    PyArray_free(ufunc->core_signature);
+    PyArray_free(ufunc->ptr);
+    PyArray_free(ufunc->op_flags);
+    if (ufunc->_dispatch_cache != NULL) {
+        PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
+    }
+}
 
 static PyObject *
 ufunc_repr(PyUFuncObject *ufunc)
@@ -6256,22 +6250,19 @@ HPyDef_SLOT(ufunc_traverse, ufunc_traverse_impl, HPy_tp_traverse)
 static int
 ufunc_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg)
 {
-    PyUFuncObject *self= (PyUFuncObject *)self_p;
-    // TODO HPY LABS PORT: visit once HPyField is used here
-    // Py_VISIT(self->obj);
-    if (self->identity == PyUFunc_IdentityValue) {
-        // Py_VISIT(self->identity_value);
-        ;
+    PyUFuncObject *ufunc= (PyUFuncObject *)self_p;
+
+    HPy_VISIT(&ufunc->obj);
+    HPy_VISIT(&ufunc->userloops);
+    // TODO HPY LABS PORT: not sure why we only visit 'identity_value' in this
+    // case but that's the original behavior.
+    if (ufunc->identity == PyUFunc_IdentityValue) {
+        HPy_VISIT(&ufunc->identity_value);
     }
-    // Py_XDECREF(ufunc->userloops);
-    // if (ufunc->identity == PyUFunc_IdentityValue) {
-    //     Py_DECREF(ufunc->identity_value);
-    // }
-    // Py_XDECREF(ufunc->obj);
-    // Py_XDECREF(ufunc->_loops);
-    // if (ufunc->_dispatch_cache != NULL) {
-    // PyArrayIdentityHash_Dealloc(ufunc->_dispatch_cache);
-    // }
+    HPy_VISIT(&ufunc->_loops);
+    if (ufunc->_dispatch_cache != NULL) {
+        HPyArrayIdentityHash_Traverse(ufunc->_dispatch_cache, visit, arg);
+    }
     return 0;
 }
 
@@ -7094,6 +7085,7 @@ static PyType_Slot ufunc_slots[] = {
 
 static HPyDef *ufunc_defines[] = {
         &ufunc_traverse,
+        &ufunc_destroy,
         &ufunc_get_doc,
         &ufunc_get_nin,
         &ufunc_get_nout,
