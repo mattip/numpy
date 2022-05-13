@@ -9,6 +9,8 @@ extern NPY_NO_EXPORT HPyDef array_ravel;
 extern NPY_NO_EXPORT HPyDef array_transpose;
 extern NPY_NO_EXPORT HPyDef array_compress;
 extern NPY_NO_EXPORT HPyDef array_nonzero;
+extern NPY_NO_EXPORT HPyDef array_min_scalar_type;
+extern NPY_NO_EXPORT HPyDef array_promote_types;
 
 /*
  * Pathlib support, takes a borrowed reference and returns a new one.

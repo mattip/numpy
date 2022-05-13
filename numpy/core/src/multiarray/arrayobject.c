@@ -2103,6 +2103,8 @@ static HPyDef *array_defines[] = {
     &array_transpose,
     &array_compress,
     &array_nonzero,
+    &array_min_scalar_type,
+    &array_promote_types,
     NULL,
 };
 

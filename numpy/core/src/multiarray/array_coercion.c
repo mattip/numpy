@@ -823,14 +823,7 @@ hpy_handle_promotion(HPyContext *ctx, HPy /* (PyArray_Descr **) */ *out_descr, H
         *out_descr = HPy_Dup(ctx, descr);
         return 0;
     }
-    CAPI_WARN("hpy_handle_promotion: call to PyArray_PromoteTypes");
-    PyArray_Descr *py_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, descr);
-    PyArray_Descr *py_out_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, *out_descr);
-    PyArray_Descr *py_new_descr = PyArray_PromoteTypes(py_descr, py_out_descr);
-    HPy new_descr = HPy_FromPyObject(ctx, (PyObject *)py_new_descr);
-    Py_XDECREF(py_new_descr);
-    Py_XDECREF(py_out_descr);
-    Py_XDECREF(py_descr);
+    HPy new_descr = HPyArray_PromoteTypes(ctx, descr, *out_descr);
 
     if (NPY_UNLIKELY(HPy_IsNull(new_descr))) {
         if (!HPy_IsNull(fixed_DType) || HPyErr_ExceptionMatches(ctx, ctx->h_FutureWarning)) {

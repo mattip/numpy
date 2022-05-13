@@ -23,6 +23,11 @@ PyArray_ObjectType(PyObject *op, int minimum_type);
 NPY_NO_EXPORT PyArrayObject **
 PyArray_ConvertToCommonType(PyObject *op, int *retn);
 
+NPY_NO_EXPORT HPy
+HPyArray_LegacyResultType(HPyContext *ctx,
+        npy_intp narrs, HPy *arr,
+        npy_intp ndtypes, HPy *dtypes);
+
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_LegacyResultType(
         npy_intp narrs, PyArrayObject **arr,
@@ -143,6 +148,12 @@ NPY_NO_EXPORT HPy
 HPyArray_ResultType(HPyContext *ctx,
         npy_intp narrs, HPy arrs[],
         npy_intp ndtypes, HPy descrs[]);
+
+NPY_NO_EXPORT HPy
+HPyArray_MinScalarType(HPyContext *ctx, HPy h_arr);
+
+NPY_NO_EXPORT HPy
+HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2);
 
 NPY_NO_EXPORT npy_bool
 HPyArray_CanCastArrayTo(HPyContext *ctx, HPy arr, HPy to, NPY_CASTING casting);

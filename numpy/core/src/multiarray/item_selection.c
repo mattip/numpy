@@ -334,9 +334,9 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
                  PyArrayObject *out, NPY_CLIPMODE clipmode)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_self0 = HPy_FromPyObject(ctx, self0);
+    HPy h_self0 = HPy_FromPyObject(ctx, (PyObject *)self0);
     HPy h_indices0 = HPy_FromPyObject(ctx, indices0);
-    HPy h_out = HPy_FromPyObject(ctx, out);
+    HPy h_out = HPy_FromPyObject(ctx, (PyObject *)out);
     HPy h_res = HPyArray_TakeFrom(ctx, h_self0, h_indices0, axis, h_out, clipmode);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_self0);
@@ -2148,9 +2148,9 @@ PyArray_Compress(PyArrayObject *self, PyObject *condition, int axis,
                  PyArrayObject *out)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     HPy h_condition = HPy_FromPyObject(ctx, condition);
-    HPy h_out = HPy_FromPyObject(ctx, out);
+    HPy h_out = HPy_FromPyObject(ctx, (PyObject *)out);
     HPy h_res = HPyArray_Compress(ctx, h_self, h_condition, axis, h_out);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_self);
@@ -2879,7 +2879,7 @@ NPY_NO_EXPORT PyObject *
 PyArray_Nonzero(PyArrayObject *self)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     HPy h_res = HPyArray_Nonzero(ctx, h_self);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_self);

@@ -3720,49 +3720,59 @@ array_can_cast_safely(PyObject *NPY_UNUSED(self), PyObject *args,
     return retobj;
 }
 
-static PyObject *
-array_promote_types(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_promote_types, "promote_types", array_promote_types_impl, HPyFunc_VARARGS)
+static HPy
+array_promote_types_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
-    PyArray_Descr *d1 = NULL;
-    PyArray_Descr *d2 = NULL;
-    PyObject *ret = NULL;
-    if (!PyArg_ParseTuple(args, "O&O&:promote_types",
-                PyArray_DescrConverter2, &d1, PyArray_DescrConverter2, &d2)) {
+    HPy d1 = HPy_NULL, h_d1;
+    HPy d2 = HPy_NULL, h_d2;
+    HPy ret = HPy_NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OO:promote_types",
+                &h_d1, &h_d2)) {
         goto finish;
     }
 
-    if (d1 == NULL || d2 == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    if (HPyArray_DescrConverter2(ctx, h_d1, &d1) == NPY_FAIL) {
+        goto finish;
+    }
+
+    if (HPyArray_DescrConverter2(ctx, h_d2, &d2) == NPY_FAIL) {
+        goto finish;
+    }
+
+    if (HPy_IsNull(d1) || HPy_IsNull(d2)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "did not understand one of the types");
         goto finish;
     }
 
-    ret = (PyObject *)PyArray_PromoteTypes(d1, d2);
+    ret = HPyArray_PromoteTypes(ctx, d1, d2);
 
  finish:
-    Py_XDECREF(d1);
-    Py_XDECREF(d2);
+    HPy_Close(ctx, d1);
+    HPy_Close(ctx, d2);
     return ret;
 }
 
-static PyObject *
-array_min_scalar_type(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_min_scalar_type, "min_scalar_type", array_min_scalar_type_impl, HPyFunc_VARARGS)
+static HPy
+array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *array_in = NULL;
-    PyArrayObject *array;
-    PyObject *ret = NULL;
+    HPy array_in = HPy_NULL;
+    HPy array;
+    HPy ret = HPy_NULL;
 
-    if (!PyArg_ParseTuple(args, "O:min_scalar_type", &array_in)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O:min_scalar_type", &array_in)) {
+        return HPy_NULL;
     }
 
-    array = (PyArrayObject *)PyArray_FROM_O(array_in);
-    if (array == NULL) {
-        return NULL;
+    array = HPyArray_FROM_O(ctx, array_in);
+    if (HPy_IsNull(array)) {
+        return HPy_NULL;
     }
 
-    ret = (PyObject *)PyArray_MinScalarType(array);
-    Py_DECREF(array);
+    ret = HPyArray_MinScalarType(ctx, array);
+    HPy_Close(ctx, array);
     return ret;
 }
 
@@ -4645,12 +4655,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"can_cast",
         (PyCFunction)array_can_cast_safely,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"promote_types",
-        (PyCFunction)array_promote_types,
-        METH_VARARGS, NULL},
-    {"min_scalar_type",
-        (PyCFunction)array_min_scalar_type,
-        METH_VARARGS, NULL},
     {"result_type",
         (PyCFunction)array_result_type,
         METH_VARARGS, NULL},

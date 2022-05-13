@@ -4806,7 +4806,7 @@ void init_arraytypes_hpy_global_state(HPyContext *ctx) {
 NPY_NO_EXPORT HPy
 HPyArray_DescrFromType(HPyContext *ctx, int type)
 {
-    HPy ret = HPy_NULL;
+    HPy h_ret = HPy_NULL;
 
     if (type < 0) {
         /*
@@ -4816,10 +4816,10 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
          * This is effectively a no-op that ensures
          * the default error is raised.
          */
-        ret = HPy_NULL;
+        h_ret = HPy_NULL;
     }
     else if (type < NPY_NTYPES) {
-        ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[type]);
+        h_ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[type]);
     }
     else if (type == NPY_NOTYPE) {
         /*
@@ -4829,13 +4829,49 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
          */
         return HPy_NULL;
     }
+    else if ((type == NPY_CHAR) || (type == NPY_CHARLTR)) {
+        if (type == NPY_CHAR) {
+            /*
+             * warning added 2017-04-25, 1.13
+             * deprecated in 1.7
+             * */
+            if (HPY_DEPRECATE(ctx, "The NPY_CHAR type_num is deprecated. "
+                          "Please port your code to use "
+                          "NPY_STRING instead.") < 0) {
+                return HPy_NULL;
+            }
+        }
+        h_ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_STRING]);
+        if (HPy_IsNull(h_ret)) {
+            return HPy_NULL;
+        }
+        PyArray_Descr *ret = PyArray_Descr_AsStruct(ctx, h_ret);
+        ret->elsize = 1;
+        ret->type = NPY_CHARLTR;
+        return h_ret;
+    }
+    else if (PyTypeNum_ISUSERDEF(type)) {
+        CAPI_WARN("userdescrs is of type PyArray_Descr");
+        h_ret = HPy_FromPyObject(ctx, userdescrs[type - NPY_USERDEF]);
+    }
     else {
-        // Ignoring refcount/handle close issues here, since it is a temporary thing:
-        capi_warn("HPyArray_DescrFromType");
-        ret = HPy_FromPyObject(ctx, (PyObject *) PyArray_DescrFromType(type));
+        int num = NPY_NTYPES;
+        if (type < _MAX_LETTER) {
+            num = (int) _letter_to_num[type];
+        }
+        if (num >= NPY_NTYPES) {
+            h_ret = HPy_NULL;
+        }
+        else {
+            h_ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[num]);
+        }
+    }
+    if (HPy_IsNull(h_ret)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Invalid data-type for array");
     }
 
-    return ret;
+    return h_ret;
 }
 
 /*NUMPY_API
@@ -4844,74 +4880,12 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrFromType(int type)
 {
-    PyArray_Descr *ret = NULL;
     HPyContext *ctx = npy_get_context();
-
-    if (type < 0) {
-        /*
-         * It's not valid for type to be less than 0.
-         * If that happens, then no other branch of
-         * this if/else chain should be followed.
-         * This is effectively a no-op that ensures
-         * the default error is raised.
-         */
-        ret = NULL;
-    }
-    else if (type < NPY_NTYPES) {
-        ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[type]));
-    }
-    else if (type == NPY_NOTYPE) {
-        /*
-         * This needs to not raise an error so
-         * that PyArray_DescrFromType(NPY_NOTYPE)
-         * works for backwards-compatible C-API
-         */
+    HPy ret = HPyArray_DescrFromType(ctx, type);
+    if (HPy_IsNull(ret)) {
         return NULL;
     }
-    else if ((type == NPY_CHAR) || (type == NPY_CHARLTR)) {
-        if (type == NPY_CHAR) {
-            /*
-             * warning added 2017-04-25, 1.13
-             * deprecated in 1.7
-             * */
-            if (DEPRECATE("The NPY_CHAR type_num is deprecated. "
-                          "Please port your code to use "
-                          "NPY_STRING instead.") < 0) {
-                return NULL;
-            }
-        }
-        ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_STRING]));
-        if (ret == NULL) {
-            return NULL;
-        }
-        ret->elsize = 1;
-        ret->type = NPY_CHARLTR;
-        return ret;
-    }
-    else if (PyTypeNum_ISUSERDEF(type)) {
-        ret = userdescrs[type - NPY_USERDEF];
-    }
-    else {
-        int num = NPY_NTYPES;
-        if (type < _MAX_LETTER) {
-            num = (int) _letter_to_num[type];
-        }
-        if (num >= NPY_NTYPES) {
-            ret = NULL;
-        }
-        else {
-            ret = PyArray_Descr_AsStruct(ctx, HPyGlobal_Load(ctx, _hpy_builtin_descrs[num]));
-        }
-    }
-    if (ret == NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                "Invalid data-type for array");
-    }
-    else {
-        Py_INCREF(ret);
-    }
-
-    return ret;
+    return PyArray_Descr_AsStruct(ctx, ret);
 }
 
 /*

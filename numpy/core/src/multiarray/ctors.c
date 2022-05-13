@@ -2157,7 +2157,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
         PyObject *py_op = HPy_AsPyObject(ctx, op);
         PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
         PyObject *py_res = PyArray_FromScalar(py_op, py_dtype);
-        HPy res = HPy_FromPyObject(ctx, py_res);
+        HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
         Py_DECREF(py_res);
         Py_DECREF(py_op);
         Py_DECREF(py_dtype);
