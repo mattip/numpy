@@ -2321,7 +2321,7 @@ HPyArray_LegacyResultType(HPyContext *ctx,
         HPy ret;
 
         /* Build a single array of all the dtypes */
-        HPy *all_dtypes = PyArray_malloc(
+        HPy *all_dtypes = (HPy *)malloc(
             sizeof(all_dtypes) * (narrs + ndtypes));
         if (all_dtypes == NULL) {
             HPyErr_NoMemory(ctx);
