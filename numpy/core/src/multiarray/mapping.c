@@ -2243,7 +2243,7 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
                 PyArray_ITEMSIZE(ind) == sizeof(npy_intp) &&
                 ind_descr->kind == 'i' &&
                 HIsUintAligned(ctx, h_ind, ind) &&
-                HPyArray_ISNOTSWAPPED(ctx, h_ind, ind)) {
+                PyDataType_ISNOTSWAPPED(ind_descr)) {
 
             HPy hpy_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
             h_result = HPyArray_NewFromDescr(ctx, hpy_array_type,
@@ -2620,31 +2620,33 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
     if (index_type == HAS_FANCY &&
             index_num == 1 && !HPy_IsNull(tmp_arr)) {
         /* The array being indexed has one dimension and it is a fancy index */
-        CAPI_WARN("simple 1-d fancy indexing");
         HPy h_ind = indices[0].object;
         PyArrayObject *ind = PyArrayObject_AsStruct(ctx, h_ind);
-        PyArrayObject *py_tmp_arr = PyArrayObject_AsStruct(ctx, tmp_arr);
+        PyArrayObject *tmp_arr_struct = PyArrayObject_AsStruct(ctx, tmp_arr);
 
         /* Check if the type is equivalent */
-        if (HPyArray_EquivTypes(ctx, HPyArray_DESCR(ctx, h_self, self_struct),
-                                   HPyArray_DESCR(ctx, tmp_arr, py_tmp_arr)) &&
+        HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self_struct);
+        HPy h_tmp_arr_descr = HPyArray_DESCR(ctx, tmp_arr, tmp_arr_struct);
+        HPy h_ind_descr = HPyArray_DESCR(ctx, h_ind, ind);
+        PyArray_Descr *ind_descr_struct;
+        if (HPyArray_EquivTypes(ctx, h_self_descr, h_tmp_arr_descr) &&
                 /*
                  * Either they are equivalent, or the values must
                  * be a scalar
                  */
-                (PyArray_EQUIVALENTLY_ITERABLE(ind, py_tmp_arr,
+                (HPyArray_EQUIVALENTLY_ITERABLE(ctx, h_ind, tmp_arr,
                                                PyArray_TRIVIALLY_ITERABLE_OP_READ,
                                                PyArray_TRIVIALLY_ITERABLE_OP_READ) ||
-                 (PyArray_NDIM(py_tmp_arr) == 0 &&
+                 (PyArray_NDIM(tmp_arr_struct) == 0 &&
                         PyArray_TRIVIALLY_ITERABLE(ind))) &&
                 /* Check if the type is equivalent to INTP */
-                PyArray_ITEMSIZE(ind) == sizeof(npy_intp) &&
-                PyArray_DESCR(ind)->kind == 'i' &&
-                IsUintAligned(ind) &&
-                PyDataType_ISNOTSWAPPED(PyArray_DESCR(ind))) {
+                (ind_descr_struct = PyArray_Descr_AsStruct(ctx, h_ind_descr))->elsize == sizeof(npy_intp) &&
+                ind_descr_struct->kind == 'i' &&
+                HIsUintAligned(ctx, h_ind, ind) &&
+                PyDataType_ISNOTSWAPPED(ind_descr_struct)) {
 
             /* trivial_set checks the index for us */
-            if (mapiter_trivial_set(self_struct, ind, py_tmp_arr) < 0) {
+            if (hpy_mapiter_trivial_set(ctx, h_self, self_struct, h_ind, ind, tmp_arr, tmp_arr_struct) < 0) {
                 result = -1;
             } else {
                 result = 0;
