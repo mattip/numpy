@@ -2031,8 +2031,6 @@ PyArray_HANDLER(PyArrayObject *arr)
 #define PyDataType_MAKEUNSIZED(dtype) ((dtype)->elsize = 0)
 
 static inline int PyDataType_HASFIELDS(PyArray_Descr *obj) {
-    // TODO HPY LABS PORT: is this sufficient or do we need to load it and
-    // check for HPy_IsNull
     return !HPyField_IsNull(obj->names);
 }
 
