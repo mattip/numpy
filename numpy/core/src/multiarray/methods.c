@@ -1369,8 +1369,8 @@ array_sort(PyArrayObject *self,
             Py_DECREF(new_name);
             return NULL;
         }
-        Py_DECREF(newd->names);
-        newd->names = new_name;
+        HPyField_StorePyObj((PyObject *)newd, &newd->names, new_name);
+        Py_DECREF(new_name);
         Py_INCREF(saved);
         _set_descr(self, newd);
         Py_DECREF(newd);
@@ -1438,8 +1438,8 @@ array_partition(PyArrayObject *self,
             return NULL;
         }
         Py_INCREF(saved);
-        Py_DECREF(newd->names);
-        newd->names = new_name;
+        HPyField_StorePyObj((PyObject *)newd, &newd->names, new_name);
+        Py_DECREF(new_name);
         _set_descr(self, newd);
         Py_DECREF(newd);
     }
@@ -1507,8 +1507,8 @@ array_argsort(PyArrayObject *self,
             return NULL;
         }
         Py_INCREF(saved);
-        Py_DECREF(newd->names);
-        newd->names = new_name;
+        HPyField_StorePyObj((PyObject *)newd, &newd->names, new_name);
+        Py_DECREF(new_name);
         _set_descr(self, newd);
         Py_DECREF(newd);
     }
@@ -1570,8 +1570,8 @@ array_argpartition(PyArrayObject *self,
             return NULL;
         }
         Py_INCREF(saved);
-        Py_DECREF(newd->names);
-        newd->names = new_name;
+        HPyField_StorePyObj((PyObject *)newd, &newd->names, new_name);
+        Py_DECREF(new_name);
         _set_descr(self, newd);
         Py_DECREF(newd);
     }

@@ -2404,6 +2404,7 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
+    PyObject *src_names = NULL, *dst_names = NULL;
     PyObject *key, *tup, *title;
     PyArray_Descr *src_fld_dtype, *dst_fld_dtype;
     npy_int i;
@@ -2411,6 +2412,7 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     Py_ssize_t field_count;
     int src_offset, dst_offset;
     _field_transfer_data *data;
+    int res;
 
     /*
      * There are three cases to take care of: 1. src is non-structured,
@@ -2419,7 +2421,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
 
     /* 1. src is non-structured. Copy the src value to all the fields of dst */
     if (!PyDataType_HASFIELDS(src_dtype)) {
-        field_count = PyTuple_GET_SIZE(dst_dtype->names);
+        dst_names = HPyField_LoadPyObj((PyObject *)dst_dtype, dst_dtype->names);
+        field_count = PyTuple_GET_SIZE(dst_names);
 
         /* Allocate the field-data structure and populate it */
         structsize = sizeof(_field_transfer_data) +
@@ -2427,19 +2430,21 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
         data = PyMem_Malloc(structsize);
         if (data == NULL) {
             PyErr_NoMemory();
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
         data->base.free = &_field_transfer_data_free;
         data->base.clone = &_field_transfer_data_clone;
         data->field_count = 0;
 
         for (i = 0; i < field_count; ++i) {
-            key = PyTuple_GET_ITEM(dst_dtype->names, i);
+            key = PyTuple_GET_ITEM(dst_names, i);
             tup = PyDict_GetItem(dst_dtype->fields, key);
             if (!PyArg_ParseTuple(tup, "Oi|O", &dst_fld_dtype,
                                                     &dst_offset, &title)) {
                 PyMem_Free(data);
-                return NPY_FAIL;
+                res = NPY_FAIL;
+                goto finish;
             }
             if (PyArray_GetDTypeTransferFunction(0,
                                     src_stride, dst_stride,
@@ -2448,7 +2453,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
                                     &data->fields[i].info,
                                     out_needs_api) != NPY_SUCCEED) {
                 NPY_AUXDATA_FREE((NpyAuxData *)data);
-                return NPY_FAIL;
+                res = NPY_FAIL;
+                goto finish;
             }
             data->fields[i].src_offset = 0;
             data->fields[i].dst_offset = dst_offset;
@@ -2467,7 +2473,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
                                     &data->fields[field_count].info,
                                     out_needs_api) != NPY_SUCCEED) {
                 NPY_AUXDATA_FREE((NpyAuxData *)data);
-                return NPY_FAIL;
+                res = NPY_FAIL;
+                goto finish;
             }
             data->fields[field_count].src_offset = 0;
             data->fields[field_count].dst_offset = 0;
@@ -2477,16 +2484,19 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
         *out_stransfer = &_strided_to_strided_field_transfer;
         *out_transferdata = (NpyAuxData *)data;
 
-        return NPY_SUCCEED;
+        res = NPY_SUCCEED;
+        goto finish;
     }
 
     /* 2. dst is non-structured. Allow transfer from single-field src to dst */
     if (!PyDataType_HASFIELDS(dst_dtype)) {
-        if (PyTuple_GET_SIZE(src_dtype->names) != 1) {
+        src_names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
+        if (PyTuple_GET_SIZE(src_names) != 1) {
             PyErr_SetString(PyExc_ValueError,
                     "Can't cast from structure to non-structure, except if the "
                     "structure only has a single field.");
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
 
         /* Allocate the field-data structure and populate it */
@@ -2495,17 +2505,19 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
         data = PyMem_Malloc(structsize);
         if (data == NULL) {
             PyErr_NoMemory();
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
         data->base.free = &_field_transfer_data_free;
         data->base.clone = &_field_transfer_data_clone;
 
-        key = PyTuple_GET_ITEM(src_dtype->names, 0);
+        key = PyTuple_GET_ITEM(src_names, 0);
         tup = PyDict_GetItem(src_dtype->fields, key);
         if (!PyArg_ParseTuple(tup, "Oi|O",
                               &src_fld_dtype, &src_offset, &title)) {
             PyMem_Free(data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
 
         if (PyArray_GetDTypeTransferFunction(0,
@@ -2515,7 +2527,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
                                              &data->fields[0].info,
                                              out_needs_api) != NPY_SUCCEED) {
             PyMem_Free(data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
         data->fields[0].src_offset = src_offset;
         data->fields[0].dst_offset = 0;
@@ -2524,16 +2537,20 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
         *out_stransfer = &_strided_to_strided_field_transfer;
         *out_transferdata = (NpyAuxData *)data;
 
-        return NPY_SUCCEED;
+        res = NPY_SUCCEED;
+        goto finish;
     }
 
     /* 3. Otherwise both src and dst are structured arrays */
-    field_count = PyTuple_GET_SIZE(dst_dtype->names);
+    dst_names = HPyField_LoadPyObj((PyObject *)dst_dtype, dst_dtype->names);
+    field_count = PyTuple_GET_SIZE(dst_names);
 
     /* Match up the fields to copy (field-by-field transfer) */
-    if (PyTuple_GET_SIZE(src_dtype->names) != field_count) {
+    src_names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
+    if (PyTuple_GET_SIZE(src_names) != field_count) {
         PyErr_SetString(PyExc_ValueError, "structures must have the same size");
-        return NPY_FAIL;
+        res = NPY_FAIL;
+        goto finish;
     }
 
     /* Allocate the field-data structure and populate it */
@@ -2542,7 +2559,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     data = PyMem_Malloc(structsize);
     if (data == NULL) {
         PyErr_NoMemory();
-        return NPY_FAIL;
+        res = NPY_FAIL;
+        goto finish;
     }
     data->base.free = &_field_transfer_data_free;
     data->base.clone = &_field_transfer_data_clone;
@@ -2550,19 +2568,21 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
 
     /* set up the transfer function for each field */
     for (i = 0; i < field_count; ++i) {
-        key = PyTuple_GET_ITEM(dst_dtype->names, i);
+        key = PyTuple_GET_ITEM(dst_names, i);
         tup = PyDict_GetItem(dst_dtype->fields, key);
         if (!PyArg_ParseTuple(tup, "Oi|O", &dst_fld_dtype,
                                                 &dst_offset, &title)) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
-        key = PyTuple_GET_ITEM(src_dtype->names, i);
+        key = PyTuple_GET_ITEM(src_names, i);
         tup = PyDict_GetItem(src_dtype->fields, key);
         if (!PyArg_ParseTuple(tup, "Oi|O", &src_fld_dtype,
                                                 &src_offset, &title)) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
 
         if (PyArray_GetDTypeTransferFunction(0,
@@ -2572,7 +2592,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
                                              &data->fields[i].info,
                                              out_needs_api) != NPY_SUCCEED) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
         data->fields[i].src_offset = src_offset;
         data->fields[i].dst_offset = dst_offset;
@@ -2582,7 +2603,13 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     *out_stransfer = &_strided_to_strided_field_transfer;
     *out_transferdata = (NpyAuxData *)data;
 
-    return NPY_SUCCEED;
+    res = NPY_SUCCEED;
+    // fall through
+
+finish:
+    Py_XDECREF(dst_names);
+    Py_XDECREF(src_names);
+    return res;
 }
 
 static int
@@ -2598,9 +2625,10 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     npy_int i, structsize;
     Py_ssize_t field_count;
     int src_offset;
+    int res;
 
-    names = src_dtype->names;
-    field_count = PyTuple_GET_SIZE(src_dtype->names);
+    names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
+    field_count = PyTuple_GET_SIZE(names);
 
     /* Over-allocating here: less fields may be used */
     structsize = sizeof(_field_transfer_data) +
@@ -2609,7 +2637,8 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     _field_transfer_data *data = PyMem_Malloc(structsize);
     if (data == NULL) {
         PyErr_NoMemory();
-        return NPY_FAIL;
+        res = NPY_FAIL;
+        goto finish;
     }
     data->base.free = &_field_transfer_data_free;
     data->base.clone = &_field_transfer_data_clone;
@@ -2622,7 +2651,8 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
         if (!PyArg_ParseTuple(tup, "Oi|O", &src_fld_dtype,
                                                 &src_offset, &title)) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
-            return NPY_FAIL;
+            res = NPY_FAIL;
+            goto finish;
         }
         if (PyDataType_REFCHK(src_fld_dtype)) {
             if (out_needs_api) {
@@ -2634,7 +2664,8 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
                                     &field->info,
                                     out_needs_api) != NPY_SUCCEED) {
                 NPY_AUXDATA_FREE((NpyAuxData *)data);
-                return NPY_FAIL;
+                res = NPY_FAIL;
+                goto finish;
             }
             field->src_offset = src_offset;
             data->field_count++;
@@ -2645,7 +2676,11 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     *out_stransfer = &_strided_to_strided_field_transfer;
     *out_transferdata = (NpyAuxData *)data;
 
-    return NPY_SUCCEED;
+    res = NPY_SUCCEED;
+    // fall through
+finish:
+    Py_DECREF(names);
+    return res;
 }
 
 

@@ -2385,7 +2385,10 @@ voidtype_length(PyVoidScalarObject *self)
     }
     else {
         /* return the number of fields */
-        return (Py_ssize_t) PyTuple_GET_SIZE(self->descr->names);
+        PyObject *names = HPyField_LoadPyObj((PyObject *)self->descr, self->descr->names);
+        Py_ssize_t n = (Py_ssize_t) PyTuple_GET_SIZE(names);
+        Py_DECREF(names);
+        return n;
     }
 }
 
@@ -2397,23 +2400,27 @@ voidtype_item(PyVoidScalarObject *self, Py_ssize_t n)
 {
     npy_intp m;
     PyObject *flist=NULL;
+    PyObject *res;
 
     if (!(PyDataType_HASFIELDS(self->descr))) {
         PyErr_SetString(PyExc_IndexError,
                 "can't index void scalar without fields");
         return NULL;
     }
-    flist = self->descr->names;
+    flist = HPyField_LoadPyObj((PyObject *)self->descr, self->descr->names);
     m = PyTuple_GET_SIZE(flist);
     if (n < 0) {
         n += m;
     }
     if (n < 0 || n >= m) {
         PyErr_Format(PyExc_IndexError, "invalid index (%d)", (int) n);
+        Py_DECREF(flist);
         return NULL;
     }
 
-    return voidtype_subscript(self, PyTuple_GetItem(flist, n));
+    res = voidtype_subscript(self, PyTuple_GetItem(flist, n));
+    Py_DECREF(flist);
+    return res;
 }
 
 /* get field by name or number */
@@ -2456,6 +2463,7 @@ voidtype_ass_item(PyVoidScalarObject *self, Py_ssize_t n, PyObject *val)
 {
     npy_intp m;
     PyObject *flist=NULL;
+    PyObject *res;
 
     if (!(PyDataType_HASFIELDS(self->descr))) {
         PyErr_SetString(PyExc_IndexError,
@@ -2463,17 +2471,20 @@ voidtype_ass_item(PyVoidScalarObject *self, Py_ssize_t n, PyObject *val)
         return -1;
     }
 
-    flist = self->descr->names;
+    flist = HPyField_LoadPyObj((PyObject *)self->descr, self->descr->names);
     m = PyTuple_GET_SIZE(flist);
     if (n < 0) {
         n += m;
     }
     if (n < 0 || n >= m) {
         PyErr_Format(PyExc_IndexError, "invalid index (%d)", (int) n);
+        Py_DECREF(flist);
         return -1;
     }
 
-    return voidtype_ass_subscript(self, PyTuple_GetItem(flist, n), val);
+    res = voidtype_ass_subscript(self, PyTuple_GetItem(flist, n), val);
+    Py_DECREF(flist);
+    return res;
 }
 
 static int

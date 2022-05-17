@@ -194,6 +194,7 @@ _buffer_format_string(PyArray_Descr *descr, _tmp_string_t *str,
     int k;
     char _active_byteorder = '@';
     Py_ssize_t _offset = 0;
+    PyObject *names = NULL;
 
     if (active_byteorder == NULL) {
         active_byteorder = &_active_byteorder;
@@ -257,20 +258,21 @@ _buffer_format_string(PyArray_Descr *descr, _tmp_string_t *str,
         Py_ssize_t base_offset = *offset;
 
         if (_append_str(str, "T{") < 0) return -1;
-        for (k = 0; k < PyTuple_GET_SIZE(descr->names); ++k) {
+        names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+        for (k = 0; k < PyTuple_GET_SIZE(names); ++k) {
             PyObject *name, *item, *offset_obj;
             PyArray_Descr *child;
             Py_ssize_t new_offset;
             int ret;
 
-            name = PyTuple_GET_ITEM(descr->names, k);
+            name = PyTuple_GET_ITEM(names, k);
             item = PyDict_GetItem(descr->fields, name);
 
             child = (PyArray_Descr*)PyTuple_GetItem(item, 0);
             offset_obj = PyTuple_GetItem(item, 1);
             new_offset = PyLong_AsLong(offset_obj);
             if (error_converting(new_offset)) {
-                return -1;
+                goto fail_names;
             }
             new_offset += base_offset;
 
@@ -281,7 +283,7 @@ _buffer_format_string(PyArray_Descr *descr, _tmp_string_t *str,
                     "dtypes with overlapping or out-of-order fields are not "
                     "representable as buffers. Consider reordering the fields."
                 );
-                return -1;
+                goto fail_names;
             }
             while (*offset < new_offset) {
                 if (_append_char(str, 'x') < 0) return -1;
@@ -292,12 +294,13 @@ _buffer_format_string(PyArray_Descr *descr, _tmp_string_t *str,
             ret = _buffer_format_string(child, str, obj, offset,
                                   active_byteorder);
             if (ret < 0) {
-                return -1;
+                goto fail_names;
             }
 
             /* Insert field name */
-            if (_append_field_name(str, name) < 0) return -1;
+            if (_append_field_name(str, name) < 0) goto fail_names;
         }
+        Py_SETREF(names, NULL);
         if (_append_char(str, '}') < 0) return -1;
     }
     else {
@@ -425,6 +428,10 @@ _buffer_format_string(PyArray_Descr *descr, _tmp_string_t *str,
     }
 
     return 0;
+
+fail_names:
+    Py_XDECREF(names);
+    return -1;
 }
 
 

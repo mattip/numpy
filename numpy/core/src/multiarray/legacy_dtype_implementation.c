@@ -27,28 +27,49 @@
 static int
 _equivalent_fields(PyArray_Descr *type1, PyArray_Descr *type2) {
 
-    int val;
+    int val, res;
+    PyObject *names1 = NULL, *names2 = NULL;
 
-    if (type1->fields == type2->fields && type1->names == type2->names) {
-        return 1;
+    if (type1->fields == type2->fields) {
+        names1 = HPyField_LoadPyObj((PyObject *)type1, type1->names);
+        names2 = HPyField_LoadPyObj((PyObject *)type2, type2->names);
+        if (names1 == names2) {
+            res = 1;
+            goto finish;
+        }
     }
     if (type1->fields == NULL || type2->fields == NULL) {
-        return 0;
+        res = 0;
+        goto finish;
     }
 
     val = PyObject_RichCompareBool(type1->fields, type2->fields, Py_EQ);
     if (val != 1 || PyErr_Occurred()) {
         PyErr_Clear();
-        return 0;
+        res = 0;
+        goto finish;
     }
 
-    val = PyObject_RichCompareBool(type1->names, type2->names, Py_EQ);
+    if (names1 == NULL) {
+        names1 = HPyField_LoadPyObj((PyObject *)type1, type1->names);
+    }
+    if (names2 == NULL) {
+        names2 = HPyField_LoadPyObj((PyObject *)type2, type2->names);
+    }
+    val = PyObject_RichCompareBool(names1, names2, Py_EQ);
     if (val != 1 || PyErr_Occurred()) {
         PyErr_Clear();
-        return 0;
+        res = 0;
+        goto finish;
     }
 
-    return 1;
+    res = 1;
+    // fall through
+
+finish:
+    Py_XDECREF(names1);
+    Py_XDECREF(names2);
+    return res;
 }
 
 /*

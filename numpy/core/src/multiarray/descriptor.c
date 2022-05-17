@@ -387,9 +387,9 @@ _convert_from_tuple(PyObject *obj, int align)
         newdescr->subarray->base = type;
         type = NULL;
         Py_XDECREF(newdescr->fields);
-        Py_XDECREF(newdescr->names);
+        HPyField_StorePyObj((PyObject *)newdescr, &newdescr->names, NULL);
         newdescr->fields = NULL;
-        newdescr->names = NULL;
+        newdescr->names = HPyField_NULL;
 
         /*
          * Create a new subarray->shape tuple (it can be an arbitrary
@@ -601,7 +601,8 @@ _convert_from_array_descr(PyObject *obj, int align)
         goto fail;
     }
     new->fields = fields;
-    new->names = nameslist;
+    HPyField_StorePyObj((PyObject *)new, &new->names, nameslist);
+    Py_DECREF(nameslist);
     new->elsize = totalsize;
     new->flags = dtypeflags;
 
@@ -706,7 +707,8 @@ _convert_from_list(PyObject *obj, int align)
         goto fail;
     }
     new->fields = fields;
-    new->names = nameslist;
+    HPyField_StorePyObj((PyObject *)new, &new->names, nameslist);
+    Py_DECREF(nameslist);
     new->flags = dtypeflags;
     if (maxalign > 1) {
         totalsize = NPY_NEXT_ALIGNED_OFFSET(totalsize, maxalign);
@@ -806,10 +808,13 @@ _validate_union_object_dtype(PyArray_Descr *new, PyArray_Descr *conv)
     if (PyDataType_HASFIELDS(new) || new->kind != 'O') {
         goto fail;
     }
-    if (!PyDataType_HASFIELDS(conv) || PyTuple_GET_SIZE(conv->names) != 1) {
+    PyObject *names = HPyField_LoadPyObj((PyObject *)conv, conv->names);
+    if (!PyDataType_HASFIELDS(conv) || PyTuple_GET_SIZE(names) != 1) {
+        Py_DECREF(names);
         goto fail;
     }
-    name = PyTuple_GET_ITEM(conv->names, 0);
+    name = PyTuple_GET_ITEM(names, 0);
+    Py_DECREF(names);
     if (name == NULL) {
         return -1;
     }
@@ -893,9 +898,9 @@ _try_convert_from_inherit_tuple(PyArray_Descr *type, PyObject *newobj)
         new->fields = conv->fields;
         Py_XINCREF(new->fields);
 
-        Py_XDECREF(new->names);
-        new->names = conv->names;
-        Py_XINCREF(new->names);
+        PyObject *conv_names = HPyField_LoadPyObj((PyObject *)conv, conv->names);
+        HPyField_StorePyObj((PyObject *)new, &new->names, conv_names);
+        Py_DECREF(conv_names);
     }
     if (conv->metadata != NULL) {
         Py_XDECREF(new->metadata);
@@ -939,16 +944,18 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
     Py_ssize_t i, j, names_size;
     PyArray_Descr *fld_dtype, *fld2_dtype;
     int fld_offset, fld2_offset;
+    int res;
 
     /* Get some properties from the dtype */
-    names = dtype->names;
+    names = HPyField_LoadPyObj((PyObject *)dtype, dtype->names);
     names_size = PyTuple_GET_SIZE(names);
     fields = dtype->fields;
 
     for (i = 0; i < names_size; ++i) {
         key = PyTuple_GET_ITEM(names, i);
         if (key == NULL) {
-            return -1;
+            res = -1;
+            goto finish;
         }
         tup = PyDict_GetItemWithError(fields, key);
         if (tup == NULL) {
@@ -956,10 +963,12 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
                 /* fields was missing the name it claimed to contain */
                 PyErr_BadInternalCall();
             }
-            return -1;
+            res = -1;
+            goto finish;
         }
         if (!PyArg_ParseTuple(tup, "Oi|O", &fld_dtype, &fld_offset, &title)) {
-            return -1;
+            res = -1;
+            goto finish;
         }
 
         /* If this field has objects, check for overlaps */
@@ -968,7 +977,8 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
                 if (i != j) {
                     key = PyTuple_GET_ITEM(names, j);
                     if (key == NULL) {
-                        return -1;
+                        res = -1;
+                        goto finish;
                     }
                     tup = PyDict_GetItemWithError(fields, key);
                     if (tup == NULL) {
@@ -976,11 +986,13 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
                             /* fields was missing the name it claimed to contain */
                             PyErr_BadInternalCall();
                         }
-                        return -1;
+                        res = -1;
+                        goto finish;
                     }
                     if (!PyArg_ParseTuple(tup, "Oi|O", &fld2_dtype,
                                                 &fld2_offset, &title)) {
-                        return -1;
+                        res = -1;
+                        goto finish;
                     }
                     /* Raise an exception if it overlaps */
                     if (fld_offset < fld2_offset + fld2_dtype->elsize &&
@@ -988,7 +1000,8 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
                         PyErr_SetString(PyExc_TypeError,
                                 "Cannot create a NumPy dtype with overlapping "
                                 "object fields");
-                        return -1;
+                        res = -1;
+                        goto finish;
                     }
                 }
             }
@@ -996,7 +1009,10 @@ _validate_object_field_overlap(PyArray_Descr *dtype)
     }
 
     /* It passed all the overlap tests */
-    return 0;
+    res = 0;
+finish:
+    Py_DECREF(names);
+    return res;
 }
 
 /*
@@ -1284,11 +1300,11 @@ _convert_from_dict(PyObject *obj, int align)
             goto fail;
         }
     }
-    new->names = names;
+    HPyField_StorePyObj((PyObject *)new, &new->names, names);
     new->fields = fields;
     new->flags = dtypeflags;
     /* new takes responsibility for DECREFing names, fields */
-    names = NULL;
+    Py_SETREF(names, NULL);
     fields = NULL;
 
     /*
@@ -2355,8 +2371,7 @@ arraydescr_names_get(PyArray_Descr *self, void *NPY_UNUSED(ignored))
     if (!PyDataType_HASFIELDS(self)) {
         Py_RETURN_NONE;
     }
-    Py_INCREF(self->names);
-    return self->names;
+    return HPyField_LoadPyObj((PyObject *)self, self->names);
 }
 
 static int
@@ -2393,7 +2408,8 @@ arraydescr_names_set(
      * }
      */
 
-    N = PyTuple_GET_SIZE(self->names);
+    PyObject *names = HPyField_LoadPyObj((PyObject *)self, self->names);
+    N = PyTuple_GET_SIZE(names);
     if (!PySequence_Check(val) || PyObject_Size((PyObject *)val) != N) {
         PyErr_Format(PyExc_ValueError,
                 "must replace all names at once with a sequence of length %d",
@@ -2431,7 +2447,7 @@ arraydescr_names_set(
         PyObject *item;
         PyObject *new_key;
         int ret;
-        key = PyTuple_GET_ITEM(self->names, i);
+        key = PyTuple_GET_ITEM(names, i);
         /* Borrowed references to item and new_key */
         item = PyDict_GetItemWithError(self->fields, key);
         if (item == NULL) {
@@ -2465,8 +2481,8 @@ arraydescr_names_set(
     }
 
     /* Replace names */
-    Py_DECREF(self->names);
-    self->names = new_names;
+    HPyField_StorePyObj((PyObject *)self, &self->names, new_names);
+    Py_DECREF(names);
 
     /* Replace fields */
     Py_DECREF(self->fields);
@@ -3089,10 +3105,9 @@ arraydescr_setstate(PyArray_Descr *self, PyObject *args)
             Py_XDECREF(self->fields);
             self->fields = fields;
             Py_INCREF(fields);
-            Py_XDECREF(self->names);
-            self->names = names;
-            if (incref_names) {
-                Py_INCREF(names);
+            HPyField_StorePyObj((PyObject *)self, &self->names, names);
+            if (!incref_names) {
+                Py_DECREF(names);
             }
         }
         else {
@@ -3114,8 +3129,7 @@ arraydescr_setstate(PyArray_Descr *self, PyObject *args)
             if (tmp == NULL) {
                 return NULL;
             }
-            Py_XDECREF(self->names);
-            self->names = tmp;
+            HPyField_StorePyObj((PyObject *)self, &self->names, tmp);
 
             for (i = 0; i < PyTuple_GET_SIZE(names); ++i) {
                 name = PyTuple_GET_ITEM(names, i);
@@ -3135,15 +3149,18 @@ arraydescr_setstate(PyArray_Descr *self, PyObject *args)
                 else {
                     new_name = PyUnicode_FromEncodedObject(name, "ASCII", "strict");
                     if (new_name == NULL) {
+                        Py_DECREF(tmp);
                         return NULL;
                     }
                 }
 
-                PyTuple_SET_ITEM(self->names, i, new_name);
+                PyTuple_SET_ITEM(tmp, i, new_name);
                 if (PyDict_SetItem(self->fields, new_name, field) != 0) {
+                    Py_DECREF(tmp);
                     return NULL;
                 }
             }
+            Py_DECREF(tmp);
         }
     }
 
@@ -3435,9 +3452,10 @@ is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype)
     PyArray_Descr *fld_dtype;
     int fld_offset;
     npy_intp total_offset;
+    int res;
 
     /* Get some properties from the dtype */
-    names = dtype->names;
+    names = HPyField_LoadPyObj((PyObject *)dtype, dtype->names);
     names_size = PyTuple_GET_SIZE(names);
     fields = dtype->fields;
 
@@ -3447,19 +3465,23 @@ is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype)
     for (i = 0; i < names_size; ++i) {
         key = PyTuple_GET_ITEM(names, i);
         if (key == NULL) {
-            return 0;
+            res = 0;
+            goto finish;
         }
         tup = PyDict_GetItem(fields, key);
         if (tup == NULL) {
-            return 0;
+            res = 0;
+            goto finish;
         }
         if (!PyArg_ParseTuple(tup, "Oi|O", &fld_dtype, &fld_offset, &title)) {
             PyErr_Clear();
-            return 0;
+            res = 0;
+            goto finish;
         }
         /* If this field doesn't follow the pattern, not a simple layout */
         if (total_offset != fld_offset) {
-            return 0;
+            res = 0;
+            goto finish;
         }
         /* Get the next offset */
         total_offset += fld_dtype->elsize;
@@ -3470,11 +3492,15 @@ is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype)
      * not a simple layout.
      */
     if (total_offset != dtype->elsize) {
-        return 0;
+        res = 0;
+        goto finish;
     }
 
     /* It's a simple layout, since all the above tests passed */
-    return 1;
+    res = 1;
+finish:
+    Py_DECREF(names);
+    return res;
 }
 
 /*
@@ -3570,7 +3596,10 @@ descr_length(PyObject *self0)
     PyArray_Descr *self = (PyArray_Descr *)self0;
 
     if (PyDataType_HASFIELDS(self)) {
-        return PyTuple_GET_SIZE(self->names);
+        PyObject *names = HPyField_LoadPyObj((PyObject *)self, self->names);
+        Py_ssize_t n = PyTuple_GET_SIZE(names);
+        Py_DECREF(names);
+        return n;
     }
     else {
         return 0;
@@ -3626,7 +3655,9 @@ _subscript_by_name(PyArray_Descr *self, PyObject *op)
 static PyObject *
 _subscript_by_index(PyArray_Descr *self, Py_ssize_t i)
 {
-    PyObject *name = PySequence_GetItem(self->names, i);
+    PyObject *names = HPyField_LoadPyObj((PyObject *)self, self->names);
+    PyObject *name = PySequence_GetItem(names, i);
+    Py_DECREF(names);
     PyObject *ret;
     if (name == NULL) {
         PyErr_Format(PyExc_IndexError,
@@ -3740,7 +3771,8 @@ arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind)
         goto fail;
     }
     view_dtype->elsize = self->elsize;
-    view_dtype->names = names;
+    HPyField_StorePyObj((PyObject *)view_dtype, &view_dtype->names, names);
+    Py_DECREF(names);
     view_dtype->fields = fields;
     view_dtype->flags = self->flags;
     return view_dtype;

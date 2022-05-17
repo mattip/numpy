@@ -1587,7 +1587,7 @@ HPyArray_DiscoverDTypeAndShape(
             flags |= DISCOVER_STRINGS_AS_SEQUENCES;
         }
         else if (requested_descr_data->type_num == NPY_VOID &&
-                    (requested_descr_data->names || requested_descr_data->subarray))  {
+                    (!HPyField_IsNull(requested_descr_data->names) || requested_descr_data->subarray))  {
             /* Void is a chimera, in that it may or may not be structured... */
             flags |= DISCOVER_TUPLES_AS_ELEMENTS;
         }

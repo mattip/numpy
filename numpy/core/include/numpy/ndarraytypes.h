@@ -715,7 +715,7 @@ typedef struct _PyArray_Descr {
          * An ordered tuple of field names or NULL
          * if no fields are defined
          */
-        PyObject *names;
+        HPyField names;
         /*
          * a table of functions specific for each
          * basic data descriptor
@@ -2031,8 +2031,9 @@ PyArray_HANDLER(PyArrayObject *arr)
 #define PyDataType_MAKEUNSIZED(dtype) ((dtype)->elsize = 0)
 
 static inline int PyDataType_HASFIELDS(PyArray_Descr *obj) {
-    CAPI_WARN("accessing legacy object field PyArray_Descr.names");
-    return (((PyArray_Descr *)(obj))->names != NULL);
+    // TODO HPY LABS PORT: is this sufficient or do we need to load it and
+    // check for HPy_IsNull
+    return !HPyField_IsNull(obj->names);
 }
 
 
