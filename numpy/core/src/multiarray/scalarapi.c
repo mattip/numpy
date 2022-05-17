@@ -787,8 +787,10 @@ HPyArray_DescrFromScalar(HPyContext *ctx, HPy sc)
                 CAPI_WARN("HPyArray_DescrFromScalar: access to legacy PyObject* field");
                 descr_data->fields = dtype_data->fields;
                 Py_XINCREF(dtype_data->fields);
-                descr_data->names = dtype_data->names;
-                Py_XINCREF(dtype_data->names);
+
+                HPy dtype_data_names = HPyField_Load(ctx, dtype, dtype_data->names);
+                HPyField_Store(ctx, descr, &descr_data->names, dtype_data_names);
+                HPy_Close(ctx, dtype_data_names);
                 HPy_Close(ctx, dtype);
             }
             HPyErr_Clear(ctx);

@@ -33,8 +33,16 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
                  npy_intp buffersize);
 NPY_NO_EXPORT int
 HNpyIter_Deallocate(HPyContext *ctx, NpyIter *iter);
+
 NPY_NO_EXPORT NpyIter *
 HNpyIter_New(HPyContext *ctx, HPy op, npy_uint32 flags,
                   NPY_ORDER order, NPY_CASTING casting,
                   HPy dtype);
+
+NPY_NO_EXPORT HPy *
+HNpyIter_GetOperandArray(NpyIter *iter);
+
+NPY_NO_EXPORT NpyIter_IterNextFunc *
+HNpyIter_GetIterNext(HPyContext *ctx, NpyIter *iter, char **errmsg);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_HPY_H_ */

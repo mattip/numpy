@@ -355,13 +355,19 @@ npyiter_iternext_sizeone(NpyIter *iter)
 NPY_NO_EXPORT NpyIter_IterNextFunc *
 NpyIter_GetIterNext(NpyIter *iter, char **errmsg)
 {
+    return HNpyIter_GetIterNext(npy_get_context(), iter, errmsg);
+}
+
+NPY_NO_EXPORT NpyIter_IterNextFunc *
+HNpyIter_GetIterNext(HPyContext *ctx, NpyIter *iter, char **errmsg)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int ndim = NIT_NDIM(iter);
     int nop = NIT_NOP(iter);
 
     if (NIT_ITERSIZE(iter) < 0) {
         if (errmsg == NULL) {
-            PyErr_SetString(PyExc_ValueError, "iterator is too large");
+            HPyErr_SetString(ctx, ctx->h_ValueError, "iterator is too large");
         }
         else {
             *errmsg = "iterator is too large";
@@ -460,7 +466,7 @@ NpyIter_GetIterNext(NpyIter *iter, char **errmsg)
     }
     /* The switch above should have caught all the possibilities. */
     if (errmsg == NULL) {
-        PyErr_Format(PyExc_ValueError,
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
                 "GetIterNext internal iterator error - unexpected "
                 "itflags/ndim/nop combination (%04x/%d/%d)",
                 (int)itflags, (int)ndim, (int)nop);

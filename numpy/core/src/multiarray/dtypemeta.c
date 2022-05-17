@@ -293,8 +293,8 @@ void_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
      * are equivalent.
      */
     if (!PyArray_CanCastTypeTo(descr1, descr2, NPY_EQUIV_CASTING)) {
-        if (descr1->subarray == NULL && descr1->names == NULL &&
-                descr2->subarray == NULL && descr2->names == NULL) {
+        if (descr1->subarray == NULL && HPyField_IsNull(descr1->names) &&
+                descr2->subarray == NULL && HPyField_IsNull(descr2->names)) {
             PyErr_SetString(PyExc_TypeError,
                     "Invalid type promotion with void datatypes of different "
                     "lengths. Use the `np.bytes_` datatype instead to pad the "

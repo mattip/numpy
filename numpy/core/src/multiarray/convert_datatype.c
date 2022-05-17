@@ -934,8 +934,8 @@ static int min_scalar_type_num(char *valueptr, int type_num,
  *       require updates when we phase out value-based-casting.
  */
 NPY_NO_EXPORT npy_bool
-can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
-                    PyArray_Descr *to, NPY_CASTING casting)
+can_cast_scalar_to(HPyContext *ctx, HPy /* (PyArray_Descr *) */ scal_type, char *scal_data,
+                    HPy /* (PyArray_Descr *) */ to, NPY_CASTING casting)
 {
     /*
      * If the two dtypes are actually references to the same object
@@ -943,18 +943,20 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
      *
      * TODO: Assuming that unsafe casting always works is not actually correct
      */
-    if (scal_type == to || casting == NPY_UNSAFE_CASTING ) {
+    if (HPy_Is(ctx, scal_type, to) || casting == NPY_UNSAFE_CASTING ) {
         return 1;
     }
 
-    int valid = PyArray_CheckCastSafety(casting, scal_type, to, NPY_DTYPE(to));
+    HPy to_meta = HNPY_DTYPE(ctx, to);
+    int valid = HPyArray_CheckCastSafety(ctx, casting, scal_type, to, to_meta);
+    HPy_Close(ctx, to_meta);
     if (valid == 1) {
         /* This is definitely a valid cast. */
         return 1;
     }
     if (valid < 0) {
         /* Probably must return 0, but just keep trying for now. */
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
     }
 
     /*
@@ -962,22 +964,23 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
      * we must not attempt it.
      * (Additional fast-checks would be possible, but probably unnecessary.)
      */
-    if (!PyTypeNum_ISNUMBER(scal_type->type_num)) {
+    PyArray_Descr *scal_type_data = PyArray_Descr_AsStruct(ctx, scal_type);
+    if (!PyTypeNum_ISNUMBER(scal_type_data->type_num)) {
         return 0;
     }
 
     /*
      * At this point we have to check value-based casting.
      */
-    PyArray_Descr *dtype;
+    HPy dtype; /* (PyArray_Descr *) */
     int is_small_unsigned = 0, type_num;
     /* An aligned memory buffer large enough to hold any builtin numeric type */
     npy_longlong value[4];
 
-    int swap = !PyArray_ISNBO(scal_type->byteorder);
-    scal_type->f->copyswap(&value, scal_data, swap, NULL);
+    int swap = !PyArray_ISNBO(scal_type_data->byteorder);
+    scal_type_data->f->copyswap(&value, scal_data, swap, NULL);
 
-    type_num = min_scalar_type_num((char *)&value, scal_type->type_num,
+    type_num = min_scalar_type_num((char *)&value, scal_type_data->type_num,
                                     &is_small_unsigned);
 
     /*
@@ -985,12 +988,13 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
      * is not unsigned, then make it signed to allow the value
      * to be cast more appropriately.
      */
-    if (is_small_unsigned && !(PyTypeNum_ISUNSIGNED(to->type_num))) {
+    PyArray_Descr *to_data = PyArray_Descr_AsStruct(ctx, to);
+    if (is_small_unsigned && !(PyTypeNum_ISUNSIGNED(to_data->type_num))) {
         type_num = type_num_unsigned_to_signed(type_num);
     }
 
-    dtype = PyArray_DescrFromType(type_num);
-    if (dtype == NULL) {
+    dtype = HPyArray_DescrFromType(ctx, type_num);
+    if (HPy_IsNull(dtype)) {
         return 0;
     }
 #if 0
@@ -1000,8 +1004,8 @@ can_cast_scalar_to(PyArray_Descr *scal_type, char *scal_data,
     PyObject_Print(to, stdout, 0);
     printf("\n");
 #endif
-    npy_bool ret = PyArray_CanCastTypeTo(dtype, to, casting);
-    Py_DECREF(dtype);
+    npy_bool ret = HPyArray_CanCastTypeTo(ctx, dtype, to, casting);
+    HPy_Close(ctx, dtype);
     return ret;
 }
 
@@ -1093,27 +1097,40 @@ NPY_NO_EXPORT npy_bool
 PyArray_CanCastArrayTo(PyArrayObject *arr, PyArray_Descr *to,
                         NPY_CASTING casting)
 {
-    PyArray_Descr *from = PyArray_DESCR(arr);
-    PyArray_DTypeMeta *to_dtype = NPY_DTYPE(to);
+    hpy_abort_not_implemented("PyArray_CanCastArrayTo");
+    return NPY_FALSE;
+}
+
+NPY_NO_EXPORT npy_bool
+HPyArray_CanCastArrayTo(HPyContext *ctx, HPy /* (PyArrayObject *) */ arr,
+                        HPy /* (PyArray_Descr *) */ to, NPY_CASTING casting)
+{
+    HPy from = HPyArray_GetDescr(ctx, arr); /* (PyArray_Descr *) */
+    HPy to_dtype = HNPY_DTYPE(ctx, to); /* (PyArray_DTypeMeta *) */
 
     /* NOTE, TODO: The same logic as `PyArray_CanCastTypeTo`: */
-    if (PyDataType_ISUNSIZED(to) && to->subarray == NULL) {
-        to = NULL;
+    PyArray_Descr *to_data = PyArray_Descr_AsStruct(ctx, to);
+    if (PyDataType_ISUNSIZED(to_data)) {
+        CAPI_WARN("HPyArray_CanCastArrayTo: access to legacy field PyArray_Descr.subarray");
+        if (to_data->subarray == NULL) {
+            to = HPy_NULL;
+        }
     }
 
     /*
      * If it's a scalar, check the value.  (This only currently matters for
      * numeric types and for `to == NULL` it can't be numeric.)
      */
-    if (PyArray_NDIM(arr) == 0 && !PyArray_HASFIELDS(arr) && to != NULL) {
-        return can_cast_scalar_to(from, PyArray_DATA(arr), to, casting);
+    PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+    if (PyArray_NDIM(arr_data) == 0 && !HPyArray_HASFIELDS(ctx, arr, arr_data) && !HPy_IsNull(to)) {
+        return can_cast_scalar_to(ctx, from, PyArray_DATA(arr_data), to, casting);
     }
 
     /* Otherwise, use the standard rules (same as `PyArray_CanCastTypeTo`) */
-    int is_valid = PyArray_CheckCastSafety(casting, from, to, to_dtype);
+    int is_valid = HPyArray_CheckCastSafety(ctx, casting, from, to, to_dtype);
     /* Clear any errors and consider this unsafe (should likely be changed) */
     if (is_valid < 0) {
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
         return 0;
     }
     return is_valid;
@@ -3437,7 +3454,7 @@ cast_to_void_dtype_class(
 
     *view_offset = 0;
     if (loop_descrs[0]->type_num == NPY_VOID &&
-            loop_descrs[0]->subarray == NULL && loop_descrs[1]->names == NULL) {
+            loop_descrs[0]->subarray == NULL && HPyField_IsNull(loop_descrs[1]->names)) {
         return NPY_NO_CASTING;
     }
     return NPY_SAFE_CASTING;
@@ -3574,7 +3591,7 @@ nonstructured_to_structured_get_loop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    if (PyArray_Descr_AsStruct(ctx, context->descriptors[1])->names != NULL) {
+    if (!HPyField_IsNull(PyArray_Descr_AsStruct(ctx, context->descriptors[1])->names)) {
         int needs_api = 0;
         if (get_fields_transfer_function(
                 aligned, strides[0], strides[1],
@@ -3664,12 +3681,15 @@ structured_to_nonstructured_resolve_descriptors(
             struct_view_offset = 0;
         }
     }
-    else if (given_descrs[0]->names != NULL) {
-        if (PyTuple_Size(given_descrs[0]->names) != 1) {
+    else if (!HPyField_IsNull(given_descrs[0]->names)) {
+        PyObject *names = HPyField_LoadPyObj((PyObject *)given_descrs[0], given_descrs[0]->names);
+        if (PyTuple_Size(names) != 1) {
+            Py_DECREF(names);
             /* Only allow casting a single field */
             return -1;
         }
-        PyObject *key = PyTuple_GetItem(given_descrs[0]->names, 0);
+        PyObject *key = PyTuple_GetItem(names, 0);
+        Py_DECREF(names);
         PyObject *base_tup = PyDict_GetItem(given_descrs[0]->fields, key);
         base_descr = (PyArray_Descr *)PyTuple_GET_ITEM(base_tup, 0);
         struct_view_offset = PyLong_AsSsize_t(PyTuple_GET_ITEM(base_tup, 1));
@@ -3822,20 +3842,25 @@ static NPY_CASTING
 can_cast_fields_safety(
         PyArray_Descr *from, PyArray_Descr *to, npy_intp *view_offset)
 {
-    Py_ssize_t field_count = PyTuple_Size(from->names);
-    if (field_count != PyTuple_Size(to->names)) {
+    NPY_CASTING casting = NPY_UNSAFE_CASTING;
+    PyObject *names = HPyField_LoadPyObj((PyObject *)from, from->names);
+    PyObject *to_names = HPyField_LoadPyObj((PyObject *)from, to->names);
+    Py_ssize_t field_count = PyTuple_Size(names);
+    if (field_count != PyTuple_Size(to_names)) {
         /* TODO: This should be rejected! */
-        return NPY_UNSAFE_CASTING;
+        // NPY_UNSAFE_CASTING
+        goto finish;
     }
 
-    NPY_CASTING casting = NPY_NO_CASTING;
+    casting = NPY_NO_CASTING;
     *view_offset = 0;  /* if there are no fields, a view is OK. */
     for (Py_ssize_t i = 0; i < field_count; i++) {
         npy_intp field_view_off = NPY_MIN_INTP;
-        PyObject *from_key = PyTuple_GET_ITEM(from->names, i);
+        PyObject *from_key = PyTuple_GET_ITEM(names, i);
         PyObject *from_tup = PyDict_GetItemWithError(from->fields, from_key);
         if (from_tup == NULL) {
-            return give_bad_field_error(from_key);
+            casting = (NPY_CASTING) give_bad_field_error(from_key);
+            goto finish;
         }
         PyArray_Descr *from_base = (PyArray_Descr*)PyTuple_GET_ITEM(from_tup, 0);
 
@@ -3846,14 +3871,17 @@ can_cast_fields_safety(
          */
         PyObject *to_tup = PyDict_GetItem(to->fields, from_key);
         if (to_tup == NULL) {
-            return NPY_UNSAFE_CASTING;
+            casting = NPY_UNSAFE_CASTING;
+            goto finish;
         }
         PyArray_Descr *to_base = (PyArray_Descr*)PyTuple_GET_ITEM(to_tup, 0);
 
         NPY_CASTING field_casting = PyArray_GetCastInfo(
                 from_base, to_base, NULL, &field_view_off);
         if (field_casting < 0) {
-            return -1;
+            casting = _NPY_ERROR_OCCURRED_IN_CAST;
+            goto finish;
+
         }
         casting = PyArray_MinCastSafety(casting, field_casting);
 
@@ -3861,11 +3889,13 @@ can_cast_fields_safety(
         if (field_view_off != NPY_MIN_INTP) {
             npy_intp to_off = PyLong_AsSsize_t(PyTuple_GET_ITEM(to_tup, 1));
             if (error_converting(to_off)) {
-                return -1;
+                casting = _NPY_ERROR_OCCURRED_IN_CAST;
+                goto finish;
             }
             npy_intp from_off = PyLong_AsSsize_t(PyTuple_GET_ITEM(from_tup, 1));
             if (error_converting(from_off)) {
-                return -1;
+                casting = _NPY_ERROR_OCCURRED_IN_CAST;
+                goto finish;
             }
             field_view_off = field_view_off - to_off + from_off;
         }
@@ -3883,7 +3913,8 @@ can_cast_fields_safety(
     }
     if (*view_offset != 0) {
         /* If the calculated `view_offset` is not 0, it can only be "equiv" */
-        return PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        casting = PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        goto finish;
     }
 
     /*
@@ -3897,7 +3928,8 @@ can_cast_fields_safety(
          * The itemsize may mismatch even if all fields and formats match
          * (due to additional padding).
          */
-        return PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        casting = PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        goto finish;
     }
 
     int cmp = PyObject_RichCompareBool(from->fields, to->fields, Py_EQ);
@@ -3905,15 +3937,20 @@ can_cast_fields_safety(
         if (cmp == -1) {
             PyErr_Clear();
         }
-        return PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        casting = PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        goto finish;
     }
-    cmp = PyObject_RichCompareBool(from->names, to->names, Py_EQ);
+    cmp = PyObject_RichCompareBool(names, to_names, Py_EQ);
     if (cmp != 1) {
         if (cmp == -1) {
             PyErr_Clear();
         }
-        return PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        casting = PyArray_MinCastSafety(casting, NPY_EQUIV_CASTING);
+        // fall through to 'finish'
     }
+finish:
+    Py_DECREF(names);
+    Py_DECREF(to_names);
     return casting;
 }
 
@@ -4051,8 +4088,8 @@ void_to_void_get_loop(
             PyArray_Descr_AsStruct(hctx, h_descrs[0]),
             PyArray_Descr_AsStruct(hctx, h_descrs[1])
     };
-    if (descrs[0]->names != NULL ||
-            descrs[1]->names != NULL) {
+    if (!HPyField_IsNull(descrs[0]->names) ||
+            !HPyField_IsNull(descrs[1]->names)) {
         int needs_api = 0;
         CAPI_WARN("void_to_void_get_loop: call to get_fields_transfer_function");
         if (get_fields_transfer_function(

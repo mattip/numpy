@@ -12,6 +12,8 @@
 
 #include "hashdescr.h"
 
+#include "hpy_utils.h"
+
 /*
  * How does this work ? The hash is computed from a list which contains all the
  * information specific to a type. The hard work is to build the list
@@ -238,7 +240,9 @@ static int _array_descr_walk(PyArray_Descr* descr, PyObject *l)
     }
     else {
         if(descr->fields != NULL && descr->fields != Py_None) {
-            st = _array_descr_walk_fields(descr->names, descr->fields, l);
+            PyObject *names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+            st = _array_descr_walk_fields(names, descr->fields, l);
+            Py_DECREF(names);
             if (st) {
                 return -1;
             }

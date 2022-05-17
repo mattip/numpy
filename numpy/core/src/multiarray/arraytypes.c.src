@@ -1052,7 +1052,7 @@ VOID_getitem(void *input, void *vap)
         }
 
         /* get the names from the fields dictionary*/
-        names = descr->names;
+        names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
         n = PyTuple_GET_SIZE(names);
         ret = PyTuple_New(n);
         for (i = 0; i < n; i++) {
@@ -1061,6 +1061,7 @@ VOID_getitem(void *input, void *vap)
             key = PyTuple_GET_ITEM(names, i);
             tup = PyDict_GetItem(descr->fields, key);
             if (_unpack_field(tup, &new, &offset) < 0) {
+                Py_DECREF(names);
                 Py_DECREF(ret);
                 Py_DECREF(dummy_arr);
                 return NULL;
@@ -1076,6 +1077,7 @@ VOID_getitem(void *input, void *vap)
             }
             PyTuple_SET_ITEM(ret, i, PyArray_GETITEM(dummy_arr, ip+offset));
         }
+        Py_DECREF(names);
         Py_DECREF(dummy_arr);
         return ret;
     }
@@ -1132,12 +1134,15 @@ NPY_NO_EXPORT int
 _setup_field(int i, PyArray_Descr *descr, PyArrayObject *arr,
             npy_intp *offset_p, char *dstdata)
 {
+    PyObject *names;
     PyObject *key;
     PyObject *tup;
     PyArray_Descr *new;
     npy_intp offset;
 
-    key = PyTuple_GET_ITEM(descr->names, i);
+    names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+    key = PyTuple_GET_ITEM(names, i);
+    Py_DECREF(names);
     tup = PyDict_GetItem(descr->fields, key);
     if (_unpack_field(tup, &new, &offset) < 0) {
         return -1;
@@ -1162,10 +1167,13 @@ _setup_field(int i, PyArray_Descr *descr, PyArrayObject *arr,
 static int
 _copy_and_return_void_setitem(PyArray_Descr *dstdescr, char *dstdata,
                               PyArray_Descr *srcdescr, char *srcdata){
-    npy_int names_size = PyTuple_GET_SIZE(dstdescr->names);
+    PyObject *names = HPyField_LoadPyObj((PyObject *)dstdescr, dstdescr->names);
+    npy_int names_size = PyTuple_GET_SIZE(names);
     npy_intp offset;
     npy_int i;
     int ret;
+    
+    Py_DECREF(names);
 
     /* Fast path if dtypes are equal */
     if (PyArray_EquivTypes(srcdescr, dstdescr)) {
@@ -1206,6 +1214,7 @@ VOID_setitem(PyObject *op, void *input, void *vap)
     PyArray_Descr *descr = PyArray_DESCR(ap);
 
     if (PyDataType_HASFIELDS(descr)) {
+        PyObject *names;
         PyObject *errmsg;
         npy_int i;
         npy_intp offset;
@@ -1229,7 +1238,9 @@ VOID_setitem(PyObject *op, void *input, void *vap)
         }
         else if (PyTuple_Check(op)) {
             /* if it's a tuple, copy field-by-field to ap, */
-            npy_intp names_size = PyTuple_GET_SIZE(descr->names);
+            names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+            npy_intp names_size = PyTuple_GET_SIZE(names);
+            Py_DECREF(names);
 
             if (names_size != PyTuple_Size(op)) {
                 errmsg = PyUnicode_FromFormat(
@@ -1268,7 +1279,9 @@ VOID_setitem(PyObject *op, void *input, void *vap)
         }
         else {
             /* Otherwise must be non-void scalar. Try to assign to each field */
-            npy_intp names_size = PyTuple_GET_SIZE(descr->names);
+            names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+            npy_intp names_size = PyTuple_GET_SIZE(names);
+            Py_DECREF(names);
 
             PyArrayObject *dummy_arr = get_tmp_array(ap);
             if (dummy_arr == NULL) {
@@ -3461,7 +3474,7 @@ static int
 VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
 {
     PyArray_Descr *descr;
-    PyObject *names, *key;
+    PyObject *names = NULL, *key;
     PyObject *tup;
     char *nip1, *nip2;
     int i, res = 0, swap = 0;
@@ -3483,7 +3496,7 @@ VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
      * Compare on the first-field.  If equal, then
      * compare on the second-field, etc.
      */
-    names = descr->names;
+    names = HPyField_LoadPyObj((PyObject *)descr, descr->names);
     for (i = 0; i < PyTuple_GET_SIZE(names); i++) {
         PyArray_Descr *new;
         npy_intp offset;
@@ -3547,6 +3560,7 @@ VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
     }
 
 finish:
+    Py_XDECREF(names);
     Py_XDECREF(mem_handler);
     Py_XDECREF(dummy);
     return res;
@@ -4576,7 +4590,7 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->alignment = _ALIGN(@align@);
     data->subarray = NULL;
     data->fields = NULL;
-    data->names = NULL;
+    data->names = HPyField_NULL;
     data->f = &_Py@NAME@_ArrFuncs;
     data->metadata = NULL;
     data->c_metadata = NULL;
@@ -4716,7 +4730,7 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->alignment = _ALIGN(@fromtype@);
     data->subarray = NULL;
     data->fields = NULL;
-    data->names = NULL;
+    data->names = HPyField_NULL;
     data->f = &_Py@NAME@_ArrFuncs;
     data->metadata = NULL;
     data->c_metadata = NULL;

@@ -715,7 +715,7 @@ typedef struct _PyArray_Descr {
          * An ordered tuple of field names or NULL
          * if no fields are defined
          */
-        PyObject *names;
+        HPyField names;
         /*
          * a table of functions specific for each
          * basic data descriptor
@@ -2024,11 +2024,16 @@ PyArray_HANDLER(PyArrayObject *arr)
 #define PyDataType_ISUSERDEF(obj) PyTypeNum_ISUSERDEF(((PyArray_Descr*)(obj))->type_num)
 #define PyDataType_ISEXTENDED(obj) PyTypeNum_ISEXTENDED(((PyArray_Descr*)(obj))->type_num)
 #define PyDataType_ISOBJECT(obj) PyTypeNum_ISOBJECT(((PyArray_Descr*)(obj))->type_num)
-#define PyDataType_HASFIELDS(obj) (((PyArray_Descr *)(obj))->names != NULL)
+// #define PyDataType_HASFIELDS(obj) (((PyArray_Descr *)(obj))->names != NULL)
 #define PyDataType_HASSUBARRAY(dtype) ((dtype)->subarray != NULL)
 #define PyDataType_ISUNSIZED(dtype) ((dtype)->elsize == 0 && \
                                       !PyDataType_HASFIELDS(dtype))
 #define PyDataType_MAKEUNSIZED(dtype) ((dtype)->elsize = 0)
+
+static inline int PyDataType_HASFIELDS(PyArray_Descr *obj) {
+    return !HPyField_IsNull(obj->names);
+}
+
 
 #define PyArray_ISBOOL(obj) PyTypeNum_ISBOOL(PyArray_TYPE(obj))
 #define PyArray_ISUNSIGNED(obj) PyTypeNum_ISUNSIGNED(PyArray_TYPE(obj))
@@ -2075,6 +2080,13 @@ static inline bool HPyArray_ISBOOL(HPyContext *ctx, HPy obj) {
 static inline bool HPyArray_ISFLEXIBLE(HPyContext *ctx, HPy obj) {
     int typenum = HPyArray_GetType(ctx, obj);
     return PyTypeNum_ISFLEXIBLE(typenum);
+}
+
+static inline bool HPyArray_HASFIELDS(HPyContext *ctx, HPy obj, PyArrayObject *data) {
+    HPy descr = HPyArray_DESCR(ctx, obj, data);
+    int res = PyDataType_HASFIELDS(PyArray_Descr_AsStruct(ctx, descr));
+    HPy_Close(ctx, descr);
+    return res;
 }
 
 static inline bool HPyArrayDescr_ISSIGNED(PyArray_Descr *descr) {

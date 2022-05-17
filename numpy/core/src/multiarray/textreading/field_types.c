@@ -9,6 +9,8 @@
 
 #include "textreading/growth.h"
 
+#include "hpy_utils.h"
+
 
 NPY_NO_EXPORT void
 field_types_xclear(int num_field_types, field_type *ft) {
@@ -117,15 +119,18 @@ field_type_grow_recursive(PyArray_Descr *descr,
         return num_field_types;
     }
     else if (PyDataType_HASFIELDS(descr)) {
-        npy_int num_descr_fields = PyTuple_Size(descr->names);
+        PyObject *names_tuple = HPyField_LoadPyObj((PyObject *)descr, descr->names);
+        npy_int num_descr_fields = PyTuple_Size(names_tuple);
         if (num_descr_fields < 0) {
             field_types_xclear(num_field_types, *ft);
+            Py_DECREF(names_tuple);
             return -1;
         }
         for (npy_intp i = 0; i < num_descr_fields; i++) {
-            PyObject *key = PyTuple_GET_ITEM(descr->names, i);
+            PyObject *key = PyTuple_GET_ITEM(names_tuple, i);
             PyObject *tup = PyObject_GetItem(descr->fields, key);
             if (tup == NULL) {
+                Py_DECREF(names_tuple);
                 field_types_xclear(num_field_types, *ft);
                 return -1;
             }
@@ -133,6 +138,7 @@ field_type_grow_recursive(PyArray_Descr *descr,
             PyObject *title;
             int offset;
             if (!PyArg_ParseTuple(tup, "Oi|O", &field_descr, &offset, &title)) {
+                Py_DECREF(names_tuple);
                 Py_DECREF(tup);
                 field_types_xclear(num_field_types, *ft);
                 return -1;
@@ -142,9 +148,11 @@ field_type_grow_recursive(PyArray_Descr *descr,
                     field_descr, num_field_types, ft, ft_size,
                     field_offset + offset);
             if (num_field_types < 0) {
+                Py_DECREF(names_tuple);
                 return -1;
             }
         }
+        Py_DECREF(names_tuple);
         return num_field_types;
     }
 

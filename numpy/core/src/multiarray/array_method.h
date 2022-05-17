@@ -271,6 +271,14 @@ PyArrayMethod_GetMaskedStridedLoop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags);
 
+NPY_NO_EXPORT int
+HPyArrayMethod_GetMaskedStridedLoop(
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context,
+        int aligned, npy_intp *fixed_strides,
+        HPyArrayMethod_StridedLoop **out_loop,
+        NpyAuxData **out_transferdata,
+        NPY_ARRAYMETHOD_FLAGS *flags);
 
 
 NPY_NO_EXPORT PyObject *

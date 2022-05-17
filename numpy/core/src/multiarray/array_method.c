@@ -990,14 +990,29 @@ PyArrayMethod_GetMaskedStridedLoop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
+    hpy_abort_not_implemented("PyArrayMethod_GetMaskedStridedLoop");
+    return -1;
+}
+
+NPY_NO_EXPORT int
+HPyArrayMethod_GetMaskedStridedLoop(
+        HPyContext *hctx,
+        HPyArrayMethod_Context *context,
+        int aligned, npy_intp *fixed_strides,
+        HPyArrayMethod_StridedLoop **out_loop,
+        NpyAuxData **out_transferdata,
+        NPY_ARRAYMETHOD_FLAGS *flags)
+{
     _masked_stridedloop_data *data;
-    int nargs = context->method->nin + context->method->nout;
+    PyArrayMethodObject *method_data = PyArrayMethodObject_AsStruct(hctx, context->method);
+    int nargs = method_data->nin + method_data->nout;
 
     /* Add working memory for the data pointers, to modify them in-place */
-    data = PyMem_Malloc(sizeof(_masked_stridedloop_data) +
+    // TODO HPY LABS PORT: PyMem_Malloc
+    data = malloc(sizeof(_masked_stridedloop_data) +
                         sizeof(char *) * nargs);
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(hctx);
         return -1;
     }
     data->base.free = _masked_stridedloop_data_free;
@@ -1005,15 +1020,13 @@ PyArrayMethod_GetMaskedStridedLoop(
     data->unmasked_stridedloop = NULL;
     data->nargs = nargs;
 
-    HPyContext *hctx = npy_get_context();
-    HPyArrayMethod_Context hcontext;
-    method_context_py2h(hctx, context, &hcontext);
-    int res = context->method->get_strided_loop(hctx, &hcontext,
+    int res = method_data->get_strided_loop(hctx, context,
             aligned, 0, fixed_strides,
             &data->unmasked_stridedloop, &data->unmasked_auxdata, flags);
-    method_context_py2h_free(hctx, &hcontext);
     if (res < 0) {
-        PyMem_Free(data);
+        // TODO HPY LABS PORT: PyMem_Free
+        // PyMem_Free(data);
+        free(data);
         return -1;
     }
     *out_transferdata = (NpyAuxData *)data;

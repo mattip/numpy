@@ -954,7 +954,7 @@ HPyArray_NewFromDescr_int(
                 fa->strides[i] = strides[i];
             }
             /* Since the strides were passed in must update contiguity */
-            PyArray_UpdateFlags((PyArrayObject *)fa,
+            HPyArray_UpdateFlags(ctx, result, (PyArrayObject *)fa,
                     NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_F_CONTIGUOUS);
         }
     }
