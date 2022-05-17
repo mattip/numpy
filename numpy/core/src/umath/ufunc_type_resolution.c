@@ -335,10 +335,11 @@ HPyUFunc_ValidateCasting(HPyContext *ctx, HPy h_ufunc, PyUFuncObject *ufunc,
 
     for (i = 0; i < nop; ++i) {
         if (i < nin) {
-            HPy descr = HPyArray_GetDescr(ctx, operands[i]);
             if (!HPyArray_CanCastArrayTo(ctx, operands[i], dtypes[i], casting)) {
+                HPy descr = HPyArray_GetDescr(ctx, operands[i]);
                 int res = hpy_raise_input_casting_error(ctx,
                     h_ufunc, casting, descr, dtypes[i], i);
+                HPy_Close(ctx, descr);
                 return res;
             }
         } else if (!HPy_IsNull(operands[i])) {
