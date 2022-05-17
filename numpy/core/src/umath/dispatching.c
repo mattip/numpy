@@ -636,8 +636,7 @@ hpy_legacy_promote_using_legacy_type_resolver(HPyContext *ctx, HPy /* (PyUFuncOb
 {
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
     int nargs = ufunc_data->nargs;
-    // HPy out_descrs[NPY_MAXARGS] = {HPy_NULL}; /* (PyArray_Descr *) */
-    PyArray_Descr *py_out_descrs[NPY_MAXARGS] = {NULL};
+    HPy out_descrs[NPY_MAXARGS] = {HPy_NULL}; /* (PyArray_Descr *) */
 
     HPy type_tuple = HPy_NULL;
     if (_make_new_typetup(ctx, nargs, signature, &type_tuple) < 0) {
@@ -650,31 +649,21 @@ hpy_legacy_promote_using_legacy_type_resolver(HPyContext *ctx, HPy /* (PyUFuncOb
      * difference.  Whether the actual operands can be casts must be checked
      * during the type resolution step (which may _also_ calls this!).
      */
-    CAPI_WARN("hpy_legacy_promote_using_legacy_type_resolver: call to type_resolver");
-    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
-    PyObject *py_type_tuple = HPy_AsPyObject(ctx, type_tuple);
-    PyArrayObject **py_ops = (PyArrayObject **)HPy_AsPyObjectArray(ctx, ops, nargs);
-    if (ufunc_data->type_resolver(py_ufunc,
-            NPY_UNSAFE_CASTING, py_ops, py_type_tuple,
-            py_out_descrs) < 0) {
-        Py_XDECREF(py_type_tuple);
+    if (ufunc_data->hpy_type_resolver(ctx, ufunc,
+            NPY_UNSAFE_CASTING, (HPy *)ops, type_tuple,
+            out_descrs) < 0) {
         HPy_Close(ctx, type_tuple);
         /* Not all legacy resolvers clean up on failures: */
         for (int i = 0; i < nargs; i++) {
-            Py_CLEAR(py_out_descrs[i]);
+            HPy_Close(ctx, out_descrs[i]);
         }
         return -1;
     }
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_ops, nargs);
-    Py_XDECREF(py_type_tuple);
     HPy_Close(ctx, type_tuple);
 
     for (int i = 0; i < nargs; i++) {
-        HPy out_descr = HPy_FromPyObject(ctx, py_out_descrs[i]);
-        Py_DECREF(py_out_descrs[i]);
-
-        HPy_SETREF(ctx, operation_DTypes[i], HNPY_DTYPE(ctx, out_descr));
-        HPy_Close(ctx, out_descr);
+        HPy_SETREF(ctx, operation_DTypes[i], HNPY_DTYPE(ctx, out_descrs[i]));
+        HPy_Close(ctx, out_descrs[i]);
     }
     /*
      * The PyUFunc_SimpleBinaryComparisonTypeResolver has a deprecation
