@@ -394,6 +394,8 @@ fail:
 NPY_NO_EXPORT npy_intp
 hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_n)
 {
+    npy_intp i;
+
     /* Fast route for passing a tuple */
     if (HPyTuple_CheckExact(ctx, h_index)) {
         return hpy_unpack_tuple(ctx, h_index, h_result, result_n);
@@ -404,7 +406,9 @@ hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_
             || HPy_TypeCheck(ctx, h_index, ctx->h_LongType)
             || HPy_Is(ctx, h_index, ctx->h_None)
             || HPy_TypeCheck(ctx, h_index, ctx->h_SliceType)
-            || HPyArray_Check(ctx, h_index)) {
+            || HPyArray_Check(ctx, h_index)
+            || !HPySequence_Check(ctx, h_index)
+            || HPyUnicode_Check(ctx, h_index)) {
 
         // HPy note: trivial function, inlined:
         // return unpack_scalar(index, h_result, result_n);
@@ -417,19 +421,97 @@ hpy_unpack_indices(HPyContext *ctx, HPy h_index, HPy *h_result, npy_intp result_
     assert(result_n < 100);
     PyObject *idx = HPy_AsPyObject(ctx, h_index);
 
-    int ires;
-    if (!PySequence_Check(idx) || PyUnicode_Check(idx)) {
-        ires = unpack_scalar(idx, res, result_n);
-    } else {
-        ires = unpack_indices(idx, res, result_n);
+
+    if (HPyTuple_Check(ctx, h_index)) {
+        return hpy_unpack_tuple(ctx, h_index, h_result, result_n);
     }
-    Py_DECREF(idx);
-    for (int i = 0; i < ires; ++i) {
-        if (res[i] == NULL) break;
-        h_result[i] = HPy_FromPyObject(ctx, res[i]);
-        Py_DECREF(res[i]);
+
+    npy_intp n = HPy_Length(ctx, h_index);
+    if (n < 0) {
+        HPyErr_Clear(ctx);
+        *h_result = HPy_Dup(ctx, h_index);
+        return 1;
     }
-    return ires;
+
+    /*
+     * Backwards compatibility only takes effect for short sequences - otherwise
+     * we treat it like any other scalar.
+     *
+     * Sequences < NPY_MAXDIMS with any slice objects
+     * or newaxis, Ellipsis or other arrays or sequences
+     * embedded, are considered equivalent to an indexing
+     * tuple. (`a[[[1,2], [3,4]]] == a[[1,2], [3,4]]`)
+     */
+    if (n >= NPY_MAXDIMS) {
+        *h_result = HPy_Dup(ctx, h_index);
+        return 1;
+    }
+
+
+
+    /* In case we change result_n elsewhere */
+    assert(n <= result_n);
+
+    /*
+     * Some other type of short sequence - assume we should unpack it like a
+     * tuple, and then decide whether that was actually necessary.
+     */
+    npy_bool commit_to_unpack = 0;
+    for (i = 0; i < n; i++) {
+        HPy h_tmp_obj = h_result[i] = HPy_GetItem_i(ctx, h_index, i);
+
+        if (commit_to_unpack) {
+            /* propagate errors */
+            if (HPy_IsNull(h_tmp_obj)) {
+                goto fail;
+            }
+        }
+        else {
+            /*
+             * if getitem fails (unusual) before we've committed, then stop
+             * unpacking
+             */
+            if (HPy_IsNull(h_tmp_obj)) {
+                HPyErr_Clear(ctx);
+                break;
+            }
+
+            /* decide if we should treat this sequence like a tuple */
+            if (HPyArray_Check(ctx, h_tmp_obj)
+                    || HPySequence_Check(ctx, h_tmp_obj)
+                    || HPy_TypeCheck(ctx, h_tmp_obj, ctx->h_SliceType)
+                    || HPy_Is(ctx, h_tmp_obj, ctx->h_Ellipsis)
+                    || HPy_Is(ctx, h_tmp_obj, ctx->h_None)) {
+                if (HPY_DEPRECATE_FUTUREWARNING(ctx,
+                        "Using a non-tuple sequence for multidimensional "
+                        "indexing is deprecated; use `arr[tuple(seq)]` "
+                        "instead of `arr[seq]`. In the future this will be "
+                        "interpreted as an array index, `arr[np.array(seq)]`, "
+                        "which will result either in an error or a different "
+                        "result.") < 0) {
+                    i++;  /* since loop update doesn't run */
+                    goto fail;
+                }
+                commit_to_unpack = 1;
+            }
+        }
+    }
+
+    /* unpacking was the right thing to do, and we already did it */
+    if (commit_to_unpack) {
+        return n;
+    }
+    /* got to the end, never found an indication that we should have unpacked */
+    else {
+        /* we partially filled result, so empty it first */
+        multi_Close(ctx, h_result, i);
+        *h_result = HPy_Dup(ctx, h_index);
+        return 1;
+    }
+
+fail:
+    multi_Close(ctx, h_result, i);
+    return -1;
 }
 
 /**
