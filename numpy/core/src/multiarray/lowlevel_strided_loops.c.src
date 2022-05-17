@@ -1616,7 +1616,7 @@ hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy
 #endif
 
     /* Optimization for aligned types that do not need the api */
-    switch ((is_aligned && !needs_api) ? PyArray_ITEMSIZE(self) : 0) {
+    switch ((is_aligned && !needs_api) ? self_descr->elsize : 0) {
 
 /**begin repeat1
  * #elsize = 1, 2, 4, 8, 0#

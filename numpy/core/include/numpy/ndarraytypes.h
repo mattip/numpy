@@ -2139,8 +2139,14 @@ static inline bool HPyArrayDescr_ISCOMPLEX(PyArray_Descr *descr) {
 #define PyArray_ISBEHAVED_RO(m) PyArray_FLAGSWAP(m, NPY_ARRAY_ALIGNED)
 
 
-#define HPyArray_ISNOTSWAPPED(ctx, m, m_data) \
-    PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, HPyArray_DESCR(ctx, m, m_data))->byteorder)
+// HPy Note: prefer PyDataType_ISNOTSWAPPED if descr is available
+static inline int HPyArray_ISNOTSWAPPED(HPyContext *ctx, HPy m, PyArrayObject *m_data) {
+    HPy descr = HPyArray_DESCR(ctx, m, m_data);
+    int result = PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, descr)->byteorder);
+    HPy_Close(ctx, descr);
+    return result;
+}
+    
 
 #define HPyArray_FLAGSWAP(ctx, m, m_data, flags) (PyArray_CHKFLAGS(m_data, flags) &&       \
                                     HPyArray_ISNOTSWAPPED(ctx, m, m_data))
