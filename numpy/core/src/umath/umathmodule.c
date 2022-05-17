@@ -52,14 +52,16 @@ object_ufunc_type_resolver(PyUFuncObject *ufunc,
 }
 
 static int
-object_ufunc_loop_selector(PyUFuncObject *ufunc,
-                            PyArray_Descr **NPY_UNUSED(dtypes),
-                            PyUFuncGenericFunction *out_innerloop,
-                            void **out_innerloopdata,
-                            int *out_needs_api)
+object_ufunc_loop_selector(HPyContext *ctx,
+                                HPy /* (PyUFuncObject *) */ ufunc,
+                                HPy /* (PyArray_Descr **) */ *dtypes,
+                                PyUFuncGenericFunction *out_innerloop,
+                                void **out_innerloopdata,
+                                int *out_needs_api)
 {
-    *out_innerloop = ufunc->functions[0];
-    *out_innerloopdata = (ufunc->data == NULL) ? NULL : ufunc->data[0];
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    *out_innerloop = ufunc_data->functions[0];
+    *out_innerloopdata = (ufunc_data->data == NULL) ? NULL : ufunc_data->data[0];
     *out_needs_api = 1;
 
     return 0;

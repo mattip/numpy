@@ -220,14 +220,10 @@ get_wrapped_legacy_ufunc_loop(HPyContext *ctx, HPyArrayMethod_Context *context,
 
     PyUFuncGenericFunction loop = NULL;
     /* Note that `needs_api` is not reliable (it was in fact unused normally) */
-    CAPI_WARN("get_wrapped_legacy_ufunc_loop: call to PyUFunc_LegacyInnerLoopSelectionFunc");
-    PyArray_Descr **dtypes = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, context->descriptors, ufunc->nargs);
-    if (ufunc->legacy_inner_loop_selector(ufunc,
-            dtypes, &loop, &user_data, &needs_api) < 0) {
-        HPy_DecrefAndFreeArray(ctx, dtypes, ufunc->nargs);
+    if (ufunc->legacy_inner_loop_selector(ctx, context->caller,
+            context->descriptors, &loop, &user_data, &needs_api) < 0) {
         return -1;
     }
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)dtypes, ufunc->nargs);
     *flags = method_data->flags & NPY_METH_RUNTIME_FLAGS;
     if (needs_api) {
         *flags |= NPY_METH_REQUIRES_PYAPI;

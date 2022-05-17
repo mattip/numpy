@@ -1612,12 +1612,12 @@ PyUFunc_TrueDivisionTypeResolver(PyUFuncObject *ufunc,
 }
 
 static int
-find_userloop(PyUFuncObject *ufunc,
-                PyArray_Descr **dtypes,
+find_userloop(HPyContext *ctx, HPy ufunc, PyUFuncObject *ufunc_data,
+                HPy *dtypes,
                 PyUFuncGenericFunction *out_innerloop,
                 void **out_innerloopdata)
 {
-    npy_intp i, nin = ufunc->nin, j, nargs = nin + ufunc->nout;
+    npy_intp i, nin = ufunc_data->nin, j, nargs = nin + ufunc_data->nout;
 
     /* Use this to try to avoid repeating the same userdef loop search */
     int last_userdef = -1;
@@ -1626,32 +1626,32 @@ find_userloop(PyUFuncObject *ufunc,
         int type_num;
 
         /* no more ufunc arguments to check */
-        if (dtypes[i] == NULL) {
+        if (HPy_IsNull(dtypes[i])) {
             break;
         }
 
-        type_num = dtypes[i]->type_num;
+        type_num = PyArray_Descr_AsStruct(ctx, dtypes[i])->type_num;
         if (type_num != last_userdef &&
                 (PyTypeNum_ISUSERDEF(type_num) || type_num == NPY_VOID)) {
-            PyObject *key, *obj;
+            HPy key, obj;
 
             last_userdef = type_num;
 
-            key = PyLong_FromLong(type_num);
-            if (key == NULL) {
+            key = HPyLong_FromLong(ctx, type_num);
+            if (HPy_IsNull(key)) {
                 return -1;
             }
-            PyObject *userloops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->userloops);
-            obj = PyDict_GetItemWithError(userloops, key);
-            Py_DECREF(userloops);
-            Py_DECREF(key);
-            if (obj == NULL && PyErr_Occurred()){
+            HPy userloops = HPyField_Load(ctx, ufunc, ufunc_data->userloops);
+            obj = HPy_GetItem(ctx, userloops, key);
+            HPy_Close(ctx, userloops);
+            HPy_Close(ctx, key);
+            if (HPy_IsNull(obj) && HPyErr_Occurred(ctx)){
                 return -1;
             }
-            else if (obj == NULL) {
+            else if (HPy_IsNull(obj)) {
                 continue;
             }
-            PyUFunc_Loop1d *funcdata = PyCapsule_GetPointer(obj, NULL);
+            PyUFunc_Loop1d *funcdata = HPyCapsule_GetPointer(ctx, obj, NULL);
             if (funcdata == NULL) {
                 return -1;
             }
@@ -1659,7 +1659,7 @@ find_userloop(PyUFuncObject *ufunc,
                 int *types = funcdata->arg_types;
 
                 for (j = 0; j < nargs; ++j) {
-                    if (types[j] != dtypes[j]->type_num) {
+                    if (types[j] != PyArray_Descr_AsStruct(ctx, dtypes[j])->type_num) {
                         break;
                     }
                 }
@@ -1678,13 +1678,15 @@ find_userloop(PyUFuncObject *ufunc,
 }
 
 NPY_NO_EXPORT int
-PyUFunc_DefaultLegacyInnerLoopSelector(PyUFuncObject *ufunc,
-                                PyArray_Descr **dtypes,
+PyUFunc_DefaultLegacyInnerLoopSelector(HPyContext *ctx,
+                                HPy /* (PyUFuncObject *) */ ufunc,
+                                HPy /* (PyArray_Descr **) */ *dtypes,
                                 PyUFuncGenericFunction *out_innerloop,
                                 void **out_innerloopdata,
                                 int *out_needs_api)
 {
-    int nargs = ufunc->nargs;
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    int nargs = ufunc_data->nargs;
     char *types;
     int i, j;
 
@@ -1693,8 +1695,8 @@ PyUFunc_DefaultLegacyInnerLoopSelector(PyUFuncObject *ufunc,
      * TODO: There needs to be a loop selection acceleration structure,
      *       like a hash table.
      */
-    if (!HPyField_IsNull(ufunc->userloops)) {
-        switch (find_userloop(ufunc, dtypes,
+    if (!HPyField_IsNull(ufunc_data->userloops)) {
+        switch (find_userloop(ctx, ufunc, ufunc_data, dtypes,
                     out_innerloop, out_innerloopdata)) {
             /* Error */
             case -1:
@@ -1705,24 +1707,24 @@ PyUFunc_DefaultLegacyInnerLoopSelector(PyUFuncObject *ufunc,
         }
     }
 
-    types = ufunc->types;
-    for (i = 0; i < ufunc->ntypes; ++i) {
+    types = ufunc_data->types;
+    for (i = 0; i < ufunc_data->ntypes; ++i) {
         /* Copy the types into an int array for matching */
         for (j = 0; j < nargs; ++j) {
-            if (types[j] != dtypes[j]->type_num) {
+            if (types[j] != PyArray_Descr_AsStruct(ctx, dtypes[j])->type_num) {
                 break;
             }
         }
         if (j == nargs) {
-            *out_innerloop = ufunc->functions[i];
-            *out_innerloopdata = (ufunc->data == NULL) ? NULL : ufunc->data[i];
+            *out_innerloop = ufunc_data->functions[i];
+            *out_innerloopdata = (ufunc_data->data == NULL) ? NULL : ufunc_data->data[i];
             return 0;
         }
 
         types += nargs;
     }
 
-    return raise_no_loop_found_error(ufunc, (PyObject **)dtypes);
+    return hpy_raise_no_loop_found_error(ctx, ufunc, dtypes);
 }
 
 
