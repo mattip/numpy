@@ -1812,6 +1812,7 @@ PyArray_FLAGS(const PyArrayObject *arr)
 static NPY_INLINE npy_intp
 PyArray_ITEMSIZE(const PyArrayObject *arr)
 {
+    CAPI_WARN("Calling PyArray_DESCR");
     return PyArray_DESCR(arr)->elsize;
 }
 

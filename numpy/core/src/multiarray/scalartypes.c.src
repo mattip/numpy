@@ -36,6 +36,7 @@
 
 // Included for HPY:
 #include "number.h"
+#include "scalarapi.h"
 
 #define BASEFLAGS Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE
 #define HPY_BASEFLAGS HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE
@@ -276,6 +277,7 @@ static PyObject *
 /**begin repeat
  *
  * #name = positive, negative, absolute, invert, int, float#
+ * #HPyName    = Positive, Negative, Absolute, Invert, Long, Float#
  */
 static PyObject *
 gentype_@name@(PyObject *m1)
@@ -288,6 +290,19 @@ gentype_@name@(PyObject *m1)
     }
     ret = Py_TYPE(arr)->tp_as_number->nb_@name@(arr);
     Py_DECREF(arr);
+    return ret;
+}
+
+HPyDef_SLOT(gentype_hpy_@name@, gentype_hpy_@name@_impl, HPy_nb_@name@)
+static HPy
+gentype_hpy_@name@_impl(HPyContext *ctx, HPy m1)
+{
+    HPy arr = HPyArray_FromScalar(ctx, m1, HPy_NULL);
+    if (HPy_IsNull(arr)) {
+        return HPy_NULL;
+    }
+    HPy ret = HPy_@HPyName@(ctx, arr);
+    HPy_Close(ctx, arr);
     return ret;
 }
 /**end repeat**/
@@ -2809,7 +2824,6 @@ static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
     {Py_nb_and, gentype_and},               \
     {Py_nb_xor, gentype_xor},               \
     {Py_nb_or, gentype_or},                 \
-    {Py_nb_int, gentype_int},               \
     {Py_nb_float, gentype_float},           \
     {Py_nb_floor_divide, gentype_floor_divide},\
     {Py_nb_true_divide, gentype_true_divide}
@@ -2830,13 +2844,13 @@ static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
     {Py_nb_and, gentype_and},               \
     {Py_nb_xor, gentype_xor},               \
     {Py_nb_or, gentype_or},                 \
-    {Py_nb_int, gentype_int},               \
     {Py_nb_float, gentype_float},           \
     {Py_nb_floor_divide, gentype_floor_divide},\
     {Py_nb_true_divide, gentype_true_divide}
 
 #define GENTYPE_AS_NUMBER_HPY_SLOTS \
-    &gentype_hpy_subtract
+    &gentype_hpy_subtract,          \
+    &gentype_hpy_int
 
 
 static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {

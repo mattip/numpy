@@ -21,6 +21,9 @@
 #include "common.h"
 #include "scalarapi.h"
 
+#include "multiarraymodule.h"
+#include "convert_datatype.h"
+
 static PyArray_Descr *
 _descr_from_subtype(PyObject *type)
 {
@@ -475,6 +478,87 @@ PyArray_FromScalar(PyObject *scalar, PyArray_Descr *outcode)
     PyObject *ret = PyArray_CastToType(r, outcode, 0);
     Py_DECREF(r);
     return ret;
+}
+
+// Note: does not steal outcode anymore
+NPY_NO_EXPORT HPy
+HPyArray_FromScalar(HPyContext *ctx, HPy h_scalar, /*PyArray_Descr*/ HPy h_outcode)
+{
+    /* convert to 0-dim array of scalar typecode */
+    /*PyArray_Descr*/ HPy h_typecode = HPyArray_DescrFromScalar(ctx, h_scalar);
+    if (HPy_IsNull(h_typecode)) {
+        return HPy_NULL;
+    }
+    PyArray_Descr *typecode = PyArray_Descr_AsStruct(ctx, h_typecode);
+    if (typecode->type_num == NPY_VOID) {
+        PyVoidScalarObject *void_scalar = PyVoidScalarObject_AsStruct(ctx, h_scalar);
+        if (!(void_scalar->flags & NPY_ARRAY_OWNDATA) &&
+            HPy_IsNull(h_outcode)) {
+            
+            HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+            HPy result = HPyArray_NewFromDescrAndBase(
+                    ctx, h_PyArray_Type, h_typecode,
+                    0, NULL, NULL,
+                    void_scalar->obval,
+                    void_scalar->flags,
+                    HPy_NULL, h_scalar);
+            HPy_Close(ctx, h_PyArray_Type);
+            return result;
+        }
+    }
+
+    HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy h_r = HPyArray_NewFromDescr(ctx, h_PyArray_Type,
+            h_typecode,
+            0, NULL,
+            NULL, NULL, 0, HPy_NULL);
+    HPy_Close(ctx, h_PyArray_Type);
+
+    if (HPy_IsNull(h_r)) {
+        return HPy_NULL;
+    }
+    /* the dtype used by the array may be different to the one requested */
+    PyArrayObject *r = PyArrayObject_AsStruct(ctx, h_r);
+    h_typecode = HPyArray_DESCR(ctx, h_r, r);
+    typecode = PyArray_Descr_AsStruct(ctx, h_typecode);
+    if (PyDataType_FLAGCHK(typecode, NPY_USE_SETITEM)) {
+        if (typecode->f->setitem(ctx, h_scalar, PyArray_DATA(r), h_r)) {
+            HPy_Close(ctx, h_r);
+            HPy_Close(ctx, h_typecode);
+            return HPy_NULL;
+        }
+    }
+    else {
+        char *memptr = hpy_scalar_value(ctx, h_scalar, typecode);
+
+        memcpy(PyArray_DATA(r), memptr, typecode->elsize);
+        if (PyDataType_FLAGCHK(typecode, NPY_ITEM_HASOBJECT)) {
+            /* Need to INCREF just the PyObject portion */
+            hpy_abort_not_implemented("objects in arrays");
+            // PyArray_Item_INCREF(memptr, typecode);
+        }
+    }
+
+    if (HPy_IsNull(h_outcode)) {
+        HPy_Close(ctx, h_typecode);
+        return h_r;
+    }
+    PyArray_Descr *outcode = PyArray_Descr_AsStruct(ctx, h_outcode);
+    if (HPyArray_EquivTypes(ctx, h_outcode, h_typecode)) {
+        if (!PyTypeNum_ISEXTENDED(typecode->type_num)
+                || (outcode->elsize == typecode->elsize)) {
+            /*
+             * Since the type is equivalent, and we haven't handed the array
+             * to anyone yet, let's fix the dtype to be what was requested,
+             * even if it is equivalent to what was passed in.
+             */
+            _hpy_set_descr(ctx, h_r, r, h_outcode);
+            return h_r;
+        }
+    }
+
+    /* cast if necessary to desired output typecode */
+    return HPyArray_CastToType(ctx, h_r, h_outcode, 0);
 }
 
 /*NUMPY_API
