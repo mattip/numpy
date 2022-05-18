@@ -228,39 +228,43 @@ finish:
  *          success if nothing is found.
  */
 static int
-resolve_implementation_info(PyUFuncObject *ufunc,
-        PyArray_DTypeMeta *op_dtypes[], npy_bool only_promoters,
-        PyObject **out_info)
+resolve_implementation_info(HPyContext *ctx,
+        HPy ufunc, PyUFuncObject *ufunc_data,
+        HPy /* (PyArray_DTypeMeta *) */ op_dtypes[], npy_bool only_promoters,
+        HPy *out_info)
 {
     int res;
-    int nin = ufunc->nin, nargs = ufunc->nargs;
-    PyObject *_loops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->_loops);
-    Py_ssize_t size = PySequence_Length(_loops);
-    PyObject *best_dtypes = NULL;
-    PyObject *best_resolver_info = NULL;
+    int nin = ufunc_data->nin, nargs = ufunc_data->nargs;
+    HPy _loops = HPyField_Load(ctx, ufunc, ufunc_data->_loops);
+    HPy_ssize_t size = HPy_Length(ctx, _loops);
+    HPy best_dtypes = HPy_NULL;
+    HPy best_resolver_info = HPy_NULL;
+    HPy resolver_info = HPy_NULL;
+    HPy curr_dtypes = HPy_NULL;
 
 #if PROMOTION_DEBUG_TRACING
     printf("Promoting for '%s' promoters only: %d\n",
-            ufunc->name ? ufunc->name : "<unknown>", (int)only_promoters);
+            ufunc_data->name ? ufunc_data->name : "<unknown>", (int)only_promoters);
     printf("    DTypes: ");
-    PyObject *tmp = PyArray_TupleFromItems(ufunc->nargs, op_dtypes, 1);
-    PyObject_Print(tmp, stdout, 0);
-    Py_DECREF(tmp);
+    HPy tmp = HPyArray_TupleFromItems(ctx, ufunc_data->nargs, op_dtypes, 1);
+    HPy_Print(ctx, tmp, stdout, 0);
     printf("\n");
-    Py_DECREF(tmp);
+    HPy_Close(ctx, tmp);
 #endif
 
-    for (Py_ssize_t res_idx = 0; res_idx < size; res_idx++) {
+    for (HPy_ssize_t res_idx = 0; res_idx < size; res_idx++) {
         /* Test all resolvers  */
-        PyObject *resolver_info = PySequence_Fast_GET_ITEM(
-                _loops, res_idx);
+        HPy_SETREF(ctx, resolver_info, HPy_GetItem_i(ctx, _loops, res_idx));
 
-        if (only_promoters && PyObject_TypeCheck(
-                    PyTuple_GET_ITEM(resolver_info, 1), PyArrayMethod_Type)) {
+        HPy resolver_info_1 = HPy_GetItem_i(ctx, resolver_info, 1);
+        if (only_promoters && HPyGlobal_TypeCheck(ctx,
+                    resolver_info_1, HPyArrayMethod_Type)) {
+            HPy_Close(ctx, resolver_info_1);
             continue;
         }
+        HPy_Close(ctx, resolver_info_1);
 
-        PyObject *curr_dtypes = PyTuple_GET_ITEM(resolver_info, 0);
+        HPy_SETREF(ctx, curr_dtypes, HPy_GetItem_i(ctx, resolver_info, 0));
         /*
          * Test if the current resolver matches, it could make sense to
          * reorder these checks to avoid the IsSubclass check as much as
@@ -273,12 +277,11 @@ resolve_implementation_info(PyUFuncObject *ufunc,
          *       actually only necessary if the signature includes.
          *       Currently, we rely that op-dtypes[nin:nout] is NULLed if not.
          */
-        for (Py_ssize_t i = 0; i < nargs; i++) {
-            PyArray_DTypeMeta *given_dtype = op_dtypes[i];
-            PyArray_DTypeMeta *resolver_dtype = (
-                    (PyArray_DTypeMeta *)PyTuple_GET_ITEM(curr_dtypes, i));
-            assert((PyObject *)given_dtype != Py_None);
-            if (given_dtype == NULL) {
+        for (HPy_ssize_t i = 0; i < nargs; i++) {
+            HPy given_dtype = op_dtypes[i];
+            HPy /* (PyArray_DTypeMeta *) */ resolver_dtype = HPy_GetItem_i(ctx, curr_dtypes, i);
+            assert(!HPy_Is(ctx, given_dtype, ctx->h_None));
+            if (HPy_IsNull(given_dtype)) {
                 if (i >= nin) {
                     /* Unspecified out always matches (see below for inputs) */
                     continue;
@@ -288,26 +291,34 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                  * `(res_DType, op_DType, res_DType)`.  If the first and last
                  * dtype of the loops match, this should be reduce-compatible.
                  */
-                if (PyTuple_GET_ITEM(curr_dtypes, 0)
-                        == PyTuple_GET_ITEM(curr_dtypes, 2)) {
+                HPy resolver_dtype_0 = HPy_GetItem_i(ctx, curr_dtypes, 0);
+                HPy resolver_dtype_2 = HPy_GetItem_i(ctx, curr_dtypes, 2);
+                int same = HPy_Is(ctx, resolver_dtype_0, resolver_dtype_2);
+                HPy_Close(ctx, resolver_dtype_0);
+                HPy_Close(ctx, resolver_dtype_2);
+                if (same) {
                     continue;
                 }
             }
 
-            if (resolver_dtype == (PyArray_DTypeMeta *)Py_None) {
+            if (HPy_Is(ctx, resolver_dtype, ctx->h_None)) {
+                HPy_Close(ctx, resolver_dtype);
                 /* always matches */
                 continue;
             }
-            if (given_dtype == resolver_dtype) {
+            if (HPy_Is(ctx, given_dtype, resolver_dtype)) {
+                HPy_Close(ctx, resolver_dtype);
                 continue;
             }
-            if (!NPY_DT_is_abstract(resolver_dtype)) {
+            if (!NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, resolver_dtype))) {
+                HPy_Close(ctx, resolver_dtype);
                 matches = NPY_FALSE;
                 break;
             }
 
-            int subclass = PyObject_IsSubclass(
-                    (PyObject *)given_dtype, (PyObject *)resolver_dtype);
+            // TODO HPY LABS PORT: PyObject_IsSubclass
+            int subclass = HPyType_IsSubtype(ctx, given_dtype, resolver_dtype);
+            HPy_Close(ctx, resolver_dtype);
             if (subclass < 0) {
                 res = -1;
                 goto finish;
@@ -329,7 +340,7 @@ resolve_implementation_info(PyUFuncObject *ufunc,
         }
 
         /* The resolver matches, but we have to check if it is better */
-        if (best_dtypes != NULL) {
+        if (!HPy_IsNull(best_dtypes)) {
             int current_best = -1;  /* -1 neither, 0 current best, 1 new */
             /*
              * If both have concrete and None in the same position and
@@ -339,22 +350,26 @@ resolve_implementation_info(PyUFuncObject *ufunc,
              * In all cases, we give up resolution, since it would be
              * necessary to compare to two "best" cases.
              */
-            for (Py_ssize_t i = 0; i < nargs; i++) {
-                if (i == ufunc->nin && current_best != -1) {
+            for (HPy_ssize_t i = 0; i < nargs; i++) {
+                if (i == ufunc_data->nin && current_best != -1) {
                     /* inputs prefer one loop and outputs have lower priority */
                     break;
                 }
 
                 int best;
 
-                PyObject *prev_dtype = PyTuple_GET_ITEM(best_dtypes, i);
-                PyObject *new_dtype = PyTuple_GET_ITEM(curr_dtypes, i);
+                HPy prev_dtype = HPy_GetItem_i(ctx, best_dtypes, i);
+                HPy new_dtype = HPy_GetItem_i(ctx, curr_dtypes, i);
 
-                if (prev_dtype == new_dtype) {
+                if (HPy_Is(ctx, prev_dtype, new_dtype)) {
+                    HPy_Close(ctx, prev_dtype);
+                    HPy_Close(ctx, new_dtype);
                     /* equivalent, so this entry does not matter */
                     continue;
                 }
-                if (op_dtypes[i] == NULL) {
+                if (HPy_IsNull(op_dtypes[i])) {
+                    HPy_Close(ctx, prev_dtype);
+                    HPy_Close(ctx, new_dtype);
                     /*
                      * If an a dtype is NULL it always matches, so there is no
                      * point in defining one as more precise than the other.
@@ -362,37 +377,37 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                     continue;
                 }
                 /* If either is None, the other is strictly more specific */
-                if (prev_dtype == Py_None) {
+                if (HPy_Is(ctx, prev_dtype, ctx->h_None)) {
                     best = 1;
                 }
-                else if (new_dtype == Py_None) {
+                else if (HPy_Is(ctx, new_dtype, ctx->h_None)) {
                     best = 0;
                 }
                 /*
                  * If both are concrete and not identical, this is
                  * ambiguous.
                  */
-                else if (!NPY_DT_is_abstract((PyArray_DTypeMeta *)prev_dtype) &&
-                         !NPY_DT_is_abstract((PyArray_DTypeMeta *)new_dtype)) {
+                else if (!NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, prev_dtype)) &&
+                         !NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, new_dtype))) {
                     /*
                      * Ambiguous unless they are identical (checked above),
                      * or one matches exactly.
                      */
-                    if (prev_dtype == (PyObject *)op_dtypes[i]) {
+                    if (HPy_Is(ctx, prev_dtype, op_dtypes[i])) {
                         best = 0;
                     }
-                    else if (new_dtype == (PyObject *)op_dtypes[i]) {
+                    else if (HPy_Is(ctx, new_dtype, op_dtypes[i])) {
                         best = 1;
                     }
                     else {
                         best = -1;
                     }
                 }
-                else if (!NPY_DT_is_abstract((PyArray_DTypeMeta *)prev_dtype)) {
+                else if (!NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, prev_dtype))) {
                     /* old is not abstract, so better (both not possible) */
                     best = 0;
                 }
-                else if (!NPY_DT_is_abstract((PyArray_DTypeMeta *)new_dtype)) {
+                else if (!NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, new_dtype))) {
                     /* new is not abstract, so better (both not possible) */
                     best = 1;
                 }
@@ -403,16 +418,20 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                  *       in cas someone manages to get here.
                  */
                 else {
-                    PyErr_SetString(PyExc_NotImplementedError,
+                    HPyErr_SetString(ctx, ctx->h_NotImplementedError,
                             "deciding which one of two abstract dtypes is "
                             "a better match is not yet implemented.  This "
                             "will pick the better (or bail) in the future.");
-                    *out_info = NULL;
+                    HPy_Close(ctx, prev_dtype);
+                    HPy_Close(ctx, new_dtype);
+                    *out_info = HPy_NULL;
                     res = -1;
                     goto finish;
                 }
 
                 if (best == -1) {
+                    HPy_Close(ctx, prev_dtype);
+                    HPy_Close(ctx, new_dtype);
                     /* no new info, nothing to update */
                     continue;
                 }
@@ -426,9 +445,13 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                      * identical.
                      */
                     /* TODO: Document the above comment, may need relaxing? */
+                    HPy_Close(ctx, prev_dtype);
+                    HPy_Close(ctx, new_dtype);
                     current_best = -1;
                     break;
                 }
+                HPy_Close(ctx, prev_dtype);
+                HPy_Close(ctx, new_dtype);
                 current_best = best;
             }
 
@@ -441,7 +464,7 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                  * We just redo it anyway for simplicity.)
                  */
                 if (!only_promoters) {
-                    return resolve_implementation_info(ufunc,
+                    return resolve_implementation_info(ctx, ufunc, ufunc_data,
                             op_dtypes, NPY_TRUE, out_info);
                 }
                 /*
@@ -450,9 +473,9 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                  * (It should be noted, that the retry might not find anything
                  * and we still do a legacy lookup later.)
                  */
-                PyObject *given = PyArray_TupleFromItems(
-                        ufunc->nargs, (PyObject **)op_dtypes, 1);
-                if (given != NULL) {
+                HPy given = HPyArray_TupleFromItems(ctx,
+                        ufunc_data->nargs, op_dtypes, 1);
+                if (!HPy_IsNull(given)) {
                     PyErr_Format(PyExc_RuntimeError,
                             "Could not find a loop for the inputs:\n    %S\n"
                             "The two promoters %S and %S matched the input "
@@ -461,9 +484,9 @@ resolve_implementation_info(PyUFuncObject *ufunc,
                             "in NumPy or an extending library and should be "
                             "reported.",
                             given, best_dtypes, curr_dtypes);
-                    Py_DECREF(given);
+                    HPy_Close(ctx, given);
                 }
-                *out_info = NULL;
+                *out_info = HPy_NULL;
                 res = 0;
                 goto finish;
             }
@@ -476,9 +499,9 @@ resolve_implementation_info(PyUFuncObject *ufunc,
         best_dtypes = curr_dtypes;
         best_resolver_info = resolver_info;
     }
-    if (best_dtypes == NULL) {
+    if (HPy_IsNull(best_dtypes)) {
         /* The non-legacy lookup failed */
-        *out_info = NULL;
+        *out_info = HPy_NULL;
         res = 0;
         goto finish;
     }
@@ -486,7 +509,9 @@ resolve_implementation_info(PyUFuncObject *ufunc,
     *out_info = best_resolver_info;
     res = 0;
 finish:
-    Py_DECREF(_loops);
+    HPy_Close(ctx, _loops);
+    HPy_Close(ctx, resolver_info);
+    HPy_Close(ctx, curr_dtypes);
     return res;
 }
 
@@ -792,20 +817,12 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
      * If `info == NULL`, loading from cache failed, use the full resolution
      * in `resolve_implementation_info` (which caches its result on success).
      */
-    py_op_dtypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, op_dtypes, ufunc_data->nargs);
     if (HPy_IsNull(info)) {
-        CAPI_WARN("hpy_promote_and_get_info_and_ufuncimpl: call to resolve_implementation_info");
-        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
-        PyObject *py_info = NULL;
-        if (resolve_implementation_info(py_ufunc,
-                py_op_dtypes, NPY_FALSE, &py_info) < 0) {
+        if (resolve_implementation_info(ctx, ufunc, ufunc_data,
+                op_dtypes, NPY_FALSE, &info) < 0) {
             res = HPy_NULL;
             goto finish;
         }
-        /* we've updated 'info', so reload the element */
-        info = HPy_FromPyObject(ctx, py_info);
-        Py_DECREF(py_info);
-        Py_DECREF(py_ufunc);
 
         if (!HPy_IsNull(info)) {
             HPy_SETREF(ctx, info1, HPy_GetItem_i(ctx, info, 1));
@@ -834,6 +851,7 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
         HPy promoter = info1;
 
         CAPI_WARN("hpy_promote_and_get_info_and_ufuncimpl: call to call_promoter_and_recurse");
+        py_op_dtypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, op_dtypes, ufunc_data->nargs);
         PyObject *py_promoter = HPy_AsPyObject(ctx, promoter);
         PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
         PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
