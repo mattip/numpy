@@ -1207,10 +1207,12 @@ PyArray_CanCastScalar(PyTypeObject *from, PyTypeObject *to)
  * Internal promote types function which handles unsigned integers which
  * fit in same-sized signed integers specially.
  */
-static PyArray_Descr *
-promote_types(PyArray_Descr *type1, PyArray_Descr *type2,
+static HPy
+hpy_promote_types(HPyContext *ctx, HPy h_type1, HPy h_type2,
                         int is_small_unsigned1, int is_small_unsigned2)
 {
+    PyArray_Descr *type1  = PyArray_Descr_AsStruct(ctx, h_type1);
+    PyArray_Descr *type2  = PyArray_Descr_AsStruct(ctx, h_type2);
     if (is_small_unsigned1) {
         int type_num1 = type1->type_num;
         int type_num2 = type2->type_num;
@@ -1224,11 +1226,11 @@ promote_types(PyArray_Descr *type1, PyArray_Descr *type2,
             ret_type_num = _npy_type_promotion_table[type_num1][type_num2];
             /* The table doesn't handle string/unicode/void, check the result */
             if (ret_type_num >= 0) {
-                return PyArray_DescrFromType(ret_type_num);
+                return HPyArray_DescrFromType(ctx, ret_type_num);
             }
         }
 
-        return PyArray_PromoteTypes(type1, type2);
+        return HPyArray_PromoteTypes(ctx, h_type1, h_type2);
     }
     else if (is_small_unsigned2) {
         int type_num1 = type1->type_num;
@@ -1243,14 +1245,14 @@ promote_types(PyArray_Descr *type1, PyArray_Descr *type2,
             ret_type_num = _npy_type_promotion_table[type_num1][type_num2];
             /* The table doesn't handle string/unicode/void, check the result */
             if (ret_type_num >= 0) {
-                return PyArray_DescrFromType(ret_type_num);
+                return HPyArray_DescrFromType(ctx, ret_type_num);
             }
         }
 
-        return PyArray_PromoteTypes(type1, type2);
+        return HPyArray_PromoteTypes(ctx, h_type1, h_type2);
     }
     else {
-        return PyArray_PromoteTypes(type1, type2);
+        return HPyArray_PromoteTypes(ctx, h_type1, h_type2);
     }
 
 }
@@ -1454,48 +1456,70 @@ PyArray_FindConcatenationDescriptor(
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_PromoteTypes(PyArray_Descr *type1, PyArray_Descr *type2)
 {
-    PyArray_DTypeMeta *common_dtype;
-    PyArray_Descr *res;
+    HPyContext *ctx = npy_get_context();
+    HPy h_type1 = HPy_FromPyObject(ctx, (PyObject *)type1);
+    HPy h_type2 = HPy_FromPyObject(ctx, (PyObject *)type2);
+    HPy h_res = HPyArray_PromoteTypes(ctx, h_type1, h_type2);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_type1);
+    HPy_Close(ctx, h_type2);
+    HPy_Close(ctx, h_res);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
+{
+    PyArray_Descr *type1 = PyArray_Descr_AsStruct(ctx, h_type1);
+    // PyArray_DTypeMeta *common_dtype;
+    HPy res;
 
     /* Fast path for identical inputs (NOTE: This path preserves metadata!) */
-    if (type1 == type2 && PyArray_ISNBO(type1->byteorder)) {
-        Py_INCREF(type1);
-        return type1;
+    if (HPy_Is(ctx, h_type1, h_type2) && PyArray_ISNBO(type1->byteorder)) {
+        return HPy_Dup(ctx, h_type1);
     }
 
-    common_dtype = PyArray_CommonDType(NPY_DTYPE(type1), NPY_DTYPE(type2));
-    if (common_dtype == NULL) {
-        return NULL;
+    CAPI_WARN("HPyArray_PromoteTypes: calling PyArray_CommonDType (common_dtype)");
+    PyArray_DTypeMeta *py_dtype1 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type1);
+    PyArray_DTypeMeta *py_dtype2 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type2);
+    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(py_dtype1, py_dtype2);
+    HPy h_common_dtype = HPy_FromPyObject(ctx, common_dtype);
+    if (HPy_IsNull(h_common_dtype)) {
+        return HPy_NULL;
     }
 
     if (!NPY_DT_is_parametric(common_dtype)) {
         /* Note that this path loses all metadata */
-        res = NPY_DT_CALL_default_descr(common_dtype);
-        Py_DECREF(common_dtype);
+        res = HNPY_DT_CALL_default_descr(ctx, h_common_dtype, common_dtype);
+        HPy_Close(ctx, h_common_dtype);
         return res;
     }
 
     /* Cast the input types to the common DType if necessary */
-    type1 = PyArray_CastDescrToDType(type1, common_dtype);
-    if (type1 == NULL) {
-        Py_DECREF(common_dtype);
-        return NULL;
+    HPy hh_type1 = HPyArray_CastDescrToDType(ctx, h_type1, h_common_dtype);
+    if (HPy_IsNull(hh_type1)) {
+        HPy_Close(ctx, h_common_dtype);
+        return HPy_NULL;
     }
-    type2 = PyArray_CastDescrToDType(type2, common_dtype);
-    if (type2 == NULL) {
-        Py_DECREF(type1);
-        Py_DECREF(common_dtype);
-        return NULL;
+    HPy hh_type2 = HPyArray_CastDescrToDType(ctx, h_type2, h_common_dtype);
+    if (HPy_IsNull(hh_type2)) {
+        HPy_Close(ctx, hh_type1);
+        HPy_Close(ctx, h_common_dtype);
+        return HPy_NULL;
     }
 
     /*
      * And find the common instance of the two inputs
      * NOTE: Common instance preserves metadata (normally and of one input)
      */
-    res = NPY_DT_SLOTS(common_dtype)->common_instance(type1, type2);
-    Py_DECREF(type1);
-    Py_DECREF(type2);
-    Py_DECREF(common_dtype);
+    CAPI_WARN("HPyArray_PromoteTypes: calling NPY_DT_SLOTS(common_dtype)->common_instance");
+    PyArray_Descr *py_type1 = HPy_AsPyObject(ctx, hh_type1);
+    PyArray_Descr *py_type2 = HPy_AsPyObject(ctx, hh_type2);
+    PyArray_Descr *py_res = NPY_DT_SLOTS(common_dtype)->common_instance(py_type1, py_type2);
+    res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    HPy_Close(ctx, hh_type1);
+    HPy_Close(ctx, hh_type2);
+    HPy_Close(ctx, h_common_dtype);
     return res;
 }
 
@@ -1506,14 +1530,14 @@ PyArray_PromoteTypes(PyArray_Descr *type1, PyArray_Descr *type2)
  * Roughly equivalent to functools.reduce(PyArray_PromoteTypes, types)
  * but uses a more complex pairwise approach.
  */
-NPY_NO_EXPORT PyArray_Descr *
-PyArray_PromoteTypeSequence(PyArray_Descr **types, npy_intp ntypes)
+NPY_NO_EXPORT HPy
+HPyArray_PromoteTypeSequence(HPyContext *ctx, HPy *types, npy_intp ntypes)
 {
     if (ntypes == 0) {
-        PyErr_SetString(PyExc_TypeError, "at least one type needed to promote");
-        return NULL;
+        HPyErr_SetString(ctx, ctx->h_TypeError, "at least one type needed to promote");
+        return HPy_NULL;
     }
-    return PyArray_ResultType(0, NULL, ntypes, types);
+    return HPyArray_ResultType(ctx, 0, NULL, ntypes, types);
 }
 
 /*
@@ -1803,17 +1827,18 @@ static int min_scalar_type_num(char *valueptr, int type_num,
 }
 
 
-NPY_NO_EXPORT PyArray_Descr *
-PyArray_MinScalarType_internal(PyArrayObject *arr, int *is_small_unsigned)
+NPY_NO_EXPORT HPy
+HPyArray_MinScalarType_internal(HPyContext *ctx, HPy h_arr, int *is_small_unsigned)
 {
-    PyArray_Descr *dtype = PyArray_DESCR(arr);
+    PyArrayObject *arr = PyArrayObject_AsStruct(ctx, h_arr);
+    HPy h_dtype = HPyArray_DESCR(ctx, h_arr, arr);
+    PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
     *is_small_unsigned = 0;
     /*
      * If the array isn't a numeric scalar, just return the array's dtype.
      */
     if (PyArray_NDIM(arr) > 0 || !PyTypeNum_ISNUMBER(dtype->type_num)) {
-        Py_INCREF(dtype);
-        return dtype;
+        return h_dtype;
     }
     else {
         char *data = PyArray_BYTES(arr);
@@ -1822,9 +1847,11 @@ PyArray_MinScalarType_internal(PyArrayObject *arr, int *is_small_unsigned)
         npy_longlong value[4];
         dtype->f->copyswap(&value, data, swap, NULL);
 
-        return PyArray_DescrFromType(
+        HPy ret = HPyArray_DescrFromType(ctx,
                         min_scalar_type_num((char *)&value,
                                 dtype->type_num, is_small_unsigned));
+        HPy_Close(ctx, h_dtype);
+        return ret;
 
     }
 }
@@ -1835,11 +1862,21 @@ PyArray_MinScalarType_internal(PyArrayObject *arr, int *is_small_unsigned)
  * Otherwise, returns the array's data type.
  *
  */
-NPY_NO_EXPORT PyArray_Descr *
+NPY_NO_EXPORT HPy
 PyArray_MinScalarType(PyArrayObject *arr)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    HPy ret = HPyArray_MinScalarType(ctx, h_arr);
+    HPy_Close(ctx, h_arr);
+    return ret;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_MinScalarType(HPyContext *ctx, HPy h_arr)
+{
     int is_small_unsigned;
-    return PyArray_MinScalarType_internal(arr, &is_small_unsigned);
+    return HPyArray_MinScalarType_internal(ctx, h_arr, &is_small_unsigned);
 }
 
 /*
@@ -2193,15 +2230,8 @@ HPyArray_ResultType(HPyContext *ctx,
      * logic when this path is necessary.
      */
     if (at_least_one_scalar && !all_pyscalar && PyArray_Descr_AsStruct(ctx, result)->type_num < NPY_NTYPES) {
-        CAPI_WARN("HPyArray_ResultType: call to PyArray_LegacyResultType");
-        PyArrayObject **py_arrs = (PyArrayObject **)HPy_AsPyObjectArray(ctx, arrs, narrs);
-        PyArray_Descr **py_descrs = (PyArray_Descr **)HPy_AsPyObjectArray(ctx, descrs, ndtypes);
-        PyArray_Descr *py_legacy_result = PyArray_LegacyResultType(
-                narrs, py_arrs, ndtypes, py_descrs);
-        HPy legacy_result = HPy_FromPyObject(ctx, (PyObject *)py_legacy_result);
-        Py_XDECREF(py_legacy_result);
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_arrs, narrs);
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_descrs, ndtypes);
+        HPy legacy_result = HPyArray_LegacyResultType(ctx,
+                narrs, arrs, ndtypes, descrs);
         if (HPy_IsNull(legacy_result)) {
             /*
              * Going from error to success should not really happen, but is
@@ -2254,69 +2284,87 @@ PyArray_LegacyResultType(
         npy_intp narrs, PyArrayObject **arr,
         npy_intp ndtypes, PyArray_Descr **dtypes)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy *h_arr = HPy_FromPyObjectArray(ctx, (PyObject **)arr, (Py_ssize_t)narrs);
+    HPy *h_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)dtypes, (Py_ssize_t)ndtypes);
+    HPy h_res = HPyArray_LegacyResultType(ctx, narrs, h_arr, ndtypes, h_dtypes);
+    PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_CloseAndFreeArray(ctx, h_arr, (HPy_ssize_t)narrs);
+    HPy_CloseAndFreeArray(ctx, h_dtypes, (HPy_ssize_t)ndtypes);
+    HPy_Close(ctx, h_res);
+    return res;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_LegacyResultType(HPyContext *ctx,
+        npy_intp narrs, HPy *arr,
+        npy_intp ndtypes, HPy *dtypes)
+{
     npy_intp i;
 
     /* If there's just one type, pass it through */
     if (narrs + ndtypes == 1) {
-        PyArray_Descr *ret = NULL;
+        HPy ret = HPy_NULL;
         if (narrs == 1) {
-            ret = PyArray_DESCR(arr[0]);
+            ret = HPyArray_DESCR(ctx, arr[0], PyArrayObject_AsStruct(ctx, arr[0]));
         }
         else {
-            ret = dtypes[0];
+            ret = HPy_Dup(ctx, dtypes[0]);
         }
-        Py_INCREF(ret);
         return ret;
     }
 
-    int use_min_scalar = should_use_min_scalar(narrs, arr, ndtypes, dtypes);
+    int use_min_scalar = hshould_use_min_scalar(ctx, narrs, arr, ndtypes, dtypes);
 
     /* Loop through all the types, promoting them */
     if (!use_min_scalar) {
-        PyArray_Descr *ret;
+        HPy ret;
 
         /* Build a single array of all the dtypes */
-        PyArray_Descr **all_dtypes = PyArray_malloc(
-            sizeof(*all_dtypes) * (narrs + ndtypes));
+        HPy *all_dtypes = (HPy *)malloc(
+            sizeof(all_dtypes) * (narrs + ndtypes));
         if (all_dtypes == NULL) {
-            PyErr_NoMemory();
-            return NULL;
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
         }
         for (i = 0; i < narrs; ++i) {
-            all_dtypes[i] = PyArray_DESCR(arr[i]);
+            all_dtypes[i] = HPyArray_DESCR(ctx, arr[i], PyArrayObject_AsStruct(ctx, arr[0]));
         }
         for (i = 0; i < ndtypes; ++i) {
             all_dtypes[narrs + i] = dtypes[i];
         }
-        ret = PyArray_PromoteTypeSequence(all_dtypes, narrs + ndtypes);
+        ret = HPyArray_PromoteTypeSequence(ctx, all_dtypes, narrs + ndtypes);
+        for (i = 0; i < narrs; ++i) {
+            HPy_Close(ctx, all_dtypes[i]);
+        }
         PyArray_free(all_dtypes);
         return ret;
     }
     else {
         int ret_is_small_unsigned = 0;
-        PyArray_Descr *ret = NULL;
+        HPy ret = HPy_NULL;
 
         for (i = 0; i < narrs; ++i) {
             int tmp_is_small_unsigned;
-            PyArray_Descr *tmp = PyArray_MinScalarType_internal(
+            HPy tmp = HPyArray_MinScalarType_internal(ctx,
                 arr[i], &tmp_is_small_unsigned);
-            if (tmp == NULL) {
-                Py_XDECREF(ret);
-                return NULL;
+            if (HPy_IsNull(tmp)) {
+                HPy_Close(ctx, ret);
+                return HPy_NULL;
             }
             /* Combine it with the existing type */
-            if (ret == NULL) {
+            if (HPy_IsNull(ret)) {
                 ret = tmp;
                 ret_is_small_unsigned = tmp_is_small_unsigned;
             }
             else {
-                PyArray_Descr *tmpret = promote_types(
+                HPy tmpret = hpy_promote_types(ctx,
                     tmp, ret, tmp_is_small_unsigned, ret_is_small_unsigned);
-                Py_DECREF(tmp);
-                Py_DECREF(ret);
+                HPy_Close(ctx, tmp);
+                HPy_Close(ctx, ret);
                 ret = tmpret;
-                if (ret == NULL) {
-                    return NULL;
+                if (HPy_IsNull(ret)) {
+                    return HPy_NULL;
                 }
 
                 ret_is_small_unsigned = tmp_is_small_unsigned &&
@@ -2325,25 +2373,24 @@ PyArray_LegacyResultType(
         }
 
         for (i = 0; i < ndtypes; ++i) {
-            PyArray_Descr *tmp = dtypes[i];
+            HPy tmp = dtypes[i];
             /* Combine it with the existing type */
-            if (ret == NULL) {
-                ret = tmp;
-                Py_INCREF(ret);
+            if (HPy_IsNull(ret)) {
+                ret = HPy_Dup(ctx, tmp);
             }
             else {
-                PyArray_Descr *tmpret = promote_types(
+                HPy tmpret = hpy_promote_types(ctx,
                     tmp, ret, 0, ret_is_small_unsigned);
-                Py_DECREF(ret);
+                HPy_Close(ctx, ret);
                 ret = tmpret;
-                if (ret == NULL) {
-                    return NULL;
+                if (HPy_IsNull(ret)) {
+                    return HPy_NULL;
                 }
             }
         }
         /* None of the above loops ran */
-        if (ret == NULL) {
-            PyErr_SetString(PyExc_TypeError,
+        if (HPy_IsNull(ret)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "no arrays or types available to calculate result type");
         }
 
