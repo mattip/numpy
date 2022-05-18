@@ -22,35 +22,35 @@ int_default_descriptor(HPyContext *ctx, HPy NPY_UNUSED(cls))
     return HPyArray_DescrFromType(ctx, NPY_LONG);
 }
 
-static PyArray_Descr *
-discover_descriptor_from_pyint(
-        PyArray_DTypeMeta *NPY_UNUSED(cls), PyObject *obj)
+static HPy /* PyArray_Descr * */
+hpy_discover_descriptor_from_pyint(HPyContext *ctx,
+        HPy /* (PyArray_DTypeMeta *) */ NPY_UNUSED(cls), HPy obj)
 {
-    assert(PyLong_Check(obj));
+    assert(HPyLong_Check(ctx, obj));
     /*
      * We check whether long is good enough. If not, check longlong and
      * unsigned long before falling back to `object`.
      */
-    long long value = PyLong_AsLongLong(obj);
-    if (error_converting(value)) {
-        PyErr_Clear();
+    long long value = HPyLong_AsLongLong(ctx, obj);
+    if (hpy_error_converting(ctx, value)) {
+        HPyErr_Clear(ctx);
     }
     else {
         if (NPY_MIN_LONG <= value && value <= NPY_MAX_LONG) {
-            return PyArray_DescrFromType(NPY_LONG);
+            return HPyArray_DescrFromType(ctx, NPY_LONG);
         }
-        return PyArray_DescrFromType(NPY_LONGLONG);
+        return HPyArray_DescrFromType(ctx, NPY_LONGLONG);
     }
 
-    unsigned long long uvalue = PyLong_AsUnsignedLongLong(obj);
+    unsigned long long uvalue = HPyLong_AsUnsignedLongLong(ctx, obj);
     if (uvalue == (unsigned long long)-1 && PyErr_Occurred()){
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
     }
     else {
-        return PyArray_DescrFromType(NPY_ULONGLONG);
+        return HPyArray_DescrFromType(ctx, NPY_ULONGLONG);
     }
 
-    return PyArray_DescrFromType(NPY_OBJECT);
+    return HPyArray_DescrFromType(ctx, NPY_OBJECT);
 }
 
 
@@ -329,8 +329,8 @@ NPY_NO_EXPORT HPyGlobal HPyArray_PyComplexAbstractDType;
 
 NPY_DType_Slots pyintabstractdtype_slots = {
     .default_descr = int_default_descriptor,
-    .discover_descr_from_pyobject = discover_descriptor_from_pyint,
-    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
+    .discover_descr_from_pyobject = discover_descr_from_pyobject_function_trampoline,
+    .hdiscover_descr_from_pyobject = hpy_discover_descriptor_from_pyint,
     .common_dtype = int_common_dtype,
 };
 
