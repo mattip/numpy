@@ -622,11 +622,11 @@ HPyDef_SLOT(array_finalize, array_finalize_impl, HPy_tp_finalize)
 static void
 array_finalize_impl(HPyContext *ctx, HPy h_self)
 {
-    CAPI_WARN("array finalize");
-    PyObject *error_type, *error_value, *error_traceback;
-    PyErr_Fetch(&error_type, &error_value, &error_traceback);
+    // TODO HPY LABS PORT: err fetch and restore?
+    // PyObject *error_type, *error_value, *error_traceback;
+    // PyErr_Fetch(&error_type, &error_value, &error_traceback);
 
-    PyArrayObject *self = (PyArrayObject*)HPy_AsPyObject(ctx, h_self);
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
 
     if (fa->weakreflist != NULL) {
@@ -640,14 +640,15 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
         obj->ob_refcnt += 2;
     }
 
-    if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
-        PyErr_WriteUnraisable(NULL);
-    }
+    // if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
+    //     PyErr_WriteUnraisable(NULL);
+    // }
 
-    if (PyArray_BASE(self)) {
+    if (HPy_IsNull(HPyArray_BASE(ctx, h_self, self))) {
         int retval;
         if (PyArray_FLAGS(self) & NPY_ARRAY_WRITEBACKIFCOPY)
         {
+            CAPI_WARN("NPY_ARRAY_WRITEBACKIFCOPY");
             char const * msg = "WRITEBACKIFCOPY detected in array_finalize. "
                 " Required call to PyArray_ResolveWritebackIfCopy or "
                 "PyArray_DiscardWritebackIfCopy is missing.";
@@ -672,12 +673,14 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
 
     if ((fa->flags & NPY_ARRAY_OWNDATA) && fa->data) {
         /* Free internal references if an Object array */
-        PyArray_Descr *descr = PyArray_DESCR(self);
+        HPy h_descr = HPyArray_DESCR(ctx, h_self, self);
+        PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_REFCOUNT)) {
+            CAPI_WARN("NPY_ITEM_REFCOUNT flag");
             PyArray_XDECREF(self);
         }
-        PyObject *mem_handler = PyArray_HANDLER(self);
-        if (mem_handler == NULL) {
+        HPy h_mem_handler = HPyArray_GetHandler(ctx, h_self);
+        if (HPy_IsNull(h_mem_handler)) {
             char *env = getenv("NUMPY_WARN_IF_NO_MEM_POLICY");
             if ((env != NULL) && (strncmp(env, "1", 1) == 0)) {
                 char const * msg = "Trying to dealloc data, but a memory policy "
@@ -693,20 +696,18 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
              * In theory `PyArray_NBYTES_ALLOCATED`, but differs somewhere?
              * So instead just use the knowledge that 0 is impossible.
              */
-            size_t nbytes = PyArray_NBYTES(self);
+            size_t nbytes = HPyArray_NBYTES(ctx, h_self, self);
             if (nbytes == 0) {
                 nbytes = 1;
             }
-            PyDataMem_UserFREE(fa->data, nbytes, mem_handler);
+            HPyDataMem_UserFREE(ctx, fa->data, nbytes, h_mem_handler);
         }
     }
 
     /* must match allocation in PyArray_NewFromDescr */
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
 
-    Py_DECREF(self);
-
-    PyErr_Restore(error_type, error_value, error_traceback);
+    // PyErr_Restore(error_type, error_value, error_traceback);
 }
 
 HPyDef_SLOT(array_traverse, array_traverse_impl, HPy_tp_traverse)

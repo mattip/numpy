@@ -458,6 +458,7 @@ typedef struct _buffer_info_t_tag {
 static _buffer_info_t*
 _buffer_info_new(PyObject *obj, int flags)
 {
+    CAPI_WARN("Allocating buffer info, which is then ignored in array finalize...");
     /*
      * Note that the buffer info is cached as PyLongObjects making them appear
      * like unreachable lost memory to valgrind.

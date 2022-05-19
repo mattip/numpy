@@ -444,7 +444,7 @@ HPyDataMem_UserNEW(HPyContext *ctx, size_t size, HPy mem_handler)
         }
         NPY_DISABLE_C_API
     }
-    PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, size);
+    // PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, size);
     return result;
 }
 
@@ -477,8 +477,32 @@ HPyDataMem_UserNEW_ZEROED(HPyContext *ctx, size_t nmemb, size_t size, HPy mem_ha
         }
         NPY_DISABLE_C_API
     }
-    PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, nmemb * size);
+    // PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, nmemb * size);
     return result;
+}
+
+NPY_NO_EXPORT void
+HPyDataMem_UserFREE(HPyContext *ctx, void *ptr, size_t size, HPy h_mem_handler)
+{
+    PyDataMem_Handler *handler = (PyDataMem_Handler *) HPyCapsule_GetPointer(ctx, h_mem_handler, "mem_handler");
+    if (handler == NULL) {
+        CAPI_WARN("WARN_NO_RETURN");
+        WARN_NO_RETURN(PyExc_RuntimeWarning,
+                     "Could not get pointer to 'mem_handler' from PyCapsule");
+        return;
+    }
+    // PyTraceMalloc_Untrack(NPY_TRACE_DOMAIN, (npy_uintp)ptr);
+    handler->allocator.free(handler->allocator.ctx, ptr, size);
+    if (_PyDataMem_eventhook != NULL) {
+        capi_warn("HPyDataMem_UserFREE: GIL usage if _PyDataMem_eventhook is set");
+        NPY_ALLOW_C_API_DEF
+        NPY_ALLOW_C_API
+        if (_PyDataMem_eventhook != NULL) {
+            (*_PyDataMem_eventhook)(ptr, NULL, 0,
+                                    _PyDataMem_eventhook_user_data);
+        }
+        NPY_DISABLE_C_API
+    }
 }
 
 
