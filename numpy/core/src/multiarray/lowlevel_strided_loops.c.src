@@ -1589,7 +1589,7 @@ hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy
     base_ptr = PyArray_BYTES(self);
     self_stride = PyArray_STRIDE(self, 0);
 
-    PyArray_PREPARE_TRIVIAL_PAIR_ITERATION(ind, result, itersize,
+    HPyArray_PREPARE_TRIVIAL_PAIR_ITERATION(ctx, h_ind, ind, h_result, result, itersize,
                                            ind_ptr, result_ptr,
                                            ind_stride, result_stride);
 

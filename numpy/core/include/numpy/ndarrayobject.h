@@ -141,6 +141,7 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_SIZE(m) PyArray_MultiplyList(PyArray_DIMS(m), PyArray_NDIM(m))
 #define HPyArray_SIZE(m) PyArray_MultiplyList(PyArray_DIMS(m), PyArray_NDIM(m))
 #define PyArray_NBYTES(m) (PyArray_ITEMSIZE(m) * PyArray_SIZE(m))
+#define HPyArray_NBYTES(ctx, m, m_struct) (HPyArray_ITEMSIZE(ctx, m, m_struct) * PyArray_SIZE(m_struct))
 #define PyArray_FROM_O(m) PyArray_FromAny(m, NULL, 0, 0, 0, NULL)
 #define HPyArray_FROM_O(ctx, m) HPyArray_FromAny(ctx, m, HPy_NULL, 0, 0, 0, HPy_NULL)
 

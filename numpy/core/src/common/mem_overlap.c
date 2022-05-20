@@ -860,7 +860,7 @@ solve_may_share_memory(PyArrayObject *a, PyArrayObject *b,
 
 /* PyArrayObject *a, PyArrayObject *b */
 NPY_VISIBILITY_HIDDEN mem_overlap_t
-hpy_solve_may_share_memory(HPyContext *ctx, HPy a, HPy b,
+hpy_solve_may_share_memory(HPyContext *ctx, HPy a, PyArrayObject *a_data, HPy b, PyArrayObject *b_data,
                        HPy_ssize_t max_work)
 {
     npy_int64 rhs;
@@ -915,11 +915,11 @@ hpy_solve_may_share_memory(HPyContext *ctx, HPy a, HPy b,
     rhs = (npy_int64)uintp_rhs;
 
     nterms = 0;
-    PyArrayObject *a_data = PyArrayObject_AsStruct(ctx, a);
+    a_data = a_data == NULL ? PyArrayObject_AsStruct(ctx, a) : a_data;
     if (strides_to_terms(a_data, terms, &nterms, 1)) {
         return MEM_OVERLAP_OVERFLOW;
     }
-    PyArrayObject *b_data = PyArrayObject_AsStruct(ctx, b);
+    b_data = b_data == NULL ? PyArrayObject_AsStruct(ctx, b): b_data;
     if (strides_to_terms(b_data, terms, &nterms, 1)) {
         return MEM_OVERLAP_OVERFLOW;
     }
@@ -996,6 +996,91 @@ solve_may_have_internal_overlap(PyArrayObject *a, Py_ssize_t max_work)
     if (PyArray_ITEMSIZE(a) > 1) {
         terms[nterms].a = 1;
         terms[nterms].ub = PyArray_ITEMSIZE(a) - 1;
+        ++nterms;
+    }
+
+    /* Get rid of zero coefficients and empty terms */
+    i = 0;
+    for (j = 0; j < nterms; ++j) {
+        if (terms[j].ub == 0) {
+            continue;
+        }
+        else if (terms[j].ub < 0) {
+            return MEM_OVERLAP_NO;
+        }
+        else if (terms[j].a == 0) {
+            return MEM_OVERLAP_YES;
+        }
+        if (i != j) {
+            terms[i] = terms[j];
+        }
+        ++i;
+    }
+    nterms = i;
+
+    /* Double bounds to get the internal overlap problem */
+    for (j = 0; j < nterms; ++j) {
+        terms[j].ub *= 2;
+    }
+
+    /* Sort vs. coefficients; cannot call diophantine_simplify because it may
+       change the decision problem inequality part */
+    qsort(terms, nterms, sizeof(diophantine_term_t), diophantine_sort_A);
+
+    /* Solve */
+    return solve_diophantine(nterms, terms, -1, max_work, 1, x);
+}
+
+
+/**
+ * Determine whether an array has internal overlap.
+ *
+ * Returns: 0 (no overlap), 1 (overlap), or < 0 (failed to solve).
+ *
+ * max_work and reasons for solver failures are as in solve_may_share_memory.
+ */
+NPY_VISIBILITY_HIDDEN mem_overlap_t
+hpy_solve_may_have_internal_overlap(HPyContext *ctx, HPy h_a, PyArrayObject *a, Py_ssize_t max_work)
+{
+    diophantine_term_t terms[NPY_MAXDIMS+1];
+    npy_int64 x[NPY_MAXDIMS+1];
+    unsigned int i, j, nterms;
+
+    if (PyArray_ISCONTIGUOUS(a)) {
+        /* Quick case */
+        return MEM_OVERLAP_NO;
+    }
+
+    /* The internal memory overlap problem is looking for two different
+       solutions to
+
+           sum(a*x) = b,   0 <= x[i] <= ub[i]
+
+       for any b. Equivalently,
+
+           sum(a*x0) - sum(a*x1) = 0
+
+       Mapping the coefficients on the left by x0'[i] = x0[i] if a[i] > 0
+       else ub[i]-x0[i] and opposite for x1, we have
+
+           sum(abs(a)*(x0' + x1')) = sum(abs(a)*ub)
+
+       Now, x0!=x1 if for some i we have x0'[i] + x1'[i] != ub[i].
+       We can now change variables to z[i] = x0'[i] + x1'[i] so the problem
+       becomes
+
+           sum(abs(a)*z) = sum(abs(a)*ub),   0 <= z[i] <= 2*ub[i],   z != ub
+
+       This can be solved with solve_diophantine.
+    */
+
+    nterms = 0;
+    if (strides_to_terms(a, terms, &nterms, 0)) {
+        return MEM_OVERLAP_OVERFLOW;
+    }
+    if (HPyArray_ITEMSIZE(ctx, h_a, a) > 1) {
+        terms[nterms].a = 1;
+        terms[nterms].ub = HPyArray_ITEMSIZE(ctx, h_a, a) - 1;
         ++nterms;
     }
 

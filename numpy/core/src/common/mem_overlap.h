@@ -39,7 +39,7 @@ solve_may_share_memory(PyArrayObject *a, PyArrayObject *b,
                        Py_ssize_t max_work);
 
 NPY_VISIBILITY_HIDDEN mem_overlap_t
-hpy_solve_may_share_memory(HPyContext *ctx, HPy a, HPy b,
+hpy_solve_may_share_memory(HPyContext *ctx, HPy a, PyArrayObject *a_data, HPy b, PyArrayObject *b_data,
                        HPy_ssize_t max_work);
 
 NPY_VISIBILITY_HIDDEN mem_overlap_t
@@ -49,5 +49,8 @@ NPY_VISIBILITY_HIDDEN void
 offset_bounds_from_strides(const int itemsize, const int nd,
                            const npy_intp *dims, const npy_intp *strides,
                            npy_intp *lower_offset, npy_intp *upper_offset);
+
+NPY_VISIBILITY_HIDDEN mem_overlap_t
+hpy_solve_may_have_internal_overlap(HPyContext *ctx, HPy h_a, PyArrayObject *a, Py_ssize_t max_work);
 
 #endif  /* NUMPY_CORE_SRC_COMMON_MEM_OVERLAP_H_ */

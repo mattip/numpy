@@ -2322,7 +2322,7 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
         /* Check if the index is simple enough */
         if (PyArray_TRIVIALLY_ITERABLE(ind) &&
                 /* Check if the type is equivalent to INTP */
-                PyArray_ITEMSIZE(ind) == sizeof(npy_intp) &&
+                HPyArray_ITEMSIZE(ctx, h_ind, ind) == sizeof(npy_intp) &&
                 ind_descr->kind == 'i' &&
                 HIsUintAligned(ctx, h_ind, ind) &&
                 PyDataType_ISNOTSWAPPED(ind_descr)) {

@@ -196,7 +196,7 @@ hpy_arrays_overlap(HPyContext *ctx, HPy arr1, HPy arr2)
 {
     mem_overlap_t result;
 
-    result = hpy_solve_may_share_memory(ctx, arr1, arr2, NPY_MAY_SHARE_BOUNDS);
+    result = hpy_solve_may_share_memory(ctx, arr1, NULL, arr2, NULL, NPY_MAY_SHARE_BOUNDS);
     if (result == MEM_OVERLAP_NO) {
         return 0;
     }
