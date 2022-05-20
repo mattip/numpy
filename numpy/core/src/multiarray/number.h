@@ -187,11 +187,9 @@ array_inplace_true_divide(PyArrayObject *m1, PyObject *m2);
 NPY_NO_EXPORT int
 _array_nonzero(PyArrayObject *mp);
 
-NPY_NO_EXPORT PyObject *
-array_float(PyArrayObject *v);
+NPY_NO_EXPORT extern HPyDef array_float;
 
-NPY_NO_EXPORT PyObject *
-array_int(PyArrayObject *v);
+NPY_NO_EXPORT extern HPyDef array_int;
 
 NPY_NO_EXPORT PyObject *
 array_index(PyArrayObject *v);

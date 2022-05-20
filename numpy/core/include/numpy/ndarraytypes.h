@@ -1868,6 +1868,17 @@ PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
             (void *)itemptr, (PyArrayObject *)arr);
 }
 
+static NPY_INLINE HPy
+HPyArray_DESCR_GETITEM(HPyContext *ctx, PyArray_Descr *descr, HPy h_arr, const PyArrayObject *arr, const char *itemptr)
+{
+    CAPI_WARN("PyArray_Func->getitem");
+    PyObject *pyobj = descr->f->getitem(
+            (void *)itemptr, (PyArrayObject *)arr);
+    HPy res = HPy_FromPyObject(ctx, pyobj);
+    Py_DECREF(pyobj);
+    return res;
+}
+
 /*
  * SETITEM should only be used if it is known that the value is a scalar
  * and of a type understood by the arrays dtype.

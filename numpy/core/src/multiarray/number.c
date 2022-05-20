@@ -884,59 +884,64 @@ _array_nonzero(PyArrayObject *mp)
  * to it. The where argument is passed onto Py_EnterRecursiveCall when the
  * array contains python objects.
  */
-NPY_NO_EXPORT PyObject *
-array_scalar_forward(PyArrayObject *v,
-                     PyObject *(*builtin_func)(PyObject *),
+NPY_NO_EXPORT HPy
+array_scalar_forward(HPyContext *ctx, /*PyArrayObject*/ HPy h_v,
+                     HPy (*builtin_func)(HPyContext *, HPy),
                      const char *where)
 {
-    PyObject *scalar;
-    if (PyArray_SIZE(v) != 1) {
-        PyErr_SetString(PyExc_TypeError, "only size-1 arrays can be"\
+    PyArrayObject *v = PyArrayObject_AsStruct(ctx, h_v);
+    if (HPyArray_SIZE(v) != 1) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "only size-1 arrays can be"\
                         " converted to Python scalars");
-        return NULL;
+        return HPy_NULL;
     }
 
-    scalar = PyArray_GETITEM(v, PyArray_DATA(v));
-    if (scalar == NULL) {
-        return NULL;
+    HPy h_descr = HPyArray_DESCR(ctx, h_v, v);
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    HPy h_scalar = HPyArray_DESCR_GETITEM(ctx, descr, h_v, v, PyArray_DATA(v));
+    if (HPy_IsNull(h_scalar)) {
+        return HPy_NULL;
     }
 
     /* Need to guard against recursion if our array holds references */
-    if (PyDataType_REFCHK(PyArray_DESCR(v))) {
-        PyObject *res;
-        if (Py_EnterRecursiveCall(where) != 0) {
-            Py_DECREF(scalar);
-            return NULL;
-        }
-        res = builtin_func(scalar);
-        Py_DECREF(scalar);
-        Py_LeaveRecursiveCall();
-        return res;
+    if (PyDataType_REFCHK(descr)) {
+        hpy_abort_not_implemented("arrays with references...");
+        // PyObject *res;
+        // if (Py_EnterRecursiveCall(where) != 0) {
+        //     Py_DECREF(scalar);
+        //     return NULL;
+        // }
+        // res = builtin_func(scalar);
+        // Py_DECREF(scalar);
+        // Py_LeaveRecursiveCall();
+        // return res;
     }
     else {
-        PyObject *res;
-        res = builtin_func(scalar);
-        Py_DECREF(scalar);
+        HPy res = builtin_func(ctx, h_scalar);
+        HPy_Close(ctx, h_scalar);
         return res;
     }
 }
 
 
-NPY_NO_EXPORT PyObject *
-array_float(PyArrayObject *v)
+HPyDef_SLOT(array_float, array_float_impl, HPy_nb_float)
+NPY_NO_EXPORT HPy
+array_float_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_v)
 {
-    return array_scalar_forward(v, &PyNumber_Float, " in ndarray.__float__");
+    return array_scalar_forward(ctx, h_v, &HPy_Float, " in ndarray.__float__");
 }
 
-NPY_NO_EXPORT PyObject *
-array_int(PyArrayObject *v)
+HPyDef_SLOT(array_int, array_int_impl, HPy_nb_int)
+NPY_NO_EXPORT HPy
+array_int_impl(HPyContext *ctx, HPy h_v)
 {
-    return array_scalar_forward(v, &PyNumber_Long, " in ndarray.__int__");
+    return array_scalar_forward(ctx, h_v, &HPy_Long, " in ndarray.__int__");
 }
 
 NPY_NO_EXPORT PyObject *
 array_index(PyArrayObject *v)
 {
+    CAPI_WARN("array_index");
     if (!PyArray_ISINTEGER(v) || PyArray_NDIM(v) != 0) {
         PyErr_SetString(PyExc_TypeError,
             "only integer scalar arrays can be converted to a scalar index");
