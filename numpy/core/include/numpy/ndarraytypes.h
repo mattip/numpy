@@ -456,7 +456,7 @@ struct NpyAuxData_tag {
 struct _PyArray_Descr;
 
 /* These must deal with unaligned and swapped data if necessary */
-typedef PyObject * (PyArray_GetItemFunc) (void *, void *);
+typedef HPy (PyArray_GetItemFunc) (HPyContext *, void *, HPy, void *);
 typedef int (PyArray_SetItemFunc)(HPyContext *ctx, HPy, void *, HPy);
 
 typedef void (PyArray_CopySwapNFunc)(void *, npy_intp, void *, npy_intp,
@@ -1864,19 +1864,34 @@ PyArray_CHKFLAGS(const PyArrayObject *arr, int flags)
 static NPY_INLINE PyObject *
 PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
 {
-    return PyArray_DESCR(arr)->f->getitem(
-            (void *)itemptr, (PyArrayObject *)arr);
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*) arr);
+    HPy result = PyArray_DESCR(arr)->f->getitem(
+            ctx, (void *)itemptr, h_arr, (PyArrayObject *)arr);
+    PyObject *py_res = HPy_AsPyObject(ctx, result);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, result);
+    return py_res;
+}
+
+static NPY_INLINE PyObject *
+PyArray_Descr_GETITEM(const PyArray_Descr *descr, PyArrayObject *arr, const char *itemptr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*) arr);
+    HPy result = descr->f->getitem(
+            ctx, (void *)itemptr, h_arr, (PyArrayObject *)arr);
+    PyObject *py_res = HPy_AsPyObject(ctx, result);
+    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, result);
+    return py_res;
 }
 
 static NPY_INLINE HPy
 HPyArray_DESCR_GETITEM(HPyContext *ctx, PyArray_Descr *descr, HPy h_arr, const PyArrayObject *arr, const char *itemptr)
 {
-    CAPI_WARN("PyArray_Func->getitem");
-    PyObject *pyobj = descr->f->getitem(
-            (void *)itemptr, (PyArrayObject *)arr);
-    HPy res = HPy_FromPyObject(ctx, pyobj);
-    Py_DECREF(pyobj);
-    return res;
+    return descr->f->getitem(
+            ctx, (void *)itemptr, h_arr, (PyArrayObject *)arr);
 }
 
 /*
@@ -2177,6 +2192,7 @@ static inline int HPyArray_ISNOTSWAPPED(HPyContext *ctx, HPy m, PyArrayObject *m
 
 #define HPyArray_ISBEHAVED(ctx, m, m_data) HPyArray_FLAGSWAP(ctx, m, m_data, NPY_ARRAY_BEHAVED)
 
+#define HPyArray_ISBEHAVED_RO(ctx, m, m_data) HPyArray_FLAGSWAP(ctx, m, m_data, NPY_ARRAY_ALIGNED)
 
 #define PyDataType_ISNOTSWAPPED(d) PyArray_ISNBO(((PyArray_Descr *)(d))->byteorder)
 #define PyDataType_ISBYTESWAPPED(d) (!PyDataType_ISNOTSWAPPED(d))

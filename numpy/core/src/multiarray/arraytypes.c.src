@@ -330,6 +330,9 @@ static int
  *
  * #TYPE = BOOL, BYTE, UBYTE, SHORT, USHORT, INT, LONG, UINT, ULONG,
  *         LONGLONG, ULONGLONG, HALF, FLOAT, DOUBLE#
+ * #func1 = HPyBool_FromLong, HPyLong_FromLong*6, HPyLong_FromUnsignedLong*2,
+ *          HPyLong_FromLongLong, HPyLong_FromUnsignedLongLong,
+ *          MyHPyFloat_FromHalf, HPyFloat_FromDouble*2#
  * #func2 = HPy_IsTrue, MyHPyLong_AsLong*6, MyHPyLong_AsUnsignedLong*2,
  *          MyHPyLong_AsLongLong, MyHPyLong_AsUnsignedLongLong,
  *          MyHPyFloat_AsHalf, MyHPyFloat_AsDouble*2#
@@ -342,6 +345,23 @@ static int
  * #kind = Bool, Byte, UByte, Short, UShort, Int, Long, UInt, ULong,
  *         LongLong, ULongLong, Half, Float, Double#
 */
+static HPy
+@TYPE@_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap)
+{
+    char *ip = input;
+    @type@ t1;
+
+    if ((HPy_IsNull(h_vap)) || HPyArray_ISBEHAVED_RO(ctx, h_vap, ap)) {
+        t1 = *((@type@ *)ip);
+        return @func1@(ctx, (@type1@)t1);
+    }
+    else {
+        CAPI_WARN("PyArray_DESCR(ap)->f->copyswap");
+        PyArray_DESCR(ap)->f->copyswap(&t1, ip, PyArray_ISBYTESWAPPED(ap), ap);
+        return @func1@(ctx, (@type1@)t1);
+    }
+}
+
 static int
 @TYPE@_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
 {
@@ -490,6 +510,12 @@ static int
     rsize = sizeof(@ftype@);
     copy_and_swap(ov, &temp, rsize, 2, rsize, PyArray_ISBYTESWAPPED(ap));
     return 0;
+}
+
+static HPy
+@NAME@_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap)
+{
+    hpy_abort_not_implemented("@NAME@_hpy_getitem");
 }
 
 static int
@@ -645,6 +671,11 @@ LONGDOUBLE_getitem(void *ip, void *ap)
     return PyArray_Scalar(ip, PyArray_DESCR((PyArrayObject *)ap), NULL);
 }
 
+static HPy
+LONGDOUBLE_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("LONGDOUBLE_hpy_getitem");
+}
+
 static int
 LONGDOUBLE_setitem(PyObject *op, void *ov, void *vap)
 {
@@ -733,6 +764,11 @@ UNICODE_getitem(void *ip, void *vap)
     int align = !PyArray_ISALIGNED(ap);
 
     return (PyObject *)PyUnicode_FromUCS4(ip, size, swap, align);
+}
+
+static HPy
+UNICODE_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("_hpy_getitem");
 }
 
 static int
@@ -978,6 +1014,11 @@ STRING_setitem(PyObject *op, void *ov, void *vap)
     return 0;
 }
 
+static HPy
+STRING_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("STRING_hpy_getitem");
+}
+
 static int
 STRING_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
 {
@@ -1020,6 +1061,11 @@ OBJECT_getitem(void *ip, void *NPY_UNUSED(ap))
 //
 //     return PyErr_Occurred() ? -1 : 0;
 // }
+
+static HPy
+OBJECT_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("OBJECT_hpy_getitem");
+}
 
 static int
 OBJECT_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy NPY_UNUSED(vap))
@@ -1356,6 +1402,11 @@ VOID_setitem(PyObject *op, void *input, void *vap)
     return 0;
 }
 
+static HPy
+VOID_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("VOID_hpy_getitem");
+}
+
 static int
 VOID_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
 {
@@ -1443,12 +1494,22 @@ DATETIME_setitem(PyObject *op, void *ov, void *vap)
     return 0;
 }
 
+static HPy
+DATETIME_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("DATETIME_hpy_getitem");
+}
+
 static int
 DATETIME_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
 {
     // TODO HPY LABS PORT: implememnt
     hpy_abort_not_implemented("DATETIME_hpy_setitem");
     return -1;
+}
+
+static HPy
+TIMEDELTA_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
+    hpy_abort_not_implemented("TIMEDELTA_hpy_getitem");
 }
 
 static int
@@ -4667,7 +4728,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         @from@_to_UNICODE,
         @from@_to_VOID
     },
-    @from@_getitem,
+    @from@_hpy_getitem,
     @from@_hpy_setitem,
     (PyArray_CopySwapNFunc*)@from@_copyswapn,
     (PyArray_CopySwapFunc*)@from@_copyswap,
