@@ -2908,6 +2908,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s\n", ufunc_name);
 
     /* Get the buffersize and errormask */
+    CAPI_WARN("_get_bufsize_errmask");
     PyObject *py_extobj = HPy_AsPyObject(hctx, extobj);
     if (_get_bufsize_errmask(py_extobj, ufunc_name, &buffersize, &errormask) < 0) {
         Py_XDECREF(py_extobj);
