@@ -564,6 +564,17 @@ NpyIter_MultiNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
                             -1, NULL, NULL, 0);
 }
 
+NPY_NO_EXPORT NpyIter *
+HNpyIter_MultiNew(HPyContext *ctx, int nop, /*PyArrayObject*/ HPy *op_in, npy_uint32 flags,
+                 NPY_ORDER order, NPY_CASTING casting,
+                 npy_uint32 *op_flags,
+                 /*PyArray_Descr*/ HPy *op_request_dtypes)
+{
+    return HNpyIter_AdvancedNew(ctx, nop, op_in, flags, order, casting,
+                            op_flags, op_request_dtypes,
+                            -1, NULL, NULL, 0);
+}
+
 /*NUMPY_API
  * Allocate a new iterator for one array object.
  */

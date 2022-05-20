@@ -29,6 +29,8 @@
 
 #include "scalarapi.h"
 
+#include "nditer_hpy.h"
+
 
 #define HAS_INTEGER 1
 #define HAS_NEWAXIS 2
@@ -1850,31 +1852,36 @@ array_boolean_subscript(PyArrayObject *self,
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-array_assign_boolean_subscript(PyArrayObject *self,
-                    PyArrayObject *bmask, PyArrayObject *v, NPY_ORDER order)
+array_assign_boolean_subscript(HPyContext *ctx, HPy h_self, PyArrayObject *self,
+                    HPy h_bmask, HPy h_v, NPY_ORDER order)
 {
     npy_intp size, v_stride;
     char *v_data;
     int needs_api = 0;
     npy_intp bmask_size;
 
-    if (PyArray_DESCR(bmask)->type_num != NPY_BOOL) {
-        PyErr_SetString(PyExc_TypeError,
+    PyArrayObject *bmask = PyArrayObject_AsStruct(ctx, h_bmask);
+    PyArrayObject *v = PyArrayObject_AsStruct(ctx, h_v);
+    HPy h_bmask_descr = HPyArray_DESCR(ctx, h_bmask, bmask);
+    if (PyArray_Descr_AsStruct(ctx, h_bmask_descr)->type_num != NPY_BOOL) {
+        HPy_Close(ctx, h_bmask_descr);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "NumPy boolean array indexing assignment "
                 "requires a boolean index");
         return -1;
     }
+    HPy_Close(ctx, h_bmask_descr);
 
     if (PyArray_NDIM(v) > 1) {
-        PyErr_Format(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "NumPy boolean array indexing assignment "
                 "requires a 0 or 1-dimensional input, input "
-                "has %d dimensions", PyArray_NDIM(v));
+                "has %d dimensions"/*, PyArray_NDIM(v)*/);
         return -1;
     }
 
     if (PyArray_NDIM(bmask) != PyArray_NDIM(self)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "The boolean mask assignment indexing array "
                 "must have the same number of dimensions as "
                 "the array being indexed");
@@ -1884,19 +1891,19 @@ array_assign_boolean_subscript(PyArrayObject *self,
     size = count_boolean_trues(PyArray_NDIM(bmask), PyArray_DATA(bmask),
                                 PyArray_DIMS(bmask), PyArray_STRIDES(bmask));
     /* Correction factor for broadcasting 'bmask' to 'self' */
-    bmask_size = PyArray_SIZE(bmask);
+    bmask_size = HPyArray_SIZE(bmask);
     if (bmask_size > 0) {
-        size *= PyArray_SIZE(self) / bmask_size;
+        size *= HPyArray_SIZE(self) / bmask_size;
     }
 
     /* Tweak the strides for 0-dim and broadcasting cases */
     if (PyArray_NDIM(v) > 0 && PyArray_DIMS(v)[0] != 1) {
         if (size != PyArray_DIMS(v)[0]) {
-            PyErr_Format(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "NumPy boolean array indexing assignment "
                     "cannot assign %" NPY_INTP_FMT " input values to "
-                    "the %" NPY_INTP_FMT " output values where the mask is true",
-                    PyArray_DIMS(v)[0], size);
+                    "the %" NPY_INTP_FMT " output values where the mask is true"/*,
+                    PyArray_DIMS(v)[0], size*/);
             return -1;
         }
         v_stride = PyArray_STRIDES(v)[0];
@@ -1911,7 +1918,7 @@ array_assign_boolean_subscript(PyArrayObject *self,
     int res = 0;
     if (size > 0) {
         NpyIter *iter;
-        PyArrayObject *op[2] = {self, bmask};
+        HPy op[2] = {h_self, h_bmask};
         npy_uint32 flags, op_flags[2];
         npy_intp fixed_strides[3];
 
@@ -1922,23 +1929,23 @@ array_assign_boolean_subscript(PyArrayObject *self,
         npy_intp self_stride, bmask_stride, subloopsize;
         char *self_data;
         char *bmask_data;
-        NPY_BEGIN_THREADS_DEF;
+        // NPY_BEGIN_THREADS_DEF;
 
         /* Set up the iterator */
         flags = NPY_ITER_EXTERNAL_LOOP | NPY_ITER_REFS_OK;
         op_flags[0] = NPY_ITER_WRITEONLY | NPY_ITER_NO_BROADCAST;
         op_flags[1] = NPY_ITER_READONLY;
 
-        iter = NpyIter_MultiNew(2, op, flags, order, NPY_NO_CASTING,
+        iter = HNpyIter_MultiNew(ctx, 2, op, flags, order, NPY_NO_CASTING,
                                 op_flags, NULL);
         if (iter == NULL) {
             return -1;
         }
 
         /* Get the values needed for the inner loop */
-        iternext = NpyIter_GetIterNext(iter, NULL);
+        iternext = HNpyIter_GetIterNext(ctx, iter, NULL);
         if (iternext == NULL) {
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(ctx, iter);
             return -1;
         }
 
@@ -1951,21 +1958,27 @@ array_assign_boolean_subscript(PyArrayObject *self,
         /* Get a dtype transfer function */
         NpyIter_GetInnerFixedStrideArray(iter, fixed_strides);
         NPY_cast_info cast_info;
-        if (PyArray_GetDTypeTransferFunction(
-                 IsUintAligned(self) && IsAligned(self) &&
-                        IsUintAligned(v) && IsAligned(v),
+        HPy h_v_descr = HPyArray_DESCR(ctx, h_v, v);
+        HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+        if (HPyArray_GetDTypeTransferFunction(ctx,
+                 HIsUintAligned(ctx, h_self, self) && HPyIsAligned(ctx, h_self, self) &&
+                        HIsUintAligned(ctx, h_v, v) && HPyIsAligned(ctx, h_v, v),
                         v_stride, fixed_strides[0],
-                        PyArray_DESCR(v), PyArray_DESCR(self),
+                        h_v_descr, h_self_descr,
                         0,
                         &cast_info,
                         &needs_api) != NPY_SUCCEED) {
+            HPy_Close(ctx, h_v_descr);
+            HPy_Close(ctx, h_self_descr);
             NpyIter_Deallocate(iter);
             return -1;
         }
+        HPy_Close(ctx, h_v_descr);
+        HPy_Close(ctx, h_self_descr);
 
-        if (!needs_api) {
-            NPY_BEGIN_THREADS_NDITER(iter);
-        }
+        // if (!needs_api) {
+        //     NPY_BEGIN_THREADS_NDITER(iter);
+        // }
 
         npy_intp strides[2] = {v_stride, self_stride};
 
@@ -1985,7 +1998,7 @@ array_assign_boolean_subscript(PyArrayObject *self,
                                         &subloopsize, 0);
 
                 char *args[2] = {v_data, self_data};
-                res = cast_info.func(npy_get_context(), &cast_info.context,
+                res = cast_info.func(ctx, &cast_info.context,
                         args, &subloopsize, strides, cast_info.auxdata);
                 if (res < 0) {
                     break;
@@ -1996,12 +2009,12 @@ array_assign_boolean_subscript(PyArrayObject *self,
             }
         } while (iternext(iter));
 
-        if (!needs_api) {
-            NPY_END_THREADS;
-        }
+        // if (!needs_api) {
+        //     NPY_END_THREADS;
+        // }
 
         NPY_cast_info_xfree(&cast_info);
-        if (!NpyIter_Deallocate(iter)) {
+        if (!HNpyIter_Deallocate(ctx, iter)) {
             res = -1;
         }
     }
@@ -2584,17 +2597,13 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
             tmp_arr = HPy_Dup(ctx, h_op);
         }
 
-        PyObject *py_tmp_ind_obj = HPy_AsPyObject(ctx, indices[0].object);
-        PyObject *py_tmp_arr = HPy_AsPyObject(ctx, tmp_arr);
-        if (array_assign_boolean_subscript(self_struct,
-                                           (PyArrayObject *) py_tmp_ind_obj,
-                                           (PyArrayObject*) py_tmp_arr, NPY_CORDER) < 0) {
+        if (array_assign_boolean_subscript(ctx, h_self, self_struct,
+                                           indices[0].object, 
+                                           tmp_arr, NPY_CORDER) < 0) {
             result = -1;
         } else {
             result = 0;
         }
-        Py_DECREF(py_tmp_ind_obj);
-        Py_DECREF(py_tmp_arr);
         goto cleanup;
     }
 
