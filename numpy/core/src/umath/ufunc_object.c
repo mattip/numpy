@@ -7103,10 +7103,8 @@ NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec = {
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .defines = ufunc_defines,
     // .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = ufunc_slots
-#endif
 };
 
 /* End of code for ufunc objects */

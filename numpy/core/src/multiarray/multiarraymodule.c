@@ -5287,9 +5287,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     _PyArray_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_array_type);
     HPyGlobal_Store(ctx, &HPyArray_Type, h_array_type);
-#ifndef NO_LEGACY
-    PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist);
-#endif
+    // PyArray_Type.tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist); // HPY: needs new API
 
     if (setup_scalartypes(ctx) < 0) {
         goto err;

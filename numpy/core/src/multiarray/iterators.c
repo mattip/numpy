@@ -1121,10 +1121,8 @@ NPY_NO_EXPORT HPyType_Spec PyArrayIter_Type_Spec = {
     .name = "numpy.flatiter",
     .basicsize = sizeof(PyArrayIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-#ifndef NO_LEGACY
     .legacy = 1,
     .legacy_slots = iter_slots
-#endif
 };
 
 NPY_NO_EXPORT PyTypeObject *_PyArrayIter_Type_p;
@@ -1553,10 +1551,8 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMultiIter_Type_Spec = {
     .name = "numpy.broadcast",
     .basicsize = sizeof(PyArrayMultiIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-#ifndef NO_LEGACY
     .legacy = 1,
     .legacy_slots = arraymultiter_slots,
-#endif
 };
 
 NPY_NO_EXPORT PyTypeObject *_PyArrayMultiIter_Type_p;
@@ -1841,10 +1837,8 @@ NPY_NO_EXPORT HPyType_Spec PyArrayNeighborhoodIter_Type_Spec = {
     .name = "numpy.neigh_internal_iter",
     .basicsize = sizeof(PyArrayNeighborhoodIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-#ifndef NO_LEGACY
     .legacy = 1,
     .legacy_slots = neighiter_slots,
-#endif
 };
 
 NPY_NO_EXPORT PyTypeObject *PyArrayNeighborhoodIter_Type;
