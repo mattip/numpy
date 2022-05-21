@@ -1484,6 +1484,9 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
     PyArray_DTypeMeta *py_dtype2 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type2);
     PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(py_dtype1, py_dtype2);
     HPy h_common_dtype = HPy_FromPyObject(ctx, common_dtype);
+    Py_DECREF(py_dtype1);
+    Py_DECREF(py_dtype2);
+
     if (HPy_IsNull(h_common_dtype)) {
         return HPy_NULL;
     }
@@ -2164,13 +2167,8 @@ HPyArray_ResultType(HPyContext *ctx,
         all_descriptors[i_all] = HPy_NULL;
     }
 
-    CAPI_WARN("HPyArray_ResultType: call to PyArray_PromoteDTypeSequence");
-    PyArray_DTypeMeta **py_all_DTypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, all_DTypes, narrs+ndtypes);
-    PyArray_DTypeMeta *py_common_dtype = PyArray_PromoteDTypeSequence(
-            narrs+ndtypes, py_all_DTypes);
-    HPy common_dtype = HPy_FromPyObject(ctx, (PyObject *)py_common_dtype);
-    Py_XDECREF(py_common_dtype);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_all_DTypes, narrs+ndtypes);
+    HPy common_dtype = HPyArray_PromoteDTypeSequence(ctx, 
+            narrs+ndtypes, all_DTypes);
     for (npy_intp i=0; i < narrs+ndtypes; i++) {
         HPy_Close(ctx, all_DTypes[i]);
     }

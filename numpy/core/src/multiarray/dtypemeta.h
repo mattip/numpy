@@ -83,6 +83,7 @@ typedef struct {
 
 #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)
 #define NPY_DT_is_abstract(dtype) (((dtype)->flags & NPY_DT_ABSTRACT) != 0)
+#define HNPY_DT_is_abstract(ctx, dtype) ((PyArray_DTypeMeta_AsStruct(ctx, dtype)->flags & NPY_DT_ABSTRACT) != 0)
 #define NPY_DT_is_parametric(dtype) (((dtype)->flags & NPY_DT_PARAMETRIC) != 0)
 
 static inline PyObject* DTYPE_SLOTS_CASTINGIMPL(PyArray_DTypeMeta *meta) {
