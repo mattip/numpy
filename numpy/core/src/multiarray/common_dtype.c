@@ -11,6 +11,7 @@
 #include "dtypemeta.h"
 #include "abstractdtypes.h"
 
+#include "hpy_utils.h"
 
 /*
  * This file defines all logic necessary for generic "common dtype"
@@ -113,54 +114,60 @@ PyArray_CommonDType(PyArray_DTypeMeta *dtype1, PyArray_DTypeMeta *dtype2)
  * @param length Number of DTypes
  * @param dtypes
  */
-static PyArray_DTypeMeta *
-reduce_dtypes_to_most_knowledgeable(
-        npy_intp length, PyArray_DTypeMeta **dtypes)
+static /* PyArray_DTypeMeta * */ HPy
+hreduce_dtypes_to_most_knowledgeable(HPyContext *ctx,
+        npy_intp length, /* PyArray_DTypeMeta ** */ HPy *dtypes)
 {
     assert(length >= 2);
     npy_intp half = length / 2;
 
-    PyArray_DTypeMeta *res = NULL;
+    HPy res = HPy_NULL;
 
     for (npy_intp low = 0; low < half; low++) {
         npy_intp high = length - 1 - low;
-        if (dtypes[high] == dtypes[low]) {
-            Py_INCREF(dtypes[low]);
-            Py_XSETREF(res, dtypes[low]);
+        if (HPy_Is(ctx, dtypes[high], dtypes[low])) {
+            HPy_SETREF(ctx, res, HPy_Dup(ctx, dtypes[low]));
         }
         else {
-            if (NPY_DT_is_abstract(dtypes[high])) {
+            if (HNPY_DT_is_abstract(ctx, dtypes[high])) {
                 /*
                  * Priority inversion, start with abstract, because if it
                  * returns `other`, we can let other pass instead.
                  */
-                PyArray_DTypeMeta *tmp = dtypes[low];
+                HPy tmp = dtypes[low];
                 dtypes[low] = dtypes[high];
                 dtypes[high] = tmp;
             }
 
-            Py_XSETREF(res, NPY_DT_CALL_common_dtype(dtypes[low], dtypes[high]));
-            if (res == NULL) {
-                return NULL;
+            CAPI_WARN("hreduce_dtypes_to_most_knowledgeable: NPY_DT_CALL_common_dtype");
+            PyArray_DTypeMeta *py_dtypes_high = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[high]);
+            PyArray_DTypeMeta *py_dtypes_low = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[low]);
+            PyArray_DTypeMeta *py_res = NPY_DT_CALL_common_dtype(py_dtypes_low, py_dtypes_high);
+            res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+            Py_XDECREF(py_dtypes_high);
+            Py_XDECREF(py_dtypes_low);
+            Py_XDECREF(py_res);
+            if (HPy_IsNull(res)) {
+                return HPy_NULL;
             }
         }
 
-        if (res == (PyArray_DTypeMeta *)Py_NotImplemented) {
-            PyArray_DTypeMeta *tmp = dtypes[low];
+        if (HPy_Is(ctx, res, ctx->h_NotImplemented)) {
+            HPy tmp = dtypes[low];
             dtypes[low] = dtypes[high];
             dtypes[high] = tmp;
         }
-        if (res == dtypes[low]) {
+        if (HPy_Is(ctx, res, dtypes[low])) {
             /* `dtypes[high]` cannot influence the final result, so clear: */
-            dtypes[high] = NULL;
+            dtypes[high] = HPy_NULL;
         }
     }
 
     if (length == 2) {
         return res;
     }
-    Py_DECREF(res);
-    return reduce_dtypes_to_most_knowledgeable(length - half, dtypes);
+    HPy_Close(ctx, res);
+    return hreduce_dtypes_to_most_knowledgeable(ctx, length - half, dtypes);
 }
 
 
@@ -207,27 +214,39 @@ NPY_NO_EXPORT PyArray_DTypeMeta *
 PyArray_PromoteDTypeSequence(
         npy_intp length, PyArray_DTypeMeta **dtypes_in)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy *h_dtypes_in = HPy_FromPyObjectArray(ctx, (PyObject **) dtypes_in, (Py_ssize_t)length);
+    HPy h_ret = HPyArray_PromoteDTypeSequence(ctx, length, h_dtypes_in);
+    PyArray_DTypeMeta *ret = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_ret);
+    HPy_Close(ctx, h_ret);
+    HPy_CloseAndFreeArray(ctx, h_dtypes_in, (HPy_ssize_t)length);
+    return ret;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_PromoteDTypeSequence(HPyContext *ctx,
+        npy_intp length, HPy *dtypes_in)
+{
     if (length == 1) {
-        Py_INCREF(dtypes_in[0]);
-        return dtypes_in[0];
+        return HPy_Dup(ctx, dtypes_in[0]);
     }
-    PyArray_DTypeMeta *result = NULL;
+    HPy result = HPy_NULL;
 
     /* Copy dtypes so that we can reorder them (only allocate when many) */
-    PyObject *_scratch_stack[NPY_MAXARGS];
-    PyObject **_scratch_heap = NULL;
-    PyArray_DTypeMeta **dtypes = (PyArray_DTypeMeta **)_scratch_stack;
+    HPy *_scratch_stack[NPY_MAXARGS];
+    HPy*_scratch_heap = NULL;
+    HPy *dtypes = _scratch_stack;
 
     if (length > NPY_MAXARGS) {
-        _scratch_heap = PyMem_Malloc(length * sizeof(PyObject *));
+        _scratch_heap = malloc(length * sizeof(HPy));
         if (_scratch_heap == NULL) {
-            PyErr_NoMemory();
-            return NULL;
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
         }
-        dtypes = (PyArray_DTypeMeta **)_scratch_heap;
+        dtypes = _scratch_heap;
     }
 
-    memcpy(dtypes, dtypes_in, length * sizeof(PyObject *));
+    memcpy(dtypes, dtypes_in, length * sizeof(HPy));
 
     /*
      * `result` is the last promotion result, which can usually be reused if
@@ -237,15 +256,15 @@ PyArray_PromoteDTypeSequence(
      * `dtypes[0]` will be the most knowledgeable (highest category) which
      * we consider the "main_dtype" here.
      */
-    result = reduce_dtypes_to_most_knowledgeable(length, dtypes);
-    if (result == NULL) {
+    result = hreduce_dtypes_to_most_knowledgeable(ctx, length, dtypes);
+    if (HPy_IsNull(result)) {
         goto finish;
     }
-    PyArray_DTypeMeta *main_dtype = dtypes[0];
+    HPy main_dtype = dtypes[0];
 
     npy_intp reduce_start = 1;
-    if (result == (PyArray_DTypeMeta *)Py_NotImplemented) {
-        Py_SETREF(result, NULL);
+    if (HPy_Is(ctx, result, ctx->h_NotImplemented)) {
+        HPy_SETREF(ctx, result, HPy_NULL);
     }
     else {
         /* (new) first value is already taken care of in `result` */
@@ -261,9 +280,9 @@ PyArray_PromoteDTypeSequence(
      * If this turns out to be a limitation, this "reduction" will have to
      * become a default version and we have to allow DTypes to override it.
      */
-    PyArray_DTypeMeta *prev = NULL;
+    HPy prev = HPy_NULL;
     for (npy_intp i = reduce_start; i < length; i++) {
-        if (dtypes[i] == NULL || dtypes[i] == prev) {
+        if (HPy_IsNull(dtypes[i]) || HPy_Is(ctx, dtypes[i], prev)) {
             continue;
         }
         /*
@@ -271,34 +290,43 @@ PyArray_PromoteDTypeSequence(
          * a higher category). We assume that the result is not in a lower
          * category.
          */
+        CAPI_WARN("HPyArray_PromoteDTypeSequence: call to NPY_DT_CALL_common_dtype");
+        PyArray_DTypeMeta *py_main_dtype = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, main_dtype);
+        PyArray_DTypeMeta *py_dtypes_i = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[i]);
         PyArray_DTypeMeta *promotion = NPY_DT_CALL_common_dtype(
-                main_dtype, dtypes[i]);
-        if (promotion == NULL) {
-            Py_XSETREF(result, NULL);
+                py_main_dtype, py_dtypes_i);
+        HPy h_promotion = HPy_FromPyObject(ctx, (PyObject *)promotion);
+        Py_DECREF(py_main_dtype);
+        Py_DECREF(py_dtypes_i);
+
+        if (HPy_IsNull(h_promotion)) {
+            HPy_SETREF(ctx, result, HPy_NULL);
             goto finish;
         }
-        else if ((PyObject *)promotion == Py_NotImplemented) {
-            Py_DECREF(Py_NotImplemented);
-            Py_XSETREF(result, NULL);
-            PyObject *dtypes_in_tuple = PyTuple_New(length);
-            if (dtypes_in_tuple == NULL) {
+        else if (HPy_Is(ctx, h_promotion, ctx->h_NotImplemented)) {
+            Py_DECREF(promotion);
+            HPy_Close(ctx, h_promotion);
+            HPy_SETREF(ctx, result, HPy_NULL);
+            HPyTupleBuilder dtypes_in_tuple = HPyTupleBuilder_New(ctx, length);
+            if (HPyTupleBuilder_IsNull(dtypes_in_tuple)) {
                 goto finish;
             }
-            for (npy_intp l=0; l < length; l++) {
-                Py_INCREF(dtypes_in[l]);
-                PyTuple_SET_ITEM(dtypes_in_tuple, l, (PyObject *)dtypes_in[l]);
+            for (HPy_ssize_t l=0; l < length; l++) {
+                HPyTupleBuilder_Set(ctx, dtypes_in_tuple, l, HPy_Dup(ctx, dtypes_in[l]));
             }
-            PyErr_Format(PyExc_TypeError,
+            // HPy h_dtypes_in_tuple = HPyTupleBuilder_Build(ctx, dtypes_in_tuple);
+            // HPY TODO: PyErr_Format(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "The DType %S could not be promoted by %S. This means that "
                     "no common DType exists for the given inputs. "
                     "For example they cannot be stored in a single array unless "
-                    "the dtype is `object`. The full list of DTypes is: %S",
-                    dtypes[i], main_dtype, dtypes_in_tuple);
-            Py_DECREF(dtypes_in_tuple);
+                    "the dtype is `object`. The full list of DTypes is: %S"); //,
+                    // dtypes[i], main_dtype, h_dtypes_in_tuple);
+            HPyTupleBuilder_Cancel(ctx, dtypes_in_tuple);
             goto finish;
         }
-        if (result == NULL) {
-            result = promotion;
+        if (HPy_IsNull(result)) {
+            result = h_promotion;
             continue;
         }
 
@@ -306,14 +334,19 @@ PyArray_PromoteDTypeSequence(
          * The above promoted, now "reduce" with the current result; note that
          * in the typical cases we expect this step to be a no-op.
          */
-        Py_SETREF(result, PyArray_CommonDType(result, promotion));
+        CAPI_WARN("HPyArray_PromoteDTypeSequence: call to PyArray_CommonDType");
+        PyArray_DTypeMeta *py_common = PyArray_CommonDType(HPy_AsPyObject(ctx, result), promotion);
+        HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, py_common));
         Py_DECREF(promotion);
-        if (result == NULL) {
+        HPy_Close(ctx, h_promotion);
+        if (HPy_IsNull(result)) {
             goto finish;
         }
     }
 
   finish:
-    PyMem_Free(_scratch_heap);
+    if (_scratch_heap) {
+        free(_scratch_heap);
+    }
     return result;
 }

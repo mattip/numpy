@@ -14,4 +14,8 @@ NPY_NO_EXPORT PyArray_DTypeMeta *
 PyArray_PromoteDTypeSequence(
         npy_intp length, PyArray_DTypeMeta **dtypes_in);
 
+NPY_NO_EXPORT HPy
+HPyArray_PromoteDTypeSequence(HPyContext *ctx,
+        npy_intp length, HPy *dtypes_in);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_COMMON_DTYPE_H_ */
