@@ -1854,7 +1854,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
     NpyAuxData *auxdata;
     npy_intp fixed_strides[NPY_MAXARGS];
 
-    NpyIter_GetInnerFixedStrideArray(iter, fixed_strides);
+    HNpyIter_GetInnerFixedStrideArray(hctx, iter, fixed_strides);
     NPY_ARRAYMETHOD_FLAGS flags = 0;
     if (masked) {
         if (HPyArrayMethod_GetMaskedStridedLoop(hctx, context,
