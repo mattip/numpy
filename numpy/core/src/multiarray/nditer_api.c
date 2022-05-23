@@ -337,7 +337,7 @@ HNpyIter_ResetBasePointers(HPyContext *ctx, NpyIter *iter, char **baseptrs, char
     if (itflags&NPY_ITFLAG_BUFFER) {
         /* If buffer allocation was delayed, do it now */
         if (itflags&NPY_ITFLAG_DELAYBUF) {
-            if (!npyiter_allocate_buffers(iter, errmsg)) {
+            if (!hnpyiter_allocate_buffers(ctx, iter, errmsg)) {
                 return NPY_FAIL;
             }
             NIT_ITFLAGS(iter) &= ~NPY_ITFLAG_DELAYBUF;
@@ -1789,12 +1789,6 @@ npyiter_coalesce_axes(NpyIter *iter)
         }
         NIT_NDIM(iter) = new_ndim;
     }
-}
-
-NPY_NO_EXPORT int
-npyiter_allocate_buffers(NpyIter *iter, char **errmsg)
-{
-    return hnpyiter_allocate_buffers(npy_get_context(), iter, errmsg);
 }
 
 /*
