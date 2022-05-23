@@ -76,7 +76,7 @@ _npy_alloc_cache(npy_uintp nelem, npy_uintp esz, npy_uint msz,
     void * p;
     assert((esz == 1 && cache == datacache) ||
            (esz == sizeof(npy_intp) && cache == dimcache));
-    assert(PyGILState_Check());
+    // assert(PyGILState_Check());
     if (nelem < msz) {
         if (cache[nelem].available > 0) {
             return cache[nelem].ptrs[--(cache[nelem].available)];
@@ -137,7 +137,7 @@ npy_alloc_cache_zero(size_t nmemb, size_t size)
 {
     void * p;
     size_t sz = nmemb * size;
-    NPY_BEGIN_THREADS_DEF;
+    // NPY_BEGIN_THREADS_DEF;
     if (sz < NBUCKETS) {
         p = _npy_alloc_cache(sz, 1, NBUCKETS, datacache, &PyDataMem_NEW);
         if (p) {
@@ -145,9 +145,9 @@ npy_alloc_cache_zero(size_t nmemb, size_t size)
         }
         return p;
     }
-    NPY_BEGIN_THREADS;
+    // NPY_BEGIN_THREADS;
     p = PyDataMem_NEW_ZEROED(nmemb, size);
-    NPY_END_THREADS;
+    // NPY_END_THREADS;
     return p;
 }
 
@@ -293,7 +293,7 @@ PyDataMem_NEW_ZEROED(size_t nmemb, size_t size)
         }
         NPY_DISABLE_C_API
     }
-    PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, nmemb * size);
+    // PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, nmemb * size);
     return result;
 }
 
@@ -359,7 +359,7 @@ default_calloc(void *NPY_UNUSED(ctx), size_t nelem, size_t elsize)
 {
     void * p;
     size_t sz = nelem * elsize;
-    NPY_BEGIN_THREADS_DEF;
+    // NPY_BEGIN_THREADS_DEF;
     if (sz < NBUCKETS) {
         p = _npy_alloc_cache(sz, 1, NBUCKETS, datacache, &malloc);
         if (p) {
@@ -367,9 +367,9 @@ default_calloc(void *NPY_UNUSED(ctx), size_t nelem, size_t elsize)
         }
         return p;
     }
-    NPY_BEGIN_THREADS;
+    // NPY_BEGIN_THREADS;
     p = calloc(nelem, elsize);
-    NPY_END_THREADS;
+    // NPY_END_THREADS;
     return p;
 }
 
