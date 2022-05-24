@@ -1706,7 +1706,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
         HPy /* (PyArrayObject **) */ *op, NPY_ORDER order, npy_intp buffersize,
         NPY_CASTING casting,
         HPy /* (PyObject **) */ *arr_prep, ufunc_hpy_full_args full_args,
-        npy_uint32 *op_flags, int errormask, PyObject *extobj)
+        npy_uint32 *op_flags, int errormask, HPy h_extobj)
 {
     HPy h_ufunc = context->caller;
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(hctx, h_ufunc);
@@ -1906,7 +1906,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         /* NOTE: We could check float errors even when `res < 0` */
         const char *name = ufunc_get_name_cstr(ufunc);
-        res = _check_ufunc_fperr(errormask, extobj, name);
+        res = _hpy_check_ufunc_fperr(hctx, errormask, h_extobj, name);
     }
 
     if (!HNpyIter_Deallocate(hctx, iter)) {
@@ -2908,6 +2908,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s\n", ufunc_name);
 
     /* Get the buffersize and errormask */
+    CAPI_WARN("_get_bufsize_errmask");
     PyObject *py_extobj = HPy_AsPyObject(hctx, extobj);
     if (_get_bufsize_errmask(py_extobj, ufunc_name, &buffersize, &errormask) < 0) {
         Py_XDECREF(py_extobj);
@@ -2938,7 +2939,6 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     };
 
     /* Do the ufunc loop */
-    PyObject **py_output_array_prepare = HPy_AsPyObjectArray(hctx, output_array_prepare, nout);
     if (!HPy_IsNull(wheremask)) {
         NPY_UF_DBG_PRINT("Executing masked inner loop\n");
 
@@ -2954,7 +2954,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         retval = execute_ufunc_loop(hctx, &context, 1,
                 op, order, buffersize, casting,
                 output_array_prepare, full_args, op_flags,
-                errormask, py_extobj);
+                errormask, extobj);
         // fall through to 'finish'
     }
     else {
@@ -2984,7 +2984,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         retval = execute_ufunc_loop(hctx, &context, 0,
                 op, order, buffersize, casting,
                 output_array_prepare, full_args, op_flags,
-                errormask, py_extobj);
+                errormask, extobj);
         // fall through to 'finish'
     }
 finish:

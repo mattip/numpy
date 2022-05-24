@@ -24,6 +24,8 @@
 #include "nditer_hpy.h"
 #include "ctors.h"
 
+#include "multiarraymodule.h"
+
 /* Internal helper functions private to this file */
 static int
 npyiter_check_global_flags(npy_uint32 flags, npy_uint32* itflags);
@@ -558,6 +560,17 @@ NpyIter_MultiNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
                  PyArray_Descr **op_request_dtypes)
 {
     return NpyIter_AdvancedNew(nop, op_in, flags, order, casting,
+                            op_flags, op_request_dtypes,
+                            -1, NULL, NULL, 0);
+}
+
+NPY_NO_EXPORT NpyIter *
+HNpyIter_MultiNew(HPyContext *ctx, int nop, /*PyArrayObject*/ HPy *op_in, npy_uint32 flags,
+                 NPY_ORDER order, NPY_CASTING casting,
+                 npy_uint32 *op_flags,
+                 /*PyArray_Descr*/ HPy *op_request_dtypes)
+{
+    return HNpyIter_AdvancedNew(ctx, nop, op_in, flags, order, casting,
                             op_flags, op_request_dtypes,
                             -1, NULL, NULL, 0);
 }
@@ -1215,7 +1228,7 @@ hnpyiter_prepare_one_operand(HPyContext *ctx, HPy *op,
         /* Check if the operand is aligned */
         if (op_flags & NPY_ITER_ALIGNED) {
             /* Check alignment */
-            if (!IsAligned(op_data)) {
+            if (!HPyIsAligned(ctx, *op, op_data)) {
                 NPY_IT_DBG_PRINT("Iterator: Setting NPY_OP_ITFLAG_CAST "
                                     "because of NPY_ITER_ALIGNED\n");
                 *op_itflags |= NPY_OP_ITFLAG_CAST;
@@ -1396,14 +1409,14 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
         /* If the types aren't equivalent, a cast is necessary */
         if (!HPy_IsNull(op[iop])) {
             HPy h_op_descr = HPyArray_GetDescr(ctx, op[iop]); /* PyArray_DESCR(op[iop]) */
-            PyArray_Descr *op_descr = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_descr);
-            HPy_Close(ctx, h_op_descr);
-
-            PyArray_Descr *op_dtype_iop = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_dtype[iop]);
-            if (!PyArray_EquivTypes(op_descr, op_dtype_iop)) {
+            if (!HPyArray_EquivTypes(ctx, h_op_descr, h_op_dtype[iop])) {
                 /* Check read (op -> temp) casting */
                 /* TODO HPY LABS PORT cut-off 'PyArray_CanCastArrayTo' */
                 CAPI_WARN("hnpyiter_prepare_one_operand");
+                PyArray_Descr *op_descr = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_descr);
+                HPy_Close(ctx, h_op_descr);
+                PyArray_Descr *op_dtype_iop = (PyArray_Descr *) HPy_AsPyObject(ctx, h_op_dtype[iop]);
+
                 PyArrayObject *py_op_iop = (PyArrayObject *) HPy_AsPyObject(ctx, op[iop]);
                 if ((op_itflags[iop] & NPY_OP_ITFLAG_READ) &&
                         !PyArray_CanCastArrayTo(py_op_iop,
@@ -1453,6 +1466,8 @@ hnpyiter_check_casting(HPyContext *ctx, int nop, HPy *op,
                         "because the types aren't equivalent\n");
                 /* Indicate that this operand needs casting */
                 op_itflags[iop] |= NPY_OP_ITFLAG_CAST;
+            } else {
+                HPy_Close(ctx, h_op_descr);
             }
         }
     }

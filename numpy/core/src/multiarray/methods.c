@@ -1748,7 +1748,7 @@ _getlist_pkl(PyArrayObject *self)
         return NULL;
     }
     while (iter->index < iter->size) {
-        theobject = getitem(iter->dataptr, self);
+        theobject = PyArray_GETITEM(self, iter->dataptr);
         PyList_SET_ITEM(list, iter->index, theobject);
         PyArray_ITER_NEXT(iter);
     }

@@ -45,4 +45,10 @@ HNpyIter_GetOperandArray(NpyIter *iter);
 NPY_NO_EXPORT NpyIter_IterNextFunc *
 HNpyIter_GetIterNext(HPyContext *ctx, NpyIter *iter, char **errmsg);
 
+NPY_NO_EXPORT NpyIter *
+HNpyIter_MultiNew(HPyContext *ctx, int nop, /*PyArrayObject*/ HPy *op_in, npy_uint32 flags,
+                 NPY_ORDER order, NPY_CASTING casting,
+                 npy_uint32 *op_flags,
+                 /*PyArray_Descr*/ HPy *op_request_dtypes);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_NDITER_HPY_H_ */
