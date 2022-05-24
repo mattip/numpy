@@ -89,48 +89,48 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
 };
 /**end repeat**/
 
-static PyObject *
-gentype_alloc(PyTypeObject *type, Py_ssize_t nitems)
-{
-    PyObject *obj;
-    const size_t size = _PyObject_VAR_SIZE(type, nitems + 1);
+// static PyObject *
+// gentype_alloc(PyTypeObject *type, Py_ssize_t nitems)
+// {
+//     PyObject *obj;
+//     const size_t size = _PyObject_VAR_SIZE(type, nitems + 1);
 
-    obj = (PyObject *)PyObject_Malloc(size);
-    if (obj == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    /*
-     * If we don't need to zero memory, we could use
-     * PyObject_{New, NewVar} for this whole function.
-     */
-    memset(obj, 0, size);
-    if (type->tp_itemsize == 0) {
-        PyObject_Init(obj, type);
-    }
-    else {
-        (void) PyObject_InitVar((PyVarObject *)obj, type, nitems);
-    }
-    return obj;
-}
+//     obj = (PyObject *)PyObject_Malloc(size);
+//     if (obj == NULL) {
+//         PyErr_NoMemory();
+//         return NULL;
+//     }
+//     /*
+//      * If we don't need to zero memory, we could use
+//      * PyObject_{New, NewVar} for this whole function.
+//      */
+//     memset(obj, 0, size);
+//     if (type->tp_itemsize == 0) {
+//         PyObject_Init(obj, type);
+//     }
+//     else {
+//         (void) PyObject_InitVar((PyVarObject *)obj, type, nitems);
+//     }
+//     return obj;
+// }
 
-static void
-gentype_dealloc(PyObject *v)
-{
-    Py_TYPE(v)->tp_free(v);
-}
+// static void
+// gentype_dealloc(PyObject *v)
+// {
+//     Py_TYPE(v)->tp_free(v);
+// }
 
-static void
-gentype_free(PyObject *v)
-{
-    /*
-     * have an explicit tp_free to enforce inheritance from it.
-     * PyObject_Free is also the tp_free of PyBaseObject so python does not
-     * COPYSLOT it, instead it takes the next parent PyInt which has a
-     * different allocator
-     */
-    PyObject_Free(v);
-}
+// static void
+// gentype_free(PyObject *v)
+// {
+//     /*
+//      * have an explicit tp_free to enforce inheritance from it.
+//      * PyObject_Free is also the tp_free of PyBaseObject so python does not
+//      * COPYSLOT it, instead it takes the next parent PyInt which has a
+//      * different allocator
+//      */
+//     PyObject_Free(v);
+// }
 
 
 static PyObject *
@@ -2865,11 +2865,11 @@ static PyObject *gen_arrtype_subscript(PyObject *self, PyObject *key);
 
 
 static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
-    {Py_tp_dealloc, gentype_dealloc},
+    // {Py_tp_dealloc, gentype_dealloc},
     {Py_tp_methods, gentype_methods},
     {Py_tp_getset, gentype_getsets},
-    {Py_tp_alloc, gentype_alloc},
-    {Py_tp_free, gentype_free},
+    // {Py_tp_alloc, gentype_alloc},
+    // {Py_tp_free, gentype_free},
     {Py_tp_richcompare, gentype_richcompare},
     GENTYPE_AS_NUMBER_SLOTS2,
     // as_mapping:
@@ -2929,7 +2929,8 @@ object_arrtype_alloc(PyTypeObject *type, Py_ssize_t items)
             "this will raise a TypeError in the future.", 1) < 0) {
         return NULL;
     }
-    return gentype_alloc(type, items);
+    hpy_abort_not_implemented("gentype_alloc");
+    // return gentype_alloc(type, items);
 }
 
 

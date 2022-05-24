@@ -725,12 +725,11 @@ HPyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(HPyContext *ctx, HPy arr1, HPy arr2,
         return 1;
     }
 
-    if (hpy_solve_may_share_memory(ctx, arr1, arr2, 1) == 0) {
-        return 1;
-    }
-
     PyArrayObject *arr1_data = PyArrayObject_AsStruct(ctx, arr1);
     PyArrayObject *arr2_data = PyArrayObject_AsStruct(ctx, arr2);
+    if (hpy_solve_may_share_memory(ctx, arr1, arr1_data, arr2, arr2_data, 1) == 0) {
+        return 1;
+    }
 
     /*
      * Arrays overlapping in memory may be equivalently iterable if input
@@ -824,6 +823,19 @@ PyArray_EQUIVALENTLY_ITERABLE_OVERLAP_OK(PyArrayObject *arr1, PyArrayObject *arr
                     data2 = PyArray_BYTES(arr2); \
                     stride1 = PyArray_TRIVIAL_PAIR_ITERATION_STRIDE(size1, arr1); \
                     stride2 = PyArray_TRIVIAL_PAIR_ITERATION_STRIDE(size2, arr2); \
+                }
+
+#define HPyArray_PREPARE_TRIVIAL_PAIR_ITERATION(ctx, h_arr1, arr1, h_arr2, arr2, \
+                                        count, \
+                                        data1, data2, \
+                                        stride1, stride2) { \
+                    npy_intp size1 = PyArray_SIZE(arr1); \
+                    npy_intp size2 = PyArray_SIZE(arr2); \
+                    count = ((size1 > size2) || size1 == 0) ? size1 : size2; \
+                    data1 = PyArray_BYTES(arr1); \
+                    data2 = PyArray_BYTES(arr2); \
+                    stride1 = HPyArray_TRIVIAL_PAIR_ITERATION_STRIDE(ctx, size1, h_arr1, arr1); \
+                    stride2 = HPyArray_TRIVIAL_PAIR_ITERATION_STRIDE(ctx, size2, h_arr2, arr2); \
                 }
 
 #endif  /* NUMPY_CORE_SRC_COMMON_LOWLEVEL_STRIDED_LOOPS_H_ */

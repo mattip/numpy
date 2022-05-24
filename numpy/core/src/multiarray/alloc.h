@@ -59,4 +59,7 @@ get_handler_version(PyObject *NPY_UNUSED(self), PyObject *obj);
 NPY_NO_EXPORT HPy
 HPyDataMem_GetHandler(HPyContext *ctx);
 
+NPY_NO_EXPORT void
+HPyDataMem_UserFREE(HPyContext *ctx, void *ptr, size_t size, HPy h_mem_handler);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ALLOC_H_ */

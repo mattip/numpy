@@ -2953,15 +2953,16 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                  * a non-unit dimension), a copy cannot be avoided.
                  */
                 PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op[iop]);
+                PyArrayObject *other_data = PyArrayObject_AsStruct(ctx, op[iother]);
                 if ((op_flags[iop] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
                     (op_flags[iother] & NPY_ITER_OVERLAP_ASSUME_ELEMENTWISE) &&
-                    PyArray_BYTES(op_data) == PyArray_BYTES(PyArrayObject_AsStruct(ctx, op[iother])) &&
-                    PyArray_NDIM(op_data) == PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iother])) &&
+                    PyArray_BYTES(op_data) == PyArray_BYTES(other_data) &&
+                    PyArray_NDIM(op_data) == PyArray_NDIM(other_data) &&
                     PyArray_CompareLists(PyArray_DIMS(op_data),
-                                         PyArray_DIMS(PyArrayObject_AsStruct(ctx, op[iother])),
+                                         PyArray_DIMS(other_data),
                                          PyArray_NDIM(op_data)) &&
                     PyArray_CompareLists(PyArray_STRIDES(op_data),
-                                         PyArray_STRIDES(PyArrayObject_AsStruct(ctx, op[iother])),
+                                         PyArray_STRIDES(other_data),
                                          PyArray_NDIM(op_data))) {
                     HPy op_iop_descr = HPyArray_GetDescr(ctx, op[iother]);
                     HPy op_iother_descr = HPyArray_GetDescr(ctx, op[iother]);
@@ -2969,7 +2970,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                     HPy_Close(ctx, op_iop_descr);
                     HPy_Close(ctx, op_iother_descr);
                     
-                    if (same_descr && solve_may_have_internal_overlap(op_data, 1) == 0) {
+                    if (same_descr && hpy_solve_may_have_internal_overlap(ctx, op[iop], op_data, 1) == 0) {
                         continue;
                     }
                 }
@@ -2978,9 +2979,7 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                  * Use max work = 1. If the arrays are large, it might
                  * make sense to go further.
                  */
-                may_share_memory = solve_may_share_memory(PyArrayObject_AsStruct(ctx, op[iop]),
-                                                          PyArrayObject_AsStruct(ctx, op[iother]),
-                                                          1);
+                may_share_memory = hpy_solve_may_share_memory(ctx, op[iop], op_data, op[iother], other_data, 1);
 
                 if (may_share_memory) {
                     op_itflags[iop] |= NPY_OP_ITFLAG_FORCECOPY;
