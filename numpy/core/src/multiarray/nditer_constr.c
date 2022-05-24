@@ -773,8 +773,8 @@ HNpyIter_Deallocate(HPyContext *ctx, NpyIter *iter)
         NpyIter_TransferInfo *transferinfo = NBF_TRANSFERINFO(bufferdata);
         /* read bufferdata */
         for (iop = 0; iop < nop; ++iop, ++transferinfo) {
-            NPY_cast_info_xfree(&transferinfo->read);
-            NPY_cast_info_xfree(&transferinfo->write);
+            HNPY_cast_info_xfree(ctx, &transferinfo->read);
+            HNPY_cast_info_xfree(ctx, &transferinfo->write);
         }
     }
 

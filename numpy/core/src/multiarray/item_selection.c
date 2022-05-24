@@ -2560,7 +2560,7 @@ PyArray_CountNonzero(PyArrayObject *self)
             data += stride;
         }
 
-    } while(iternext(iter));
+    } while(iternext(npy_get_context(), iter));
 
 finish:
     NPY_END_THREADS;
@@ -2770,13 +2770,13 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
         /* Get the pointers for inner loop iteration */
         iternext = NpyIter_GetIterNext(iter, NULL);
         if (iternext == NULL) {
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(ctx, iter);
             HPy_Close(ctx, h_ret);
             return HPy_NULL;
         }
         get_multi_index = NpyIter_GetGetMultiIndex(iter, NULL);
         if (get_multi_index == NULL) {
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(ctx, iter);
             HPy_Close(ctx, h_ret);
             return HPy_NULL;
         }
@@ -2797,7 +2797,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
                     get_multi_index(iter, multi_index);
                     multi_index += ndim;
                 }
-            } while(iternext(iter));
+            } while(iternext(ctx, iter));
         }
         else {
             hpy_abort_not_implemented("custom data-types");
@@ -2819,7 +2819,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
         NPY_END_THREADS;
     }
 
-    NpyIter_Deallocate(iter);
+    HNpyIter_Deallocate(ctx, iter);
 
 finish:
     if (HPyErr_Occurred(ctx)) {

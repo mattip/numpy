@@ -1270,7 +1270,7 @@ static PyObject *
 npyiter_iternext(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
 {
     if (self->iter != NULL && self->iternext != NULL &&
-                        !self->finished && self->iternext(self->iter)) {
+                        !self->finished && self->iternext(npy_get_context(), self->iter)) {
         /* If there is nesting, the nested iterators should be reset */
         if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
             return NULL;
@@ -1502,7 +1502,7 @@ npyiter_next(NewNpyArrayIterObject *self)
      * when buffering is enabled.
      */
     if (self->started) {
-        if (!self->iternext(self->iter)) {
+        if (!self->iternext(npy_get_context(), self->iter)) {
             /*
              * A casting error may be set here (or no error causing a
              * StopIteration). Buffers may only be cleaned up later.

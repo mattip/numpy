@@ -1819,7 +1819,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                         /* advance extra operand */
                         outer_ptrs[i] += outer_strides[i];
                     }
-                } while (mit->outer_next(mit->outer));
+                } while (mit->outer_next(npy_get_context(), mit->outer));
 
                 break;
 
@@ -1982,10 +1982,10 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                         return -1;
                     }
 #endif
-                } while (mit->subspace_next(mit->subspace_iter));
+                } while (mit->subspace_next(npy_get_context(), mit->subspace_iter));
 
-                mit->extra_op_next(mit->extra_op_iter);
-            } while (mit->outer_next(mit->outer));
+                mit->extra_op_next(npy_get_context(), mit->extra_op_iter);
+            } while (mit->outer_next(npy_get_context(), mit->outer));
             NPY_END_THREADS;
         }
 /**end repeat1**/

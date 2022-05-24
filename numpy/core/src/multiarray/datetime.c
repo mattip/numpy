@@ -3566,7 +3566,7 @@ find_string_array_datetime64_type(PyArrayObject *arr,
 
             data += stride;
         }
-    } while(iternext(iter));
+    } while(iternext(npy_get_context(), iter));
 
     PyArray_free(tmp_buffer);
     NpyIter_Deallocate(iter);

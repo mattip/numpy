@@ -1142,7 +1142,7 @@ arr_ravel_multi_index(PyObject *self, PyObject *args, PyObject *kwds)
                         dataptr, strides) != NPY_SUCCEED) {
                 goto fail;
             }
-        } while(iternext(iter));
+        } while(iternext(npy_get_context(), iter));
     }
 
     ret = NpyIter_GetOperandArray(iter)[dimensions.len];
@@ -1333,7 +1333,7 @@ arr_unravel_index(PyObject *self, PyObject *args, PyObject *kwds)
                 goto fail;
             }
             coordsptr += count * dimensions.len;
-        } while (iternext(iter));
+        } while (iternext(npy_get_context(), iter));
     }
 
 

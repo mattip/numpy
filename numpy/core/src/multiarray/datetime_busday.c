@@ -544,7 +544,7 @@ business_day_offset(PyArrayObject *dates, PyArrayObject *offsets,
                 data_offsets += stride_offsets;
                 data_out += stride_out;
             }
-        } while (iternext(iter));
+        } while (iternext(npy_get_context(), iter));
     }
 
     /* Get the return object from the iterator */
@@ -679,7 +679,7 @@ business_day_count(PyArrayObject *dates_begin, PyArrayObject *dates_end,
                 data_dates_end += stride_dates_end;
                 data_out += stride_out;
             }
-        } while (iternext(iter));
+        } while (iternext(npy_get_context(), iter));
     }
 
     /* Get the return object from the iterator */
@@ -805,7 +805,7 @@ is_business_day(PyArrayObject *dates, PyArrayObject *out,
                 data_dates += stride_dates;
                 data_out += stride_out;
             }
-        } while (iternext(iter));
+        } while (iternext(npy_get_context(), iter));
     }
 
     /* Get the return object from the iterator */

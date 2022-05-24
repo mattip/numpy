@@ -81,6 +81,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "hpy.h"
 #include "hpy_utils.h"
 #include "scalarapi.h"
+#include "nditer_hpy.h"
 
 /*
  *****************************************************************************
@@ -3535,7 +3536,7 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
         NPY_BEGIN_THREADS_NDITER(iter);
 
         if (NpyIter_GetIterSize(iter) != 0) {
-            NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+            NpyIter_IterNextFunc *iternext = HNpyIter_GetIterNext(ctx, iter, NULL);
             npy_intp * innersizeptr = NpyIter_GetInnerLoopSizePtr(iter);
             char **dataptrarray = NpyIter_GetDataPtrArray(iter);
 
@@ -3590,7 +3591,7 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
                         csrc += cstride;
                     }
                 }
-            } while (iternext(iter));
+            } while (iternext(ctx, iter));
         }
 
         NPY_END_THREADS;

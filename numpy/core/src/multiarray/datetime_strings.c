@@ -1567,7 +1567,7 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
                                 local, utc, unit, tzoffset, casting) < 0) {
                 goto fail;
             }
-        } while(iternext(iter));
+        } while(iternext(npy_get_context(), iter));
     }
 
     ret = NpyIter_GetOperandArray(iter)[1];

@@ -1179,7 +1179,7 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
 typedef struct NpyIter_InternalOnly NpyIter;
 
 /* Iterator function pointers that may be specialized */
-typedef int (NpyIter_IterNextFunc)(NpyIter *iter);
+typedef int (NpyIter_IterNextFunc)(HPyContext *ctx, NpyIter *iter);
 typedef void (NpyIter_GetMultiIndexFunc)(NpyIter *iter,
                                       npy_intp *outcoords);
 
