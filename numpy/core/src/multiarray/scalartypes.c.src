@@ -81,10 +81,8 @@ static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
 
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@",
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-#endif
     .flags = HPY_BASEFLAGS,
 };
 /**end repeat**/
@@ -2886,10 +2884,8 @@ static HPyDef *PyGenericArrType_Type_hpy_slots[] = {
 HPyType_Spec PyGenericArrType_Type_spec = {
     .name = "numpy.generic",
     .flags = HPY_BASEFLAGS,
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = &PyGenericArrType_Type_slots_legacy,
-#endif
     .defines = PyGenericArrType_Type_hpy_slots,
 };
 
@@ -3679,10 +3675,8 @@ static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
 NPY_NO_EXPORT HPyType_Spec PyObjectArrType_Type_spec = {
     .name = "numpy.object_",
     .basicsize = sizeof(PyObjectScalarObject),
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = PyObjectArrType_Type_slots_legacy,
-#endif
 };
 
 static PyObject *
@@ -3729,10 +3723,8 @@ static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy." NAME_@name@ "@ex@",
     .basicsize = sizeof(Py@NAME@ScalarObject),
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-#endif
     .flags = HPY_BASEFLAGS,
 };
 
@@ -3779,10 +3771,8 @@ static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@" _THIS_SIZE,
     .basicsize = sizeof(Py@NAME@ScalarObject),
-#ifndef NO_LEGACY
     .legacy = true,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-#endif
     .flags = HPY_BASEFLAGS,
     .defines = Py@NAME@ArrType_Type_hpy_defines,
 };
@@ -3823,10 +3813,8 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@" _THIS_SIZE,
     .basicsize = sizeof(Py@NAME@ScalarObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-#ifndef NO_LEGACY
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .legacy = true,
-#endif
     .defines = Py@NAME@ArrType_Type_hpy_defines,
 };
 

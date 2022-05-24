@@ -735,11 +735,7 @@ typedef struct _PyArray_Descr {
         npy_hash_t hash;
 } PyArray_Descr;
 
-#ifdef NO_LEGACY
-HPyType_HELPERS(PyArray_Descr)
-#else
 HPyType_LEGACY_HELPERS(PyArray_Descr)
-#endif
 
 static inline PyTypeObject *PyArray_Descr_typeobj(PyArray_Descr *pyobj) {
     HPyContext *ctx = npy_get_context();
@@ -2312,11 +2308,7 @@ typedef void (PyDataMem_EventHookFunc)(void *inp, void *outp, size_t size,
         void *dt_slots;
         void *reserved[3];
     } PyArray_DTypeMeta;
-#ifdef NO_LEGACY
-    HPyType_HELPERS(PyArray_DTypeMeta);
-#else
     HPyType_LEGACY_HELPERS(PyArray_DTypeMeta);
-#endif
 #endif  /* NPY_INTERNAL_BUILD */
 
 /*

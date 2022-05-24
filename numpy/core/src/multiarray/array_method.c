@@ -550,9 +550,7 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec = {
     .basicsize = sizeof(PyArrayMethodObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .defines = PyArrayMethod_Type_defines,
-#ifndef NO_LEGACY
     .legacy = 1,
-#endif
 };
 
 

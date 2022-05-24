@@ -3846,8 +3846,6 @@ NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec = {
     .name = "numpy.dtype",
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
-#ifndef NO_LEGACY
     .legacy_slots = PyArrayDescr_TypeFull_legacy_slots,
-#endif
     .legacy = PyArray_Descr_IS_LEGACY
 };

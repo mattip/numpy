@@ -2062,7 +2062,7 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
     {Py_sq_concat, (binaryfunc)array_concat},
-    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
+    // {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
     {Py_sq_contains, (objobjproc)array_contains},
 
     {Py_tp_repr, (reprfunc)array_repr},
@@ -2114,8 +2114,6 @@ NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec = {
     .basicsize = sizeof(PyArrayObject_fields),
     .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | HPy_TPFLAGS_HAVE_GC),
     .defines = array_defines,
-#ifndef NO_LEGACY
     .legacy_slots = PyArray_Type_slots,
     .legacy = true,
-#endif
 };
