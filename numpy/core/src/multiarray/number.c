@@ -899,6 +899,7 @@ array_scalar_forward(HPyContext *ctx, /*PyArrayObject*/ HPy h_v,
     HPy h_descr = HPyArray_DESCR(ctx, h_v, v);
     PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     HPy h_scalar = HPyArray_DESCR_GETITEM(ctx, descr, h_v, v, PyArray_DATA(v));
+    HPy_Close(ctx, h_descr);
     if (HPy_IsNull(h_scalar)) {
         return HPy_NULL;
     }
