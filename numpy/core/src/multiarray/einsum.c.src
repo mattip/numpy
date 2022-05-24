@@ -1117,7 +1117,7 @@ PyArray_EinsteinSum(char *subscripts, npy_intp nop,
         NPY_EINSUM_DBG_PRINT("Einsum loop\n");
         do {
             sop(nop, dataptr, stride, *countptr);
-        } while (!(needs_api && PyErr_Occurred()) && iternext(iter));
+        } while (!(needs_api && PyErr_Occurred()) && iternext(npy_get_context(), iter));
         NPY_END_THREADS;
 
         /* If the API was needed, it may have thrown an error */

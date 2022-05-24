@@ -1806,7 +1806,7 @@ array_boolean_subscript(PyArrayObject *self,
                 self_data += subloopsize * self_stride;
                 ret_data += subloopsize * itemsize;
             }
-        } while (iternext(iter));
+        } while (iternext(npy_get_context(), iter));
 
         NPY_END_THREADS;
 
@@ -1956,7 +1956,7 @@ array_assign_boolean_subscript(HPyContext *ctx, HPy h_self, PyArrayObject *self,
         bmask_stride = innerstrides[1];
 
         /* Get a dtype transfer function */
-        NpyIter_GetInnerFixedStrideArray(iter, fixed_strides);
+        HNpyIter_GetInnerFixedStrideArray(ctx, iter, fixed_strides);
         NPY_cast_info cast_info;
         HPy h_v_descr = HPyArray_DESCR(ctx, h_v, v);
         HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
@@ -1970,7 +1970,7 @@ array_assign_boolean_subscript(HPyContext *ctx, HPy h_self, PyArrayObject *self,
                         &needs_api) != NPY_SUCCEED) {
             HPy_Close(ctx, h_v_descr);
             HPy_Close(ctx, h_self_descr);
-            NpyIter_Deallocate(iter);
+            HNpyIter_Deallocate(ctx, iter);
             return -1;
         }
         HPy_Close(ctx, h_v_descr);
@@ -2007,13 +2007,13 @@ array_assign_boolean_subscript(HPyContext *ctx, HPy h_self, PyArrayObject *self,
                 self_data += subloopsize * self_stride;
                 v_data += subloopsize * v_stride;
             }
-        } while (iternext(iter));
+        } while (iternext(ctx, iter));
 
         // if (!needs_api) {
         //     NPY_END_THREADS;
         // }
 
-        NPY_cast_info_xfree(&cast_info);
+        HNPY_cast_info_xfree(ctx, &cast_info);
         if (!HNpyIter_Deallocate(ctx, iter)) {
             res = -1;
         }
@@ -3005,12 +3005,12 @@ PyArray_MapIterNext(PyArrayMapIterObject *mit)
             mit->dataptr = mit->subspace_ptrs[0];
             return;
         }
-        else if (mit->subspace_next(mit->subspace_iter)) {
+        else if (mit->subspace_next(npy_get_context(), mit->subspace_iter)) {
             mit->iter_count = *NpyIter_GetInnerLoopSizePtr(mit->subspace_iter);
             mit->dataptr = mit->subspace_ptrs[0];
         }
         else {
-            if (!mit->outer_next(mit->outer)) {
+            if (!mit->outer_next(npy_get_context(), mit->outer)) {
                 return;
             }
 
@@ -3047,7 +3047,7 @@ PyArray_MapIterNext(PyArrayMapIterObject *mit)
             return;
         }
         else {
-            if (!mit->outer_next(mit->outer)) {
+            if (!mit->outer_next(npy_get_context(), mit->outer)) {
                 return;
             }
             mit->iter_count = *NpyIter_GetInnerLoopSizePtr(mit->outer);
@@ -3332,6 +3332,7 @@ PyArray_MapIterCheckIndices(PyArrayMapIterObject *mit)
         NPY_BEGIN_THREADS_NDITER(op_iter);
         iterptr = NpyIter_GetDataPtrArray(op_iter);
         iterstride = NpyIter_GetInnerStrideArray(op_iter);
+        HPyContext *ctx = npy_get_context();
         do {
             itersize = *NpyIter_GetInnerLoopSizePtr(op_iter);
             while (itersize--) {
@@ -3344,7 +3345,7 @@ PyArray_MapIterCheckIndices(PyArrayMapIterObject *mit)
                 }
                 *iterptr += *iterstride;
             }
-        } while (op_iternext(op_iter));
+        } while (op_iternext(ctx, op_iter));
 
         NPY_END_THREADS;
         NpyIter_Deallocate(op_iter);

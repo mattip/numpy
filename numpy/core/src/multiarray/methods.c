@@ -1711,6 +1711,7 @@ array_deepcopy(PyArrayObject *self, PyObject *args)
             strideptr = NpyIter_GetInnerStrideArray(iter);
             innersizeptr = NpyIter_GetInnerLoopSizePtr(iter);
 
+            HPyContext *ctx = npy_get_context();
             do {
                 data = *dataptr;
                 stride = *strideptr;
@@ -1720,7 +1721,7 @@ array_deepcopy(PyArrayObject *self, PyObject *args)
                                    deepcopy, visit);
                     data += stride;
                 }
-            } while (iternext(iter));
+            } while (iternext(ctx, iter));
         }
         NpyIter_Deallocate(iter);
         Py_DECREF(deepcopy);

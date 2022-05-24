@@ -1898,7 +1898,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
     do {
         NPY_UF_DBG_PRINT1("iterator loop count %d\n", (int)*countptr);
         res = strided_loop(hctx, context, dataptr, countptr, strides, auxdata);
-    } while (res == 0 && iternext(iter));
+    } while (res == 0 && iternext(hctx, iter));
 
     NPY_END_THREADS;
     NPY_AUXDATA_FREE(auxdata);
@@ -2849,7 +2849,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
             inner_dimensions[0] = *count_ptr;
             retval = strided_loop(hctx, &hcontext,
                     dataptr, inner_dimensions, inner_strides, auxdata);
-        } while (retval == 0 && iternext(iter));
+        } while (retval == 0 && iternext(hctx, iter));
 
         if (!needs_api && !NpyIter_IterationNeedsAPI(iter)) {
             NPY_END_THREADS;
@@ -3186,7 +3186,7 @@ reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
             }
 
             /* Advance loop, and abort on error (or finish) */
-            if (!iternext(iter)) {
+            if (!iternext(hctx, iter)) {
                 goto finish_loop;
             }
 
@@ -3216,7 +3216,7 @@ reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
             goto finish_loop;
         }
 
-    } while (iternext(iter));
+    } while (iternext(hctx, iter));
 
 finish_loop:
     NPY_END_THREADS;
@@ -3597,7 +3597,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                 res = strided_loop(hctx, &hcontext,
                         dataptr_copy, &count_m1, stride_copy, auxdata);
             }
-        } while (res == 0 && iternext(iter));
+        } while (res == 0 && iternext(hctx, iter));
 
         NPY_END_THREADS;
     }
@@ -4027,7 +4027,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                             dataptr_copy, &count, stride_copy, auxdata);
                 }
             }
-        } while (res == 0 && iternext(iter));
+        } while (res == 0 && iternext(hctx, iter));
 
         NPY_END_THREADS;
     }
@@ -6769,7 +6769,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
          * Call to iternext triggers copy from buffer back to output array
          * after innerloop puts result in buffer.
          */
-        iternext(iter_buffer);
+        iternext(hctx, iter_buffer);
 
         PyArray_MapIterNext(iter);
         if (iter2 != NULL) {

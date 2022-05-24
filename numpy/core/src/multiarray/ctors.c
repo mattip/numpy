@@ -3221,7 +3221,7 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
 
         /* If we exhausted the dst block, refresh it */
         if (dst_count == count) {
-            res = dst_iternext(dst_iter);
+            res = dst_iternext(npy_get_context(), dst_iter);
             if (res == 0) {
                 break;
             }
@@ -3235,7 +3235,7 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
 
         /* If we exhausted the src block, refresh it */
         if (src_count == count) {
-            res = src_iternext(src_iter);
+            res = src_iternext(npy_get_context(), src_iter);
             if (res == 0) {
                 break;
             }
