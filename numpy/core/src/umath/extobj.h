@@ -23,6 +23,10 @@ NPY_NO_EXPORT int
 _get_bufsize_errmask(PyObject * extobj, const char *ufunc_name,
                      int *buffersize, int *errormask);
 
+NPY_NO_EXPORT int
+_hpy_get_bufsize_errmask(HPyContext *ctx, HPy extobj, const char *ufunc_name,
+                     int *buffersize, int *errormask);
+
 /********************/
 #define USE_USE_DEFAULTS 1
 /********************/

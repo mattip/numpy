@@ -2895,7 +2895,6 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
 {
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(hctx, h_ufunc);
     int nin = ufunc_data->nin, nout = ufunc_data->nout, nop = nin + nout;
-    int retval;
 
     const char *ufunc_name = ufunc_get_name_cstr(ufunc_data);
 
@@ -2908,10 +2907,7 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s\n", ufunc_name);
 
     /* Get the buffersize and errormask */
-    CAPI_WARN("_get_bufsize_errmask");
-    PyObject *py_extobj = HPy_AsPyObject(hctx, extobj);
-    if (_get_bufsize_errmask(py_extobj, ufunc_name, &buffersize, &errormask) < 0) {
-        Py_XDECREF(py_extobj);
+    if (_hpy_get_bufsize_errmask(hctx, extobj, ufunc_name, &buffersize, &errormask) < 0) {
         return -1;
     }
 
@@ -2945,17 +2941,15 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         if (nop + 1 > NPY_MAXARGS) {
             HPyErr_SetString(hctx, hctx->h_ValueError,
                     "Too many operands when including where= parameter");
-            retval = -1;
-            goto finish;
+            return -1;
         }
         op[nop] = wheremask;
         operation_descrs[nop] = HPy_NULL;
 
-        retval = execute_ufunc_loop(hctx, &context, 1,
+        return execute_ufunc_loop(hctx, &context, 1,
                 op, order, buffersize, casting,
                 output_array_prepare, full_args, op_flags,
                 errormask, extobj);
-        // fall through to 'finish'
     }
     else {
         NPY_UF_DBG_PRINT("Executing normal inner loop\n");
@@ -2968,28 +2962,23 @@ PyUFunc_GenericFunctionInternal(HPyContext *hctx, HPy /* (PyUFuncObject *) */ h_
         int trivial_ok = check_for_trivial_loop(hctx, ufuncimpl_data,
                 op, operation_descrs, casting, buffersize);
         if (trivial_ok < 0) {
-            retval = -1;
-            goto finish;
+            return -1;
         }
         if (trivial_ok && PyArrayMethodObject_AsStruct(hctx, context.method)->nout == 1) {
             /* Try to handle everything without using the (heavy) iterator */
-            retval = try_trivial_single_output_loop(hctx, &context,
+            int retval = try_trivial_single_output_loop(hctx, &context,
                     op, order, output_array_prepare, full_args,
                     errormask, extobj);
             if (retval != -2) {
-                goto finish;
+                return retval;
             }
         }
 
-        retval = execute_ufunc_loop(hctx, &context, 0,
+        return execute_ufunc_loop(hctx, &context, 0,
                 op, order, buffersize, casting,
                 output_array_prepare, full_args, op_flags,
                 errormask, extobj);
-        // fall through to 'finish'
     }
-finish:
-    Py_XDECREF(py_extobj);
-    return retval;
 }
 
 

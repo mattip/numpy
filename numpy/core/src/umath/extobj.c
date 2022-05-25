@@ -162,6 +162,7 @@ get_global_ext_obj(void)
 #if USE_USE_DEFAULTS==1
     if (PyUFunc_NUM_NODEFAULTS != 0) {
 #endif
+        CAPI_WARN("Using PyThreadState_GetDict/PyEval_GetBuiltins");
         thedict = PyThreadState_GetDict();
         if (thedict == NULL) {
             thedict = PyEval_GetBuiltins();
@@ -174,6 +175,18 @@ get_global_ext_obj(void)
 #endif
 
     return ref;
+}
+
+NPY_NO_EXPORT HPy
+hpy_get_global_ext_obj(HPyContext *ctx)
+{
+    PyObject *res = get_global_ext_obj();
+    if (res != NULL) {
+        HPy h_res = HPy_FromPyObject(ctx, res);
+        Py_DECREF(res);
+        return h_res;
+    }
+    return HPy_NULL;
 }
 
 
@@ -268,6 +281,34 @@ _extract_pyvals(PyObject *ref, const char *name, int *bufsize,
     return 0;
 }
 
+NPY_NO_EXPORT int
+_hpy_extract_pyvals(HPyContext *ctx, HPy h_ref, const char *name, int *bufsize,
+                int *errmask, HPy *errobj)
+{
+    /* default errobj case, skips dictionary lookup */
+    if (HPy_IsNull(h_ref)) {
+        if (errmask) {
+            *errmask = UFUNC_ERR_DEFAULT;
+        }
+        if (errobj) {
+            *errobj = HPy_BuildValue(ctx, "NO", HPyBytes_FromString(ctx, name), ctx->h_None);
+        }
+        if (bufsize) {
+            *bufsize = NPY_BUFSIZE;
+        }
+        return 0;
+    }
+
+    CAPI_WARN("calling _extract_pyvals");
+    PyObject *py_ref = HPy_AsPyObject(ctx, h_ref);
+    PyObject *py_errobj = NULL;
+    int result = _extract_pyvals(py_ref, name, bufsize, errmask, &errobj);
+    Py_DECREF(py_ref);
+    *errobj = HPy_FromPyObject(ctx, py_errobj);
+    Py_XDECREF(py_errobj);
+    return result;
+}
+
 /*
  * check the floating point status
  *  - errmask: mask of status to check
@@ -334,6 +375,7 @@ NPY_NO_EXPORT int
 _get_bufsize_errmask(PyObject * extobj, const char *ufunc_name,
                      int *buffersize, int *errormask)
 {
+    CAPI_WARN("_get_bufsize_errmask (there is a port of this already)");
     /* Get the buffersize and errormask */
     if (extobj == NULL) {
         extobj = get_global_ext_obj();
@@ -342,6 +384,25 @@ _get_bufsize_errmask(PyObject * extobj, const char *ufunc_name,
         }
     }
     if (_extract_pyvals(extobj, ufunc_name,
+                        buffersize, errormask, NULL) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+NPY_NO_EXPORT int
+_hpy_get_bufsize_errmask(HPyContext *ctx, HPy extobj, const char *ufunc_name,
+                     int *buffersize, int *errormask)
+{
+    /* Get the buffersize and errormask */
+    if (HPy_IsNull(extobj)) {
+        extobj = hpy_get_global_ext_obj(ctx);
+        if (HPy_IsNull(extobj) && HPyErr_Occurred(ctx)) {
+            return -1;
+        }
+    }
+    if (_hpy_extract_pyvals(ctx, extobj, ufunc_name,
                         buffersize, errormask, NULL) < 0) {
         return -1;
     }
