@@ -153,6 +153,7 @@ HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap)
                                 PyArray_DATA(ap), PyArray_STRIDES(ap),
                                 PyArray_Descr_AsStruct(ctx, h_descr)->alignment);
     HPy_Close(ctx, h_descr);
+    return result;
 }
 
 NPY_NO_EXPORT int
