@@ -506,7 +506,7 @@ resolve_implementation_info(HPyContext *ctx,
         goto finish;
     }
 
-    *out_info = best_resolver_info;
+    *out_info = HPy_Dup(ctx, best_resolver_info);
     res = 0;
 finish:
     HPy_Close(ctx, _loops);
