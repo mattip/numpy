@@ -48,7 +48,7 @@ hpy_raw_array_assign_scalar(HPyContext *ctx, int ndim, npy_intp const *shape,
 
     int aligned, needs_api = 0;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF;
 
     /* Check both uint and true alignment */
     aligned = raw_array_is_aligned(ndim, shape, dst_data, dst_strides,
@@ -82,7 +82,7 @@ hpy_raw_array_assign_scalar(HPyContext *ctx, int ndim, npy_intp const *shape,
         for (i = 0; i < ndim; i++) {
             nitems *= shape_it[i];
         }
-        NPY_BEGIN_THREADS_THRESHOLDED(nitems);
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, nitems);
     }
 
     npy_intp strides[2] = {0, dst_strides_it[0]};
@@ -97,11 +97,11 @@ hpy_raw_array_assign_scalar(HPyContext *ctx, int ndim, npy_intp const *shape,
     } NPY_RAW_ITER_ONE_NEXT(idim, ndim, coord,
                             shape_it, dst_data, dst_strides_it);
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(ctx);
     HNPY_cast_info_xfree(ctx, &cast_info);
     return 0;
 fail:
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(ctx);
     HNPY_cast_info_xfree(ctx, &cast_info);
     return -1;
 }

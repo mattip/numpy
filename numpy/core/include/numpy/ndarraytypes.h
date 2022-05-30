@@ -1138,6 +1138,7 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
 
 /* the variable is used in some places, so always define it */
 #define NPY_BEGIN_THREADS_DEF PyThreadState *_save=NULL;
+#define HPY_NPY_BEGIN_THREADS_DEF int _hpy_left_python_=0; HPyThreadState _hpy_token;
 #if NPY_ALLOW_THREADS
 #define NPY_BEGIN_ALLOW_THREADS Py_BEGIN_ALLOW_THREADS
 #define NPY_END_ALLOW_THREADS Py_END_ALLOW_THREADS
@@ -1158,6 +1159,24 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
 #define NPY_ALLOW_C_API_DEF  PyGILState_STATE __save__;
 #define NPY_ALLOW_C_API      do {__save__ = PyGILState_Ensure();} while (0);
 #define NPY_DISABLE_C_API    do {PyGILState_Release(__save__);} while (0);
+
+#define HPY_NPY_BEGIN_ALLOW_THREADS(ctx) HPy_BEGIN_LEAVE_PYTHON(ctx)
+#define HPY_NPY_END_ALLOW_THREADS(ctx) HPy_END_LEAVE_PYTHON(ctx)
+#define HPY_NPY_BEGIN_THREADS(ctx) do { _hpy_left_python_ = 1; \
+                _hpy_token = HPy_LeavePythonExecution(ctx); } while (0);
+#define HPY_NPY_END_THREADS(ctx)   do { if (_hpy_left_python_) \
+                { HPy_ReenterPythonExecution(ctx, _hpy_token); _hpy_left_python_ = 0; } } while (0);
+#define HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, loop_size) do { if ((loop_size) > 500) \
+                HPY_NPY_BEGIN_THREADS(ctx); } while (0);
+
+#define HPY_NPY_BEGIN_THREADS_DESCR(ctx, dtype) \
+        do {if (!(PyDataType_FLAGCHK((dtype), NPY_NEEDS_PYAPI))) \
+                HPY_NPY_BEGIN_THREADS(ctx);} while (0);
+
+#define HPY_NPY_END_THREADS_DESCR(ctx, dtype) \
+        do {if (!(PyDataType_FLAGCHK((dtype), NPY_NEEDS_PYAPI))) \
+                HPY_NPY_END_THREADS(ctx); } while (0);
+
 #else
 #define NPY_BEGIN_ALLOW_THREADS
 #define NPY_END_ALLOW_THREADS

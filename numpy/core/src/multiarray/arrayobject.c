@@ -1525,7 +1525,7 @@ _failed_comparison_workaround(HPyContext *ctx, HPy /* (PyArrayObject *) */ self,
              *
              * 2015-05-14, 1.10
              */
-            if (DEPRECATE(
+            if (HPY_DEPRECATE_FUTUREWARNING(ctx,
                     "elementwise comparison failed; "
                     "this will raise an error in the future.") < 0) {
                 goto fail;
