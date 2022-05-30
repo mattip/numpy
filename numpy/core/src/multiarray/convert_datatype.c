@@ -97,6 +97,13 @@ HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
         HPy_Close(ctx, tmp);
     }
     if (!HPy_IsNull(res) || HPyErr_Occurred(ctx)) {
+        // TODO HPY LABS PORT
+        // The original code used PyDict_GetItemWithError, which supresses
+        // KeyErrors when the key is not present. We should find a nice solution
+        // for this
+        if (HPyErr_ExceptionMatches(ctx, ctx->h_KeyError)) {
+            HPyErr_Clear(ctx);
+        }
         return res;
     }
 
