@@ -18,6 +18,12 @@
                 NPY_BEGIN_THREADS_THRESHOLDED(NpyIter_GetIterSize(iter)); \
             } \
         } while(0)
+#define HPY_NPY_BEGIN_THREADS_NDITER(ctx, iter)  \
+        do { \
+            if (!NpyIter_IterationNeedsAPI(iter)) { \
+                HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, NpyIter_GetIterSize(iter)); \
+            } \
+        } while(0)
 #else
 #define NPY_BEGIN_THREADS_NDITER(iter)
 #endif

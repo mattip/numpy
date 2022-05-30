@@ -1705,7 +1705,7 @@ array_boolean_subscript(PyArrayObject *self,
     PyArrayObject *ret;
     int needs_api = 0;
 
-    size = count_boolean_trues(PyArray_NDIM(bmask), PyArray_DATA(bmask),
+    size = count_boolean_trues(npy_get_context(), PyArray_NDIM(bmask), PyArray_DATA(bmask),
                                 PyArray_DIMS(bmask), PyArray_STRIDES(bmask));
 
     /* Allocate the output of the boolean indexing */
@@ -1888,7 +1888,7 @@ array_assign_boolean_subscript(HPyContext *ctx, HPy h_self, PyArrayObject *self,
         return -1;
     }
 
-    size = count_boolean_trues(PyArray_NDIM(bmask), PyArray_DATA(bmask),
+    size = count_boolean_trues(ctx, PyArray_NDIM(bmask), PyArray_DATA(bmask),
                                 PyArray_DIMS(bmask), PyArray_STRIDES(bmask));
     /* Correction factor for broadcasting 'bmask' to 'self' */
     bmask_size = HPyArray_SIZE(bmask);
@@ -2885,7 +2885,7 @@ _nonzero_indices(PyObject *myBool, PyArrayObject **arrays)
      * pre-determine how many nonzero entries there are,
      * ignore dimensionality of input as its a CARRAY
      */
-    count = count_boolean_trues(1, (char*)ptr, &size, &one);
+    count = count_boolean_trues(npy_get_context(), 1, (char*)ptr, &size, &one);
 
     /* create count-sized index arrays for each dimension */
     for (j = 0; j < nd; j++) {
