@@ -1595,7 +1595,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
      */
     char *data[NPY_MAXARGS];
     npy_intp count = PyArray_MultiplyList(operation_shape, operation_ndim);
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
     HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
@@ -1613,12 +1613,12 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
         npy_clear_floatstatus_barrier((char *)context);
     }
     if (!(flags & NPY_METH_REQUIRES_PYAPI)) {
-        NPY_BEGIN_THREADS_THRESHOLDED(count);
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, count);
     }
 
     int res = strided_loop(hctx, context, data, &count, fixed_strides, auxdata);
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(hctx);
     NPY_AUXDATA_FREE(auxdata);
     /*
      * An error should only be possible if `res != 0` is already set.
@@ -1883,13 +1883,13 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
     npy_intp *countptr = NpyIter_GetInnerLoopSizePtr(iter);
     int needs_api = NpyIter_IterationNeedsAPI(iter);
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
     if (!(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         npy_clear_floatstatus_barrier((char *)context);
     }
     if (!needs_api && !(flags & NPY_METH_REQUIRES_PYAPI)) {
-        NPY_BEGIN_THREADS_THRESHOLDED(full_size);
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, full_size);
     }
 
     NPY_UF_DBG_PRINT("Actual inner loop:\n");
@@ -1900,7 +1900,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
         res = strided_loop(hctx, context, dataptr, countptr, strides, auxdata);
     } while (res == 0 && iternext(hctx, iter));
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(hctx);
     NPY_AUXDATA_FREE(auxdata);
 
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
@@ -2831,7 +2831,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         NpyIter_IterNextFunc *iternext;
         char **dataptr;
         npy_intp *count_ptr;
-        NPY_BEGIN_THREADS_DEF;
+        HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
         /* Get the variables needed for the loop */
         iternext = NpyIter_GetIterNext(iter, NULL);
@@ -2843,7 +2843,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         count_ptr = NpyIter_GetInnerLoopSizePtr(iter);
 
         if (!needs_api) {
-            NPY_BEGIN_THREADS_THRESHOLDED(total_problem_size);
+            HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, total_problem_size);
         }
         do {
             inner_dimensions[0] = *count_ptr;
@@ -2852,7 +2852,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         } while (retval == 0 && iternext(hctx, iter));
 
         if (!needs_api && !NpyIter_IterationNeedsAPI(iter)) {
-            NPY_END_THREADS;
+            HPY_NPY_END_THREADS(hctx);
         }
     }
 
@@ -3134,12 +3134,12 @@ reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
     npy_intp strides_copy[4];
     npy_bool masked;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
     /* Get the number of operands, to determine whether "where" is used */
     masked = (NpyIter_GetNOp(iter) == 3);
 
     if (!needs_api) {
-        NPY_BEGIN_THREADS_THRESHOLDED(NpyIter_GetIterSize(iter));
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, NpyIter_GetIterSize(iter));
     }
 
     if (skip_first_count > 0) {
@@ -3208,7 +3208,7 @@ reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
     } while (iternext(hctx, iter));
 
 finish_loop:
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(hctx);
 
     return retval;
 }
@@ -3338,7 +3338,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
     /* These parameters come from extobj= or from a TLS global */
     int buffersize = 0, errormask = 0;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s.accumulate\n", ufunc_name);
 
@@ -3549,7 +3549,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
         stride_copy[2] = stride0;
 
         if (!needs_api) {
-            NPY_BEGIN_THREADS_THRESHOLDED(NpyIter_GetIterSize(iter));
+            HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, NpyIter_GetIterSize(iter));
         }
 
         do {
@@ -3588,7 +3588,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
             }
         } while (res == 0 && iternext(hctx, iter));
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(hctx);
     }
     else if (iter == NULL) {
         char *dataptr_copy[3];
@@ -3647,13 +3647,13 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
             needs_api = PyDataType_REFCHK(descrs[0]);
 
             if (!needs_api) {
-                NPY_BEGIN_THREADS_THRESHOLDED(count);
+                HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, count);
             }
 
             res = strided_loop(hctx, &hcontext,
                     dataptr_copy, &count, fixed_strides, auxdata);
 
-            NPY_END_THREADS;
+            HPY_NPY_END_THREADS(hctx);
         }
     }
 
@@ -3745,7 +3745,9 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     /* These parameters come from extobj= or from a TLS global */
     int buffersize = 0, errormask = 0;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPyContext *hctx = npy_get_context();
+
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
     reduceat_ind = (npy_intp *)PyArray_DATA(ind);
     ind_size = PyArray_DIM(ind, 0);
@@ -3791,7 +3793,6 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
     assert(PyArray_EquivTypes(descrs[0], descrs[1])
            && PyArray_EquivTypes(descrs[0], descrs[2]));
 
-    HPyContext *hctx = npy_get_context();
     if (PyDataType_REFCHK(descrs[2]) && descrs[2]->type_num != NPY_OBJECT) {
         /* This can be removed, but the initial element copy needs fixing */
         PyErr_SetString(PyExc_TypeError,
@@ -3971,7 +3972,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
         stride_copy[2] = stride0;
 
         if (!needs_api) {
-            NPY_BEGIN_THREADS_THRESHOLDED(NpyIter_GetIterSize(iter));
+            HPY_NPY_BEGIN_THREADS_THRESHOLDED(hctx, NpyIter_GetIterSize(iter));
         }
 
         do {
@@ -4018,7 +4019,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
             }
         } while (res == 0 && iternext(hctx, iter));
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(hctx);
     }
     else if (iter == NULL) {
         char *dataptr_copy[3];
@@ -4031,7 +4032,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
         NPY_UF_DBG_PRINT("UFunc: Reduce loop with no iterators\n");
 
         if (!needs_api) {
-            NPY_BEGIN_THREADS;
+            HPY_NPY_BEGIN_THREADS(hctx);
         }
 
         for (i = 0; i < ind_size; ++i) {
@@ -4079,7 +4080,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
             }
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(hctx);
     }
 
 finish:
@@ -6479,7 +6480,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(hctx);
 
     if (ufunc->nin > 2) {
         PyErr_SetString(PyExc_ValueError,
@@ -6711,7 +6712,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     }
 
     if (!needs_api) {
-        NPY_BEGIN_THREADS;
+        HPY_NPY_BEGIN_THREADS(hctx);
     }
 
     /*
@@ -6767,7 +6768,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     }
     method_context_py2h_free(hctx, &hcontext);
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(hctx);
 
     if (res != 0 && err_msg) {
         PyErr_SetString(PyExc_ValueError, err_msg);

@@ -497,7 +497,10 @@ resolve_implementation_info(HPyContext *ctx,
         }
         /* The new match is better (or there was no previous match) */
         best_dtypes = curr_dtypes;
-        best_resolver_info = resolver_info;
+        if (!HPy_IsNull(best_resolver_info)) {
+            HPy_Close(ctx, best_resolver_info);
+        }
+        best_resolver_info = HPy_Dup(ctx, resolver_info);
     }
     if (HPy_IsNull(best_dtypes)) {
         /* The non-legacy lookup failed */
@@ -506,7 +509,7 @@ resolve_implementation_info(HPyContext *ctx,
         goto finish;
     }
 
-    *out_info = HPy_Dup(ctx, best_resolver_info);
+    *out_info = best_resolver_info;
     res = 0;
 finish:
     HPy_Close(ctx, _loops);

@@ -93,7 +93,7 @@ HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to)
     }
     else {
         HPy tmp = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, from, from_data);
-        res = HPy_GetItem(ctx, tmp, to);
+        res = HPyDict_GetItemWithError(ctx, tmp, to);
         HPy_Close(ctx, tmp);
     }
     if (!HPy_IsNull(res) || HPyErr_Occurred(ctx)) {

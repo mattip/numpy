@@ -2392,7 +2392,7 @@ count_nonzero_u64(const char *data, npy_intp bstride, npy_uintp len)
  * Returns -1 on error.
  */
 static NPY_GCC_OPT_3 npy_intp
-count_nonzero_int(int ndim, char *data, const npy_intp *ashape, const npy_intp *astrides, int elsize)
+count_nonzero_int(HPyContext *ctx, int ndim, char *data, const npy_intp *ashape, const npy_intp *astrides, int elsize)
 {
     assert(elsize <= 8);
     int idim;
@@ -2413,8 +2413,8 @@ count_nonzero_int(int ndim, char *data, const npy_intp *ashape, const npy_intp *
         return 0;
     }
 
-    NPY_BEGIN_THREADS_DEF;
-    NPY_BEGIN_THREADS_THRESHOLDED(shape[0]);
+    HPY_NPY_BEGIN_THREADS_DEF(ctx);
+    HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, shape[0]);
 
     #define NONZERO_CASE(LEN, SFX) \
         case LEN: \
@@ -2432,7 +2432,7 @@ count_nonzero_int(int ndim, char *data, const npy_intp *ashape, const npy_intp *
     }
     #undef NONZERO_CASE
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(ctx);
     return count;
 }
 /*
@@ -2442,9 +2442,9 @@ count_nonzero_int(int ndim, char *data, const npy_intp *ashape, const npy_intp *
  * Returns -1 on error.
  */
 NPY_NO_EXPORT NPY_GCC_OPT_3 npy_intp
-count_boolean_trues(int ndim, char *data, npy_intp const *ashape, npy_intp const *astrides)
+count_boolean_trues(HPyContext *ctx, int ndim, char *data, npy_intp const *ashape, npy_intp const *astrides)
 {
-    return count_nonzero_int(ndim, data, ashape, astrides, 1);
+    return count_nonzero_int(ctx, ndim, data, ashape, astrides, 1);
 }
 
 /*NUMPY_API
@@ -2472,7 +2472,7 @@ PyArray_CountNonzero(PyArrayObject *self)
     /* Special low-overhead version specific to the boolean/int types */
     if (PyArray_ISALIGNED(self) && (
             PyDataType_ISBOOL(dtype) || PyDataType_ISINTEGER(dtype))) {
-        return count_nonzero_int(
+        return count_nonzero_int(npy_get_context(),
             PyArray_NDIM(self), PyArray_BYTES(self), PyArray_DIMS(self),
             PyArray_STRIDES(self), dtype->elsize
         );
@@ -2572,13 +2572,13 @@ finish:
 
 // partial port without custom data-types
 NPY_NO_EXPORT npy_intp
-HPyArray_CountNonzero_hpy_partial(PyArrayObject *self, PyArray_Descr *dtype)
+HPyArray_CountNonzero_hpy_partial(HPyContext *ctx, PyArrayObject *self, PyArray_Descr *dtype)
 {
 
     /* Special low-overhead version specific to the boolean/int types */
     if (PyArray_ISALIGNED(self) && (
             PyDataType_ISBOOL(dtype) || PyDataType_ISINTEGER(dtype))) {
-        return count_nonzero_int(
+        return count_nonzero_int(ctx,
             PyArray_NDIM(self), PyArray_BYTES(self), PyArray_DIMS(self),
             PyArray_STRIDES(self), dtype->elsize
         );
@@ -2659,7 +2659,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
     /*
      * First count the number of non-zeros in 'self'.
      */
-    nonzero_count = HPyArray_CountNonzero_hpy_partial(self, dtype);
+    nonzero_count = HPyArray_CountNonzero_hpy_partial(ctx, self, dtype);
     if (nonzero_count < 0) {
         return HPy_NULL;
     }
@@ -2685,7 +2685,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
         char * data = PyArray_BYTES(self);
         npy_intp stride = PyArray_STRIDE(self, 0);
         npy_intp count = PyArray_DIM(self, 0);
-        NPY_BEGIN_THREADS_DEF;
+        HPY_NPY_BEGIN_THREADS_DEF(ctx);
 
         /* nothing to do */
         if (nonzero_count == 0) {
@@ -2693,7 +2693,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
         }
 
         if (!needs_api) {
-            NPY_BEGIN_THREADS_THRESHOLDED(count);
+            HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, count);
         }
 
         /* avoid function call for bool */
@@ -2744,7 +2744,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
             // }
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
 
         goto finish;
     }
@@ -2766,7 +2766,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
 
     if (NpyIter_GetIterSize(iter) != 0) {
         npy_intp * multi_index;
-        NPY_BEGIN_THREADS_DEF;
+        HPY_NPY_BEGIN_THREADS_DEF(ctx);
         /* Get the pointers for inner loop iteration */
         iternext = NpyIter_GetIterNext(iter, NULL);
         if (iternext == NULL) {
@@ -2783,7 +2783,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
 
         needs_api = NpyIter_IterationNeedsAPI(iter);
 
-        NPY_BEGIN_THREADS_NDITER(iter);
+        HPY_NPY_BEGIN_THREADS_NDITER(ctx, iter);
 
         dataptr = NpyIter_GetDataPtrArray(iter);
 
@@ -2816,7 +2816,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
             // } while(iternext(iter));
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
     }
 
     HNpyIter_Deallocate(ctx, iter);
