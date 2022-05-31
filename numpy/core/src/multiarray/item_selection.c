@@ -2669,10 +2669,12 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
     ret_dims[0] = nonzero_count;
     ret_dims[1] = ndim;
     HPy arr_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy tmp_dtype = HPyArray_DescrFromType(ctx, NPY_INTP);
     h_ret = HPyArray_NewFromDescr(
-            ctx, arr_type, HPyArray_DescrFromType(ctx, NPY_INTP),
+            ctx, arr_type, tmp_dtype,
             2, ret_dims, NULL, NULL,
             0, HPy_NULL);
+    HPy_Close(ctx, tmp_dtype);
     HPy_Close(ctx, arr_type);
     if (HPy_IsNull(h_ret)) {
         return HPy_NULL;
