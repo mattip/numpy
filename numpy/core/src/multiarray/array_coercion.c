@@ -704,8 +704,8 @@ hnpy_new_coercion_cache(HPyContext *ctx,
         PyErr_NoMemory();
         return -1;
     }
-    cache->converted_obj = converted_obj;
-    cache->arr_or_sequence = arr_or_sequence;
+    cache->converted_obj = HPy_Dup(ctx, converted_obj);
+    cache->arr_or_sequence = HPy_Dup(ctx, arr_or_sequence);
     cache->sequence = sequence;
     cache->depth = ndim;
     cache->next = NULL;
@@ -727,7 +727,10 @@ npy_new_coercion_cache(
     Py_XDECREF(converted_obj); /* the object is stolen */
     HPy h_arr_or_sequence = HPy_FromPyObject(ctx, arr_or_sequence);
     Py_XDECREF(arr_or_sequence); /* the object is stolen */
-    return hnpy_new_coercion_cache(ctx, h_converted_obj, h_arr_or_sequence, sequence, next_ptr, ndim);
+    int res = hnpy_new_coercion_cache(ctx, h_converted_obj, h_arr_or_sequence, sequence, next_ptr, ndim);
+    HPy_Close(ctx, h_converted_obj);
+    HPy_Close(ctx, h_arr_or_sequence);
+    return res;
 }
 
 /**
