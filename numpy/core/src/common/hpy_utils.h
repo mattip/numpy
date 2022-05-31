@@ -128,4 +128,16 @@ HPyTuple_CheckExact(HPyContext *ctx, HPy h)
     return res;
 }
 
+static inline HPy HPyDict_GetItemWithError(HPyContext *ctx, HPy d, HPy k)
+{
+    HPy res = HPy_GetItem(ctx, d, k);
+    if (HPy_IsNull(res) && HPyErr_Occurred(ctx)) {
+        // PyDict_GetItemWithError supresses KeyErrors when the key is not present
+        if (HPyErr_ExceptionMatches(ctx, ctx->h_KeyError)) {
+            HPyErr_Clear(ctx);
+        }
+    }
+    return res;
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
