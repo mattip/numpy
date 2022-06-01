@@ -705,10 +705,22 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
         }
     }
 
+    // TODO HPY LABS PORT: moved to array_destroy
     /* must match allocation in PyArray_NewFromDescr */
-    npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
+    // npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
 
     // PyErr_Restore(error_type, error_value, error_traceback);
+}
+
+/* array object functions */
+HPyDef_SLOT(array_destroy, array_destroy_impl, HPy_tp_destroy)
+static void
+array_destroy_impl(void *data)
+{
+    PyArrayObject_fields *fa = (PyArrayObject_fields *)data;
+
+    /* must match allocation in PyArray_NewFromDescr */
+    npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
 }
 
 HPyDef_SLOT(array_traverse, array_traverse_impl, HPy_tp_traverse)
@@ -2085,6 +2097,7 @@ static HPyDef *array_defines[] = {
     &array_new,
     &array_traverse,
     &array_finalize,
+    &array_destroy,
     &array_inplace_add,
     &array_power,
     &array_subtract,

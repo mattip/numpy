@@ -1677,6 +1677,8 @@ hpy_get_view_from_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy *v
             PyArray_FLAGS(self),
             ensure_array ? HPy_NULL : h_self,
             h_self);
+    HPy_Close(ctx, h_descr);
+    HPy_Close(ctx, h_type);
     if (HPy_IsNull(*view)) {
         return -1;
     }
