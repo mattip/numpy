@@ -1247,15 +1247,8 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
             /* __array__ may be passed the requested descriptor if provided */
             requested_descr = *out_descr;
         }
-        CAPI_WARN("HPyArray_DiscoverDTypeAndShape_Recursive: call to _array_from_array_like");
-        PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-        PyArray_Descr *py_requested_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, requested_descr);
-        PyArrayObject *py_arr = (PyArrayObject *)_array_from_array_like(py_obj,
-                py_requested_descr, 0, NULL, never_copy);
-        arr = HPy_FromPyObject(ctx, (PyObject *)py_arr);
-        Py_XDECREF(py_arr);
-        Py_XDECREF(py_requested_descr);
-        Py_XDECREF(py_obj);
+        arr = _hpy_array_from_array_like(ctx, obj,
+                requested_descr, 0, HPy_NULL, never_copy);
         if (HPy_IsNull(arr)) {
             return -1;
         }
@@ -1425,15 +1418,14 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 //        }
 //        return -1;
 //    }
-//    /* The cache takes ownership of the sequence here. */
-//    if (npy_new_coercion_cache(obj, seq, 1, coercion_cache_tail_ptr, curr_dims) < 0) {
-//        return -1;
-//    }
     seq = obj;
     if (!HPySequence_Check(ctx, seq)) {
         hpy_abort_not_implemented("HPyArray_DiscoverDTypeAndShape_Recursive uses PySequence_Fast");
         return -1;
     }
+   if (hnpy_new_coercion_cache(ctx, obj, seq, 1, coercion_cache_tail_ptr, curr_dims) < 0) {
+       return -1;
+   }
 
     npy_intp size = HPy_Length(ctx, seq);
     // npy_intp size = PySequence_Fast_GET_SIZE(seq);

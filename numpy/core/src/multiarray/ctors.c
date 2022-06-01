@@ -659,10 +659,102 @@ PyArray_AssignFromCache_Recursive(
 }
 
 NPY_NO_EXPORT int
+HPyArray_AssignFromCache_Recursive(
+        HPyContext *ctx, /*PyArrayObject*/ HPy h_self, PyArrayObject *self, const int ndim, coercion_cache_obj **cache)
+{
+    /* Consume first cache element by extracting information and freeing it */
+    HPy h_original_obj = HPy_Dup(ctx, (*cache)->converted_obj);
+    HPy h_obj = HPy_Dup(ctx, (*cache)->arr_or_sequence);
+    npy_bool sequence = (*cache)->sequence;
+    int depth = (*cache)->depth;
+    *cache = npy_unlink_coercion_cache(*cache);
+
+    /*
+     * The maximum depth is special (specifically for objects), but usually
+     * unrolled in the sequence branch below.
+     */
+    if (NPY_UNLIKELY(depth == ndim)) {
+        hpy_abort_not_implemented("depth == ndim");
+    }
+
+    /* The element is either a sequence, or an array */
+    if (!sequence) {
+        /* Straight forward array assignment */
+        assert(HPyArray_Check(ctx, h_obj));
+        if (HPyArray_CopyInto(ctx, h_self, h_obj) < 0) {
+            goto fail;
+        }
+    }
+    else {
+        assert(depth != ndim);
+        npy_intp length = HPy_Length(ctx, h_obj);
+        if (length != PyArray_DIMS(self)[0]) {
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                    "Inconsistent object during array creation? "
+                    "Content of sequences changed (length inconsistent).");
+            goto fail;
+        }
+
+        for (npy_intp i = 0; i < length; i++) {
+            HPy value = HPy_GetItem_i(ctx, h_obj, i);
+
+            HPy h_converted_obj = HPy_NULL;
+            if (*cache == NULL || !HPy_Is(ctx, (h_converted_obj = HPy_Dup(ctx, (*cache)->converted_obj)), value) ||
+                        (*cache)->depth != depth + 1) {
+                HPy_Close(ctx, h_converted_obj);
+                if (ndim != depth + 1) {
+                    HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                            "Inconsistent object during array creation? "
+                            "Content of sequences changed (now too shallow).");
+                    goto fail;
+                }
+                /* Straight forward assignment of elements */
+                char *item;
+                item = (PyArray_BYTES(self) + i * PyArray_STRIDES(self)[0]);
+                HPy h_descr = HPyArray_DESCR(ctx, h_self, self);
+                if (HPyArray_Pack(ctx, h_descr, item, value) < 0) {
+                    HPy_Close(ctx, h_descr);
+                    HPy_Close(ctx, value);
+                    goto fail;
+                }
+                HPy_Close(ctx, h_descr);
+            }
+            else {
+                HPy_Close(ctx, h_converted_obj);
+                PyArrayObject *view;
+                CAPI_WARN("calling array_item_asarray");
+                view = (PyArrayObject *)array_item_asarray(self, i);
+                if (view == NULL) {
+                    HPy_Close(ctx, value);
+                    goto fail;
+                }
+                HPy h_view = HPy_FromPyObject(ctx, (PyObject*) view);
+                if (HPyArray_AssignFromCache_Recursive(ctx, h_view, view, ndim, cache) < 0) {
+                    Py_DECREF(view);
+                    HPy_Close(ctx, h_view);
+                    HPy_Close(ctx, value);
+                    goto fail;
+                }
+                Py_DECREF(view);
+                HPy_Close(ctx, h_view);
+            }
+            HPy_Close(ctx, value);
+        }
+    }
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_original_obj);
+    return 0;
+
+  fail:
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_original_obj);
+    return -1;
+}
+
+NPY_NO_EXPORT int
 HPyArray_AssignFromCache(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, coercion_cache_obj *cache) {
-    CAPI_WARN("HPyArray_AssignFromCache: call to PyArray_AssignFromCache_Recursive");
-    PyArrayObject *py_self = (PyArrayObject *)HPy_AsPyObject(ctx, self);
-    int ndim = PyArray_NDIM(py_self);
+    PyArrayObject *self_data = PyArrayObject_AsStruct(ctx, self);
+    int ndim = PyArray_NDIM(self_data);
     /*
      * Do not support ndim == 0 now with an array in the cache.
      * The ndim == 0 is special because np.array(np.array(0), dtype=object)
@@ -674,13 +766,11 @@ HPyArray_AssignFromCache(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, coer
     assert(ndim != 0);  /* guaranteed if cache contains a sequence */
 
 
-    if (PyArray_AssignFromCache_Recursive(py_self, ndim, &cache) < 0) {
+    if (HPyArray_AssignFromCache_Recursive(ctx, self, self_data, ndim, &cache) < 0) {
         /* free the remaining cache. */
         hnpy_free_coercion_cache(ctx, cache);
-        Py_DECREF(py_self);
         return -1;
     }
-    Py_DECREF(py_self);
 
     /*
      * Sanity check, this is the initial call, and when it returns, the
@@ -1748,6 +1838,101 @@ _array_from_array_like(PyObject *op,
     return Py_NotImplemented;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_FromStructInterface(HPyContext *ctx, HPy h_input);
+
+NPY_NO_EXPORT HPy
+HPyArray_FromInterface(HPyContext *ctx, HPy h_origin);
+
+NPY_NO_EXPORT HPy
+HPyArray_FromArrayAttr_int(HPyContext *ctx,
+        HPy h_op, /*PyArray_Descr*/ HPy h_descr, int never_copy);
+
+NPY_NO_EXPORT HPy
+_hpy_array_from_array_like(HPyContext *ctx, HPy h_op,
+        /*PyArray_Descr*/ HPy h_requested_dtype, npy_bool writeable, HPy h_context,
+        int never_copy) {
+    HPy tmp;
+
+    /*
+     * If op supports the PEP 3118 buffer interface.
+     * We skip bytes and unicode since they are considered scalars. Unicode
+     * would fail but bytes would be incorrectly converted to a uint8 array.
+     */
+    // TODO: HPyObject_CheckBuffer? In general HPy does not give access to buffers it seems?
+    // if (PyObject_CheckBuffer(op) && !PyBytes_Check(op) && !PyUnicode_Check(op)) {
+    //     PyObject *memoryview = PyMemoryView_FromObject(op);
+    //     if (memoryview == NULL) {
+    //         /* TODO: Should probably not blanket ignore errors. */
+    //         PyErr_Clear();
+    //     }
+    //     else {
+    //         tmp = _array_from_buffer_3118(memoryview);
+    //         Py_DECREF(memoryview);
+    //         if (tmp == NULL) {
+    //             return NULL;
+    //         }
+
+    //         if (writeable
+    //             && PyArray_FailUnlessWriteable(
+    //                     (PyArrayObject *)tmp, "PEP 3118 buffer") < 0) {
+    //             Py_DECREF(tmp);
+    //             return NULL;
+    //         }
+
+    //         return tmp;
+    //     }
+    // }
+
+    /*
+     * If op supports the __array_struct__ or __array_interface__ interface.
+     */
+    tmp = HPyArray_FromStructInterface(ctx, h_op);
+    if (HPy_IsNull(tmp)) {
+        return HPy_NULL;
+    }
+    bool tmp_is_notimpl = HPy_Is(ctx, tmp, ctx->h_NotImplemented);
+    if (tmp_is_notimpl) {
+        /* Until the return, NotImplemented is always a borrowed reference*/
+        tmp = HPyArray_FromInterface(ctx, h_op);
+        if (HPy_IsNull(tmp)) {
+            return HPy_NULL;
+        }
+    }
+
+    /*
+     * If op supplies the __array__ function.
+     * The documentation says this should produce a copy, so
+     * we skip this method if writeable is true, because the intent
+     * of writeable is to modify the operand.
+     * XXX: If the implementation is wrong, and/or if actual
+     *      usage requires this behave differently,
+     *      this should be changed!
+     */
+    if (!writeable && tmp_is_notimpl) {
+        tmp = HPyArray_FromArrayAttr_int(ctx, h_op, h_requested_dtype, never_copy);
+        if (HPy_IsNull(tmp)) {
+            return HPy_NULL;
+        }
+        tmp_is_notimpl = HPy_Is(ctx, tmp, ctx->h_NotImplemented);
+    }
+
+    if (!tmp_is_notimpl) {
+        if (writeable &&
+                HPyArray_FailUnlessWriteable(ctx, tmp,
+                        "array interface object") < 0) {
+            HPy_Close(ctx, tmp);
+            return HPy_NULL;
+        }
+        return tmp;
+    }
+
+    /* The ctx->Py_NotImplemented must have been dupped by one
+    of the functions that returned it */
+    assert(tmp_is_notimpl);
+    return tmp;
+}
+
 
 /*NUMPY_API*/
 NPY_NO_EXPORT int
@@ -2609,6 +2794,21 @@ PyArray_FromStructInterface(PyObject *input)
     return NULL;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_FromStructInterface(HPyContext *ctx, HPy h_input)
+{
+
+    HPy attr = HPyArray_LookupSpecial_OnInstance(ctx, h_input, "__array_struct__");
+    if (HPy_IsNull(attr)) {
+        if (HPyErr_Occurred(ctx)) {
+            return HPy_NULL;
+        } else {
+            return HPy_Dup(ctx, ctx->h_NotImplemented);
+        }
+    }
+    hpy_abort_not_implemented("remainder of HPyArray_FromStructInterface");
+}
+
 /*
  * Checks if the object in descr is the default 'descr' member for the
  * __array_interface__ dictionary with 'typestr' member typestr.
@@ -2904,6 +3104,21 @@ PyArray_FromInterface(PyObject *origin)
 }
 
 
+NPY_NO_EXPORT HPy
+HPyArray_FromInterface(HPyContext *ctx, HPy h_origin)
+{
+    HPy iface = HPyArray_LookupSpecial_OnInstance(ctx, h_origin, "__array_interface__");
+
+    if (HPy_IsNull(iface)) {
+        if (HPyErr_Occurred(ctx)) {
+            return HPy_NULL;
+        }
+        return ctx->h_NotImplemented;
+    }
+    hpy_abort_not_implemented("remainder of HPyArray_FromInterface");
+}
+
+
 /**
  * Check for an __array__ attribute and call it when it exists.
  *
@@ -2972,6 +3187,20 @@ PyArray_FromArrayAttr_int(
         return NULL;
     }
     return new;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_FromArrayAttr_int(HPyContext *ctx,
+        HPy h_op, /*PyArray_Descr*/ HPy h_descr, int never_copy)
+{
+    HPy array_meth = HPyArray_LookupSpecial_OnInstance(ctx, h_op, "__array__");
+    if (HPy_IsNull(array_meth)) {
+        if (HPyErr_Occurred(ctx)) {
+            return HPy_NULL;
+        }
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    hpy_abort_not_implemented("remainder of PyArray_FromArrayAttr_int");
 }
 
 
