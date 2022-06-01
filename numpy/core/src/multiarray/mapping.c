@@ -2061,6 +2061,33 @@ array_item_asarray(PyArrayObject *self, npy_intp i)
     return result;
 }
 
+NPY_NO_EXPORT HPy
+hpy_array_item_asarray(HPyContext *ctx, HPy h_self, PyArrayObject *self, npy_intp i)
+{
+    npy_index_info indices[2];
+    HPy result;
+
+    if (PyArray_NDIM(self) == 0) {
+        HPyErr_SetString(ctx, ctx->h_IndexError,
+                        "too many indices for array");
+        return HPy_NULL;
+    }
+    if (i < 0) {
+        /* This is an error, but undo PySequence_GetItem fix for message */
+        i -= PyArray_DIM(self, 0);
+    }
+
+    indices[0].value = i;
+    indices[0].type = HAS_INTEGER;
+    indices[1].value = PyArray_NDIM(self) - 1;
+    indices[1].type = HAS_ELLIPSIS;
+    if (hpy_get_view_from_index(ctx, h_self, self, &result,
+                            indices, 2, 0) < 0) {
+        return HPy_NULL;
+    }
+    return result;
+}
+
 
 /*
  * Python C-Api level item subscription (implementation for PySequence_GetItem)

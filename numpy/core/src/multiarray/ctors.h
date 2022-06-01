@@ -170,4 +170,9 @@ HPyArray_NewFromDescrAndBase(HPyContext *ctx,
         int nd, npy_intp const *dims, npy_intp const *strides, void *data,
         int flags, HPy obj, HPy base);
 
+NPY_NO_EXPORT HPy
+_hpy_array_from_array_like(HPyContext *ctx, HPy h_op,
+        /*PyArray_Descr*/ HPy h_requested_dtype, npy_bool writeable, HPy h_context,
+        int never_copy);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_ */
