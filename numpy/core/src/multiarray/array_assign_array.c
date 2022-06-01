@@ -597,7 +597,7 @@ HPyArray_AssignArray(HPyContext *ctx, /*PyArrayObject*/HPy h_dst, /*PyArrayObjec
     if (((PyArray_NDIM(dst) == 1 && PyArray_NDIM(src) >= 1 &&
                     PyArray_STRIDES(dst)[0] *
                             PyArray_STRIDES(src)[PyArray_NDIM(src) - 1] < 0) ||
-                    PyArray_NDIM(dst) > 1 || PyArray_HASFIELDS(dst)) &&
+                    PyArray_NDIM(dst) > 1 || HPyArray_HASFIELDS(ctx, h_dst, dst)) &&
                     hpy_arrays_overlap(ctx, h_src, h_dst)) {
         CAPI_WARN("HPyArray_AssignArray: overlapping arrays");
         PyArrayObject *tmp;

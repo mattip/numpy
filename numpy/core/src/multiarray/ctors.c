@@ -667,7 +667,7 @@ HPyArray_AssignFromCache_Recursive(
     HPy h_obj = HPy_Dup(ctx, (*cache)->arr_or_sequence);
     npy_bool sequence = (*cache)->sequence;
     int depth = (*cache)->depth;
-    *cache = npy_unlink_coercion_cache(*cache);
+    *cache = hnpy_unlink_coercion_cache(ctx, *cache);
 
     /*
      * The maximum depth is special (specifically for objects), but usually
