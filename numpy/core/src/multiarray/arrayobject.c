@@ -455,6 +455,7 @@ HPyArray_CopyObject(HPyContext *ctx, HPy h_dest, PyArrayObject *dest, HPy h_src_
                 PyArray_FLAGS(dest) & NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
         HPy_Close(ctx, hpy_arr_type);
         if (HPy_IsNull(h_view)) {
+            HPy_Close(ctx, h_dtype);
             npy_free_coercion_cache(cache);
             return -1;
         }

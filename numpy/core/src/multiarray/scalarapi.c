@@ -513,6 +513,7 @@ HPyArray_FromScalar(HPyContext *ctx, HPy h_scalar, /*PyArray_Descr*/ HPy h_outco
             0, NULL,
             NULL, NULL, 0, HPy_NULL);
     HPy_Close(ctx, h_PyArray_Type);
+    HPy_Close(ctx, h_typecode); /* no longer needed */
 
     if (HPy_IsNull(h_r)) {
         return HPy_NULL;

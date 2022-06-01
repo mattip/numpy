@@ -1353,6 +1353,7 @@ HPyArray_NewLikeArrayWithShape(HPyContext *ctx, HPy prototype, NPY_ORDER order,
         ret = HPyArray_NewFromDescr(ctx, type, dtype, ndim, dims, NULL, NULL,
                 order, subok ? prototype : HPy_NULL);
         HPy_Close(ctx, type);
+        HPy_Close(ctx, dtype);
     }
     /* KEEPORDER needs some analysis of the strides */
     else {
@@ -2019,6 +2020,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
                     array_type, dtype, ndim, dims, NULL, NULL,
                     flags & NPY_ARRAY_F_CONTIGUOUS, HPy_NULL);
             HPy_Close(ctx, array_type);
+            HPy_Close(ctx, dtype);
             if (HPy_IsNull(ret)) {
                 return HPy_NULL;
             }
