@@ -721,21 +721,17 @@ HPyArray_AssignFromCache_Recursive(
             }
             else {
                 HPy_Close(ctx, h_converted_obj);
-                PyArrayObject *view;
-                CAPI_WARN("calling array_item_asarray");
-                view = (PyArrayObject *)array_item_asarray(self, i);
-                if (view == NULL) {
+                HPy h_view = hpy_array_item_asarray(ctx, h_self, self, i);
+                if (HPy_IsNull(h_view)) {
                     HPy_Close(ctx, value);
                     goto fail;
                 }
-                HPy h_view = HPy_FromPyObject(ctx, (PyObject*) view);
+                PyArrayObject *view = PyArrayObject_AsStruct(ctx, h_view);
                 if (HPyArray_AssignFromCache_Recursive(ctx, h_view, view, ndim, cache) < 0) {
-                    Py_DECREF(view);
                     HPy_Close(ctx, h_view);
                     HPy_Close(ctx, value);
                     goto fail;
                 }
-                Py_DECREF(view);
                 HPy_Close(ctx, h_view);
             }
             HPy_Close(ctx, value);

@@ -151,6 +151,89 @@ fail:
     return -1;
 }
 
+#include "ndarraytypes.h"
+
+NPY_NO_EXPORT int
+hpy_raw_array_assign_array(HPyContext *ctx, int ndim, npy_intp const *shape,
+        HPy h_dst_dtype, char *dst_data, npy_intp const *dst_strides,
+        HPy h_src_dtype, char *src_data, npy_intp const *src_strides)
+{
+    int idim;
+    npy_intp shape_it[NPY_MAXDIMS];
+    npy_intp dst_strides_it[NPY_MAXDIMS];
+    npy_intp src_strides_it[NPY_MAXDIMS];
+    npy_intp coord[NPY_MAXDIMS];
+
+    PyArray_Descr *dst_dtype = PyArray_Descr_AsStruct(ctx, h_dst_dtype);
+    PyArray_Descr *src_dtype = PyArray_Descr_AsStruct(ctx, h_src_dtype);
+
+    int aligned, needs_api = 0;
+
+    HPY_NPY_BEGIN_THREADS_DEF;
+
+    aligned =
+        copycast_isaligned(ndim, shape, dst_dtype, dst_data, dst_strides) &&
+        copycast_isaligned(ndim, shape, src_dtype, src_data, src_strides);
+
+    /* Use raw iteration with no heap allocation */
+    if (PyArray_PrepareTwoRawArrayIter(
+                    ndim, shape,
+                    dst_data, dst_strides,
+                    src_data, src_strides,
+                    &ndim, shape_it,
+                    &dst_data, dst_strides_it,
+                    &src_data, src_strides_it) < 0) {
+        return -1;
+    }
+
+    /*
+     * Overlap check for the 1D case. Higher dimensional arrays and
+     * opposite strides cause a temporary copy before getting here.
+     */
+    if (ndim == 1 && src_data < dst_data &&
+                src_data + shape_it[0] * src_strides_it[0] > dst_data) {
+        src_data += (shape_it[0] - 1) * src_strides_it[0];
+        dst_data += (shape_it[0] - 1) * dst_strides_it[0];
+        src_strides_it[0] = -src_strides_it[0];
+        dst_strides_it[0] = -dst_strides_it[0];
+    }
+
+    /* Get the function to do the casting */
+    NPY_cast_info cast_info;
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                        src_strides_it[0], dst_strides_it[0],
+                        h_src_dtype, h_dst_dtype,
+                        0,
+                        &cast_info, &needs_api) != NPY_SUCCEED) {
+        return -1;
+    }
+
+    if (!needs_api) {
+        HPY_NPY_BEGIN_THREADS(ctx);
+    }
+
+    npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
+
+    NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
+        /* Process the innermost dimension */
+        char *args[2] = {src_data, dst_data};
+        if (cast_info.func(ctx, &cast_info.context,
+                args, &shape_it[0], strides, cast_info.auxdata) < 0) {
+            goto fail;
+        }
+    } NPY_RAW_ITER_TWO_NEXT(idim, ndim, coord, shape_it,
+                            dst_data, dst_strides_it,
+                            src_data, src_strides_it);
+
+    HPY_NPY_END_THREADS(ctx);
+    HNPY_cast_info_xfree(ctx, &cast_info);
+    return 0;
+fail:
+    HPY_NPY_END_THREADS(ctx);
+    HNPY_cast_info_xfree(ctx, &cast_info);
+    return -1;
+}
+
 /*
  * Assigns the array from 'src' to 'dst, wherever the 'wheremask'
  * value is True. The strides must already have been broadcast.
@@ -587,10 +670,9 @@ HPyArray_AssignArray(HPyContext *ctx, /*PyArrayObject*/HPy h_dst, /*PyArrayObjec
     if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
-        CAPI_WARN("straightforward value assignment that needs raw_array_assign_array");
-        if (raw_array_assign_array(PyArray_NDIM(dst), PyArray_DIMS(dst),
-                PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
-                PyArray_DESCR(src), PyArray_DATA(src), src_strides) < 0) {
+        if (hpy_raw_array_assign_array(ctx, PyArray_NDIM(dst), PyArray_DIMS(dst),
+                h_dst_descr, PyArray_DATA(dst), PyArray_STRIDES(dst),
+                h_src_descr, PyArray_DATA(src), src_strides) < 0) {
             goto fail;
         }
     }
