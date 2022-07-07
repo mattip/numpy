@@ -28,7 +28,10 @@ https://doi.org/10.1038/s41586-020-2649-2)
 This is a **highly experimental** branch migrating NumPy to the HPy C API.
 
 In order to run anything (or even load NumPy) you also need to use an
-experimental HPy branch.
+experimental HPy branch: https://github.com/hpyproject/hpy/tree/graal-team/numpy-hpy-port
+
+There's an example in the repo that runs and can be used to evaluate
+performance: [numpy-gol.py](https://github.com/hpyproject/numpy-hpy/blob/graal-team/hpy/benchmarks/numpy-gol.py)
 
 This work is sponsored by the HPy team.
 
