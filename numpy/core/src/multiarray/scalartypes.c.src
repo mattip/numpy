@@ -2925,8 +2925,7 @@ object_arrtype_alloc(PyTypeObject *type, Py_ssize_t items)
             "this will raise a TypeError in the future.", 1) < 0) {
         return NULL;
     }
-    hpy_abort_not_implemented("gentype_alloc");
-    // return gentype_alloc(type, items);
+    return gentype_alloc(type, items);
 }
 
 
@@ -4532,22 +4531,21 @@ NPY_NO_EXPORT int init_scalartypes_basetypes(HPyContext *ctx)
 NPY_NO_EXPORT int
 get_typeobj_idx(PyTypeObject * obj)
 {
-    hpy_abort_not_implemented("get_typeobj_idx");
-    // npy_intp imin = 0, imax = sizeof(typeobjects) / sizeof(typeobjects[0]) - 1;
-    // while (imax >= imin)
-    // {
-    //     npy_intp imid = ((imax - imin) / 2) + imin;
-    //     if(typeobjects[imid].type == obj) {
-    //         return imid;
-    //     }
-    //     else if (typeobjects[imid].type < obj) {
-    //         imin = imid + 1;
-    //     }
-    //     else {
-    //         imax = imid - 1;
-    //     }
-    // }
-    // return -1;
+    npy_intp imin = 0, imax = sizeof(typeobjects) / sizeof(typeobjects[0]) - 1;
+    while (imax >= imin)
+    {
+        npy_intp imid = ((imax - imin) / 2) + imin;
+        if(typeobjects[imid].type == obj) {
+            return imid;
+        }
+        else if (typeobjects[imid].type < obj) {
+            imin = imid + 1;
+        }
+        else {
+            imax = imid - 1;
+        }
+    }
+    return -1;
 }
 
 NPY_NO_EXPORT int
@@ -4593,28 +4591,27 @@ hpy_is_type_anyscalar_exact(HPyContext *ctx, HPy type)
 NPY_NO_EXPORT int
 _typenum_fromtypeobj(PyObject *type, int user)
 {
-    hpy_abort_not_implemented("_typenum_fromtypeobj");
-    // int typenum, i;
+    int typenum, i;
 
-    // typenum = NPY_NOTYPE;
-    // i = get_typeobj_idx((PyTypeObject*)type);
-    // if (i >= 0) {
-    //     typenum = typeobjects[i].typenum;
-    // }
+    typenum = NPY_NOTYPE;
+    i = get_typeobj_idx((PyTypeObject*)type);
+    if (i >= 0) {
+        typenum = typeobjects[i].typenum;
+    }
 
-    // if (!user) {
-    //     return typenum;
-    // }
-    // /* Search any registered types */
-    // i = 0;
-    // while (i < NPY_NUMUSERTYPES) {
-    //     if (type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
-    //         typenum = i + NPY_USERDEF;
-    //         break;
-    //     }
-    //     i++;
-    // }
-    // return typenum;
+    if (!user) {
+        return typenum;
+    }
+    /* Search any registered types */
+    i = 0;
+    while (i < NPY_NUMUSERTYPES) {
+        if (type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
+            typenum = i + NPY_USERDEF;
+            break;
+        }
+        i++;
+    }
+    return typenum;
 }
 
 NPY_NO_EXPORT int

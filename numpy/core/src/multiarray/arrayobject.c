@@ -1977,14 +1977,14 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         }
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_HASOBJECT)) {
             /* place Py_None in object positions */
-            hpy_abort_not_implemented("array_array: objects");
-            // PyObject *ret = HPy_AsPyObject(ctx, h_result);
-            // PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
-            // Py_DECREF(ret);
-            // if (HPyErr_Occurred(ctx)) {
-            //     descr = NULL;
-            //     goto fail;
-            // }
+            // TODO HPY LABS PORT
+            PyObject *ret = HPy_AsPyObject(ctx, h_result);
+            PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
+            Py_DECREF(ret);
+            if (HPyErr_Occurred(ctx)) {
+                descr = NULL;
+                goto fail;
+            }
         }
     }
     else {

@@ -580,8 +580,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
     _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
     if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        hpy_abort_not_implemented("HPyArray_Pack: using PyArray_Item_INCREF is not supported");
-        //PyArray_Item_INCREF(data, tmp_descr);
+        PyArray_Item_INCREF(data, HPy_AsPyObject(ctx, tmp_descr));
     }
 
     int res = 0;
@@ -605,8 +604,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
   finish:
     if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        hpy_abort_not_implemented("HPyArray_Pack: using PyArray_Item_XDECREF is not supported");
-        // PyArray_Item_XDECREF(data, tmp_descr);
+        PyArray_Item_XDECREF(data, HPy_AsPyObject(ctx, tmp_descr));
     }
     // TODO HPY LABS PORT: PyObject_Free
     // PyObject_Free(data);
@@ -1051,19 +1049,21 @@ find_descriptor_from_array(
  * @return -1 on failure, 0 on success.
  */
 static int
-h_find_descriptor_from_array(HPyContext *ctx, HPy arr, HPy DType, HPy *out_descr)
+h_find_descriptor_from_array(HPyContext *ctx, HPy h_arr, HPy h_DType, HPy *h_out_descr)
 {
-    // PyArrayObject *arr, PyArray_DTypeMeta *DType, PyArray_Descr **out_descr
-    // enum _dtype_discovery_flags flags = 0;
-    *out_descr = HPy_NULL;
+    *h_out_descr = HPy_NULL;
 
-    if (HPy_IsNull(DType)) {
-        *out_descr = HPyArray_GetDescr(ctx, arr);
+    if (HPy_IsNull(h_DType)) {
+        *h_out_descr = HPyArray_GetDescr(ctx, h_arr);
         return 0;
     }
 
-    hpy_abort_not_implemented("h_find_descriptor_from_array");
-    return -1;
+    PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(ctx, h_arr);
+    PyArray_DTypeMeta *DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_DType);
+    PyArray_Descr *out_descr = NULL;
+    int ret = find_descriptor_from_array(arr, DType, &out_descr);
+    *h_out_descr = HPy_FromPyObject(ctx, out_descr);
+    return ret;
 }
 
 /**
@@ -1139,12 +1139,8 @@ HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype)
         }
         if (HPy_IsNull(new_dtype)) {
             /* This is an object array but contained no elements, use default */
-            CAPI_WARN("HPyArray_AdaptDescriptorToArray: call to descr meta type slot 'default_descr'");
-            PyArray_DTypeMeta *py_new_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, new_DType);
-            PyObject *py_new_dtype = (PyObject *)NPY_DT_CALL_default_descr(py_new_DType);
-            new_dtype = HPy_FromPyObject(ctx, py_new_dtype);
-            Py_DECREF(py_new_DType);
-            Py_DECREF(py_new_dtype);
+            PyArray_DTypeMeta *new_DType_data = PyArray_DTypeMeta_AsStruct(ctx, new_DType);
+            HPy new_dtype = HNPY_DT_CALL_default_descr(ctx, new_DType, new_DType_data);
         }
     }
     HPy_Close(ctx, new_DType);
@@ -1172,18 +1168,6 @@ HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype)
  * @return The updated number of maximum dimensions (i.e. scalars will set
  *         this to the current dimensions).
  */
-NPY_NO_EXPORT int
-PyArray_DiscoverDTypeAndShape_Recursive(
-        PyObject *obj, int curr_dims, int max_dims, PyArray_Descr**out_descr,
-        npy_intp out_shape[NPY_MAXDIMS],
-        coercion_cache_obj ***coercion_cache_tail_ptr,
-        PyArray_DTypeMeta *fixed_DType, enum _dtype_discovery_flags *flags,
-        int never_copy)
-{
-    hpy_abort_not_implemented("PyArray_DiscoverDTypeAndShape_Recursive");
-    return -1;
-}
-
 NPY_NO_EXPORT int
 HPyArray_DiscoverDTypeAndShape_Recursive(
         HPyContext *ctx,
@@ -1403,33 +1387,44 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 
     // TODO HPY LABS PORT: PySequence_Fast
     /* Ensure we have a sequence (required for PyPy) */
-//    seq = PySequence_Fast(obj, "Could not convert object to sequence");
-//    if (seq == NULL) {
-//        /*
-//         * Specifically do not fail on things that look like a dictionary,
-//         * instead treat them as scalar.
-//         */
-//        if (HPyErr_ExceptionMatches(ctx, ctx->h_KeyError)) {
-//            HPyErr_Clear(ctx);
-//            max_dims = handle_scalar(
-//                    obj, curr_dims, &max_dims, out_descr, out_shape, fixed_DType,
-//                    flags, NULL);
-//            return max_dims;
-//        }
-//        return -1;
-//    }
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyObject *py_seq;
+    py_seq = PySequence_Fast(py_obj, "Could not convert object to sequence");
+    if (py_seq == NULL) {
+        /*
+            * Specifically do not fail on things that look like a dictionary,
+            * instead treat them as scalar.
+            */
+        if (HPyErr_ExceptionMatches(ctx, ctx->h_KeyError)) {
+            HPyErr_Clear(ctx);
+            PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
+            max_dims = handle_scalar(
+                    py_obj, curr_dims, &max_dims, out_descr, out_shape, py_fixed_DType,
+                    flags, NULL);
+            Py_DECREF(py_fixed_DType);
+            Py_DECREF(py_obj);
+            return max_dims;
+        }
+        return -1;
+    } else {
+        seq = HPy_FromPyObject(ctx, py_seq);
+        Py_DECREF(py_obj);
+        Py_DECREF(py_seq);
+    }
     seq = obj;
-    if (!HPySequence_Check(ctx, seq)) {
-        hpy_abort_not_implemented("HPyArray_DiscoverDTypeAndShape_Recursive uses PySequence_Fast");
+    if (hnpy_new_coercion_cache(ctx, obj, seq, 1, coercion_cache_tail_ptr, curr_dims) < 0) {
         return -1;
     }
-   if (hnpy_new_coercion_cache(ctx, obj, seq, 1, coercion_cache_tail_ptr, curr_dims) < 0) {
-       return -1;
-   }
 
-    npy_intp size = HPy_Length(ctx, seq);
-    // npy_intp size = PySequence_Fast_GET_SIZE(seq);
-    // PyObject **objects = PySequence_Fast_ITEMS(seq);
+    npy_intp size;
+    HPy *seq_arr = NULL;
+    if (!HPySequence_Check(ctx, seq)) { // PySequence_Fast
+        npy_intp size = PySequence_Fast_GET_SIZE(py_seq);
+        PyObject **objects = PySequence_Fast_ITEMS(py_seq);
+        seq_arr = HPy_FromPyObjectArray(ctx, objects, size);
+    } else {
+        size = HPy_Length(ctx, seq);
+    }
 
     if (update_shape(curr_dims, &max_dims,
                      out_shape, 1, &size, NPY_TRUE, flags) < 0) {
@@ -1451,7 +1446,12 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 
     /* Recursive call for each sequence item */
     for (HPy_ssize_t i = 0; i < size; i++) {
-        HPy item = HPy_GetItem_i(ctx, seq, i);
+        HPy item;
+        if (seq_arr == NULL) {
+            item = HPy_GetItem_i(ctx, seq, i);
+        } else {
+            item = seq_arr[i];
+        }
         if (HPy_IsNull(item)) {
             return -1;
         }

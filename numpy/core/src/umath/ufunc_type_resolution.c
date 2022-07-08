@@ -126,6 +126,26 @@ npy_casting_to_py_object(NPY_CASTING casting)
 }
 
 
+static HPy
+hpy_npy_casting_to_py_object(HPyContext *ctx, NPY_CASTING casting)
+{
+    switch (casting) {
+        case NPY_NO_CASTING:
+            return HPyUnicode_FromString(ctx, "no");
+        case NPY_EQUIV_CASTING:
+            return HPyUnicode_FromString(ctx, "equiv");
+        case NPY_SAFE_CASTING:
+            return HPyUnicode_FromString(ctx, "safe");
+        case NPY_SAME_KIND_CASTING:
+            return HPyUnicode_FromString(ctx, "same_kind");
+        case NPY_UNSAFE_CASTING:
+            return HPyUnicode_FromString(ctx, "unsafe");
+        default:
+            return HPyLong_FromLong(ctx, casting);
+    }
+}
+
+
 /**
  * Always returns -1 to indicate the exception was raised, for convenience
  */
@@ -232,6 +252,40 @@ raise_casting_error(
     return -1;
 }
 
+static int
+hpy_raise_casting_error(HPyContext *ctx,
+        HPy exc_type,
+        HPy ufunc,
+        NPY_CASTING casting,
+        HPy from,
+        HPy to,
+        npy_intp i)
+{
+    HPy exc_value;
+    HPy casting_value;
+
+    casting_value = hpy_npy_casting_to_py_object(ctx, casting);
+    if (HPy_IsNull(casting_value)) {
+        return -1;
+    }
+
+    exc_value = HPy_BuildValue(ctx,
+        "OOOOi",
+        ufunc,
+        casting_value,
+        from,
+        to,
+        i
+    );
+    if (HPy_IsNull(exc_value)){
+        return -1;
+    }
+    HPyErr_SetObject(ctx, exc_type, exc_value);
+    HPy_Close(ctx, exc_value);
+
+    return -1;
+}
+
 /** Helper function to raise UFuncInputCastingError
  * Always returns -1 to indicate the exception was raised, for convenience
  */
@@ -262,8 +316,15 @@ hpy_raise_input_casting_error(HPyContext *ctx,
         HPy /* (PyArray_Descr *) */ to,
         npy_intp i)
 {
-    hpy_abort_not_implemented("hpy_raise_input_casting_error");
-    return -1;
+    static HPy exc_type = HPy_NULL; // HPyGlobal ?
+    hpy_npy_cache_import(
+        "numpy.core._exceptions", "_UFuncInputCastingError",
+        &exc_type);
+    if (HPy_IsNull(exc_type)) {
+        return -1;
+    }
+
+    return hpy_raise_casting_error(ctx, exc_type, ufunc, casting, from, to, i);
 }
 
 /** Helper function to raise UFuncOutputCastingError
@@ -296,8 +357,15 @@ hpy_raise_output_casting_error(HPyContext *ctx,
         HPy /* (PyArray_Descr *) */ to,
         npy_intp i)
 {
-    hpy_abort_not_implemented("hpy_raise_output_casting_error");
-    return -1;
+    static HPy exc_type = HPy_NULL; // HPyGlobal ?
+    hpy_npy_cache_import(
+        "numpy.core._exceptions", "_UFuncOutputCastingError",
+        &exc_type);
+    if (HPy_IsNull(exc_type)) {
+        return -1;
+    }
+
+    return hpy_raise_casting_error(ctx, exc_type, ufunc, casting, from, to, i);
 }
 
 /*UFUNC_API

@@ -1097,8 +1097,10 @@ NPY_NO_EXPORT npy_bool
 PyArray_CanCastArrayTo(PyArrayObject *arr, PyArray_Descr *to,
                         NPY_CASTING casting)
 {
-    hpy_abort_not_implemented("PyArray_CanCastArrayTo");
-    return NPY_FALSE;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, arr);
+    HPy h_to = HPy_FromPyObject(ctx, to);
+    return HPyArray_CanCastArrayTo(ctx, h_arr, h_to, casting);
 }
 
 NPY_NO_EXPORT npy_bool
@@ -1280,10 +1282,13 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
         return HPy_Dup(ctx, type);
     }
     else {
-        hpy_abort_not_implemented("hensure_dtype_nbo");
         // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
-        // return PyArray_DescrNewByteorder(type, NPY_NATIVE);
-        return HPy_NULL;
+        PyArray_Descr *py_type = HPy_AsPyObject(ctx, type);
+        PyArray_Descr *ret = PyArray_DescrNewByteorder(py_type, NPY_NATIVE);
+        HPy h_ret = HPy_FromPyObject(ctx, ret);
+        Py_DECREF(py_type);
+        Py_DECREF(ret);
+        return h_ret;
     }
 }
 
@@ -2009,18 +2014,19 @@ hshould_use_min_scalar(HPyContext *ctx, npy_intp narrs, HPy *arr,
  * Utility function used only in PyArray_ResultType for value-based logic.
  * See that function for the meaning and contents of the parameters.
  */
-static PyArray_Descr *
-get_descr_from_cast_or_value(
+static HPy // PyArray_Descr *
+hpy_get_descr_from_cast_or_value(HPyContext *ctx,
         npy_intp i,
-        PyArrayObject *arrs[],
+        HPy arrs[], /* PyArrayObject * */
         npy_intp ndtypes,
-        PyArray_Descr *descriptor,
-        PyArray_DTypeMeta *common_dtype)
+        HPy descriptor, /* PyArray_Descr * */
+        HPy common_dtype) /* PyArray_DTypeMeta * */
 {
-    PyArray_Descr *curr;
+    HPy curr;
+    PyArrayObject *arr_i = PyArrayObject_AsStruct(ctx, arrs[i-ndtypes]); // i-ndtypes < 0 ?
     if (NPY_LIKELY(i < ndtypes ||
-            !(PyArray_FLAGS(arrs[i-ndtypes]) & _NPY_ARRAY_WAS_PYSCALAR))) {
-        curr = PyArray_CastDescrToDType(descriptor, common_dtype);
+            !(PyArray_FLAGS(arr_i) & _NPY_ARRAY_WAS_PYSCALAR))) {
+        curr = HPyArray_CastDescrToDType(ctx, descriptor, common_dtype);
     }
     else {
         /*
@@ -2028,13 +2034,16 @@ get_descr_from_cast_or_value(
          * plain Python values "graciously". This recovers the original
          * value the long route, but it should almost never happen...
          */
-        PyObject *tmp = PyArray_GETITEM(arrs[i-ndtypes],
-                                        PyArray_BYTES(arrs[i-ndtypes]));
+        PyArrayObject *py_arr_i = HPy_AsPyObject(ctx, arrs[i-ndtypes]);
+        PyObject *tmp = PyArray_GETITEM(py_arr_i,
+                                        PyArray_BYTES(arr_i));
         if (tmp == NULL) {
-            return NULL;
+            return HPy_NULL;
         }
-        curr = NPY_DT_CALL_discover_descr_from_pyobject(common_dtype, tmp);
+        HPy h_tmp = HPy_FromPyObject(ctx, tmp);
         Py_DECREF(tmp);
+        curr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, common_dtype, h_tmp);
+        HPy_Close(ctx, h_tmp);
     }
     return curr;
 }
@@ -2178,15 +2187,13 @@ HPyArray_ResultType(HPyContext *ctx,
 
     PyArray_DTypeMeta *common_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, common_dtype);
     if (NPY_DT_is_abstract(common_dtype_data)) {
-        hpy_abort_not_implemented("HPyArray_ResultType: branch is_abstract");
-//        /* (ab)use default descriptor to define a default */
-//        PyArray_Descr *tmp_descr = NPY_DT_CALL_default_descr(common_dtype);
-//        if (tmp_descr == NULL) {
-//            goto error;
-//        }
-//        Py_INCREF(NPY_DTYPE(tmp_descr));
-//        Py_SETREF(common_dtype, NPY_DTYPE(tmp_descr));
-//        Py_DECREF(tmp_descr);
+        /* (ab)use default descriptor to define a default */
+        HPy tmp_descr = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_data);
+        if (HPy_IsNull(tmp_descr)) {
+            goto error;
+        }
+        HPy_SETREF(ctx, common_dtype, HPy_Dup(ctx, HNPY_DTYPE(ctx, tmp_descr)));
+        HPy_Close(ctx, tmp_descr);
     }
 
     /*
@@ -2199,24 +2206,24 @@ HPyArray_ResultType(HPyContext *ctx,
     }
     else {
         hpy_abort_not_implemented("HPyArray_ResultType: branch is_parametric");
-//        result = get_descr_from_cast_or_value(
-//                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
-//        if (result == NULL) {
-//            goto error;
-//        }
-//
-//        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
-//            PyArray_Descr *curr = get_descr_from_cast_or_value(
-//                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
-//            if (curr == NULL) {
-//                goto error;
-//            }
-//            Py_SETREF(result, NPY_DT_SLOTS(common_dtype)->common_instance(result, curr));
-//            Py_DECREF(curr);
-//            if (result == NULL) {
-//                goto error;
-//            }
-//        }
+        result = get_descr_from_cast_or_value(
+                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
+        if (result == NULL) {
+            goto error;
+        }
+
+        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
+            PyArray_Descr *curr = get_descr_from_cast_or_value(
+                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
+            if (curr == NULL) {
+                goto error;
+            }
+            Py_SETREF(result, NPY_DT_SLOTS(common_dtype)->common_instance(result, curr));
+            Py_DECREF(curr);
+            if (result == NULL) {
+                goto error;
+            }
+        }
     }
 
     /*

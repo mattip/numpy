@@ -40,6 +40,9 @@
 #include "hpy_utils.h"
 #include "flagsobject.h"
 
+// HPy
+#include "convert.h"
+
 /*
  * Reading from a file or a string.
  *
@@ -1447,39 +1450,41 @@ HPyArray_NewLikeArrayWithShape(HPyContext *ctx, HPy prototype, NPY_ORDER order,
         npy_stride_sort_item strideperm[NPY_MAXDIMS];
         int idim;
 
-        hpy_abort_not_implemented("HPyArray_NewLikeArrayWithShape: KEEPORDER");
-        // PyArray_CreateSortedStridePerm(ndim,
-        //                                 PyArray_STRIDES(prototype),
-        //                                 strideperm);
+        PyArray_CreateSortedStridePerm(ndim,
+                                        PyArray_STRIDES(prototype_arr),
+                                        strideperm);
 
-        // /* Build the new strides */
-        // stride = dtype->elsize;
-        // if (stride == 0 && PyDataType_ISSTRING(dtype)) {
-        //     /* Special case for dtype=str or dtype=bytes. */
-        //     if (dtype->type_num == NPY_STRING) {
-        //         /* dtype is bytes */
-        //         stride = 1;
-        //     }
-        //     else {
-        //         /* dtype is str (type_num is NPY_UNICODE) */
-        //         stride = 4;
-        //     }
-        // }
-        // for (idim = ndim-1; idim >= 0; --idim) {
-        //     npy_intp i_perm = strideperm[idim].perm;
-        //     strides[i_perm] = stride;
-        //     stride *= dims[i_perm];
-        // }
+        /* Build the new strides */
+        PyArray_Descr *dtype_data = PyArray_Descr_AsStruct(ctx, dtype);
+        stride = dtype_data->elsize;
+        if (stride == 0 && PyDataType_ISSTRING(dtype_data)) {
+            /* Special case for dtype=str or dtype=bytes. */
+            if (dtype_data->type_num == NPY_STRING) {
+                /* dtype is bytes */
+                stride = 1;
+            }
+            else {
+                /* dtype is str (type_num is NPY_UNICODE) */
+                stride = 4;
+            }
+        }
+        for (idim = ndim-1; idim >= 0; --idim) {
+            npy_intp i_perm = strideperm[idim].perm;
+            strides[i_perm] = stride;
+            stride *= dims[i_perm];
+        }
 
-        // /* Finally, allocate the array */
-        // ret = PyArray_NewFromDescr(subok ? Py_TYPE(prototype) : &PyArray_Type,
-        //                                 dtype,
-        //                                 ndim,
-        //                                 dims,
-        //                                 strides,
-        //                                 NULL,
-        //                                 0,
-        //                                 subok ? (PyObject *)prototype : NULL);
+        /* Finally, allocate the array */
+        HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        ret = HPyArray_NewFromDescr(ctx, subok ? HPy_Type(ctx, prototype) : h_array_type,
+                                        dtype,
+                                        ndim,
+                                        dims,
+                                        strides,
+                                        NULL,
+                                        0,
+                                        subok ? prototype : HPy_NULL);
+        HPy_Close(ctx, h_array_type);
     }
 
     return ret;
@@ -2225,12 +2230,17 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
                 return HPy_NULL;
             }
 
-            hpy_abort_not_implemented("HPyArray_FromAny: call to setArrayFromSequence");
             // TODO HPY LABS PORT
-            // if (setArrayFromSequence(ret, op, 0, NULL) < 0) {
-            //     HPy_Close(ctx, ret);
-            //     return HPy_NULL;
-            // }
+            PyArrayObject *py_ret = HPy_AsPyObject(ctx, ret);
+            PyObject *py_op = HPy_AsPyObject(ctx, op);
+            if (setArrayFromSequence(py_ret, py_op, 0, NULL) < 0) {
+                Py_DECREF(py_ret);
+                Py_DECREF(py_op);
+                HPy_Close(ctx, ret);
+                return HPy_NULL;
+            }
+            Py_DECREF(py_ret);
+            Py_DECREF(py_op);
             return ret;
         }
     }
@@ -2526,8 +2536,7 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
             descr_data = PyArray_Descr_AsStruct(ctx, descr);
         }
         else if (!HPy_IsNull(descr) && !PyArray_ISNBO(descr_data->byteorder)) {
-            hpy_abort_not_implemented("HPyArray_CheckFromAny: PyArray_DESCR_REPLACE");
-            // HPY TODO: PyArray_DESCR_REPLACE(descr);
+            HPyArray_DESCR_REPLACE(ctx, descr);
         }
         if (!HPy_IsNull(descr) && descr_data->byteorder != NPY_IGNORE) {
             descr_data->byteorder = NPY_NATIVE;
@@ -2543,16 +2552,15 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
     if ((requires & NPY_ARRAY_ELEMENTSTRIDES)
             && !HPyArray_ElementStrides(ctx, obj)) {
 
-        hpy_abort_not_implemented("PyArray_NewCopy");
-        // PyObject *ret;
-        // if (requires & NPY_ARRAY_ENSURENOCOPY) {
-        //     PyErr_SetString(PyExc_ValueError,
-        //             "Unable to avoid copy while creating a new array.");
-        //     return NULL;
-        // }
-        // ret = PyArray_NewCopy((PyArrayObject *)obj, NPY_ANYORDER);
-        // Py_DECREF(obj);
-        // obj = ret;
+        HPy ret;
+        if (requires & NPY_ARRAY_ENSURENOCOPY) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "Unable to avoid copy while creating a new array.");
+            return HPy_NULL;
+        }
+        ret = HPyArray_NewCopy(ctx, obj, NPY_ANYORDER);
+        HPy_Close(ctx, obj);
+        obj = ret;
     }
     return obj;
 }
@@ -2802,7 +2810,13 @@ HPyArray_FromStructInterface(HPyContext *ctx, HPy h_input)
             return HPy_Dup(ctx, ctx->h_NotImplemented);
         }
     }
-    hpy_abort_not_implemented("remainder of HPyArray_FromStructInterface");
+    // TODO HPY LABS PORT
+    PyObject *input = HPy_AsPyObject(ctx, h_input);
+    PyObject *ret = PyArray_FromStructInterface(input);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(input);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 /*
@@ -3109,9 +3123,14 @@ HPyArray_FromInterface(HPyContext *ctx, HPy h_origin)
         if (HPyErr_Occurred(ctx)) {
             return HPy_NULL;
         }
-        return ctx->h_NotImplemented;
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
-    hpy_abort_not_implemented("remainder of HPyArray_FromInterface");
+    PyObject *origin = HPy_AsPyObject(ctx, h_origin);
+    PyObject *ret = PyArray_FromInterface(origin);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(origin);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 
@@ -3196,7 +3215,15 @@ HPyArray_FromArrayAttr_int(HPyContext *ctx,
         }
         return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
-    hpy_abort_not_implemented("remainder of PyArray_FromArrayAttr_int");
+    // TODO HPY LABS PORT
+    PyObject *op = HPy_AsPyObject(ctx, h_op);
+    PyArray_Descr *descr = HPy_AsPyObject(ctx, h_descr);
+    PyObject *ret = PyArray_FromArrayAttr_int(op, descr, never_copy);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(op);
+    Py_DECREF(descr);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 

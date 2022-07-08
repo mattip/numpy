@@ -2120,8 +2120,7 @@ array_item_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, Py_ssize_t i)
         return result;
     }
     else {
-        hpy_abort_not_implemented("array_item_asarray");
-        // return array_item_asarray(self, i);
+        return hpy_array_item_asarray(ctx, h_self, self, i);
     }
 }
 
@@ -2265,15 +2264,16 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 
     /* return fields if op is a string index */
     if (PyDataType_HASFIELDS(self_descr)) {
-        hpy_abort_not_implemented("array_subscript:PyDataType_HASFIELDS branch");
-        // PyArrayObject *view;
-        // int ret = _get_field_view(self, op, &view);
-        // if (ret == 0){
-        //     if (view == NULL) {
-        //         return HPy_NULL;
-        //     }
-        //     return HPy_FromPyObject(ctx, (PyObject*)view);
-        // }
+        PyArrayObject *view;
+        PyObject *op = HPy_AsPyObject(ctx, h_op);
+        int ret = _get_field_view(self, op, &view);
+        Py_DECREF(op);
+        if (ret == 0){
+            if (view == NULL) {
+                return HPy_NULL;
+            }
+            return HPy_FromPyObject(ctx, (PyObject*)view);
+        }
     }
 
     /* Prepare the indices */
@@ -2571,20 +2571,27 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
 
     /* field access */
     if (PyDataType_HASFIELDS(descr)){
-        hpy_abort_not_implemented("'fields' field not converted to HPy");
-        // PyArrayObject *view;
-        // int ret = _get_field_view(self, ind, &view);
-        // if (ret == 0){
-        //     if (view == NULL) {
-        //         return -1;
-        //     }
-        //     if (PyArray_CopyObject(view, op) < 0) {
-        //         Py_DECREF(view);
-        //         return -1;
-        //     }
-        //     Py_DECREF(view);
-        //     return 0;
-        // }
+        PyObject *self = HPy_AsPyObject(ctx, h_self);
+        PyObject *ind = HPy_AsPyObject(ctx, h_ind);
+        PyArrayObject *py_view = NULL;
+        /* TODO HPY LABS PORT: cut off */
+        int ret = _get_field_view(self, ind, &py_view);
+        view = HPy_FromPyObject(ctx, py_view);
+        PyArrayObject *view_data = PyArrayObject_AsStruct(ctx, view);
+        Py_DECREF(self);
+        Py_DECREF(ind);
+        Py_DECREF(py_view);
+        if (ret == 0){
+            if (HPy_IsNull(view)) {
+                return -1;
+            }
+            if (HPyArray_CopyObject(ctx, view, view_data, h_op) < 0) {
+                HPy_Close(ctx, view);
+                return -1;
+            }
+            HPy_Close(ctx, view);
+            return 0;
+        }
     }
 
     /* Prepare the indices */

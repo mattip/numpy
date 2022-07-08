@@ -99,8 +99,6 @@ _strided_to_strided_move_references(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_move_references
-    hpy_abort_not_implemented("_strided_to_strided_move_references");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
@@ -135,8 +133,6 @@ _strided_to_strided_copy_references(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_copy_references
-    hpy_abort_not_implemented("_strided_to_strided_copy_references");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
@@ -215,37 +211,36 @@ _strided_to_strided_any_to_object(
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_any_to_object
-    hpy_abort_not_implemented("_strided_to_strided_any_to_object");
     return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
-//
-//    PyObject *dst_ref = NULL;
-//    char *orig_src = src;
-//    while (N > 0) {
-//        memcpy(&dst_ref, dst, sizeof(dst_ref));
-//        Py_XDECREF(dst_ref);
-//        dst_ref = data->getitem(src, data->arr);
-//        memcpy(dst, &dst_ref, sizeof(PyObject *));
-//
-//        if (dst_ref == NULL) {
-//            return -1;
-//        }
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    if (data->decref_src.func != NULL) {
-//        /* If necessary, clear the input buffer (`move_references`) */
-//        if (data->decref_src.func(&data->decref_src.context,
-//                &orig_src, &N, &src_stride, data->decref_src.auxdata) < 0) {
-//            return -1;
-//        }
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
+
+    PyObject *dst_ref = NULL;
+    char *orig_src = src;
+    while (N > 0) {
+        memcpy(&dst_ref, dst, sizeof(dst_ref));
+        Py_XDECREF(dst_ref);
+        dst_ref = data->getitem(src, data->arr);
+        memcpy(dst, &dst_ref, sizeof(PyObject *));
+
+        if (dst_ref == NULL) {
+            return -1;
+        }
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    if (data->decref_src.func != NULL) {
+        /* If necessary, clear the input buffer (`move_references`) */
+        if (data->decref_src.func(npy_get_context(), &data->decref_src.context,
+                &orig_src, &N, &src_stride, data->decref_src.auxdata) < 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 
@@ -265,42 +260,39 @@ any_to_object_get_loop(
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate any_to_object_get_loop
-    hpy_abort_not_implemented("any_to_object_get_loop");
-    return -1;
-//
-//    *flags = NPY_METH_REQUIRES_PYAPI;  /* No need for floating point errors */
-//
-//    *out_loop = _strided_to_strided_any_to_object;
-//    *out_transferdata = PyMem_Malloc(sizeof(_any_to_object_auxdata));
-//    if (*out_transferdata == NULL) {
-//        return -1;
-//    }
-//    _any_to_object_auxdata *data = (_any_to_object_auxdata *)*out_transferdata;
-//    data->base.free = &_any_to_object_auxdata_free;
-//    data->base.clone = &_any_to_object_auxdata_clone;
-//    PyArray_Descr *dtype = context->descriptors[0];
-//    Py_INCREF(dtype);
-//    npy_intp shape = 1;
-//    data->arr = (PyArrayObject *)PyArray_NewFromDescr_int(
-//            &PyArray_Type, dtype, 1,
-//            &shape, NULL, NULL,
-//            0, NULL, NULL, 0, 1);
-//
-//    data->getitem = context->descriptors[0]->f->getitem;
-//    NPY_cast_info_init(&data->decref_src);
-//
-//    if (move_references && PyDataType_REFCHK(context->descriptors[0])) {
-//        int needs_api;
-//        if (get_decref_transfer_function(
-//                aligned, strides[0], context->descriptors[0],
-//                &data->decref_src,
-//                &needs_api) == NPY_FAIL)  {
-//            NPY_AUXDATA_FREE(*out_transferdata);
-//            *out_transferdata = NULL;
-//            return -1;
-//        }
-//    }
-//    return 0;
+    *flags = NPY_METH_REQUIRES_PYAPI;  /* No need for floating point errors */
+
+    *out_loop = _strided_to_strided_any_to_object;
+    *out_transferdata = PyMem_Malloc(sizeof(_any_to_object_auxdata));
+    if (*out_transferdata == NULL) {
+        return -1;
+    }
+    _any_to_object_auxdata *data = (_any_to_object_auxdata *)*out_transferdata;
+    data->base.free = &_any_to_object_auxdata_free;
+    data->base.clone = &_any_to_object_auxdata_clone;
+    PyArray_Descr *dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, context->descriptors[0]);
+    Py_INCREF(dtype);
+    npy_intp shape = 1;
+    data->arr = (PyArrayObject *)PyArray_NewFromDescr_int(
+            &PyArray_Type, dtype, 1,
+            &shape, NULL, NULL,
+            0, NULL, NULL, 0, 1);
+
+    data->getitem = dtype->f->getitem;
+    NPY_cast_info_init(&data->decref_src);
+
+    if (move_references && PyDataType_REFCHK(dtype)) {
+        int needs_api;
+        if (get_decref_transfer_function(
+                aligned, strides[0], dtype,
+                &data->decref_src,
+                &needs_api) == NPY_FAIL)  {
+            NPY_AUXDATA_FREE(*out_transferdata);
+            *out_transferdata = NULL;
+            return -1;
+        }
+    }
+    return 0;
 }
 
 
@@ -342,31 +334,29 @@ strided_to_strided_object_to_any(
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate strided_to_strided_object_to_any
-    hpy_abort_not_implemented("strided_to_strided_object_to_any");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//    _object_to_any_auxdata *data = (_object_to_any_auxdata *)auxdata;
-//
-//    PyObject *src_ref;
-//
-//    while (N > 0) {
-//        memcpy(&src_ref, src, sizeof(src_ref));
-//        if (PyArray_Pack(data->descr, dst, src_ref ? src_ref : Py_None) < 0) {
-//            return -1;
-//        }
-//
-//        if (data->move_references && src_ref != NULL) {
-//            Py_DECREF(src_ref);
-//            memset(src, 0, sizeof(src_ref));
-//        }
-//
-//        N--;
-//        dst += dst_stride;
-//        src += src_stride;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+    _object_to_any_auxdata *data = (_object_to_any_auxdata *)auxdata;
+
+    PyObject *src_ref;
+
+    while (N > 0) {
+        memcpy(&src_ref, src, sizeof(src_ref));
+        if (PyArray_Pack(data->descr, dst, src_ref ? src_ref : Py_None) < 0) {
+            return -1;
+        }
+
+        if (data->move_references && src_ref != NULL) {
+            Py_DECREF(src_ref);
+            memset(src, 0, sizeof(src_ref));
+        }
+
+        N--;
+        dst += dst_stride;
+        src += src_stride;
+    }
+    return 0;
 }
 
 
@@ -381,24 +371,23 @@ object_to_any_get_loop(
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate object_to_any_get_loop
-    hpy_abort_not_implemented("object_to_any_get_loop");
-    return -1;
-//    *flags = NPY_METH_REQUIRES_PYAPI;
-//
-//    /* NOTE: auxdata is only really necessary to flag `move_references` */
-//    _object_to_any_auxdata *data = PyMem_Malloc(sizeof(*data));
-//    if (data == NULL) {
-//        return -1;
-//    }
-//    data->base.free = &_object_to_any_auxdata_free;
-//    data->base.clone = &_object_to_any_auxdata_clone;
-//
-//    Py_INCREF(context->descriptors[1]);
-//    data->descr = context->descriptors[1];
-//    data->move_references = move_references;
-//    *out_transferdata = (NpyAuxData *)data;
-//    *out_loop = &strided_to_strided_object_to_any;
-//    return 0;
+    *flags = NPY_METH_REQUIRES_PYAPI;
+
+    /* NOTE: auxdata is only really necessary to flag `move_references` */
+    _object_to_any_auxdata *data = PyMem_Malloc(sizeof(*data));
+    if (data == NULL) {
+        return -1;
+    }
+    data->base.free = &_object_to_any_auxdata_free;
+    data->base.clone = &_object_to_any_auxdata_clone;
+
+    PyArray_Descr *descr = HPy_AsPyObject(ctx, context->descriptors[1]);
+    Py_INCREF(descr);
+    data->descr = descr;
+    data->move_references = move_references;
+    *out_transferdata = (NpyAuxData *)data;
+    *out_loop = &strided_to_strided_object_to_any;
+    return 0;
 }
 
 
@@ -415,25 +404,22 @@ _strided_to_strided_zero_pad_copy(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_copy_references
-    hpy_abort_not_implemented("_strided_to_strided_zero_pad_copy");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//    npy_intp src_itemsize = context->descriptors[0]->elsize;
-//    npy_intp dst_itemsize = context->descriptors[1]->elsize;
-//
-//    npy_intp zero_size = dst_itemsize-src_itemsize;
-//
-//    while (N > 0) {
-//        memcpy(dst, src, src_itemsize);
-//        memset(dst + src_itemsize, 0, zero_size);
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
+    npy_intp dst_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[1])->elsize;
+
+    npy_intp zero_size = dst_itemsize-src_itemsize;
+
+    while (N > 0) {
+        memcpy(dst, src, src_itemsize);
+        memset(dst + src_itemsize, 0, zero_size);
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 /*
@@ -447,21 +433,18 @@ _strided_to_strided_truncate_copy(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_copy_references
-    hpy_abort_not_implemented("_strided_to_strided_truncate_copy");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//    npy_intp dst_itemsize = context->descriptors[1]->elsize;
-//
-//    while (N > 0) {
-//        memcpy(dst, src, dst_itemsize);
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+    npy_intp dst_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[1])->elsize;
+
+    while (N > 0) {
+        memcpy(dst, src, dst_itemsize);
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 /*
@@ -475,36 +458,33 @@ _strided_to_strided_unicode_copyswap(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_copy_references
-    hpy_abort_not_implemented("_strided_to_strided_unicode_copyswap");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//    npy_intp src_itemsize = context->descriptors[0]->elsize;
-//    npy_intp dst_itemsize = context->descriptors[1]->elsize;
-//
-//    npy_intp zero_size = dst_itemsize - src_itemsize;
-//    npy_intp copy_size = zero_size > 0 ? src_itemsize : dst_itemsize;
-//    char *_dst;
-//    npy_intp characters = dst_itemsize / 4;
-//    int i;
-//
-//    while (N > 0) {
-//        memcpy(dst, src, copy_size);
-//        if (zero_size > 0) {
-//            memset(dst + src_itemsize, 0, zero_size);
-//        }
-//        _dst = dst;
-//        for (i=0; i < characters; i++) {
-//            npy_bswap4_unaligned(_dst);
-//            _dst += 4;
-//        }
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[0])->elsize;
+    npy_intp dst_itemsize = PyArray_Descr_AsStruct(hctx, context->descriptors[1])->elsize;
+
+    npy_intp zero_size = dst_itemsize - src_itemsize;
+    npy_intp copy_size = zero_size > 0 ? src_itemsize : dst_itemsize;
+    char *_dst;
+    npy_intp characters = dst_itemsize / 4;
+    int i;
+
+    while (N > 0) {
+        memcpy(dst, src, copy_size);
+        if (zero_size > 0) {
+            memset(dst + src_itemsize, 0, zero_size);
+        }
+        _dst = dst;
+        for (i=0; i < characters; i++) {
+            npy_bswap4_unaligned(_dst);
+            _dst += 4;
+        }
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 
@@ -575,17 +555,15 @@ _strided_to_strided_wrap_copy_swap(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_wrap_copy_swap
-    hpy_abort_not_implemented("_strided_to_strided_wrap_copy_swap");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _wrap_copy_swap_data *d = (_wrap_copy_swap_data *)auxdata;
-//
-//    /* We assume that d->copyswapn should not be able to error. */
-//    d->copyswapn(dst, dst_stride, src, src_stride, N, d->swap, d->arr);
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _wrap_copy_swap_data *d = (_wrap_copy_swap_data *)auxdata;
+
+    /* We assume that d->copyswapn should not be able to error. */
+    d->copyswapn(dst, dst_stride, src, src_stride, N, d->swap, d->arr);
+    return 0;
 }
 
 /*
@@ -642,9 +620,11 @@ hwrap_copy_swap_function(
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata)
 {
-
-    hpy_abort_not_implemented("hwrap_copy_swap_function");
-    return -1;
+    // TODO HPY LABS PORT
+    PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtype);
+    int ret = wrap_copy_swap_function(py_dtype, should_swap, out_stransfer, out_transferdata);
+    Py_DECREF(py_dtype);
+    return ret;
 }
 
 /*************************** DTYPE CAST FUNCTIONS *************************/
@@ -688,36 +668,32 @@ _aligned_strided_to_strided_cast(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_cast
-    hpy_abort_not_implemented("_aligned_strided_to_strided_cast");
-    return -1;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
 
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_cast_data *d = (_strided_cast_data *)auxdata;
-//    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
-//    PyArrayObject *aip = d->aip, *aop = d->aop;
-//    npy_bool needs_api = d->needs_api;
-//
-//    while (N > 0) {
-//        castfunc(src, dst, 1, aip, aop);
-//        /*
-//         * Since error handling in ufuncs is not ideal (at the time of
-//         * writing this, an error could be in process before calling this
-//         * function. For most of NumPy history these checks were completely
-//         * missing, so this is hopefully OK for the time being (until ufuncs
-//         * are fixed).
-//         */
-//        if (needs_api && PyErr_Occurred()) {
-//            return -1;
-//        }
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    _strided_cast_data *d = (_strided_cast_data *)auxdata;
+    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
+    PyArrayObject *aip = d->aip, *aop = d->aop;
+    npy_bool needs_api = d->needs_api;
+
+    while (N > 0) {
+        castfunc(src, dst, 1, aip, aop);
+        /*
+            * Since error handling in ufuncs is not ideal (at the time of
+            * writing this, an error could be in process before calling this
+            * function. For most of NumPy history these checks were completely
+            * missing, so this is hopefully OK for the time being (until ufuncs
+            * are fixed).
+            */
+        if (needs_api && HPyErr_Occurred(ctx)) {
+            return -1;
+        }
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 /* This one requires src be of type NPY_OBJECT */
@@ -728,39 +704,37 @@ _aligned_strided_to_strided_cast_decref_src(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_cast_decref_src
-    hpy_abort_not_implemented("_aligned_strided_to_strided_cast_decref_src");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
-//    _strided_cast_data *d = (_strided_cast_data *)data;
-//    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
-//    PyArrayObject *aip = d->aip, *aop = d->aop;
-//    npy_bool needs_api = d->needs_api;
-//    PyObject *src_ref;
-//
-//    while (N > 0) {
-//        castfunc(src, dst, 1, aip, aop);
-//        /*
-//         * See comment in `_aligned_strided_to_strided_cast`, an error could
-//         * in principle be set before `castfunc` is called.
-//         */
-//        if (needs_api && PyErr_Occurred()) {
-//            return -1;
-//        }
-//        /* After casting, decrement the source ref and set it to NULL */
-//        memcpy(&src_ref, src, sizeof(src_ref));
-//        Py_XDECREF(src_ref);
-//        memset(src, 0, sizeof(PyObject *));
-//        NPY_DT_DBG_REFTRACE("dec src ref (cast object -> not object)", src_ref);
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
+    _strided_cast_data *d = (_strided_cast_data *)data;
+    PyArray_VectorUnaryFunc *castfunc = d->castfunc;
+    PyArrayObject *aip = d->aip, *aop = d->aop;
+    npy_bool needs_api = d->needs_api;
+    PyObject *src_ref;
+
+    while (N > 0) {
+        castfunc(src, dst, 1, aip, aop);
+        /*
+            * See comment in `_aligned_strided_to_strided_cast`, an error could
+            * in principle be set before `castfunc` is called.
+            */
+        if (needs_api && HPyErr_Occurred(ctx)) {
+            return -1;
+        }
+        /* After casting, decrement the source ref and set it to NULL */
+        memcpy(&src_ref, src, sizeof(src_ref));
+        Py_XDECREF(src_ref);
+        memset(src, 0, sizeof(PyObject *));
+        NPY_DT_DBG_REFTRACE("dec src ref (cast object -> not object)", src_ref);
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -770,23 +744,21 @@ _aligned_contig_to_contig_cast(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _aligned_contig_to_contig_cast
-    hpy_abort_not_implemented("_aligned_contig_to_contig_cast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//
-//    _strided_cast_data *d = (_strided_cast_data *)auxdata;
-//    npy_bool needs_api = d->needs_api;
-//
-//    d->castfunc(src, dst, N, d->aip, d->aop);
-//    /*
-//     * See comment in `_aligned_strided_to_strided_cast`, an error could
-//     * in principle be set before `castfunc` is called.
-//     */
-//    if (needs_api && PyErr_Occurred()) {
-//        return -1;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+
+    _strided_cast_data *d = (_strided_cast_data *)auxdata;
+    npy_bool needs_api = d->needs_api;
+
+    d->castfunc(src, dst, N, d->aip, d->aop);
+    /*
+        * See comment in `_aligned_strided_to_strided_cast`, an error could
+        * in principle be set before `castfunc` is called.
+        */
+    if (needs_api && HPyErr_Occurred(ctx)) {
+        return -1;
+    }
+    return 0;
 }
 
 
@@ -851,37 +823,35 @@ _strided_to_strided_datetime_general_cast(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_general_cast
-    hpy_abort_not_implemented("_strided_to_strided_datetime_general_cast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-//    npy_int64 dt;
-//    npy_datetimestruct dts;
-//
-//    while (N > 0) {
-//        memcpy(&dt, src, sizeof(dt));
-//
-//        if (convert_datetime_to_datetimestruct(&d->src_meta,
-//                                               dt, &dts) < 0) {
-//            return -1;
-//        }
-//        else {
-//            if (convert_datetimestruct_to_datetime(&d->dst_meta,
-//                                                   &dts, &dt) < 0) {
-//                return -1;
-//            }
-//        }
-//
-//        memcpy(dst, &dt, sizeof(dt));
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+    npy_int64 dt;
+    npy_datetimestruct dts;
+
+    while (N > 0) {
+        memcpy(&dt, src, sizeof(dt));
+
+        if (convert_datetime_to_datetimestruct(&d->src_meta,
+                                                dt, &dts) < 0) {
+            return -1;
+        }
+        else {
+            if (convert_datetimestruct_to_datetime(&d->dst_meta,
+                                                    &dts, &dt) < 0) {
+                return -1;
+            }
+        }
+
+        memcpy(dst, &dt, sizeof(dt));
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -891,36 +861,34 @@ _strided_to_strided_datetime_cast(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_cast
-    hpy_abort_not_implemented("_strided_to_strided_datetime_cast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-//    npy_int64 num = d->num, denom = d->denom;
-//    npy_int64 dt;
-//
-//    while (N > 0) {
-//        memcpy(&dt, src, sizeof(dt));
-//
-//        if (dt != NPY_DATETIME_NAT) {
-//            /* Apply the scaling */
-//            if (dt < 0) {
-//                dt = (dt * num - (denom - 1)) / denom;
-//            }
-//            else {
-//                dt = dt * num / denom;
-//            }
-//        }
-//
-//        memcpy(dst, &dt, sizeof(dt));
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+    npy_int64 num = d->num, denom = d->denom;
+    npy_int64 dt;
+
+    while (N > 0) {
+        memcpy(&dt, src, sizeof(dt));
+
+        if (dt != NPY_DATETIME_NAT) {
+            /* Apply the scaling */
+            if (dt < 0) {
+                dt = (dt * num - (denom - 1)) / denom;
+            }
+            else {
+                dt = dt * num / denom;
+            }
+        }
+
+        memcpy(dst, &dt, sizeof(dt));
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -930,36 +898,34 @@ _aligned_strided_to_strided_datetime_cast(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_datetime_cast
-    hpy_abort_not_implemented("_aligned_strided_to_strided_datetime_cast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-//    npy_int64 num = d->num, denom = d->denom;
-//    npy_int64 dt;
-//
-//    while (N > 0) {
-//        dt = *(npy_int64 *)src;
-//
-//        if (dt != NPY_DATETIME_NAT) {
-//            /* Apply the scaling */
-//            if (dt < 0) {
-//                dt = (dt * num - (denom - 1)) / denom;
-//            }
-//            else {
-//                dt = dt * num / denom;
-//            }
-//        }
-//
-//        *(npy_int64 *)dst = dt;
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+    npy_int64 num = d->num, denom = d->denom;
+    npy_int64 dt;
+
+    while (N > 0) {
+        dt = *(npy_int64 *)src;
+
+        if (dt != NPY_DATETIME_NAT) {
+            /* Apply the scaling */
+            if (dt < 0) {
+                dt = (dt * num - (denom - 1)) / denom;
+            }
+            else {
+                dt = dt * num / denom;
+            }
+        }
+
+        *(npy_int64 *)dst = dt;
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -969,39 +935,37 @@ _strided_to_strided_datetime_to_string(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_datetime_to_string
-    hpy_abort_not_implemented("_strided_to_strided_datetime_to_string");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-//    npy_intp dst_itemsize = d->dst_itemsize;
-//    npy_int64 dt;
-//    npy_datetimestruct dts;
-//
-//    while (N > 0) {
-//        memcpy(&dt, src, sizeof(dt));
-//
-//        if (convert_datetime_to_datetimestruct(&d->src_meta,
-//                                               dt, &dts) < 0) {
-//            return -1;
-//        }
-//
-//        /* Initialize the destination to all zeros */
-//        memset(dst, 0, dst_itemsize);
-//
-//        if (make_iso_8601_datetime(&dts, dst, dst_itemsize,
-//                                0, 0, d->src_meta.base, -1,
-//                                NPY_UNSAFE_CASTING) < 0) {
-//            return -1;
-//        }
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+    npy_intp dst_itemsize = d->dst_itemsize;
+    npy_int64 dt;
+    npy_datetimestruct dts;
+
+    while (N > 0) {
+        memcpy(&dt, src, sizeof(dt));
+
+        if (convert_datetime_to_datetimestruct(&d->src_meta,
+                                                dt, &dts) < 0) {
+            return -1;
+        }
+
+        /* Initialize the destination to all zeros */
+        memset(dst, 0, dst_itemsize);
+
+        if (make_iso_8601_datetime(&dts, dst, dst_itemsize,
+                                0, 0, d->src_meta.base, -1,
+                                NPY_UNSAFE_CASTING) < 0) {
+            return -1;
+        }
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -1011,58 +975,56 @@ _strided_to_strided_string_to_datetime(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_string_to_datetime
-    hpy_abort_not_implemented("_strided_to_strided_string_to_datetime");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_itemsize = context->descriptors[0]->elsize;
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
-//    npy_datetimestruct dts;
-//    char *tmp_buffer = d->tmp_buffer;
-//    char *tmp;
-//
-//    while (N > 0) {
-//        npy_int64 dt = ~NPY_DATETIME_NAT;
-//
-//        /* Replicating strnlen with memchr, because Mac OS X lacks it */
-//        tmp = memchr(src, '\0', src_itemsize);
-//
-//        /* If the string is all full, use the buffer */
-//        if (tmp == NULL) {
-//            memcpy(tmp_buffer, src, src_itemsize);
-//            tmp_buffer[src_itemsize] = '\0';
-//
-//            if (parse_iso_8601_datetime(tmp_buffer, src_itemsize,
-//                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
-//                                    &dts, NULL, NULL) < 0) {
-//                return -1;
-//            }
-//        }
-//        /* Otherwise parse the data in place */
-//        else {
-//            if (parse_iso_8601_datetime(src, tmp - src,
-//                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
-//                                    &dts, NULL, NULL) < 0) {
-//                return -1;
-//            }
-//        }
-//
-//        /* Convert to the datetime */
-//        if (dt != NPY_DATETIME_NAT &&
-//                convert_datetimestruct_to_datetime(&d->dst_meta,
-//                                               &dts, &dt) < 0) {
-//            return -1;
-//        }
-//
-//        memcpy(dst, &dt, sizeof(dt));
-//
-//        dst += dst_stride;
-//        src += src_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_itemsize = PyArray_Descr_AsStruct(ctx, context->descriptors[0])->elsize;
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _strided_datetime_cast_data *d = (_strided_datetime_cast_data *)auxdata;
+    npy_datetimestruct dts;
+    char *tmp_buffer = d->tmp_buffer;
+    char *tmp;
+
+    while (N > 0) {
+        npy_int64 dt = ~NPY_DATETIME_NAT;
+
+        /* Replicating strnlen with memchr, because Mac OS X lacks it */
+        tmp = memchr(src, '\0', src_itemsize);
+
+        /* If the string is all full, use the buffer */
+        if (tmp == NULL) {
+            memcpy(tmp_buffer, src, src_itemsize);
+            tmp_buffer[src_itemsize] = '\0';
+
+            if (parse_iso_8601_datetime(tmp_buffer, src_itemsize,
+                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
+                                    &dts, NULL, NULL) < 0) {
+                return -1;
+            }
+        }
+        /* Otherwise parse the data in place */
+        else {
+            if (parse_iso_8601_datetime(src, tmp - src,
+                                    d->dst_meta.base, NPY_SAME_KIND_CASTING,
+                                    &dts, NULL, NULL) < 0) {
+                return -1;
+            }
+        }
+
+        /* Convert to the datetime */
+        if (dt != NPY_DATETIME_NAT &&
+                convert_datetimestruct_to_datetime(&d->dst_meta,
+                                                &dts, &dt) < 0) {
+            return -1;
+        }
+
+        memcpy(dst, &dt, sizeof(dt));
+
+        dst += dst_stride;
+        src += src_stride;
+        --N;
+    }
+    return 0;
 }
 
 /*
@@ -1539,30 +1501,28 @@ _strided_to_strided_one_to_n(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_one_to_n
-    hpy_abort_not_implemented("_strided_to_strided_one_to_n");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _one_to_n_data *d = (_one_to_n_data *)auxdata;
-//
-//    const npy_intp subN = d->N;
-//    npy_intp sub_strides[2] = {0, d->wrapped.descriptors[1]->elsize};
-//
-//    while (N > 0) {
-//        char *sub_args[2] = {src, dst};
-//        if (d->wrapped.func(&d->wrapped.context,
-//                sub_args, &subN, sub_strides, d->wrapped.auxdata) < 0) {
-//            return -1;
-//        }
-//
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _one_to_n_data *d = (_one_to_n_data *)auxdata;
+
+    const npy_intp subN = d->N;
+    HPy dwd = d->wrapped.descriptors[1];
+    npy_intp sub_strides[2] = {0, PyArray_Descr_AsStruct(ctx, dwd)->elsize};
+
+    while (N > 0) {
+        char *sub_args[2] = {src, dst};
+        if (d->wrapped.func(ctx, &d->wrapped.context,
+                sub_args, &subN, sub_strides, d->wrapped.auxdata) < 0) {
+            return -1;
+        }
+
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -1571,36 +1531,34 @@ _strided_to_strided_one_to_n_with_finish(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_one_to_n_with_finish
-    hpy_abort_not_implemented("_strided_to_strided_one_to_n_with_finish");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _one_to_n_data *d = (_one_to_n_data *)auxdata;
-//
-//    const npy_intp subN = d->N;
-//    const npy_intp one_item = 1, zero_stride = 0;
-//    npy_intp sub_strides[2] = {0, d->wrapped.descriptors[1]->elsize};
-//
-//    while (N > 0) {
-//        char *sub_args[2] = {src, dst};
-//        if (d->wrapped.func(&d->wrapped.context,
-//                sub_args, &subN, sub_strides, d->wrapped.auxdata) < 0) {
-//            return -1;
-//        }
-//
-//        if (d->decref_src.func(&d->decref_src.context,
-//                &src, &one_item, &zero_stride, d->decref_src.auxdata) < 0) {
-//            return -1;
-//        }
-//
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _one_to_n_data *d = (_one_to_n_data *)auxdata;
+
+    const npy_intp subN = d->N;
+    const npy_intp one_item = 1, zero_stride = 0;
+    HPy dwd = d->wrapped.descriptors[1];
+    npy_intp sub_strides[2] = {0, PyArray_Descr_AsStruct(ctx, dwd)->elsize};
+
+    while (N > 0) {
+        char *sub_args[2] = {src, dst};
+        if (d->wrapped.func(ctx, &d->wrapped.context,
+                sub_args, &subN, sub_strides, d->wrapped.auxdata) < 0) {
+            return -1;
+        }
+
+        if (d->decref_src.func(ctx, &d->decref_src.context,
+                &src, &one_item, &zero_stride, d->decref_src.auxdata) < 0) {
+            return -1;
+        }
+
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 
@@ -1708,12 +1666,9 @@ _strided_to_strided_1_to_1(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_1_to_1
-    hpy_abort_not_implemented("_strided_to_strided_1_to_1");
-    return -1;
-//    _n_to_n_data *d = (_n_to_n_data *)auxdata;
-//    return d->wrapped.func(&d->wrapped.context,
-//            args, dimensions, strides, d->wrapped.auxdata);
+    _n_to_n_data *d = (_n_to_n_data *)auxdata;
+    return d->wrapped.func(ctx, &d->wrapped.context,
+            args, dimensions, strides, d->wrapped.auxdata);
 }
 
 static int
@@ -1722,27 +1677,24 @@ _strided_to_strided_n_to_n(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_n_to_n
-    hpy_abort_not_implemented("_strided_to_strided_n_to_n");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _n_to_n_data *d = (_n_to_n_data *)auxdata;
-//    npy_intp subN = d->N;
-//
-//    while (N > 0) {
-//        char *sub_args[2] = {src, dst};
-//        if (d->wrapped.func(&d->wrapped.context,
-//                sub_args, &subN, d->strides, d->wrapped.auxdata) < 0) {
-//            return -1;
-//        }
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _n_to_n_data *d = (_n_to_n_data *)auxdata;
+    npy_intp subN = d->N;
+
+    while (N > 0) {
+        char *sub_args[2] = {src, dst};
+        if (d->wrapped.func(ctx, &d->wrapped.context,
+                sub_args, &subN, d->strides, d->wrapped.auxdata) < 0) {
+            return -1;
+        }
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 static int
@@ -1751,22 +1703,19 @@ _contig_to_contig_n_to_n(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _contig_to_contig_n_to_n
-    hpy_abort_not_implemented("_contig_to_contig_n_to_n");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//
-//    _n_to_n_data *d = (_n_to_n_data *)auxdata;
-//    /* Make one large transfer including both outer and inner iteration: */
-//    npy_intp subN = N * d->N;
-//
-//    char *sub_args[2] = {src, dst};
-//    if (d->wrapped.func(&d->wrapped.context,
-//            sub_args, &subN, d->strides, d->wrapped.auxdata) < 0) {
-//        return -1;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+
+    _n_to_n_data *d = (_n_to_n_data *)auxdata;
+    /* Make one large transfer including both outer and inner iteration: */
+    npy_intp subN = N * d->N;
+
+    char *sub_args[2] = {src, dst};
+    if (d->wrapped.func(ctx, &d->wrapped.context,
+            sub_args, &subN, d->strides, d->wrapped.auxdata) < 0) {
+        return -1;
+    }
+    return 0;
 }
 
 
@@ -1918,46 +1867,45 @@ _strided_to_strided_subarray_broadcast(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_subarray_broadcast
-    hpy_abort_not_implemented("_strided_to_strided_subarray_broadcast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _subarray_broadcast_data *d = (_subarray_broadcast_data *)auxdata;
-//    npy_intp run, run_count = d->run_count;
-//    npy_intp loop_index, offset, count;
-//
-//    npy_intp src_subitemsize = d->wrapped.descriptors[0]->elsize;
-//    npy_intp dst_subitemsize = d->wrapped.descriptors[1]->elsize;
-//
-//    npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
-//
-//    while (N > 0) {
-//        loop_index = 0;
-//        for (run = 0; run < run_count; ++run) {
-//            offset = d->offsetruns[run].offset;
-//            count = d->offsetruns[run].count;
-//            char *dst_ptr = dst + loop_index*dst_subitemsize;
-//            char *sub_args[2] = {src + offset, dst_ptr};
-//            if (offset != -1) {
-//                if (d->wrapped.func(&d->wrapped.context,
-//                        sub_args, &count, sub_strides, d->wrapped.auxdata) < 0) {
-//                    return -1;
-//                }
-//            }
-//            else {
-//                memset(dst_ptr, 0, count*dst_subitemsize);
-//            }
-//            loop_index += count;
-//        }
-//
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _subarray_broadcast_data *d = (_subarray_broadcast_data *)auxdata;
+    npy_intp run, run_count = d->run_count;
+    npy_intp loop_index, offset, count;
+
+    PyArray_Descr *dwd1 = PyArray_Descr_AsStruct(ctx, d->wrapped.descriptors[0]);
+    PyArray_Descr *dwd2 = PyArray_Descr_AsStruct(ctx, d->wrapped.descriptors[1]);
+    npy_intp src_subitemsize = dwd1->elsize;
+    npy_intp dst_subitemsize = dwd2->elsize;
+
+    npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
+
+    while (N > 0) {
+        loop_index = 0;
+        for (run = 0; run < run_count; ++run) {
+            offset = d->offsetruns[run].offset;
+            count = d->offsetruns[run].count;
+            char *dst_ptr = dst + loop_index*dst_subitemsize;
+            char *sub_args[2] = {src + offset, dst_ptr};
+            if (offset != -1) {
+                if (d->wrapped.func(ctx, &d->wrapped.context,
+                        sub_args, &count, sub_strides, d->wrapped.auxdata) < 0) {
+                    return -1;
+                }
+            }
+            else {
+                memset(dst_ptr, 0, count*dst_subitemsize);
+            }
+            loop_index += count;
+        }
+
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 
@@ -1967,61 +1915,61 @@ _strided_to_strided_subarray_broadcast_withrefs(HPyContext *ctx,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_subarray_broadcast_withrefs
-    hpy_abort_not_implemented("_strided_to_strided_subarray_broadcast_withrefs");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _subarray_broadcast_data *d = (_subarray_broadcast_data *)auxdata;
-//    npy_intp run, run_count = d->run_count;
-//    npy_intp loop_index, offset, count;
-//
-//    npy_intp src_subitemsize = d->wrapped.descriptors[0]->elsize;
-//    npy_intp dst_subitemsize = d->wrapped.descriptors[1]->elsize;
-//
-//    npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
-//
-//    while (N > 0) {
-//        loop_index = 0;
-//        for (run = 0; run < run_count; ++run) {
-//            offset = d->offsetruns[run].offset;
-//            count = d->offsetruns[run].count;
-//            char *dst_ptr = dst + loop_index*dst_subitemsize;
-//            char *sub_args[2] = {src + offset, dst_ptr};
-//            if (offset != -1) {
-//                if (d->wrapped.func(&d->wrapped.context,
-//                        sub_args, &count, sub_strides, d->wrapped.auxdata) < 0) {
-//                    return -1;
-//                }
-//            }
-//            else {
-//                if (d->decref_dst.func != NULL) {
-//                    if (d->decref_dst.func(&d->decref_dst.context,
-//                            &dst_ptr, &count, &dst_subitemsize,
-//                            d->decref_dst.auxdata) < 0) {
-//                        return -1;
-//                    }
-//                }
-//                memset(dst_ptr, 0, count*dst_subitemsize);
-//            }
-//            loop_index += count;
-//        }
-//
-//        if (d->decref_src.func != NULL) {
-//            if (d->decref_src.func(&d->decref_src.context,
-//                    &src, &d->src_N, &src_subitemsize,
-//                    d->decref_src.auxdata) < 0) {
-//                return -1;
-//            }
-//        }
-//
-//        src += src_stride;
-//        dst += dst_stride;
-//        --N;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _subarray_broadcast_data *d = (_subarray_broadcast_data *)auxdata;
+    npy_intp run, run_count = d->run_count;
+    npy_intp loop_index, offset, count;
+
+    PyArray_Descr *dwd1 = PyArray_Descr_AsStruct(ctx, d->wrapped.descriptors[0]);
+    PyArray_Descr *dwd2 = PyArray_Descr_AsStruct(ctx, d->wrapped.descriptors[1]);
+    npy_intp src_subitemsize = dwd1->elsize;
+    npy_intp dst_subitemsize = dwd2->elsize;
+
+
+    npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
+
+    while (N > 0) {
+        loop_index = 0;
+        for (run = 0; run < run_count; ++run) {
+            offset = d->offsetruns[run].offset;
+            count = d->offsetruns[run].count;
+            char *dst_ptr = dst + loop_index*dst_subitemsize;
+            char *sub_args[2] = {src + offset, dst_ptr};
+            if (offset != -1) {
+                if (d->wrapped.func(ctx, &d->wrapped.context,
+                        sub_args, &count, sub_strides, d->wrapped.auxdata) < 0) {
+                    return -1;
+                }
+            }
+            else {
+                if (d->decref_dst.func != NULL) {
+                    if (d->decref_dst.func(ctx, &d->decref_dst.context,
+                            &dst_ptr, &count, &dst_subitemsize,
+                            d->decref_dst.auxdata) < 0) {
+                        return -1;
+                    }
+                }
+                memset(dst_ptr, 0, count*dst_subitemsize);
+            }
+            loop_index += count;
+        }
+
+        if (d->decref_src.func != NULL) {
+            if (d->decref_src.func(ctx, &d->decref_src.context,
+                    &src, &d->src_N, &src_subitemsize,
+                    d->decref_src.auxdata) < 0) {
+                return -1;
+            }
+        }
+
+        src += src_stride;
+        dst += dst_stride;
+        --N;
+    }
+    return 0;
 }
 
 
@@ -2351,44 +2299,41 @@ _strided_to_strided_field_transfer(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_field_transfer
-    hpy_abort_not_implemented("_strided_to_strided_field_transfer");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _field_transfer_data *d = (_field_transfer_data *)auxdata;
-//    npy_intp i, field_count = d->field_count;
-//    const npy_intp blocksize = NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
-//
-//    /* Do the transfer a block at a time */
-//    for (;;) {
-//        if (N > blocksize) {
-//            for (i = 0; i < field_count; ++i) {
-//                _single_field_transfer field = d->fields[i];
-//                char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
-//                if (field.info.func(&field.info.context,
-//                        fargs, &blocksize, strides, field.info.auxdata) < 0) {
-//                    return -1;
-//                }
-//            }
-//            N -= NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
-//            src += NPY_LOWLEVEL_BUFFER_BLOCKSIZE*src_stride;
-//            dst += NPY_LOWLEVEL_BUFFER_BLOCKSIZE*dst_stride;
-//        }
-//        else {
-//            for (i = 0; i < field_count; ++i) {
-//                _single_field_transfer field = d->fields[i];
-//                char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
-//                if (field.info.func(&field.info.context,
-//                        fargs, &N, strides, field.info.auxdata) < 0) {
-//                    return -1;
-//                }
-//            }
-//            return 0;
-//        }
-//    }
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _field_transfer_data *d = (_field_transfer_data *)auxdata;
+    npy_intp i, field_count = d->field_count;
+    const npy_intp blocksize = NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
+
+    /* Do the transfer a block at a time */
+    for (;;) {
+        if (N > blocksize) {
+            for (i = 0; i < field_count; ++i) {
+                _single_field_transfer field = d->fields[i];
+                char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
+                if (field.info.func(hctx, &field.info.context,
+                        fargs, &blocksize, strides, field.info.auxdata) < 0) {
+                    return -1;
+                }
+            }
+            N -= NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
+            src += NPY_LOWLEVEL_BUFFER_BLOCKSIZE*src_stride;
+            dst += NPY_LOWLEVEL_BUFFER_BLOCKSIZE*dst_stride;
+        }
+        else {
+            for (i = 0; i < field_count; ++i) {
+                _single_field_transfer field = d->fields[i];
+                char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
+                if (field.info.func(hctx, &field.info.context,
+                        fargs, &N, strides, field.info.auxdata) < 0) {
+                    return -1;
+                }
+            }
+            return 0;
+        }
+    }
 }
 
 /*
@@ -2739,44 +2684,41 @@ _strided_masked_wrapper_decref_transfer_function(HPyContext *ctx,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_masked_wrapper_decref_transfer_function
-    hpy_abort_not_implemented("_strided_masked_wrapper_decref_transfer_function");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
-//    npy_intp subloopsize;
-//
-//    while (N > 0) {
-//        /* Skip masked values, still calling decref for move_references */
-//        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
-//                                     &subloopsize, 1);
-//        if (d->decref_src.func(&d->decref_src.context,
-//                &src, &subloopsize, &src_stride, d->decref_src.auxdata) < 0) {
-//            return -1;
-//        }
-//        dst += subloopsize * dst_stride;
-//        src += subloopsize * src_stride;
-//        N -= subloopsize;
-//        if (N <= 0) {
-//            break;
-//        }
-//
-//        /* Process unmasked values */
-//        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
-//                                     &subloopsize, 0);
-//        char *wrapped_args[2] = {src, dst};
-//        if (d->wrapped.func(&d->wrapped.context,
-//                wrapped_args, &subloopsize, strides, d->wrapped.auxdata) < 0) {
-//            return -1;
-//        }
-//        dst += subloopsize * dst_stride;
-//        src += subloopsize * src_stride;
-//        N -= subloopsize;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
+    npy_intp subloopsize;
+
+    while (N > 0) {
+        /* Skip masked values, still calling decref for move_references */
+        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
+                                        &subloopsize, 1);
+        if (d->decref_src.func(ctx, &d->decref_src.context,
+                &src, &subloopsize, &src_stride, d->decref_src.auxdata) < 0) {
+            return -1;
+        }
+        dst += subloopsize * dst_stride;
+        src += subloopsize * src_stride;
+        N -= subloopsize;
+        if (N <= 0) {
+            break;
+        }
+
+        /* Process unmasked values */
+        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
+                                        &subloopsize, 0);
+        char *wrapped_args[2] = {src, dst};
+        if (d->wrapped.func(ctx, &d->wrapped.context,
+                wrapped_args, &subloopsize, strides, d->wrapped.auxdata) < 0) {
+            return -1;
+        }
+        dst += subloopsize * dst_stride;
+        src += subloopsize * src_stride;
+        N -= subloopsize;
+    }
+    return 0;
 }
 
 static int
@@ -2786,40 +2728,37 @@ _strided_masked_wrapper_transfer_function(HPyContext *ctx,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_masked_wrapper_transfer_function
-    hpy_abort_not_implemented("_strided_masked_wrapper_transfer_function");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
-//    npy_intp subloopsize;
-//
-//    while (N > 0) {
-//        /* Skip masked values */
-//        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
-//                                     &subloopsize, 1);
-//        dst += subloopsize * dst_stride;
-//        src += subloopsize * src_stride;
-//        N -= subloopsize;
-//        if (N <= 0) {
-//            break;
-//        }
-//
-//        /* Process unmasked values */
-//        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
-//                                     &subloopsize, 0);
-//        char *wrapped_args[2] = {src, dst};
-//        if (d->wrapped.func(&d->wrapped.context,
-//                wrapped_args, &subloopsize, strides, d->wrapped.auxdata) < 0) {
-//            return -1;
-//        }
-//        dst += subloopsize * dst_stride;
-//        src += subloopsize * src_stride;
-//        N -= subloopsize;
-//    }
-//    return 0;
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
+
+    _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
+    npy_intp subloopsize;
+
+    while (N > 0) {
+        /* Skip masked values */
+        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
+                                        &subloopsize, 1);
+        dst += subloopsize * dst_stride;
+        src += subloopsize * src_stride;
+        N -= subloopsize;
+        if (N <= 0) {
+            break;
+        }
+
+        /* Process unmasked values */
+        mask = (npy_bool*)npy_memchr((char *)mask, 0, mask_stride, N,
+                                        &subloopsize, 0);
+        char *wrapped_args[2] = {src, dst};
+        if (d->wrapped.func(ctx, &d->wrapped.context,
+                wrapped_args, &subloopsize, strides, d->wrapped.auxdata) < 0) {
+            return -1;
+        }
+        dst += subloopsize * dst_stride;
+        src += subloopsize * src_stride;
+        N -= subloopsize;
+    }
+    return 0;
 }
 
 
@@ -2879,95 +2818,94 @@ get_decref_transfer_function(int aligned,
                             int *out_needs_api)
 {
     // TODO HPY LABS PORT: migrate get_decref_transfer_function
-    hpy_abort_not_implemented("get_decref_transfer_function");
-    return -1;
-//    NPY_cast_info_init(cast_info);
-//
-//    /* If there are no references, it's a nop */
-//    if (!PyDataType_REFCHK(src_dtype)) {
-//        cast_info->func = &_dec_src_ref_nop;
-//        cast_info->auxdata = NULL;
-//        goto finalize;
-//    }
-//    /* If it's a single reference, it's one decref */
-//    else if (src_dtype->type_num == NPY_OBJECT) {
-//        if (out_needs_api) {
-//            *out_needs_api = 1;
-//        }
-//
-//        cast_info->func = &_strided_to_null_dec_src_ref_reference;
-//        cast_info->auxdata = NULL;
-//        goto finalize;
-//    }
-//    /* If there are subarrays, need to wrap it */
-//    else if (PyDataType_HASSUBARRAY(src_dtype)) {
-//        PyArray_Dims src_shape = {NULL, -1};
-//        npy_intp src_size;
-//
-//        if (out_needs_api) {
-//            *out_needs_api = 1;
-//        }
-//
-//        if (!(PyArray_IntpConverter(src_dtype->subarray->shape,
-//                                            &src_shape))) {
-//            PyErr_SetString(PyExc_ValueError,
-//                    "invalid subarray shape");
-//            return NPY_FAIL;
-//        }
-//        src_size = PyArray_MultiplyList(src_shape.ptr, src_shape.len);
-//        npy_free_cache_dim_obj(src_shape);
-//
-//        if (get_n_to_n_transfer_function(aligned,
-//                src_stride, 0,
-//                src_dtype->subarray->base, NULL, 1, src_size,
-//                &cast_info->func, &cast_info->auxdata,
-//                out_needs_api) != NPY_SUCCEED) {
-//            return NPY_FAIL;
-//        }
-//
-//        goto finalize;
-//    }
-//    /* If there are fields, need to do each field */
-//    else if (PyDataType_HASFIELDS(src_dtype)) {
-//        if (out_needs_api) {
-//            *out_needs_api = 1;
-//        }
-//
-//        if (get_decref_fields_transfer_function(aligned,
-//                            src_stride, src_dtype,
-//                            &cast_info->func, &cast_info->auxdata,
-//                            out_needs_api) < 0) {
-//            return NPY_FAIL;
-//        }
-//        goto finalize;
-//    }
-//    else {
-//        PyErr_Format(PyExc_RuntimeError,
-//                "Internal error, tried to fetch decref function for the "
-//                "unsupported DType '%S'.", src_dtype);
-//        return NPY_FAIL;
-//    }
-//
-//  finalize:
-//    /* Make sure all important fields are either set or cleared */
-//    Py_INCREF(src_dtype);
-//    cast_info->descriptors[0] = src_dtype;
-//    cast_info->descriptors[1] = NULL;
-//    cast_info->context.method = NULL;
-//    cast_info->context.caller = NULL;
-//    return NPY_SUCCEED;
+    NPY_cast_info_init(cast_info);
+
+    /* If there are no references, it's a nop */
+    if (!PyDataType_REFCHK(src_dtype)) {
+        cast_info->func = &_hdec_src_ref_nop;
+        cast_info->auxdata = NULL;
+        goto finalize;
+    }
+    /* If it's a single reference, it's one decref */
+    else if (src_dtype->type_num == NPY_OBJECT) {
+        if (out_needs_api) {
+            *out_needs_api = 1;
+        }
+
+        cast_info->func = &_strided_to_null_dec_src_ref_reference;
+        cast_info->auxdata = NULL;
+        goto finalize;
+    }
+    /* If there are subarrays, need to wrap it */
+    else if (PyDataType_HASSUBARRAY(src_dtype)) {
+        PyArray_Dims src_shape = {NULL, -1};
+        npy_intp src_size;
+
+        if (out_needs_api) {
+            *out_needs_api = 1;
+        }
+
+        if (!(PyArray_IntpConverter(src_dtype->subarray->shape,
+                                            &src_shape))) {
+            PyErr_SetString(PyExc_ValueError,
+                    "invalid subarray shape");
+            return NPY_FAIL;
+        }
+        src_size = PyArray_MultiplyList(src_shape.ptr, src_shape.len);
+        npy_free_cache_dim_obj(src_shape);
+
+        if (get_n_to_n_transfer_function(aligned,
+                src_stride, 0,
+                src_dtype->subarray->base, NULL, 1, src_size,
+                &cast_info->func, &cast_info->auxdata,
+                out_needs_api) != NPY_SUCCEED) {
+            return NPY_FAIL;
+        }
+
+        goto finalize;
+    }
+    /* If there are fields, need to do each field */
+    else if (PyDataType_HASFIELDS(src_dtype)) {
+        if (out_needs_api) {
+            *out_needs_api = 1;
+        }
+
+        if (get_decref_fields_transfer_function(aligned,
+                            src_stride, src_dtype,
+                            &cast_info->func, &cast_info->auxdata,
+                            out_needs_api) < 0) {
+            return NPY_FAIL;
+        }
+        goto finalize;
+    }
+    else {
+        PyErr_Format(PyExc_RuntimeError,
+                "Internal error, tried to fetch decref function for the "
+                "unsupported DType '%S'.", src_dtype);
+        return NPY_FAIL;
+    }
+
+    finalize:
+    /* Make sure all important fields are either set or cleared */
+    Py_INCREF(src_dtype);
+    cast_info->descriptors[0] = HPy_FromPyObject(npy_get_context(), src_dtype);
+    cast_info->descriptors[1] = HPy_NULL;
+    cast_info->context.method = HPy_NULL;
+    cast_info->context.caller = HPy_NULL;
+    return NPY_SUCCEED;
 }
 
 static int
 hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride,
-                            HPy src_dtype,
+                            HPy h_src_dtype,
                             NPY_cast_info *cast_info,
-                            int *out_needs_api)
-{
-        /* TODO HPY LABS PORT: cut off */
-        hpy_abort_not_implemented("hpy_get_decref_transfer_function");
-        return -1;
+                            int *out_needs_api) {
+    /* TODO HPY LABS PORT: cut off */
+    PyArray_Descr *src_dtype = HPy_AsPyObject(ctx, h_src_dtype);
+    int ret = get_decref_transfer_function(aligned, src_stride, src_dtype, cast_info, out_needs_api);
+    Py_DECREF(src_dtype);
+    return ret;
 }
 
 
@@ -3007,22 +2945,17 @@ typedef struct {
 static void
 _multistep_cast_auxdata_free(NpyAuxData *auxdata)
 {
+    // TODO HPY LABS PORT
+    HPyContext *ctx = npy_get_context();
     _multistep_castdata *data = (_multistep_castdata *)auxdata;
-    NPY_cast_info_xfree(&data->main);
+    HNPY_cast_info_xfree(ctx, &data->main);
     if (data->from.func != NULL) {
-        NPY_cast_info_xfree(&data->from);
+        HNPY_cast_info_xfree(ctx, &data->from);
     }
     if (data->to.func != NULL) {
-        NPY_cast_info_xfree(&data->to);
+        HNPY_cast_info_xfree(ctx, &data->to);
     }
     PyMem_Free(data);
-}
-
-/* zero-padded data copy function */
-static void
-_hmultistep_cast_auxdata_free(HPyContext *ctx, NpyAuxData *auxdata)
-{
-    hpy_abort_not_implemented("_hmultistep_cast_auxdata_free");
 }
 
 
@@ -3034,85 +2967,84 @@ static NpyAuxData *
 _multistep_cast_auxdata_clone_int(_multistep_castdata *castdata, int move_info)
 {
     // TODO HPY LABS PORT: migrate _multistep_cast_auxdata_clone_int
-    hpy_abort_not_implemented("_multistep_cast_auxdata_clone_int");
-    return NULL;
+    HPyContext *ctx = npy_get_context();
     /* Round up the structure size to 16-byte boundary for the buffers */
-//    Py_ssize_t datasize = (sizeof(_multistep_castdata) + 15) & ~0xf;
-//
-//    Py_ssize_t from_buffer_offset = datasize;
-//    if (castdata->from.func != NULL) {
-//        Py_ssize_t src_itemsize = castdata->main.context.descriptors[0]->elsize;
-//        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * src_itemsize;
-//        datasize = (datasize + 15) & ~0xf;
-//    }
-//    Py_ssize_t to_buffer_offset = datasize;
-//    if (castdata->to.func != NULL) {
-//        Py_ssize_t dst_itemsize = castdata->main.context.descriptors[1]->elsize;
-//        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * dst_itemsize;
-//    }
-//
-//    char *char_data = PyMem_Malloc(datasize);
-//    if (char_data == NULL) {
-//        return NULL;
-//    }
-//
-//    _multistep_castdata *newdata = (_multistep_castdata *)char_data;
-//
-//    /* Fix up the basic information: */
-//    newdata->base.free = &_multistep_cast_auxdata_free;
-//    newdata->base.clone = &_multistep_cast_auxdata_clone;
-//    /* And buffer information: */
-//    newdata->from_buffer = char_data + from_buffer_offset;
-//    newdata->to_buffer = char_data + to_buffer_offset;
-//
-//    /* Initialize funcs to NULL to signal no-cleanup in case of an error. */
-//    newdata->from.func = NULL;
-//    newdata->to.func = NULL;
-//
-//    if (move_info) {
-//        NPY_cast_info_move(&newdata->main, &castdata->main);
-//    }
-//    else if (NPY_cast_info_copy(&newdata->main, &castdata->main) < 0) {
-//        goto fail;
-//    }
-//
-//    if (castdata->from.func != NULL) {
-//        if (move_info) {
-//            NPY_cast_info_move(&newdata->from, &castdata->from);
-//        }
-//        else if (NPY_cast_info_copy(&newdata->from, &castdata->from) < 0) {
-//            goto fail;
-//        }
-//
-//        if (PyDataType_FLAGCHK(newdata->main.descriptors[0], NPY_NEEDS_INIT)) {
-//            memset(newdata->from_buffer, 0, to_buffer_offset - from_buffer_offset);
-//        }
-//    }
-//    if (castdata->to.func != NULL) {
-//        if (move_info) {
-//            NPY_cast_info_move(&newdata->to, &castdata->to);
-//        }
-//        else if (NPY_cast_info_copy(&newdata->to, &castdata->to) < 0) {
-//            goto fail;
-//        }
-//
-//        if (PyDataType_FLAGCHK(newdata->main.descriptors[1], NPY_NEEDS_INIT)) {
-//            memset(newdata->to_buffer, 0, datasize - to_buffer_offset);
-//        }
-//    }
-//
-//    return (NpyAuxData *)newdata;
-//
-//  fail:
-//    NPY_AUXDATA_FREE((NpyAuxData *)newdata);
-//    return NULL;
+    Py_ssize_t datasize = (sizeof(_multistep_castdata) + 15) & ~0xf;
+
+    Py_ssize_t from_buffer_offset = datasize;
+    if (castdata->from.func != NULL) {
+        Py_ssize_t src_itemsize = PyArray_Descr_AsStruct(ctx, castdata->main.context.descriptors[0])->elsize;
+        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * src_itemsize;
+        datasize = (datasize + 15) & ~0xf;
+    }
+    Py_ssize_t to_buffer_offset = datasize;
+    if (castdata->to.func != NULL) {
+        Py_ssize_t dst_itemsize = PyArray_Descr_AsStruct(ctx, castdata->main.context.descriptors[1])->elsize;
+        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * dst_itemsize;
+    }
+
+    char *char_data = PyMem_Malloc(datasize);
+    if (char_data == NULL) {
+        return NULL;
+    }
+
+    _multistep_castdata *newdata = (_multistep_castdata *)char_data;
+
+    /* Fix up the basic information: */
+    newdata->base.free = &_multistep_cast_auxdata_free;
+    newdata->base.clone = &_multistep_cast_auxdata_clone;
+    /* And buffer information: */
+    newdata->from_buffer = char_data + from_buffer_offset;
+    newdata->to_buffer = char_data + to_buffer_offset;
+
+    /* Initialize funcs to NULL to signal no-cleanup in case of an error. */
+    newdata->from.func = NULL;
+    newdata->to.func = NULL;
+
+    if (move_info) {
+        NPY_cast_info_move(&newdata->main, &castdata->main);
+    }
+    else if (NPY_cast_info_copy(&newdata->main, &castdata->main) < 0) {
+        goto fail;
+    }
+
+    if (castdata->from.func != NULL) {
+        if (move_info) {
+            NPY_cast_info_move(&newdata->from, &castdata->from);
+        }
+        else if (NPY_cast_info_copy(&newdata->from, &castdata->from) < 0) {
+            goto fail;
+        }
+
+        if (PyDataType_FLAGCHK(PyArray_Descr_AsStruct(ctx, newdata->main.descriptors[0]), NPY_NEEDS_INIT)) {
+            memset(newdata->from_buffer, 0, to_buffer_offset - from_buffer_offset);
+        }
+    }
+    if (castdata->to.func != NULL) {
+        if (move_info) {
+            NPY_cast_info_move(&newdata->to, &castdata->to);
+        }
+        else if (NPY_cast_info_copy(&newdata->to, &castdata->to) < 0) {
+            goto fail;
+        }
+
+        if (PyDataType_FLAGCHK(PyArray_Descr_AsStruct(ctx, newdata->main.descriptors[1]), NPY_NEEDS_INIT)) {
+            memset(newdata->to_buffer, 0, datasize - to_buffer_offset);
+        }
+    }
+
+    return (NpyAuxData *)newdata;
+
+    fail:
+    NPY_AUXDATA_FREE((NpyAuxData *)newdata);
+    return NULL;
 }
 
 static NpyAuxData *
 _hmultistep_cast_auxdata_clone_int(HPyContext *ctx, _multistep_castdata *castdata, int move_info)
 {
-    hpy_abort_not_implemented("_hmultistep_cast_auxdata_clone_int");
-    return NULL;
+    // TODO HPY LABS PORT
+    return _multistep_cast_auxdata_clone_int(castdata, move_info);;
 }
 
 
@@ -3132,81 +3064,68 @@ _strided_to_strided_multistep_cast(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate _strided_to_strided_multistep_cast
-    hpy_abort_not_implemented("_strided_to_strided_multistep_cast");
-    return -1;
-//    npy_intp N = dimensions[0];
-//    char *src = args[0], *dst = args[1];
-//    _multistep_castdata *castdata = (_multistep_castdata *)auxdata;
-//    npy_intp src_stride = strides[0], dst_stride = strides[1];
-//
-//    char *main_src, *main_dst;
-//    npy_intp main_src_stride, main_dst_stride;
-//
-//    npy_intp block_size = NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
-//    while (N > 0) {
-//        if (block_size > N) {
-//            block_size = N;
-//        }
-//
-//        if (castdata->from.func != NULL) {
-//            npy_intp out_stride = castdata->from.descriptors[1]->elsize;
-//            if (castdata->from.func(&castdata->from.context,
-//                    (char *[2]){src, castdata->from_buffer}, &block_size,
-//                    (npy_intp [2]){src_stride, out_stride},
-//                    castdata->from.auxdata) != 0) {
-//                /* TODO: Internal buffer may require cleanup on error. */
-//                return -1;
-//            }
-//            main_src = castdata->from_buffer;
-//            main_src_stride = out_stride;
-//        }
-//        else {
-//            main_src = src;
-//            main_src_stride = src_stride;
-//        }
-//
-//        if (castdata->to.func != NULL) {
-//            main_dst = castdata->to_buffer;
-//            main_dst_stride = castdata->main.descriptors[1]->elsize;
-//        }
-//        else {
-//            main_dst = dst;
-//            main_dst_stride = dst_stride;
-//        }
-//
-//        if (castdata->main.func(&castdata->main.context,
-//                (char *[2]){main_src, main_dst}, &block_size,
-//                (npy_intp [2]){main_src_stride, main_dst_stride},
-//                castdata->main.auxdata) != 0) {
-//            /* TODO: Internal buffer may require cleanup on error. */
-//            return -1;
-//        }
-//
-//        if (castdata->to.func != NULL) {
-//            if (castdata->to.func(&castdata->to.context,
-//                    (char *[2]){main_dst, dst}, &block_size,
-//                    (npy_intp [2]){main_dst_stride, dst_stride},
-//                    castdata->to.auxdata) != 0) {
-//                return -1;
-//            }
-//        }
-//
-//        N -= block_size;
-//        src += block_size * src_stride;
-//        dst += block_size * dst_stride;
-//    }
-//    return 0;
-}
+    npy_intp N = dimensions[0];
+    char *src = args[0], *dst = args[1];
+    _multistep_castdata *castdata = (_multistep_castdata *)auxdata;
+    npy_intp src_stride = strides[0], dst_stride = strides[1];
 
-static int
-_hstrided_to_strided_multistep_cast(HPyContext *hctx,
-        /* The context is always stored explicitly in auxdata */
-        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
-        const npy_intp *dimensions, const npy_intp *strides,
-        NpyAuxData *auxdata)
-{
-    hpy_abort_not_implemented("_hstrided_to_strided_multistep_cast");
+    char *main_src, *main_dst;
+    npy_intp main_src_stride, main_dst_stride;
+
+    npy_intp block_size = NPY_LOWLEVEL_BUFFER_BLOCKSIZE;
+    while (N > 0) {
+        if (block_size > N) {
+            block_size = N;
+        }
+
+        if (castdata->from.func != NULL) {
+            npy_intp out_stride = PyArray_Descr_AsStruct(hctx, castdata->from.descriptors[1])->elsize;
+            if (castdata->from.func(hctx, &castdata->from.context,
+                    (char *[2]){src, castdata->from_buffer}, &block_size,
+                    (npy_intp [2]){src_stride, out_stride},
+                    castdata->from.auxdata) != 0) {
+                /* TODO: Internal buffer may require cleanup on error. */
+                return -1;
+            }
+            main_src = castdata->from_buffer;
+            main_src_stride = out_stride;
+        }
+        else {
+            main_src = src;
+            main_src_stride = src_stride;
+        }
+
+        if (castdata->to.func != NULL) {
+            main_dst = castdata->to_buffer;
+            main_dst_stride = PyArray_Descr_AsStruct(hctx, castdata->main.descriptors[1])->elsize;
+        }
+        else {
+            main_dst = dst;
+            main_dst_stride = dst_stride;
+        }
+
+        if (castdata->main.func(hctx, &castdata->main.context,
+                (char *[2]){main_src, main_dst}, &block_size,
+                (npy_intp [2]){main_src_stride, main_dst_stride},
+                castdata->main.auxdata) != 0) {
+            /* TODO: Internal buffer may require cleanup on error. */
+            return -1;
+        }
+
+        if (castdata->to.func != NULL) {
+            if (castdata->to.func(hctx, &castdata->to.context,
+                    (char *[2]){main_dst, dst}, &block_size,
+                    (npy_intp [2]){main_dst_stride, dst_stride},
+                    castdata->to.auxdata) != 0) {
+                return -1;
+            }
+        }
+
+        N -= block_size;
+        src += block_size * src_stride;
+        dst += block_size * dst_stride;
+    }
+    return 0;
 }
 
 
@@ -3514,7 +3433,7 @@ h_define_cast_for_descrs(HPyContext *ctx,
     cast_info->descriptors[1] = dst_dtype;
     cast_info->context.method = HPy_NULL;
 
-    cast_info->func = &_hstrided_to_strided_multistep_cast;
+    cast_info->func = &_strided_to_strided_multistep_cast;
     cast_info->auxdata = _hmultistep_cast_auxdata_clone_int(ctx, &castdata, 1);
     if (cast_info->auxdata == NULL) {
         HPyErr_NoMemory(ctx);
