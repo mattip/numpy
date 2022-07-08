@@ -657,65 +657,93 @@ fromstring_null_term_c_api(PyObject *dummy, PyObject *byte_obj)
  * The dtypes created by this function may be not be usable (or even crash
  * while using).
  */
-static PyObject *
-create_custom_field_dtype(PyObject *NPY_UNUSED(mod), PyObject *args)
+HPyDef_METH(create_custom_field_dtype, "create_custom_field_dtype", create_custom_field_dtype_impl, HPyFunc_VARARGS)
+static HPy
+create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
-    hpy_abort_not_implemented("create_custom_field_dtype");
-    // PyArray_Descr *dtype;
-    // PyTypeObject *scalar_type;
-    // PyTypeObject *original_type = NULL;
-    // int error_path;
+    PyArray_Descr *dtype;
+    HPy h_dtype;
+    HPy h_scalar_type;
+    int error_path;
 
-    // if (!PyArg_ParseTuple(args, "O!O!i",
-    //         &PyArrayDescr_Type, &dtype,
-    //         &PyType_Type, &scalar_type,
-    //         &error_path)) {
-    //     return NULL;
-    // }
-    // /* check that the result should be more or less valid */
-    // if (dtype->type_num != NPY_VOID || dtype->fields == NULL ||
-    //         !PyDict_CheckExact(dtype->fields) ||
-    //         PyTuple_Size(dtype->names) != 1 ||
-    //         !PyDataType_REFCHK(dtype) ||
-    //         dtype->elsize != sizeof(PyObject *)) {
-    //     PyErr_SetString(PyExc_ValueError,
-    //             "Bad dtype passed to test function, must be an object "
-    //             "containing void with a single field.");
-    //     return NULL;
-    // }
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OOi",
+            &h_dtype,
+            &h_scalar_type,
+            &error_path)) {
+        return HPy_NULL;
+    }
+    
+    HPy h_PyArrayDescr_Type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    HPy h_original_type = HPy_Type(ctx, h_dtype);
+    if(!HPyType_IsSubtype(ctx, h_original_type, h_PyArrayDescr_Type)) {
+        HPy_Close(ctx, h_PyArrayDescr_Type);
+        HPy_Close(ctx, h_original_type);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "must be ?, not ?"); // TODO
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, h_PyArrayDescr_Type);
 
-    // /* Copy and then appropriate this dtype */
-    // original_type = Py_TYPE(dtype);
-    // dtype = PyArray_DescrNew(dtype);
-    // if (dtype == NULL) {
-    //     return NULL;
-    // }
+    HPy h_scalar_type_type = HPy_Type(ctx, h_scalar_type);
+    if(!HPyType_IsSubtype(ctx, h_scalar_type_type, ctx->h_TypeType)) {
+        HPy_Close(ctx, h_scalar_type_type);
+        HPy_Close(ctx, h_original_type);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "must be ?, not ?"); // TODO
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, h_scalar_type_type);
 
-    // Py_INCREF(scalar_type);
-    // Py_SETREF(dtype->typeobj, scalar_type);
-    // if (error_path == 1) {
-    //     /* Test that we reject this, if fields was not already set */
-    //     Py_SETREF(dtype->fields, NULL);
-    // }
-    // else if (error_path == 2) {
-    //     /*
-    //      * Test that we reject this if the type is not set to something that
-    //      * we are pretty sure can be safely replaced.
-    //      */
-    //     Py_SET_TYPE(dtype, scalar_type);
-    // }
-    // else if (error_path != 0) {
-    //     PyErr_SetString(PyExc_ValueError,
-    //             "invalid error argument to test function.");
-    // }
-    // if (PyArray_RegisterDataType(dtype) < 0) {
-    //     /* Fix original type in the error_path == 2 case and delete it */
-    //     Py_SET_TYPE(dtype, original_type);
-    //     Py_DECREF(dtype);
-    //     return NULL;
-    // }
-    // Py_INCREF(dtype);  /* hold on to the original (leaks a reference) */
-    // return (PyObject *)dtype;
+    /* check that the result should be more or less valid */
+    dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
+    HPy names = HPyField_Load(ctx, h_dtype, dtype->names);
+    if (dtype->type_num != NPY_VOID || dtype->fields == NULL ||
+            !PyDict_CheckExact(dtype->fields) ||
+            HPy_Length(ctx, names) != 1 ||
+            !PyDataType_REFCHK(dtype) ||
+            dtype->elsize != sizeof(PyObject *)) {
+        HPy_Close(ctx, names);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Bad dtype passed to test function, must be an object "
+                "containing void with a single field.");
+        HPy_Close(ctx, h_original_type);
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, names);
+
+    /* Copy and then appropriate this dtype */
+    h_dtype = HPyArray_DescrNew(ctx, h_dtype);
+    if (HPy_IsNull(h_dtype)) {
+        HPy_Close(ctx, h_original_type);
+        return HPy_NULL;
+    }
+
+    HPyField_Store(ctx, h_dtype, &dtype->typeobj, HPy_Dup(ctx, h_scalar_type));
+    if (error_path == 1) {
+        /* Test that we reject this, if fields was not already set */
+        HPyField_Store(ctx, h_dtype, &dtype->typeobj, HPy_NULL);
+    }
+    else if (error_path == 2) {
+        /*
+         * Test that we reject this if the type is not set to something that
+         * we are pretty sure can be safely replaced.
+         */
+        HPy_SetType(ctx, h_dtype, h_scalar_type);
+    }
+    else if (error_path != 0) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "invalid error argument to test function.");
+        HPy_Close(ctx, h_original_type);
+        return HPy_NULL; // myq: missing return?
+    }
+    if (HPyArray_RegisterDataType(ctx, h_dtype) < 0) {
+        /* Fix original type in the error_path == 2 case and delete it */
+        HPy_SetType(ctx, h_dtype, h_original_type);
+        HPy_Close(ctx, h_original_type);
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, h_original_type);
+    return HPy_Dup(ctx, h_dtype); /* hold on to the original (leaks a reference) */
 }
 
 
@@ -2377,9 +2405,9 @@ static PyMethodDef Multiarray_TestsMethods[] = {
     {"fromstring_null_term_c_api",
         fromstring_null_term_c_api,
         METH_O, NULL},
-    {"create_custom_field_dtype",
-        create_custom_field_dtype,
-        METH_VARARGS, NULL},
+//    {"create_custom_field_dtype",
+//        create_custom_field_dtype,
+//        METH_VARARGS, NULL},
     {"corrupt_or_fix_bufferinfo",
         corrupt_or_fix_bufferinfo,
         METH_O, NULL},
@@ -2549,32 +2577,34 @@ static PyMethodDef Multiarray_TestsMethods[] = {
 };
 
 
-static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        "_multiarray_tests",
-        NULL,
-        -1,
-        Multiarray_TestsMethods,
-        NULL,
-        NULL,
-        NULL,
-        NULL
+static HPyDef *_multiarray_tests_hpy_methods[] = {
+    &create_custom_field_dtype,
+    NULL
 };
 
-PyMODINIT_FUNC PyInit__multiarray_tests(void)
-{
-    PyObject *m;
+static HPyModuleDef moduledef = {
+    .name = "numpy.core._multiarray_tests",
+    .doc = NULL,
+    .size = -1,
+    .legacy_methods = Multiarray_TestsMethods,
+    .defines = _multiarray_tests_hpy_methods,
+};
 
-    m = PyModule_Create(&moduledef);
-    if (m == NULL) {
-        return m;
+/* Initialization function for the module */
+HPy_MODINIT(_multiarray_tests)
+static HPy init__multiarray_tests_impl(HPyContext *ctx) {
+
+    HPy h_mod = HPyModule_Create(ctx, &moduledef);
+    if (HPy_IsNull(h_mod)) {
+        return HPy_NULL;
     }
-    import_array();
-    if (PyErr_Occurred()) {
-        PyErr_SetString(PyExc_RuntimeError,
+
+    himport_array(ctx);
+    if (HPyErr_Occurred(ctx)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                         "cannot load _multiarray_tests module.");
     }
-    return m;
+    return h_mod;
 }
 
 NPY_NO_EXPORT int
