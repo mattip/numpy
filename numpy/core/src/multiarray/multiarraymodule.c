@@ -5170,7 +5170,7 @@ static HPyModuleDef moduledef = {
     .name = "numpy.core._multiarray_umath",
     .doc = NULL,
     .size = -1,
-    // .legacy_methods = array_module_methods,
+    .legacy_methods = array_module_methods,
     .defines = array_module_hpy_methods,
     .globals = module_globals,
 };
