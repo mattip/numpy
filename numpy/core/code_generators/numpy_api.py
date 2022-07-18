@@ -358,6 +358,7 @@ multiarray_funcs_api = {
 
     # HPy API:
     'HPyArray_Zeros':                       (307,),
+    'HPyArray_RegisterDataType':             (308,),
 }
 
 ufunc_types_api = {

@@ -16,6 +16,9 @@
 #include "npy_hashtable.h"
 #include "dtypemeta.h"
 
+#include "descriptor.h"
+// #include "usertypes.h"
+
 #if defined(MS_WIN32) || defined(__CYGWIN__)
 #define EXPORT(x) __declspec(dllexport) x
 #else

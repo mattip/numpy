@@ -186,6 +186,21 @@ test_deprecated_arrfuncs_members(PyArray_ArrFuncs *f) {
   Does not change the reference count of descr
 */
 NPY_NO_EXPORT int
+PyArray_RegisterDataType(PyArray_Descr *descr)
+{
+    // HPy this isn't used anymore.. we keep it for the numpy API.
+    HPyContext *ctx = npy_get_context();
+    HPy h_descr = HPy_FromPyObject(ctx, descr);
+    int ret = HPyArray_RegisterDataType(ctx, h_descr);
+    HPy_Close(ctx, h_descr);
+    return ret;
+}
+
+/*NUMPY_API
+  HPy Register Data type
+  Does not change the reference count of descr
+*/
+NPY_NO_EXPORT int
 HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
 {
     PyArray_Descr *s_descr = PyArray_Descr_AsStruct(ctx, h_descr);
