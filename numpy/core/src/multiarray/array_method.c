@@ -880,12 +880,13 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
         return HPy_NULL;
     }
 
-    PyArrayMethod_Context context = {
-            .caller = NULL,
-            .method = HPy_AsPyObject(ctx, h_method),
-            .descriptors = descrs,
+    HPy *h_descrs = HPy_FromPyObjectArray(ctx, descrs, NPY_MAXARGS);
+    HPyArrayMethod_Context context = {
+            .caller = HPy_NULL,
+            .method = h_method,
+            .descriptors = h_descrs,
     };
-    PyArrayMethod_StridedLoop *strided_loop = NULL;
+    HPyArrayMethod_StridedLoop *strided_loop = NULL;
     NpyAuxData *loop_data = NULL;
     NPY_ARRAYMETHOD_FLAGS flags = 0;
 
@@ -899,7 +900,7 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
         * TODO: Add floating point error checks if requested and
         *       possibly release GIL if allowed by the flags.
         */
-    int res = strided_loop(&context, args, &length, strides, loop_data);
+    int res = strided_loop(ctx, &context, args, &length, strides, loop_data);
     if (loop_data != NULL) {
         loop_data->free(loop_data);
     }
@@ -957,7 +958,7 @@ generic_masked_strided_loop(PyArrayMethod_Context *context,
     // TODO HPY LABS PORT: migrate generic_masked_strided_loop
     _masked_stridedloop_data *auxdata = (_masked_stridedloop_data *)_auxdata;
     int nargs = auxdata->nargs;
-    PyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
+    HPyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
     NpyAuxData *strided_loop_auxdata = auxdata->unmasked_auxdata;
 
     char **dataptrs = auxdata->dataptrs;
@@ -967,6 +968,7 @@ generic_masked_strided_loop(PyArrayMethod_Context *context,
 
     npy_intp N = dimensions[0];
     /* Process the data as runs of unmasked values */
+    HPyContext *hctx = npy_get_context();
     do {
         Py_ssize_t subloopsize;
 
@@ -979,7 +981,7 @@ generic_masked_strided_loop(PyArrayMethod_Context *context,
 
         /* Process unmasked values */
         mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 0);
-        int res = strided_loop(context,
+        int res = strided_loop(hctx, context,
                 dataptrs, &subloopsize, strides, strided_loop_auxdata);
         if (res != 0) {
             return res;

@@ -87,30 +87,30 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
 };
 /**end repeat**/
 
-// static PyObject *
-// gentype_alloc(PyTypeObject *type, Py_ssize_t nitems)
-// {
-//     PyObject *obj;
-//     const size_t size = _PyObject_VAR_SIZE(type, nitems + 1);
+static PyObject *
+gentype_alloc(PyTypeObject *type, Py_ssize_t nitems)
+{
+    PyObject *obj;
+    const size_t size = _PyObject_VAR_SIZE(type, nitems + 1);
 
-//     obj = (PyObject *)PyObject_Malloc(size);
-//     if (obj == NULL) {
-//         PyErr_NoMemory();
-//         return NULL;
-//     }
-//     /*
-//      * If we don't need to zero memory, we could use
-//      * PyObject_{New, NewVar} for this whole function.
-//      */
-//     memset(obj, 0, size);
-//     if (type->tp_itemsize == 0) {
-//         PyObject_Init(obj, type);
-//     }
-//     else {
-//         (void) PyObject_InitVar((PyVarObject *)obj, type, nitems);
-//     }
-//     return obj;
-// }
+    obj = (PyObject *)PyObject_Malloc(size);
+    if (obj == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    /*
+     * If we don't need to zero memory, we could use
+     * PyObject_{New, NewVar} for this whole function.
+     */
+    memset(obj, 0, size);
+    if (type->tp_itemsize == 0) {
+        PyObject_Init(obj, type);
+    }
+    else {
+        (void) PyObject_InitVar((PyVarObject *)obj, type, nitems);
+    }
+    return obj;
+}
 
 // static void
 // gentype_dealloc(PyObject *v)
@@ -4531,21 +4531,11 @@ NPY_NO_EXPORT int init_scalartypes_basetypes(HPyContext *ctx)
 NPY_NO_EXPORT int
 get_typeobj_idx(PyTypeObject * obj)
 {
-    npy_intp imin = 0, imax = sizeof(typeobjects) / sizeof(typeobjects[0]) - 1;
-    while (imax >= imin)
-    {
-        npy_intp imid = ((imax - imin) / 2) + imin;
-        if(typeobjects[imid].type == obj) {
-            return imid;
-        }
-        else if (typeobjects[imid].type < obj) {
-            imin = imid + 1;
-        }
-        else {
-            imax = imid - 1;
-        }
-    }
-    return -1;
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    int ret = hpy_get_typeobj_idx(ctx, h_obj);
+    HPy_Close(ctx, h_obj);
+    return ret;
 }
 
 NPY_NO_EXPORT int
@@ -4596,7 +4586,7 @@ _typenum_fromtypeobj(PyObject *type, int user)
     typenum = NPY_NOTYPE;
     i = get_typeobj_idx((PyTypeObject*)type);
     if (i >= 0) {
-        typenum = typeobjects[i].typenum;
+        typenum = hpy_typeobjects[i].typenum;
     }
 
     if (!user) {

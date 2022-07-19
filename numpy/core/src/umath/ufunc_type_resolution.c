@@ -317,7 +317,7 @@ hpy_raise_input_casting_error(HPyContext *ctx,
         npy_intp i)
 {
     static HPy exc_type = HPy_NULL; // HPyGlobal ?
-    hpy_npy_cache_import(
+    npy_hpy_cache_import(ctx,
         "numpy.core._exceptions", "_UFuncInputCastingError",
         &exc_type);
     if (HPy_IsNull(exc_type)) {
@@ -358,7 +358,7 @@ hpy_raise_output_casting_error(HPyContext *ctx,
         npy_intp i)
 {
     static HPy exc_type = HPy_NULL; // HPyGlobal ?
-    hpy_npy_cache_import(
+    npy_hpy_cache_import(ctx,
         "numpy.core._exceptions", "_UFuncOutputCastingError",
         &exc_type);
     if (HPy_IsNull(exc_type)) {

@@ -219,11 +219,15 @@ _strided_to_strided_any_to_object(
     _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
 
     PyObject *dst_ref = NULL;
+    HPy h_dst_ref = HPy_NULL;
     char *orig_src = src;
+    HPyContext *ctx = npy_get_context();
     while (N > 0) {
         memcpy(&dst_ref, dst, sizeof(dst_ref));
         Py_XDECREF(dst_ref);
-        dst_ref = data->getitem(src, data->arr);
+        HPy h_arr = HPy_FromPyObject(ctx, data->arr);
+        h_dst_ref = data->getitem(ctx, src, h_arr, data->arr);
+        dst_ref = HPy_AsPyObject(ctx, h_dst_ref);
         memcpy(dst, &dst_ref, sizeof(PyObject *));
 
         if (dst_ref == NULL) {

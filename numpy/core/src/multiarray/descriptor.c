@@ -2004,6 +2004,9 @@ PyArray_DescrNew(PyArray_Descr *base)
     // return newdescr;
 }
 
+/*NUMPY_API
+ * base cannot be NULL
+ */
 NPY_NO_EXPORT HPy
 HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
 {

@@ -523,7 +523,7 @@ static HPy
 }
 
 static int
-@NAME@_hpy_setitem(HPyContext *ctx, HPy op, void *input, HPy vap)
+@NAME@_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
 {
     // TODO HPY LABS PORT: implememnt
     PyObject *op = HPy_AsPyObject(ctx, h_op);

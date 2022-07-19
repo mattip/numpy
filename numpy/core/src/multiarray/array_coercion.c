@@ -1179,7 +1179,8 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 {
     HPy arr = HPy_NULL; /* (PyArrayObject *) */
     HPy seq;
-
+    PyObject *py_obj;
+    PyObject *py_seq;
     /*
      * The first step is to find the DType class if it was not provided,
      * alternatively we have to find out that this is not a scalar at all
@@ -1387,8 +1388,7 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 
     // TODO HPY LABS PORT: PySequence_Fast
     /* Ensure we have a sequence (required for PyPy) */
-    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    PyObject *py_seq;
+    py_obj = HPy_AsPyObject(ctx, obj);
     py_seq = PySequence_Fast(py_obj, "Could not convert object to sequence");
     if (py_seq == NULL) {
         /*
@@ -1397,12 +1397,9 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
             */
         if (HPyErr_ExceptionMatches(ctx, ctx->h_KeyError)) {
             HPyErr_Clear(ctx);
-            PyArray_DTypeMeta *py_fixed_DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, fixed_DType);
-            max_dims = handle_scalar(
-                    py_obj, curr_dims, &max_dims, out_descr, out_shape, py_fixed_DType,
-                    flags, NULL);
-            Py_DECREF(py_fixed_DType);
-            Py_DECREF(py_obj);
+            max_dims = hpy_handle_scalar(ctx,
+                    obj, curr_dims, &max_dims, out_descr, out_shape, fixed_DType,
+                    flags, HPy_NULL);
             return max_dims;
         }
         return -1;

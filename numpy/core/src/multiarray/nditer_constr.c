@@ -20,7 +20,7 @@
 #include "templ_common.h"
 #include "array_assign.h"
 #include "hpy_utils.h"
-#include "ndarrayobject.h"
+#include "numpy/ndarrayobject.h"
 #include "nditer_hpy.h"
 #include "ctors.h"
 

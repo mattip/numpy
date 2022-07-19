@@ -286,14 +286,6 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
     return typenum;
 }
 
-NPY_NO_EXPORT int
-PyArray_RegisterDataType(PyArray_Descr *descr) {
-    HPyContext *ctx = npy_get_context();
-    HPy h_descr = HPy_FromPyObject(ctx, descr);
-    int ret = HPyArray_RegisterDataType(ctx, h_descr);
-    HPy_Close(ctx, h_descr);
-    return ret;
-}
 
 /*
  * Checks that there is no cast already cached using the new casting-impl
