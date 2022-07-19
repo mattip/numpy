@@ -5023,6 +5023,8 @@ intern_strings(HPyContext *ctx)
 static HPyDef *array_module_hpy_methods[] = {
     &array_zeros,
     &array_array,
+    &array_promote_types,
+    &array_min_scalar_type,
     NULL
 };
 
