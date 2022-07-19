@@ -432,6 +432,12 @@ static PyObject *
 /**end repeat**/
 
 
+static PyObject *
+CLONGDOUBLE_getitem(void *ip, void *ap)
+{
+    return PyArray_Scalar(ip, PyArray_DESCR((PyArrayObject *)ap), NULL);
+}
+
 
 /**begin repeat
  *
@@ -761,12 +767,6 @@ LONGDOUBLE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
                       PyArray_ISBYTESWAPPED(ap_data));
     }
     return 0;
-}
-
-static PyObject *
-CLONGDOUBLE_getitem(void *ip, void *ap)
-{
-    return PyArray_Scalar(ip, PyArray_DESCR((PyArrayObject *)ap), NULL);
 }
 
 /* UNICODE */
