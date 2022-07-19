@@ -674,7 +674,7 @@ create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_
         return HPy_NULL;
     }
     
-    HPy h_PyArrayDescr_Type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    HPy h_PyArrayDescr_Type = HPy_NULL; //HPyGlobal_Load(ctx, HPyArrayDescr_Type);
     HPy h_original_type = HPy_Type(ctx, h_dtype);
     if(!HPyType_IsSubtype(ctx, h_original_type, h_PyArrayDescr_Type)) {
         HPy_Close(ctx, h_PyArrayDescr_Type);
