@@ -1487,7 +1487,7 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
     CAPI_WARN("HPyArray_PromoteTypes: calling PyArray_CommonDType (common_dtype)");
     PyArray_DTypeMeta *py_dtype1 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type1);
     PyArray_DTypeMeta *py_dtype2 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type2);
-    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(py_dtype1, py_dtype2);
+    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(NPY_DTYPE(py_dtype1), NPY_DTYPE(py_dtype2));
     HPy h_common_dtype = HPy_FromPyObject(ctx, common_dtype);
     Py_DECREF(py_dtype1);
     Py_DECREF(py_dtype2);

@@ -2075,14 +2075,14 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
     {Py_sq_concat, (binaryfunc)array_concat},
-    // {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
+    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
     {Py_sq_contains, (objobjproc)array_contains},
 
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
     {Py_tp_methods, array_methods},
-    // {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
+    {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
     {0, NULL},
 };
 
