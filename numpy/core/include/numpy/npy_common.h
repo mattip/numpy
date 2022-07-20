@@ -273,6 +273,10 @@ typedef Py_uintptr_t npy_uintp;
         #define NPY_MIN_INTP NPY_MIN_INT
         #define NPY_MAX_UINTP NPY_MAX_UINT
         #define NPY_INTP_FMT "d"
+
+        // HPy
+        #define HPyIntpArrType_Type HPyIntArrType_Type
+        #define HPyUIntpArrType_Type HPyUIntArrType_Type
 #elif NPY_SIZEOF_PY_INTPTR_T == NPY_SIZEOF_LONG
         #define NPY_INTP NPY_LONG
         #define NPY_UINTP NPY_ULONG
@@ -282,6 +286,10 @@ typedef Py_uintptr_t npy_uintp;
         #define NPY_MIN_INTP NPY_MIN_LONG
         #define NPY_MAX_UINTP NPY_MAX_ULONG
         #define NPY_INTP_FMT "ld"
+
+        // HPy
+        #define HPyIntpArrType_Type HPyLongArrType_Type
+        #define HPyUIntpArrType_Type HPyULongArrType_Type
 #elif defined(PY_LONG_LONG) && (NPY_SIZEOF_PY_INTPTR_T == NPY_SIZEOF_LONGLONG)
         #define NPY_INTP NPY_LONGLONG
         #define NPY_UINTP NPY_ULONGLONG
@@ -291,6 +299,10 @@ typedef Py_uintptr_t npy_uintp;
         #define NPY_MIN_INTP NPY_MIN_LONGLONG
         #define NPY_MAX_UINTP NPY_MAX_ULONGLONG
         #define NPY_INTP_FMT "lld"
+
+        // HPy
+        #define HPyIntpArrType_Type HPyLongLongArrType_Type
+        #define HPyUIntpArrType_Type HPyULongLongArrType_Type
 #endif
 
 /*

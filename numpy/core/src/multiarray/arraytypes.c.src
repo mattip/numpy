@@ -5183,36 +5183,44 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
     if (HPy_IsNull(h_infodict)) return -1;
 
     int ret;
+
     /**begin repeat
      *
      * #name = BOOL,
      *         BYTE, UBYTE, SHORT, USHORT, INT, UINT,
+     *         INTP, UINTP,
      *         LONG, ULONG, LONGLONG, ULONGLONG#
      * #uname = BOOL,
      *          BYTE*2, SHORT*2, INT*2,
+     *          INTP*2,
      *          LONG*2, LONGLONG*2#
      * #Name = Bool,
      *         Byte, UByte, Short, UShort, Int, UInt,
+     *         Intp, UIntp,
      *         Long, ULong, LongLong, ULongLong#
      * #type = npy_bool,
      *         npy_byte, npy_ubyte, npy_short, npy_ushort, npy_int, npy_uint,
+     *         npy_intp, npy_uintp,
      *         npy_long, npy_ulong, npy_longlong, npy_ulonglong#
      * #max= 1,
      *       NPY_MAX_BYTE, NPY_MAX_UBYTE, NPY_MAX_SHORT,
      *       NPY_MAX_USHORT, NPY_MAX_INT, HPyLong_FromUnsignedLong(_CTX_COMMA_ NPY_MAX_UINT),
+     *       HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MAX_INTP),
+     *       HPyLong_FromUnsignedLongLong(_CTX_COMMA_ (npy_ulonglong) NPY_MAX_UINTP),
      *       NPY_MAX_LONG,
      *       HPyLong_FromUnsignedLong(_CTX_COMMA_ (npy_ulong) NPY_MAX_ULONG),
      *       HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MAX_LONGLONG),
      *       HPyLong_FromUnsignedLongLong(_CTX_COMMA_ (npy_ulonglong) NPY_MAX_ULONGLONG)#
      * #min = 0, NPY_MIN_BYTE, 0, NPY_MIN_SHORT, 0, NPY_MIN_INT, 0,
-     *        NPY_MIN_LONG, 0,
+     *        HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MIN_INTP),
+     *        0, NPY_MIN_LONG, 0,
      *        HPyLong_FromLongLong(_CTX_COMMA_ (npy_longlong) NPY_MIN_LONGLONG), 0#
-     * #cx = i*6, O, l, O, O, O#
-     * #cn = i*7, l, i, O, i#
-     * #maxType = int*6, HPy, long, HPy*3#
-     * #minType = int*7, long, int, HPy, int#
-     * #maxClose = //*6, HPy_Close(_CTX_COMMA_, //, HPy_Close(_CTX_COMMA_*3#
-     * #minClose = //*9, HPy_Close(_CTX_COMMA_, //#
+     * #cx = i*6, O, O, O, l, O, O, O#
+     * #cn = i*7, O, i, l, i, O, i#
+     * #maxType = int*6, HPy*3, long, HPy*3#
+     * #minType = int*7, HPy, int, long, int, HPy, int#
+     * #maxClose = //*6, HPy_Close(_CTX_COMMA_*3, //, HPy_Close(_CTX_COMMA_*3#
+     * #minClose = //*7, HPy_Close(_CTX_COMMA_, //*3, HPy_Close(_CTX_COMMA_, //#
      */
 
 #define _CTX_COMMA_ ctx,
