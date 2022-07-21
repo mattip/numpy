@@ -3330,39 +3330,41 @@ add_other_to_and_from_string_cast(
 
 NPY_NO_EXPORT NPY_CASTING
 string_to_string_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[2]), // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *view_offset)
 {
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
 
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = ensure_dtype_nbo(loop_descrs[0]);
-        if (loop_descrs[1] == NULL) {
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, loop_descrs[0]);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
     }
     else {
-        Py_INCREF(given_descrs[1]);
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
 
-    if (loop_descrs[0]->elsize < loop_descrs[1]->elsize) {
+    PyArray_Descr *loop_descrs_0 = PyArray_Descr_AsStruct(ctx, loop_descrs[0]);
+    PyArray_Descr *loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
+
+    if (loop_descrs_0->elsize < loop_descrs_1->elsize) {
         /* New string is longer: safe but cannot be a view */
         return NPY_SAFE_CASTING;
     }
     else {
         /* New string fits into old: if the byte-order matches can be a view */
-        int not_swapped = (PyDataType_ISNOTSWAPPED(loop_descrs[0])
-                           == PyDataType_ISNOTSWAPPED(loop_descrs[1]));
+        int not_swapped = (PyDataType_ISNOTSWAPPED(loop_descrs_0)
+                           == PyDataType_ISNOTSWAPPED(loop_descrs_1));
         if (not_swapped) {
             *view_offset = 0;
         }
 
-        if (loop_descrs[0]->elsize > loop_descrs[1]->elsize) {
+        if (loop_descrs_0->elsize > loop_descrs_1->elsize) {
             return NPY_SAME_KIND_CASTING;
         }
         /* The strings have the same length: */
