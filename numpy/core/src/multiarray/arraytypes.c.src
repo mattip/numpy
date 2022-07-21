@@ -523,6 +523,7 @@ static HPy
 @NAME@_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap)
 {
     // TODO HPY LABS PORT: implememnt
+    CAPI_WARN("call to @NAME@_getitem");
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
     HPy ret = HPy_FromPyObject(ctx, @NAME@_getitem(input, vap));
     Py_DECREF(vap);
@@ -533,6 +534,7 @@ static int
 @NAME@_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
 {
     // TODO HPY LABS PORT: implememnt
+    CAPI_WARN("call to @NAME@_setitem");
     PyObject *op = HPy_AsPyObject(ctx, h_op);
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
     int ret = @NAME@_setitem(op, input, vap);
@@ -689,8 +691,11 @@ LONGDOUBLE_getitem(void *ip, void *ap)
 static HPy
 LONGDOUBLE_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
+    CAPI_WARN("call to LONGDOUBLE_getitem(input, vap)");
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    HPy ret = HPy_FromPyObject(ctx, LONGDOUBLE_getitem(input, vap));
+    PyObject *py_ret = LONGDOUBLE_getitem(input, vap);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_DECREF(py_ret);
     Py_DECREF(vap);
     return ret;
 }
@@ -739,6 +744,7 @@ LONGDOUBLE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
     if (HPyArray_IsZeroDim(ctx, op)) {
         PyObject *py_op = HPy_AsPyObject(ctx, op);
         PyObject *py_vap = HPy_AsPyObject(ctx, ap);
+        CAPI_WARN("call to convert_to_scalar_and_retry");
         int ret = convert_to_scalar_and_retry(py_op, ov, py_vap, LONGDOUBLE_setitem);
         Py_DECREF(py_op);
         Py_DECREF(py_vap);
@@ -786,6 +792,7 @@ static HPy
 UNICODE_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to UNICODE_getitem");
     HPy ret = HPy_FromPyObject(ctx, UNICODE_getitem(input, vap));
     Py_DECREF(vap);
     return ret;
@@ -878,6 +885,7 @@ UNICODE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
         // TODO HPY LABS PORT: implememnt
         PyObject *py_op = HPy_AsPyObject(ctx, op);
         PyObject *py_vap = HPy_AsPyObject(ctx, ap);
+        CAPI_WARN("call to convert_to_scalar_and_retry");
         int ret = convert_to_scalar_and_retry(py_op, ov, py_vap, UNICODE_setitem);
         Py_DECREF(py_op);
         Py_DECREF(py_vap);
@@ -1042,6 +1050,7 @@ static HPy
 STRING_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to STRING_getitem");
     HPy ret = HPy_FromPyObject(ctx, STRING_getitem(input, vap));
     Py_DECREF(vap);
     return ret;
@@ -1053,6 +1062,7 @@ STRING_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
     // TODO HPY LABS PORT: implememnt
     PyObject *op = HPy_AsPyObject(ctx, h_op);
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to STRING_setitem");
     int ret = STRING_setitem(op, input, vap);
     Py_DECREF(op);
     Py_DECREF(vap);
@@ -1098,7 +1108,10 @@ static HPy
 OBJECT_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    HPy ret = HPy_FromPyObject(ctx, OBJECT_getitem(input, vap));
+    CAPI_WARN("call to STRING_setitem");
+    PyObject *py_ret = OBJECT_getitem(input, vap);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_DECREF(py_ret);
     Py_DECREF(vap);
     return ret;
 }
@@ -1442,7 +1455,9 @@ static HPy
 VOID_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    HPy ret = HPy_FromPyObject(ctx, VOID_getitem(input, vap));
+    CAPI_WARN("call to VOID_getitem");
+    PyObject *py_ret = VOID_getitem(input, vap);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
     Py_DECREF(vap);
     return ret;
 }
@@ -1453,6 +1468,7 @@ VOID_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
     // TODO HPY LABS PORT: implememnt
     PyObject *op = HPy_AsPyObject(ctx, h_op);
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to VOID_setitem");
     int ret = VOID_setitem(op, input, vap);
     Py_DECREF(op);
     Py_DECREF(vap);
@@ -1542,7 +1558,10 @@ static HPy
 DATETIME_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    HPy ret = HPy_FromPyObject(ctx, DATETIME_getitem(input, vap));
+    CAPI_WARN("call to DATETIME_getitem");
+    PyObject *py_ret = DATETIME_getitem(input, vap);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_DECREF(py_ret);
     Py_DECREF(vap);
     return ret;
 }
@@ -1553,6 +1572,7 @@ DATETIME_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
     // TODO HPY LABS PORT: implememnt
     PyObject *op = HPy_AsPyObject(ctx, h_op);
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to DATETIME_getitem");
     int ret = DATETIME_setitem(op, input, vap);
     Py_DECREF(op);
     Py_DECREF(vap);
@@ -1563,7 +1583,10 @@ static HPy
 TIMEDELTA_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    HPy ret = HPy_FromPyObject(ctx, TIMEDELTA_getitem(input, vap));
+    CAPI_WARN("call to TIMEDELTA_getitem");
+    PyObject *py_ret = TIMEDELTA_getitem(input, vap);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_DECREF(py_ret);
     Py_DECREF(vap);
     return ret;
 }
@@ -1606,6 +1629,7 @@ TIMEDELTA_hpy_setitem(HPyContext *ctx, HPy h_op, void *input, HPy h_vap)
     // TODO HPY LABS PORT: implememnt
     PyObject *op = HPy_AsPyObject(ctx, h_op);
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
+    CAPI_WARN("call to TIMEDELTA_setitem");
     int ret = TIMEDELTA_setitem(op, input, vap);
     Py_DECREF(op);
     Py_DECREF(vap);
@@ -5001,6 +5025,7 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrFromType(int type)
 {
+    CAPI_WARN("PyArray_DescrFromType");
     HPyContext *ctx = npy_get_context();
     HPy ret = HPyArray_DescrFromType(ctx, type);
     if (HPy_IsNull(ret)) {
@@ -5030,7 +5055,6 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
 
     PyArray_Descr *dtype;
     HPy cobj, key;
-    HPy py;
     HPy h_descr;
     HPy castdict = HPy_NULL;
 

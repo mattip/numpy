@@ -339,6 +339,7 @@ PyArray_CopyObject(PyArrayObject *dest, PyObject *src_object)
 
     if (cache != NULL && !(cache->sequence)) {
         /* The input is an array or array object, so assign directly */
+        CAPI_WARN("PyArray_AssignArray");
         HPyContext *ctx = npy_get_context();
         PyObject *tmp = HPy_AsPyObject(ctx, cache->converted_obj);
         assert(tmp == src_object);
@@ -1580,6 +1581,7 @@ HPyDef_SLOT(array_richcompare_def, hpy_array_richcompare, HPy_tp_richcompare);
 
 PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
+    CAPI_WARN("array_richcompare");
     HPyContext *ctx = npy_get_context();
     HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
     HPy h_other = HPy_FromPyObject(ctx, (PyObject*)other);
@@ -1977,6 +1979,7 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         }
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_HASOBJECT)) {
             /* place Py_None in object positions */
+            CAPI_WARN("PyArray_FillObjectArray");
             // TODO HPY LABS PORT
             PyObject *ret = HPy_AsPyObject(ctx, h_result);
             PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
