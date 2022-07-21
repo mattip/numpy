@@ -2201,6 +2201,7 @@ static inline int HPyArray_ISNOTSWAPPED(HPyContext *ctx, HPy m, PyArrayObject *m
     return result;
 }
     
+#define HPyArray_ISBYTESWAPPED(ctx, m, m_data) (!HPyArray_ISNOTSWAPPED(ctx, m, m_data))
 
 #define HPyArray_FLAGSWAP(ctx, m, m_data, flags) (PyArray_CHKFLAGS(m_data, flags) &&       \
                                     HPyArray_ISNOTSWAPPED(ctx, m, m_data))

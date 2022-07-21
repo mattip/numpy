@@ -393,10 +393,11 @@ static int
         *((@type@ *)ov)=temp;
     }
     else {
-        PyArrayObject *py_ap = (PyArrayObject *)HPy_AsPyObject(ctx, ap);
-        PyArray_DESCR(py_ap)->f->copyswap(ov, &temp, 
-            PyArray_ISBYTESWAPPED(py_ap), py_ap);
-        Py_DECREF(py_ap);
+        PyArrayObject *ap_data = (PyArrayObject *)PyArrayObject_AsStruct(ctx, ap);
+        HPy ret = HPyArray_DESCR(ctx, ap, ap_data);
+        PyArray_Descr *ret_data = (PyArray_Descr *)PyArray_Descr_AsStruct(ctx, ret);
+        ret_data->f->copyswap(ov, &temp, 
+            HPyArray_ISBYTESWAPPED(ctx, ap, ap_data), ap_data); // copyswap might be expecting a PyObject?
     }
     return 0;
 }
