@@ -209,7 +209,11 @@ _resize_if_necessary(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb)
         HPyField *item = &old_table[i * (tb->key_len + 1)];
         if (!HPyField_IsNull(item[0])) {
             for (int j = 0; j < tb->key_len + 1; j++) {
-                tmp[j] = HPyField_Load(ctx, cache_owner, item[j]);
+                if (!HPyField_IsNull(item[j])) {
+                    tmp[j] = HPyField_Load(ctx, cache_owner, item[j]);
+                } else {
+                    tmp[j] = HPy_NULL;
+                }
                 HPyField_Store(ctx, cache_owner, item+j, HPy_NULL);
             }
             tb->nelem -= 1;  /* Decrement, setitem will increment again */

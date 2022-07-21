@@ -705,17 +705,19 @@ HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
         return 1;
     }
 
-    hpy_abort_not_implemented("HPyArray_CheckCastSafety: generic code path");
-    // PyArray_DTypeMeta *dtypes[2] = {PyArray_DTypeMeta_AsStruct(ctx, h_from_dtype), PyArray_DTypeMeta_AsStruct(ctx, h_to_dtype)};
-    // npy_intp view_offset;
-    // NPY_CASTING safety = _get_cast_safety_from_castingimpl(castingimpl,
-    //         dtypes, PyArray_Descr_AsStruct(ctx, h_from), PyArray_Descr_AsStruct(ctx, h_to), &view_offset);
-    // Py_DECREF(meth);
-    // /* If casting is the smaller (or equal) safety we match */
-    // if (safety < 0) {
-    //     return -1;
-    // }
-    // return PyArray_MinCastSafety(safety, casting) == casting;
+    HPy dtypes[2] = {
+        h_from_dtype, 
+        h_to_dtype
+    };
+    npy_intp view_offset;
+    NPY_CASTING safety = _hget_cast_safety_from_castingimpl(ctx, meth,
+            dtypes, h_from, h_to, &view_offset);
+    HPy_Close(ctx, meth);
+    /* If casting is the smaller (or equal) safety we match */
+    if (safety < 0) {
+        return -1;
+    }
+    return PyArray_MinCastSafety(safety, casting) == casting;
 }
 
 
