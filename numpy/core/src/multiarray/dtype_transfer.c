@@ -104,6 +104,7 @@ _strided_to_strided_move_references(
     npy_intp src_stride = strides[0], dst_stride = strides[1];
 
     PyObject *src_ref = NULL, *dst_ref = NULL;
+    CAPI_WARN("_strided_to_strided_move_references: calling NPY_DT_DBG_REFTRACE");
     while (N > 0) {
         memcpy(&src_ref, src, sizeof(src_ref));
         memcpy(&dst_ref, dst, sizeof(dst_ref));
@@ -203,15 +204,13 @@ _any_to_object_auxdata_clone(NpyAuxData *auxdata)
     return (NpyAuxData *)res;
 }
 
-
 static int
-_strided_to_strided_any_to_object(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+_strided_to_strided_any_to_object(HPyContext *ctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _strided_to_strided_any_to_object
-    return -1;
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
@@ -221,7 +220,7 @@ _strided_to_strided_any_to_object(
     PyObject *dst_ref = NULL;
     HPy h_dst_ref = HPy_NULL;
     char *orig_src = src;
-    HPyContext *ctx = npy_get_context();
+    CAPI_WARN("_strided_to_strided_any_to_object: memcpy(dst, &dst_ref, sizeof(PyObject *));");
     while (N > 0) {
         memcpy(&dst_ref, dst, sizeof(dst_ref));
         Py_XDECREF(dst_ref);
@@ -2779,8 +2778,8 @@ _hdec_src_ref_nop(HPyContext *hctx,
 }
 
 static int
-_strided_to_null_dec_src_ref_reference(
-        PyArrayMethod_Context *NPY_UNUSED(context),
+_strided_to_null_dec_src_ref_reference(HPyContext *hctx,
+        HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const *args, const npy_intp *dimensions,
         const npy_intp *strides, NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -2789,6 +2788,7 @@ _strided_to_null_dec_src_ref_reference(
     npy_intp stride = strides[0];
 
     PyObject *src_ref = NULL;
+    CAPI_WARN("_strided_to_null_dec_src_ref_reference: alling NPY_DT_DBG_REFTRACE");
     while (N > 0) {
         /* Release the reference in src and set it to NULL */
         NPY_DT_DBG_REFTRACE("dec src ref (null dst)", src_ref);

@@ -2054,7 +2054,9 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
     }
     Py_XINCREF(newdescr->fields);
     if (!HPyField_IsNull(newdescr->names)) {
-        Py_XINCREF(HPyField_LoadPyObj(ctx, newdescr->names));
+        HPy h_names = HPyField_Load(ctx, h_newdescr, newdescr->names);
+        HPyField_Store(ctx, h_newdescr, &newdescr->names, h_names);
+        HPy_Close(ctx, h_names);
     }
     if (newdescr->subarray) {
         newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
@@ -2067,7 +2069,9 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
         Py_INCREF(newdescr->subarray->base);
     }
     if (!HPyField_IsNull(newdescr->typeobj)) {
-        Py_XINCREF(HPyField_LoadPyObj(ctx, newdescr->typeobj));
+        HPy h_typeobj = HPyField_Load(ctx, h_newdescr, newdescr->typeobj);
+        HPyField_Store(ctx, h_newdescr, &newdescr->typeobj, h_typeobj);
+        HPy_Close(ctx, h_typeobj);
     }
     Py_XINCREF(newdescr->metadata);
     newdescr->hash = -1;

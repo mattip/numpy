@@ -2194,7 +2194,7 @@ HPyArray_ResultType(HPyContext *ctx,
         if (HPy_IsNull(tmp_descr)) {
             goto error;
         }
-        HPy_SETREF(ctx, common_dtype, HPy_Dup(ctx, HNPY_DTYPE(ctx, tmp_descr)));
+        HPy_SETREF(ctx, common_dtype, HNPY_DTYPE(ctx, tmp_descr));
         HPy_Close(ctx, tmp_descr);
     }
 
@@ -2207,7 +2207,6 @@ HPyArray_ResultType(HPyContext *ctx,
         result = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_data);
     }
     else {
-        hpy_abort_not_implemented("HPyArray_ResultType: branch is_parametric");
         result = hpy_get_descr_from_cast_or_value(ctx,
                     0, arrs, ndtypes, all_descriptors[0], common_dtype);
         if (HPy_IsNull(result)) {
@@ -2222,6 +2221,7 @@ HPyArray_ResultType(HPyContext *ctx,
             }
             PyObject *py_result = HPy_AsPyObject(ctx, result);
             PyObject *py_curr = HPy_AsPyObject(ctx, curr);
+            CAPI_WARN("HPyArray_ResultType: calling HNPY_DT_SLOTS(ctx, common_dtype)->common_instance");
             py_result = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(py_result, py_curr);
             HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, py_result));
             Py_DECREF(py_curr);

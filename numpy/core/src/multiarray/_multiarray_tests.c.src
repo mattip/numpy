@@ -698,6 +698,8 @@ create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_
     /* check that the result should be more or less valid */
     dtype = PyArray_Descr_AsStruct(ctx, h_dtype);
     HPy names = HPyField_Load(ctx, h_dtype, dtype->names);
+    CAPI_WARN("create_custom_field_dtype_impl: calling PyDict_CheckExact(dtype->fields)");
+    CAPI_WARN("dtype->elsize != sizeof(PyObject *) .. might be incorrect!!");
     if (dtype->type_num != NPY_VOID || dtype->fields == NULL ||
             !PyDict_CheckExact(dtype->fields) ||
             HPy_Length(ctx, names) != 1 ||
@@ -719,7 +721,7 @@ create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_
         return HPy_NULL;
     }
 
-    HPyField_Store(ctx, h_dtype, &dtype->typeobj, HPy_Dup(ctx, h_scalar_type));
+    HPyField_Store(ctx, h_dtype, &dtype->typeobj, h_scalar_type);
     if (error_path == 1) {
         /* Test that we reject this, if fields was not already set */
         HPyField_Store(ctx, h_dtype, &dtype->typeobj, HPy_NULL);

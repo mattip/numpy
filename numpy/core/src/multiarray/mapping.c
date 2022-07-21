@@ -2266,6 +2266,7 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
     if (PyDataType_HASFIELDS(self_descr)) {
         PyArrayObject *view;
         PyObject *op = HPy_AsPyObject(ctx, h_op);
+        CAPI_WARN("array_subscript_impl: calling _get_field_view");
         int ret = _get_field_view(self, op, &view);
         Py_DECREF(op);
         if (ret == 0){
@@ -2575,6 +2576,7 @@ NPY_NO_EXPORT static int array_assign_subscript_impl(HPyContext *ctx, HPy h_self
         PyObject *ind = HPy_AsPyObject(ctx, h_ind);
         PyArrayObject *py_view = NULL;
         /* TODO HPY LABS PORT: cut off */
+        CAPI_WARN("array_assign_subscript_impl: calling _get_field_view");
         int ret = _get_field_view(self, ind, &py_view);
         view = HPy_FromPyObject(ctx, py_view);
         PyArrayObject *view_data = PyArrayObject_AsStruct(ctx, view);

@@ -528,6 +528,7 @@ HPyUFunc_DefaultTypeResolver(HPyContext *ctx,
                                 HPy type_tup,
                                 HPy /* (PyArray_Descr **) */ *out_dtypes)
 {
+    CAPI_WARN("HPyUFunc_DefaultTypeResolver: calling PyUFunc_DefaultTypeResolver");
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
     PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
     PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
