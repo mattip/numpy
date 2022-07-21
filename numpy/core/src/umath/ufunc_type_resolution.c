@@ -520,6 +520,33 @@ PyUFunc_DefaultTypeResolver(PyUFuncObject *ufunc,
     return retval;
 }
 
+NPY_NO_EXPORT int
+HPyUFunc_DefaultTypeResolver(HPyContext *ctx,
+                                HPy /* (PyUFuncObject *) */ ufunc,
+                                NPY_CASTING casting,
+                                HPy /* (PyArrayObject **) */ *operands,
+                                HPy type_tup,
+                                HPy /* (PyArray_Descr **) */ *out_dtypes)
+{
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+    PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+    PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+    }
+    int res = PyUFunc_DefaultTypeResolver(py_ufunc, casting, py_operands,
+            py_type_tup, py_out_dtypes);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
+    Py_DECREF(py_ufunc);
+    Py_DECREF(py_type_tup);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+        Py_XDECREF(py_out_dtypes[i]);
+    }
+    return res;
+}
 /*
  * This function applies special type resolution rules for the case
  * where all the functions have the pattern XX->bool, using

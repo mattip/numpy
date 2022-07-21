@@ -52,6 +52,29 @@ object_ufunc_type_resolver(PyUFuncObject *ufunc,
 }
 
 static int
+h_object_ufunc_type_resolver(HPyContext *ctx,
+                                HPy ufunc, // PyUFuncObject *
+                                NPY_CASTING casting,
+                                HPy *operands, //PyArrayObject **
+                                HPy type_tup, // PyObject *
+                                HPy *out_dtypes) // PyArray_Descr **
+{
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    int i, nop = ufunc_data->nin + ufunc_data->nout;
+
+    out_dtypes[0] = HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    if (HPy_IsNull(out_dtypes[0])) {
+        return -1;
+    }
+
+    for (i = 1; i < nop; ++i) {
+        out_dtypes[i] = HPy_Dup(ctx, out_dtypes[0]);
+    }
+
+    return 0;
+}
+
+static int
 object_ufunc_loop_selector(HPyContext *ctx,
                                 HPy /* (PyUFuncObject *) */ ufunc,
                                 HPy /* (PyArray_Descr **) */ *dtypes,
@@ -161,6 +184,7 @@ ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
     HPyField_StorePyObj((PyObject *)self, &self->obj, function);
     self->ptr = ptr;
 
+    self->hpy_type_resolver = &h_object_ufunc_type_resolver;
     self->type_resolver = &object_ufunc_type_resolver;
     self->legacy_inner_loop_selector = &object_ufunc_loop_selector;
     PyObject_GC_Track(self);

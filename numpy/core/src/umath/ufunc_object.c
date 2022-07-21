@@ -5728,6 +5728,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->iter_flags = 0;
 
     /* Type resolution and inner loop selection functions */
+    ufunc->hpy_type_resolver = &HPyUFunc_DefaultTypeResolver;
     ufunc->type_resolver = &PyUFunc_DefaultTypeResolver;
     ufunc->legacy_inner_loop_selector = &PyUFunc_DefaultLegacyInnerLoopSelector;
     ufunc->_always_null_previously_masked_innerloop_selector = NULL;
