@@ -555,6 +555,53 @@ PyDataMem_UserRENEW(void *ptr, size_t size, PyObject *mem_handler)
     return result;
 }
 
+NPY_NO_EXPORT HPy
+HPyDataMem_SetHandler(HPyContext *ctx, HPy handler)
+{
+    HPy h_handler = handler;
+    HPy old_handler = HPy_NULL;
+#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
+    HPy token;
+    HPy h_current_handler = HPyGlobal_Load(ctx, current_handler);
+    PyObject *py_current_handler = HPy_AsPyObject(ctx, h_current_handler);
+    HPy_Close(ctx, h_current_handler);
+    if (HPyContextVar_Get(ctx, h_current_handler, HPy_NULL, &old_handler)) {
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(h_handler)) {
+        h_handler = HPy_FromPyObject(ctx, PyDataMem_DefaultHandler);
+    }
+    token = HPyContextVar_Set(ctx, h_current_handler, h_handler);
+    if (HPy_IsNull(token)) {
+        HPy_Close(ctx, old_handler);
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, token);
+    return old_handler;
+#else
+    hpy_abort_not_implemented("HPyDataMem_SetHandler on older Pypy versions");
+    // PyObject *p;
+    // p = PyThreadState_GetDict();
+    // if (p == NULL) {
+    //     return NULL;
+    // }
+    // old_handler = PyDict_GetItemString(p, "current_allocator");
+    // if (old_handler == NULL) {
+    //     old_handler = PyDataMem_DefaultHandler
+    // }
+    // Py_INCREF(old_handler);
+    // if (handler == NULL) {
+    //     handler = PyDataMem_DefaultHandler;
+    // }
+    // const int error = PyDict_SetItemString(p, "current_allocator", handler);
+    // if (error) {
+    //     Py_DECREF(old_handler);
+    //     return HPy_NULL;
+    // }
+    return old_handler;
+#endif
+}
+
 /*NUMPY_API
  * Set a new allocation policy. If the input value is NULL, will reset
  * the policy to the default. Return the previous policy, or
@@ -565,48 +612,15 @@ PyDataMem_UserRENEW(void *ptr, size_t size, PyObject *mem_handler)
 NPY_NO_EXPORT PyObject *
 PyDataMem_SetHandler(PyObject *handler)
 {
-    PyObject *old_handler;
-#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
-    PyObject *token;
     HPyContext *ctx = npy_get_context();
-    HPy h_current_handler = HPyGlobal_Load(ctx, current_handler);
-    PyObject *py_current_handler = HPy_AsPyObject(ctx, h_current_handler);
-    HPy_Close(ctx, h_current_handler);
-    if (PyContextVar_Get(py_current_handler, NULL, &old_handler)) {
-        return NULL;
-    }
-    if (handler == NULL) {
-        handler = PyDataMem_DefaultHandler;
-    }
-    token = PyContextVar_Set(py_current_handler, handler);
-    if (token == NULL) {
-        Py_DECREF(old_handler);
-        return NULL;
-    }
-    Py_DECREF(token);
-    return old_handler;
-#else
-    PyObject *p;
-    p = PyThreadState_GetDict();
-    if (p == NULL) {
-        return NULL;
-    }
-    old_handler = PyDict_GetItemString(p, "current_allocator");
-    if (old_handler == NULL) {
-        old_handler = PyDataMem_DefaultHandler
-    }
-    Py_INCREF(old_handler);
-    if (handler == NULL) {
-        handler = PyDataMem_DefaultHandler;
-    }
-    const int error = PyDict_SetItemString(p, "current_allocator", handler);
-    if (error) {
-        Py_DECREF(old_handler);
-        return NULL;
-    }
-    return old_handler;
-#endif
+    HPy h_handler = HPy_FromPyObject(ctx, handler);
+    HPy h_ret = HPyDataMem_SetHandler(ctx, h_handler);
+    PyObject *ret = HPy_AsPyObject(ctx, h_ret);
+    HPy_Close(ctx, h_handler);
+    HPy_Close(ctx, h_ret);
+    return ret;
 }
+
 
 /*
  * Return the policy that will be used to allocate data
