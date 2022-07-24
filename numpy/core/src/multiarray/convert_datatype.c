@@ -75,6 +75,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
     HPyContext *ctx = npy_get_context();
     HPy h_from = HPy_FromPyObject(ctx, (PyObject *)from);
     HPy h_to = HPy_FromPyObject(ctx, (PyObject *)to);
+    CAPI_WARN("PyArray_GetCastingImpl");
     HPy h_res = HPyArray_GetCastingImpl(ctx, h_from, h_to);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_res);
@@ -1285,6 +1286,7 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
     }
     else {
         // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
+        CAPI_WARN("hensure_dtype_nbo: calling PyArray_DescrNewByteorder");
         PyArray_Descr *py_type = HPy_AsPyObject(ctx, type);
         PyArray_Descr *ret = PyArray_DescrNewByteorder(py_type, NPY_NATIVE);
         HPy h_ret = HPy_FromPyObject(ctx, ret);
