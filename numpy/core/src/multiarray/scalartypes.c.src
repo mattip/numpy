@@ -4529,16 +4529,6 @@ NPY_NO_EXPORT int init_scalartypes_basetypes(HPyContext *ctx)
 
 
 NPY_NO_EXPORT int
-get_typeobj_idx(PyTypeObject * obj)
-{
-    HPyContext *ctx = npy_get_context();
-    HPy h_obj = HPy_FromPyObject(ctx, obj);
-    int ret = hpy_get_typeobj_idx(ctx, h_obj);
-    HPy_Close(ctx, h_obj);
-    return ret;
-}
-
-NPY_NO_EXPORT int
 hpy_get_typeobj_idx(HPyContext *ctx, HPy obj)
 {
     const char *needle = HPyType_GetName(ctx, obj);
@@ -4558,6 +4548,16 @@ hpy_get_typeobj_idx(HPyContext *ctx, HPy obj)
         }
     }
     return -1;
+}
+
+NPY_NO_EXPORT int
+get_typeobj_idx(PyTypeObject * obj)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    int ret = hpy_get_typeobj_idx(ctx, h_obj);
+    HPy_Close(ctx, h_obj);
+    return ret;
 }
 
 NPY_NO_EXPORT int
