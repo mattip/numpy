@@ -16,6 +16,8 @@
 #include "common_dtype.h"
 #include "ufunc_object.h"
 
+#include "dispatching.h"
+
 #define EXPERIMENTAL_DTYPE_API_VERSION 4
 
 
@@ -82,32 +84,47 @@ use_new_as_default(HPyContext *ctx, HPy self)
 
 
 static int
-legacy_setitem_using_DType(PyObject *obj, void *data, void *arr)
+legacy_setitem_using_DType(HPyContext *ctx, HPy obj, void *data, HPy h_arr)
 {
-    if (arr == NULL) {
-        PyErr_SetString(PyExc_RuntimeError,
+    if (HPy_IsNull(h_arr)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Using legacy SETITEM with NULL array object is only "
                 "supported for basic NumPy DTypes.");
         return -1;
     }
     setitemfunction *setitem;
-    setitem = NPY_DT_SLOTS(NPY_DTYPE(PyArray_DESCR(arr)))->setitem;
-    return setitem(PyArray_DESCR(arr), obj, data);
+    HPy descr = HPyArray_GetDescr(ctx, h_arr);
+    setitem = HNPY_DT_SLOTS(ctx, HNPY_DTYPE(ctx, descr))->setitem;
+    CAPI_WARN("legacy_getitem_using_DType: calling a setitemfunction function pointer");
+    PyObject *py_descr = HPy_AsPyObject(ctx, descr);
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    int ret = setitem(py_descr, py_obj, data);
+    Py_DECREF(py_descr);
+    Py_DECREF(py_obj);
+    return ret;
+
 }
 
 
-static PyObject *
-legacy_getitem_using_DType(void *data, void *arr)
+static HPy
+legacy_getitem_using_DType(HPyContext *ctx, void *data, HPy h_arr, void *arr)
 {
-    if (arr == NULL) {
-        PyErr_SetString(PyExc_RuntimeError,
+    if (HPy_IsNull(h_arr)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Using legacy SETITEM with NULL array object is only "
                 "supported for basic NumPy DTypes.");
-        return NULL;
+        return HPy_NULL;
     }
     getitemfunction *getitem;
-    getitem = NPY_DT_SLOTS(NPY_DTYPE(PyArray_DESCR(arr)))->getitem;
-    return getitem(PyArray_DESCR(arr), data);
+    HPy descr = HPyArray_DESCR(ctx, h_arr, arr);
+    getitem = HNPY_DT_SLOTS(ctx, HNPY_DTYPE(ctx, descr))->getitem;
+    CAPI_WARN("legacy_getitem_using_DType: calling a getitemfunction function pointer");
+    PyObject *py_descr = HPy_AsPyObject(ctx, descr);
+    PyObject *ret = getitem(py_descr, data);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(py_descr);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 

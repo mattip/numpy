@@ -99,29 +99,40 @@ sfloat_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
  * TODO: This should not use the old-style API, but the new-style is missing!
 */
 
-static PyObject *
-sfloat_getitem(char *data, PyArrayObject *arr)
+static HPy
+sfloat_getitem(HPyContext *ctx, char *data, HPy h_arr, PyArrayObject *arr)
 {
-    PyArray_SFloatDescr *descr = (PyArray_SFloatDescr *)PyArray_DESCR(arr);
+    HPy h_descr = HPyArray_DESCR(ctx, h_arr, arr);
+    CAPI_WARN("sfloat_getitem: using PyArray_SFloatDescr");
+    PyArray_SFloatDescr *descr = (PyArray_SFloatDescr *)HPy_AsPyObject(ctx, h_descr);
+    HPy_Close(ctx, h_descr);
     double value;
-
     memcpy(&value, data, sizeof(double));
-    return PyFloat_FromDouble(value * descr->scaling);
+    double scaling = descr->scaling;
+    Py_DECREF(descr);
+    return HPyFloat_FromDouble(ctx, value * scaling);
 }
 
 
 static int
-sfloat_setitem(PyObject *obj, char *data, PyArrayObject *arr)
+sfloat_setitem(HPyContext *ctx, HPy obj, char *data, HPy h_arr)
 {
-    if (!PyFloat_CheckExact(obj)) {
-        PyErr_SetString(PyExc_NotImplementedError,
+    HPy obj_type = HPy_Type(ctx, obj);
+    if (!HPy_Is(ctx, obj_type, ctx->h_FloatType)) {
+        HPy_Close(ctx, obj_type);
+        HPyErr_SetString(ctx, ctx->h_NotImplementedError,
                 "Currently only accepts floats");
         return -1;
     }
+    HPy_Close(ctx, obj_type);
 
-    PyArray_SFloatDescr *descr = (PyArray_SFloatDescr *)PyArray_DESCR(arr);
-    double value = PyFloat_AsDouble(obj);
+    HPy h_descr = HPyArray_GetDescr(ctx, h_arr);
+    CAPI_WARN("sfloat_setitem: using PyArray_SFloatDescr");
+    PyArray_SFloatDescr *descr = (PyArray_SFloatDescr *)HPy_AsPyObject(ctx, h_descr);
+    HPy_Close(ctx, h_descr);
+    double value = HPyFloat_AsDouble(ctx, obj);
     value /= descr->scaling;
+    Py_DECREF(descr);
 
     memcpy(data, &value, sizeof(double));
     return 0;

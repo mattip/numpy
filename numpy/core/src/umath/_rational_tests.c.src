@@ -713,38 +713,46 @@ static PyTypeObject PyRational_Type = {
 
 /* NumPy support */
 
-static PyObject*
-npyrational_getitem(void* data, void* arr) {
+static HPy
+npyrational_getitem(HPyContext *ctx, void* data, HPy h_arr, void* arr) {
     rational r;
     memcpy(&r,data,sizeof(rational));
-    return PyRational_FromRational(r);
+    PyObject *ret = PyRational_FromRational(r);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 static int
-npyrational_setitem(PyObject* item, void* data, void* arr) {
+npyrational_setitem(HPyContext *ctx, HPy item, void* data, HPy arr) {
     rational r;
-    if (PyRational_Check(item)) {
-        r = ((PyRational*)item)->r;
+    PyObject *py_item = HPy_AsPyObject(ctx, item);
+    if (PyRational_Check(py_item)) {
+        r = ((PyRational*)py_item)->r;
+        Py_DECREF(py_item);
     }
     else {
-        long long n = PyLong_AsLongLong(item);
-        PyObject* y;
+        Py_DECREF(py_item);
+        long long n = HPyLong_AsLongLong(ctx, item);
+        HPy y;
         int eq;
         if (error_converting(n)) {
             return -1;
         }
-        y = PyLong_FromLongLong(n);
-        if (!y) {
+        y = HPyLong_FromLongLong(ctx, n);
+        if (HPy_IsNull(y)) {
             return -1;
         }
-        eq = PyObject_RichCompareBool(item, y, Py_EQ);
-        Py_DECREF(y);
+        eq = HPy_RichCompareBool(ctx, item, y, HPy_EQ);
+        HPy_Close(ctx, y);
         if (eq<0) {
             return -1;
         }
         if (!eq) {
-            PyErr_Format(PyExc_TypeError,
-                    "expected rational, got %s", item->ob_type->tp_name);
+            // PyErr_Format(PyExc_TypeError,
+            //         "expected rational, got %s", item->ob_type->tp_name);
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "expected rational");
             return -1;
         }
         r = make_rational_int(n);
