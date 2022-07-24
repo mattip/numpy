@@ -2038,14 +2038,11 @@ hpy_get_descr_from_cast_or_value(HPyContext *ctx,
          * plain Python values "graciously". This recovers the original
          * value the long route, but it should almost never happen...
          */
-        PyArrayObject *py_arr_i = HPy_AsPyObject(ctx, arrs[i-ndtypes]);
-        PyObject *tmp = PyArray_GETITEM(py_arr_i,
+        HPy h_tmp = HPyArray_GETITEM(ctx, arrs[i-ndtypes],
                                         PyArray_BYTES(arr_i));
-        if (tmp == NULL) {
+        if (HPy_IsNull(h_tmp)) {
             return HPy_NULL;
         }
-        HPy h_tmp = HPy_FromPyObject(ctx, tmp);
-        Py_DECREF(tmp);
         curr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, common_dtype, h_tmp);
         HPy_Close(ctx, h_tmp);
     }

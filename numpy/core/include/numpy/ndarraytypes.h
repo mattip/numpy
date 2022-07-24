@@ -1889,6 +1889,18 @@ PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
     return py_res;
 }
 
+static NPY_INLINE HPy
+HPyArray_GETITEM(HPyContext *ctx, HPy arr, const char *itemptr)
+{
+    PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+    HPy descr = HPyArray_GetDescr(ctx, arr);
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
+    HPy result = descr_data->f->getitem(
+            ctx, (void *)itemptr, arr, arr_data);
+    HPy_Close(ctx, descr);
+    return result;
+}
+
 static NPY_INLINE PyObject *
 PyArray_Descr_GETITEM(const PyArray_Descr *descr, PyArrayObject *arr, const char *itemptr)
 {
