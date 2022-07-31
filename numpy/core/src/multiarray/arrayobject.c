@@ -150,6 +150,62 @@ PyArray_SetWritebackIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
 }
 
 /*NUMPY_API
+ *
+ * Precondition: 'arr' is a copy of 'base' (though possibly with different
+ * strides, ordering, etc.). This function sets the WRITEBACKIFCOPY flag and the
+ * ->base pointer on 'arr', call PyArray_ResolveWritebackIfCopy to copy any
+ * changes back to 'base' before deallocating the array.
+ *
+ * Steals a reference to 'base'.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+NPY_NO_EXPORT int
+HPyArray_SetWritebackIfCopyBase(HPyContext *ctx, 
+                                    HPy /* PyArrayObject * */ arr, 
+                                    PyArrayObject *arr_data, 
+                                    HPy /* PyArrayObject * */ base,
+                                    PyArrayObject *base_data)
+{
+    if (HPy_IsNull(base)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                  "Cannot WRITEBACKIFCOPY to NULL array");
+        return -1;
+    }
+    if (!HPy_IsNull(HPyArray_BASE(ctx, arr, arr_data))) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                  "Cannot set array with existing base to WRITEBACKIFCOPY");
+        goto fail;
+    }
+    if (HPyArray_FailUnlessWriteableWithStruct(ctx, base, base_data, "WRITEBACKIFCOPY base") < 0) {
+        goto fail;
+    }
+
+    /*
+     * Any writes to 'arr' will magically turn into writes to 'base', so we
+     * should warn if necessary.
+     */
+    if (PyArray_FLAGS(base_data) & NPY_ARRAY_WARN_ON_WRITE) {
+        PyArray_ENABLEFLAGS(arr_data, NPY_ARRAY_WARN_ON_WRITE);
+    }
+
+    /*
+     * Unlike PyArray_SetBaseObject, we do not compress the chain of base
+     * references.
+     */
+    HPyArray_SetBase(ctx, arr, base);
+    PyArray_ENABLEFLAGS(arr_data, NPY_ARRAY_WRITEBACKIFCOPY);
+    PyArray_CLEARFLAGS(base_data, NPY_ARRAY_WRITEABLE);
+
+    // Py_DECREF(base);
+    return 0;
+
+  fail:
+    // Py_DECREF(base);
+    return -1;
+}
+
+/*NUMPY_API
  * Sets the 'base' attribute of the array. This steals a reference
  * to 'obj'.
  *

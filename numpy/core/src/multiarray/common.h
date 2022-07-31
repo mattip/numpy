@@ -129,6 +129,11 @@ _hpy_set_descr(HPyContext *ctx, HPy h_arr, PyArrayObject *tmp_array, HPy new_des
 NPY_NO_EXPORT int
 _unpack_field(PyObject *value, PyArray_Descr **descr, npy_intp *offset);
 
+NPY_NO_EXPORT int
+_hunpack_field(HPyContext *ctx, 
+                    HPy value, 
+                    HPy *descr, // PyArray_Descr **
+                    npy_intp *offset);
 /*
  * check whether arrays with datatype dtype might have object fields. This will
  * only happen for structured dtypes (which may have hidden objects even if the

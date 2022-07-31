@@ -51,6 +51,9 @@ HPyArray_AssignRawScalar(HPyContext *ctx, HPy h_dst,
 NPY_NO_EXPORT int
 HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap);
 
+NPY_NO_EXPORT int
+HPyIsAlignedWithDescr(HPyContext *ctx, HPy h_ap, PyArrayObject *ap, PyArray_Descr *ap_descr_data);
+
 /******** LOW-LEVEL SCALAR TO ARRAY ASSIGNMENT ********/
 
 /*
@@ -127,6 +130,9 @@ IsUintAligned(PyArrayObject *ap);
 
 NPY_NO_EXPORT int
 HIsUintAligned(HPyContext *ctx, HPy arr, PyArrayObject *arr_data);
+
+NPY_NO_EXPORT int
+HIsUintAlignedWithDescr(HPyContext *ctx, HPy arr, PyArrayObject *arr_data, PyArray_Descr *arr_descr_data);
 
 /* Returns 1 if the arrays have overlapping data, 0 otherwise */
 NPY_NO_EXPORT int

@@ -28,6 +28,11 @@ is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype);
 NPY_NO_EXPORT PyArray_Descr *
 arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind);
 
+NPY_NO_EXPORT HPy
+harraydescr_field_subset_view(HPyContext *ctx,
+                    PyArray_Descr *self_data,
+                    HPy ind);
+
 extern NPY_NO_EXPORT char const *_datetime_strings[];
 
 extern NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec;

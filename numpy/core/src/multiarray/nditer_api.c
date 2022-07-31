@@ -191,20 +191,26 @@ NpyIter_RemoveMultiIndex(NpyIter *iter)
 NPY_NO_EXPORT int
 NpyIter_EnableExternalLoop(NpyIter *iter)
 {
+    return HNpyIter_EnableExternalLoop(npy_get_context(), iter);
+}
+
+NPY_NO_EXPORT int
+HNpyIter_EnableExternalLoop(HPyContext *ctx, NpyIter *iter)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     /*int ndim = NIT_NDIM(iter);*/
     int nop = NIT_NOP(iter);
 
     /* Check conditions under which this can be done */
     if (itflags&(NPY_ITFLAG_HASINDEX|NPY_ITFLAG_HASMULTIINDEX)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator flag EXTERNAL_LOOP cannot be used "
                 "if an index or multi-index is being tracked");
         return NPY_FAIL;
     }
     if ((itflags&(NPY_ITFLAG_BUFFER|NPY_ITFLAG_RANGE|NPY_ITFLAG_EXLOOP))
                         == (NPY_ITFLAG_RANGE|NPY_ITFLAG_EXLOOP)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator flag EXTERNAL_LOOP cannot be used "
                 "with ranged iteration unless buffering is also enabled");
         return NPY_FAIL;
@@ -227,7 +233,7 @@ NpyIter_EnableExternalLoop(NpyIter *iter)
     }
 
     /* Reset the iterator */
-    return NpyIter_Reset(iter, NULL);
+    return HNpyIter_Reset(ctx, iter, NULL);
 }
 
 
@@ -1028,6 +1034,39 @@ NPY_NO_EXPORT int
 NpyIter_CreateCompatibleStrides(NpyIter *iter,
                             npy_intp itemsize, npy_intp *outstrides)
 {
+    return HNpyIter_CreateCompatibleStrides(npy_get_context(), iter, itemsize, 
+                                                outstrides);
+}
+
+/*NUMPY_API
+ * Builds a set of strides which are the same as the strides of an
+ * output array created using the NPY_ITER_ALLOCATE flag, where NULL
+ * was passed for op_axes.  This is for data packed contiguously,
+ * but not necessarily in C or Fortran order. This should be used
+ * together with NpyIter_GetShape and NpyIter_GetNDim.
+ *
+ * A use case for this function is to match the shape and layout of
+ * the iterator and tack on one or more dimensions.  For example,
+ * in order to generate a vector per input value for a numerical gradient,
+ * you pass in ndim*itemsize for itemsize, then add another dimension to
+ * the end with size ndim and stride itemsize.  To do the Hessian matrix,
+ * you do the same thing but add two dimensions, or take advantage of
+ * the symmetry and pack it into 1 dimension with a particular encoding.
+ *
+ * This function may only be called if the iterator is tracking a multi-index
+ * and if NPY_ITER_DONT_NEGATE_STRIDES was used to prevent an axis from
+ * being iterated in reverse order.
+ *
+ * If an array is created with this method, simply adding 'itemsize'
+ * for each iteration will traverse the new array matching the
+ * iterator.
+ *
+ * Returns NPY_SUCCEED or NPY_FAIL.
+ */
+NPY_NO_EXPORT int
+HNpyIter_CreateCompatibleStrides(HPyContext *ctx, NpyIter *iter,
+                            npy_intp itemsize, npy_intp *outstrides)
+{
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int idim, ndim = NIT_NDIM(iter);
     int nop = NIT_NOP(iter);
@@ -1037,7 +1076,7 @@ NpyIter_CreateCompatibleStrides(NpyIter *iter,
     npy_int8 *perm;
 
     if (!(itflags&NPY_ITFLAG_HASMULTIINDEX)) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Iterator CreateCompatibleStrides may only be called "
                 "if a multi-index is being tracked");
         return NPY_FAIL;
@@ -1051,7 +1090,7 @@ NpyIter_CreateCompatibleStrides(NpyIter *iter,
         npy_bool flipped;
         npy_int8 axis = npyiter_undo_iter_axis_perm(idim, ndim, perm, &flipped);
         if (flipped) {
-            PyErr_SetString(PyExc_RuntimeError,
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Iterator CreateCompatibleStrides may only be called "
                     "if DONT_NEGATE_STRIDES was used to prevent reverse "
                     "iteration of an axis");

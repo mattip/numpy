@@ -17,6 +17,8 @@
 
 /* Numpy NpyIter HPy API */
 NPY_NO_EXPORT int
+HNpyIter_EnableExternalLoop(HPyContext *ctx, NpyIter *iter);
+NPY_NO_EXPORT int
 HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg);
 NPY_NO_EXPORT HPy *
 HNpyIter_GetDescrArray(NpyIter *iter);

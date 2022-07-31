@@ -903,6 +903,9 @@ PyArray_Transpose(PyArrayObject *ap, PyArray_Dims *permute)
     return (PyObject *)ret;
 }
 
+/*NUMPY_API
+ * Return Transpose.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Transpose(HPyContext *ctx, HPy h_ap, PyArrayObject *ap, PyArray_Dims *permute)
 {

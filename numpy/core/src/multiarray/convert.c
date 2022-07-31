@@ -563,7 +563,9 @@ PyArray_NewCopy(PyArrayObject *obj, NPY_ORDER order)
     return (PyObject *)ret;
 }
 
-// HPY TODO: Make it API
+/*NUMPY_API
+ * Copy an array.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_NewCopy(HPyContext *ctx, HPy obj, NPY_ORDER order)
 {
@@ -632,4 +634,59 @@ PyArray_View(PyArrayObject *self, PyArray_Descr *type, PyTypeObject *pytype)
         Py_DECREF(type);
     }
     return (PyObject *)ret;
+}
+
+/*NUMPY_API
+ * View
+ * steals a reference to type -- accepts NULL
+ */
+NPY_NO_EXPORT HPy
+HPyArray_View(HPyContext *ctx, 
+                    HPy /* PyArrayObject * */ self,
+                    PyArrayObject *self_data,
+                    HPy /* HPyArray_DESCR(ctx, self, self_data) */ self_descr, 
+                    HPy /* PyArray_Descr * */ type,
+                    HPy  /* PyTypeObject * */ pytype)
+{
+    HPy ret = HPy_NULL; //PyArrayObject *
+    HPy dtype;
+    HPy subtype;
+    int flags;
+    int should_close_subtype = 0;
+
+    if (HPy_IsNull(pytype)) {
+        subtype = pytype;
+    }
+    else {
+        subtype = HPy_Type(ctx, self);
+        should_close_subtype = 1;
+    }
+
+    dtype = self_descr;
+    flags = PyArray_FLAGS(self_data);
+
+    // Py_INCREF(dtype);
+    ret = HPyArray_NewFromDescr_int(ctx,
+            subtype, dtype,
+            PyArray_NDIM(self_data), PyArray_DIMS(self_data), PyArray_STRIDES(self_data),
+            PyArray_DATA(self_data),
+            flags, self, self,
+            0, 1);
+    if (should_close_subtype) {
+        HPy_Close(ctx, subtype);
+    }
+    if (HPy_IsNull(ret)) {
+        // HPy_Close(ctx, type);
+        return HPy_NULL;
+    }
+
+    if (!HPy_IsNull(type)) {
+        if (HPy_SetAttr_s(ctx, ret, "dtype", type) < 0) {
+            HPy_Close(ctx, ret);
+            // HPy_Close(ctx, type);
+            return HPy_NULL;
+        }
+        // HPy_Close(ctx, type);
+    }
+    return ret;
 }
