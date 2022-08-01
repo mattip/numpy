@@ -2094,7 +2094,7 @@ arraydescr_dealloc(PyArray_Descr *self)
         Py_INCREF(self);
         return;
     }
-    hpy_abort_not_implemented("non-builtin descriptors...");
+    // hpy_abort_not_implemented("non-builtin descriptors...");
     // Py_XDECREF(self->typeobj);
     // Py_XDECREF(self->names);
     // Py_XDECREF(self->fields);

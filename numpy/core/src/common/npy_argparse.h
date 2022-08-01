@@ -20,6 +20,8 @@
 NPY_NO_EXPORT int
 PyArray_PythonPyIntFromInt(PyObject *obj, int *value);
 
+NPY_NO_EXPORT int
+HPyArray_PythonPyIntFromInt(HPyContext *ctx, HPy obj, int *value);
 
 #define _NPY_MAX_KWARGS 15
 

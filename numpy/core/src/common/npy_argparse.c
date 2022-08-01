@@ -50,6 +50,31 @@ PyArray_PythonPyIntFromInt(PyObject *obj, int *value)
     }
 }
 
+NPY_NO_EXPORT int
+HPyArray_PythonPyIntFromInt(HPyContext *ctx, HPy obj, int *value)
+{
+    /* Pythons behaviour is to check only for float explicitly... */
+    HPy obj_type = HPy_Type(ctx, obj);
+    if (NPY_UNLIKELY(HPy_Is(ctx, obj, ctx->h_FloatType))) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "integer argument expected, got float");
+        return NPY_FAIL;
+    }
+
+    long result = HPyLong_AsLong(ctx, obj);
+    if (NPY_UNLIKELY((result == -1) && HPyErr_Occurred(ctx))) {
+        return NPY_FAIL;
+    }
+    if (NPY_UNLIKELY((result > INT_MAX) || (result < INT_MIN))) {
+        HPyErr_SetString(ctx, ctx->h_OverflowError,
+                        "Python int too large to convert to C int");
+        return NPY_FAIL;
+    }
+    else {
+        *value = (int)result;
+        return NPY_SUCCEED;
+    }
+}
 
 typedef int convert(PyObject *, void *);
 
