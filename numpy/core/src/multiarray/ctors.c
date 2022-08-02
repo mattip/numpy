@@ -949,7 +949,9 @@ HPyArray_NewFromDescr_int(
         }
         else if (PyDataType_ISSTRING(descr) && !allow_emptystring &&
                  data == NULL) {
-            HPyArray_DESCR_REPLACE(ctx, h_descr);
+            HPy dup_h_descr = HPy_Dup(ctx, h_descr); // duplicate before closing an arg
+            HPyArray_DESCR_REPLACE(ctx, dup_h_descr);
+            h_descr = dup_h_descr;
             if (HPy_IsNull(h_descr)) {
                 return HPy_NULL;
             }
