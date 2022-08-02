@@ -366,6 +366,7 @@ multiarray_funcs_api = {
     'HPyArray_MapIterArrayCopyIfOverlap':   (313,),
     'HPyArray_SetWritebackIfCopyBase':      (314,),
     'HNpyIter_CreateCompatibleStrides':     (315,),
+    'HPyArray_FromArray':                   (316,),
 }
 
 ufunc_types_api = {

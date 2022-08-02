@@ -1107,46 +1107,46 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     }
     if (type_num == NPY_UNICODE) {
         hpy_abort_not_implemented("unicode");
-        // /* we need the full string length here, else copyswap will write too
-        //    many bytes */
-        // void *buff = PyArray_malloc(descr->elsize);
-        // if (buff == NULL) {
-        //     return HPyErr_NoMemory(ctx);
-        // }
-        // /* copyswap needs an array object, but only actually cares about the
-        //  * dtype
-        //  */
-        // int fake_base = 0;
-        // if (base == NULL) {
-        //     fake_base = 1;
-        //     npy_intp shape = 1;
-        //     Py_INCREF(descr);
-        //     base = PyArray_NewFromDescr_int(
-        //             &PyArray_Type, descr, 1,
-        //             &shape, NULL, NULL,
-        //             0, NULL, NULL, 0, 1);
-        // }
-        // copyswap(buff, data, swap, base);
-        // if (fake_base) {
-        //     Py_CLEAR(base);
-        // }
+        /* we need the full string length here, else copyswap will write too
+           many bytes */
+        void *buff = PyArray_malloc(descr->elsize);
+        if (buff == NULL) {
+            return HPyErr_NoMemory(ctx);
+        }
+        /* copyswap needs an array object, but only actually cares about the
+         * dtype
+         */
+        int fake_base = 0;
+        if (base == NULL) {
+            fake_base = 1;
+            npy_intp shape = 1;
+            Py_INCREF(descr);
+            base = PyArray_NewFromDescr_int(
+                    &PyArray_Type, descr, 1,
+                    &shape, NULL, NULL,
+                    0, NULL, NULL, 0, 1);
+        }
+        copyswap(buff, data, swap, base);
+        if (fake_base) {
+            Py_CLEAR(base);
+        }
 
-        // /* truncation occurs here */
-        // PyObject *u = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, buff, itemsize / 4);
-        // PyArray_free(buff);
-        // if (u == NULL) {
-        //     return NULL;
-        // }
+        /* truncation occurs here */
+        PyObject *u = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, buff, itemsize / 4);
+        PyArray_free(buff);
+        if (u == NULL) {
+            return NULL;
+        }
 
-        // PyObject *args = Py_BuildValue("(O)", u);
-        // if (args == NULL) {
-        //     Py_DECREF(u);
-        //     return NULL;
-        // }
-        // obj = type->tp_new(type, args, NULL);
-        // Py_DECREF(u);
-        // Py_DECREF(args);
-        // return obj;
+        PyObject *args = Py_BuildValue("(O)", u);
+        if (args == NULL) {
+            Py_DECREF(u);
+            return NULL;
+        }
+        obj = type->tp_new(type, args, NULL);
+        Py_DECREF(u);
+        Py_DECREF(args);
+        return obj;
     }
     // HPY: we should have failed earlier already for string types..
     // if (type->tp_itemsize != 0) {

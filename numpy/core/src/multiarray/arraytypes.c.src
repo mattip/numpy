@@ -792,7 +792,7 @@ static HPy
 UNICODE_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap) {
     // TODO HPY LABS PORT: implememnt
     PyObject *vap = HPy_AsPyObject(ctx, h_vap);
-    CAPI_WARN("call to UNICODE_getitem");
+    CAPI_WARN("call to UNICODE_getitem (missing PyUnicode_FromUCS4)");
     HPy ret = HPy_FromPyObject(ctx, UNICODE_getitem(input, vap));
     Py_DECREF(vap);
     return ret;

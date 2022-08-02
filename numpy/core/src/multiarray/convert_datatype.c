@@ -1188,6 +1188,23 @@ npy_set_invalid_cast_error(
             msg, src_dtype, dst_dtype, npy_casting_to_string(casting));
 }
 
+NPY_NO_EXPORT void
+hpy_npy_set_invalid_cast_error(HPyContext *ctx,
+        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        NPY_CASTING casting, npy_bool scalar)
+{
+    char *msg;
+
+    if (!scalar) {
+        msg = "Cannot cast array data from %R to %R according to the rule %s";
+    }
+    else {
+        msg = "Cannot cast scalar from %R to %R according to the rule %s";
+    }
+    // PyErr_Format(PyExc_TypeError,
+    //         msg, src_dtype, dst_dtype, npy_casting_to_string(casting));
+    HPyErr_SetString(ctx, ctx->h_TypeError, msg);
+}
 
 /*NUMPY_API
  * See if array scalars can be cast.

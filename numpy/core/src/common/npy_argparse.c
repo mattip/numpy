@@ -54,7 +54,6 @@ NPY_NO_EXPORT int
 HPyArray_PythonPyIntFromInt(HPyContext *ctx, HPy obj, int *value)
 {
     /* Pythons behaviour is to check only for float explicitly... */
-    HPy obj_type = HPy_Type(ctx, obj);
     if (NPY_UNLIKELY(HPy_Is(ctx, obj, ctx->h_FloatType))) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
                         "integer argument expected, got float");
