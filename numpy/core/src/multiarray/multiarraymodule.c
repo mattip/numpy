@@ -3536,21 +3536,10 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
             HPy_Close(ctx, h_common_dt);
             goto fail;
         }
-        CAPI_WARN("NpyIter_MultiNew");
-        PyArrayObject * op_in[4] = {
-            NULL, 
-            (PyArrayObject *)HPy_AsPyObject(ctx, h_arr), 
-            (PyArrayObject *)HPy_AsPyObject(ctx, h_ax),
-            (PyArrayObject *)HPy_AsPyObject(ctx, h_ay)
-        };
-        PyArray_Descr * common_dt = (PyArray_Descr *)HPy_AsPyObject(ctx, h_common_dt);
-        PyArray_Descr * op_dt[4] = {common_dt, (PyArray_Descr *)HPy_AsPyObject(ctx, h_npy_bool),
-                                    common_dt, common_dt};
-        iter =  NpyIter_MultiNew(4, op_in, flags,
+        iter =  HNpyIter_MultiNew(ctx, 4, h_op_in, flags,
                                  NPY_KEEPORDER, NPY_UNSAFE_CASTING,
-                                 op_flags, op_dt);
+                                 op_flags, h_op_dt);
         HPy_Close(ctx, h_op_dt[1]);
-        HPy_Close(ctx, h_common_dt);
         if (iter == NULL) {
             goto fail;
         }

@@ -47,6 +47,9 @@ _try_convert_from_inherit_tuple(PyArray_Descr *type, PyObject *newobj);
 static PyArray_Descr *
 _convert_from_any(PyObject *obj, int align);
 
+static HPy
+_hpy_convert_from_any(HPyContext *ctx, HPy obj, int align);
+
 /*
  * This function creates a dtype object when the object is a ctypes subclass.
  *
@@ -150,11 +153,70 @@ _try_convert_from_dtype_attr(PyObject *obj)
     return NULL;
 }
 
+static HPy // PyArray_Descr *
+_hpy_try_convert_from_dtype_attr(HPyContext *ctx, HPy obj)
+{
+    /* For arbitrary objects that have a "dtype" attribute */
+    HPy dtypedescr = HPy_GetAttr_s(ctx, obj, "dtype");
+    if (HPy_IsNull(dtypedescr)) {
+        /*
+         * This can be reached due to recursion limit being hit while fetching
+         * the attribute (tested for py3.7). This removes the custom message.
+         */
+        goto fail;
+    }
+
+    if (HPyArray_DescrCheck(ctx, dtypedescr)) {
+        /* The dtype attribute is already a valid descriptor */
+        return dtypedescr;
+    }
+
+    CAPI_WARN("missing Py_EnterRecursiveCall & Py_LeaveRecursiveCall");
+    if (Py_EnterRecursiveCall(
+            " while trying to convert the given data type from its "
+            "`.dtype` attribute.") != 0) {
+        HPy_Close(ctx, dtypedescr);
+        return HPy_NULL;
+    }
+
+    HPy newdescr = _hpy_convert_from_any(ctx, dtypedescr, 0);
+    HPy_Close(ctx, dtypedescr);
+    Py_LeaveRecursiveCall();
+    if (HPy_IsNull(newdescr)) {
+        goto fail;
+    }
+
+    /* Deprecated 2021-01-05, NumPy 1.21 */
+    if (HPY_DEPRECATE(ctx, "in the future the `.dtype` attribute of a given data"
+                  "type object must be a valid dtype instance. "
+                  "`data_type.dtype` may need to be coerced using "
+                  "`np.dtype(data_type.dtype)`. (Deprecated NumPy 1.20)") < 0) {
+        HPy_Close(ctx, newdescr);
+        return HPy_NULL;
+    }
+
+    return newdescr;
+
+  fail:
+    /* Ignore all but recursion errors, to give ctypes a full try. */
+    if (!HPyErr_ExceptionMatches(ctx, ctx->h_RecursionError)) {
+        HPyErr_Clear(ctx);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    return HPy_NULL;
+}
+
 /* Expose to another file with a prefixed name */
 NPY_NO_EXPORT PyArray_Descr *
 _arraydescr_try_convert_from_dtype_attr(PyObject *obj)
 {
     return _try_convert_from_dtype_attr(obj);
+}
+
+NPY_NO_EXPORT HPy // PyArray_Descr *
+_hpy_arraydescr_try_convert_from_dtype_attr(HPyContext *ctx, HPy obj)
+{
+    return _hpy_try_convert_from_dtype_attr(ctx, obj);
 }
 
 /*
@@ -1715,7 +1777,7 @@ _hpy_convert_from_any(HPyContext *ctx, HPy obj, int align)
         return _hpy_convert_from_type(ctx, obj);
     }
     else {
-        capi_warn("_hpy_convert_from_any");
+        CAPI_WARN("_hpy_convert_from_any");
         PyObject *py_obj = HPy_AsPyObject(ctx, obj);
         PyObject *py_result = (PyObject *) _convert_from_any(py_obj, align);
         HPy result = HPy_FromPyObject(ctx, py_result);

@@ -1788,13 +1788,13 @@ array_boolean_subscript(HPyContext *ctx, HPy self, // PyArrayObject *
     HPy ret; // PyArrayObject *
     int needs_api = 0;
     PyArrayObject *bmask_data = PyArrayObject_AsStruct(ctx, bmask);
-    PyArrayObject *self_data = PyArrayObject_AsStruct(ctx, self);
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
 
     size = count_boolean_trues(ctx, PyArray_NDIM(bmask_data), PyArray_DATA(bmask_data),
                                 PyArray_DIMS(bmask_data), PyArray_STRIDES(bmask_data));
 
     /* Allocate the output of the boolean indexing */
-    dtype = HPyArray_DESCR(ctx, self, self_data);
+    dtype = HPyArray_DESCR(ctx, self, self_struct);
     // Py_INCREF(dtype);
     HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     ret = HPyArray_NewFromDescr(ctx, array_type, dtype, 1, &size,
@@ -1842,8 +1842,8 @@ array_boolean_subscript(HPyContext *ctx, HPy self, // PyArrayObject *
         NpyIter_GetInnerFixedStrideArray(iter, fixed_strides);
         NPY_cast_info cast_info;
         if (HPyArray_GetDTypeTransferFunction(ctx,
-                        HIsUintAlignedWithDescr(ctx, self, self_data, dtype_data) && 
-                            HPyIsAlignedWithDescr(ctx, self, self_data, dtype_data),
+                        HIsUintAlignedWithDescr(ctx, self, self_struct, dtype_data) && 
+                            HPyIsAlignedWithDescr(ctx, self, self_struct, dtype_data),
                         fixed_strides[0], itemsize,
                         dtype, dtype,
                         0,
@@ -1922,7 +1922,7 @@ array_boolean_subscript(HPyContext *ctx, HPy self, // PyArrayObject *
         ret = HPyArray_NewFromDescrAndBase(ctx,
                 HPy_Type(ctx, self), dtype,
                 1, &size, PyArray_STRIDES(ret_struct), PyArray_BYTES(ret_struct),
-                PyArray_FLAGS(self_data), self, tmp);
+                PyArray_FLAGS(self_struct), self, tmp);
 
         HPy_Close(ctx, tmp);
         if (HPy_IsNull(ret)) {
@@ -3898,7 +3898,7 @@ HPyArray_MapIterNew(HPyContext *ctx, hpy_npy_index_info *indices , int index_num
     }
     else {
         /* TODO: Maybe add test for the CORDER, and maybe also allow F */
-        mit->outer = NpyIter_MultiNew(nops, index_arrays, outer_flags,
+        mit->outer = HNpyIter_MultiNew(ctx, nops, index_arrays, outer_flags,
                          NPY_CORDER, NPY_UNSAFE_CASTING, op_flags, dtypes);
     }
 

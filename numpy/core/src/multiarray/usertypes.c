@@ -237,7 +237,7 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
                         " is missing.");
         return -1;
     }
-    if (HPyField_IsNull(s_descr->typeobj) == NULL) {
+    if (HPyField_IsNull(s_descr->typeobj)) {
         HPyErr_SetString(ctx, ctx->h_ValueError, "missing typeobject");
         return -1;
     }
