@@ -191,11 +191,12 @@ hpy_scalar_value(HPyContext *ctx, HPy scalar, PyArray_Descr *descr)
     int type_num;
     int align;
     uintptr_t memloc;
+    PyObject *py_scalar = NULL;
     if (descr == NULL) {
-        hpy_abort_not_implemented("descr is NULL");
-        // descr = PyArray_DescrFromScalar(scalar);
-        // type_num = descr->type_num;
-        // Py_DECREF(descr);
+        HPy h_descr = HPyArray_DescrFromScalar(ctx, scalar);
+        descr = PyArray_Descr_AsStruct(ctx, h_descr);
+        type_num = descr->type_num;
+        HPy_Close(ctx, h_descr);
     }
     else {
         type_num = descr->type_num;
@@ -220,30 +221,28 @@ hpy_scalar_value(HPyContext *ctx, HPy scalar, PyArray_Descr *descr)
         CASE(CFLOAT, CFloat);
         CASE(CDOUBLE, CDouble);
         CASE(CLONGDOUBLE, CLongDouble);
+        CASE(OBJECT, Object);
         CASE(DATETIME, Datetime);
         CASE(TIMEDELTA, Timedelta);
 #undef CASE
-        case NPY_OBJECT:
-            hpy_abort_not_implemented("objects");
         case NPY_STRING:
-            hpy_abort_not_implemented("strings");
-            // return (void *)PyBytes_AsString(scalar);
+            return HPyBytes_AsString(ctx, scalar);
         case NPY_UNICODE:
-            hpy_abort_not_implemented("unicode");
-            // /* lazy initialization, to reduce the memory used by string scalars */
-            // if (PyArrayScalar_VAL(scalar, Unicode) == NULL) {
-            //     Py_UCS4 *raw_data = PyUnicode_AsUCS4Copy(scalar);
-            //     if (raw_data == NULL) {
-            //         return NULL;
-            //     }
-            //     PyArrayScalar_VAL(scalar, Unicode) = raw_data;
-            //     return (void *)raw_data;
-            // }
-            // return PyArrayScalar_VAL(scalar, Unicode);
+            py_scalar = HPy_AsPyObject(ctx, scalar);
+            /* lazy initialization, to reduce the memory used by string scalars */
+            if (HPyArrayScalar_VAL(ctx, scalar, Unicode) == NULL) {
+                CAPI_WARN("missing PyUnicode_AsUCS4Copy");
+                Py_UCS4 *raw_data = PyUnicode_AsUCS4Copy(py_scalar);
+                if (raw_data == NULL) {
+                    return NULL;
+                }
+                HPyArrayScalar_VAL(ctx, scalar, Unicode) = raw_data;
+                return (void *)raw_data;
+            }
+            return HPyArrayScalar_VAL(ctx, scalar, Unicode);
         case NPY_VOID:
-            hpy_abort_not_implemented("void");
-            // /* Note: no & needed here, so can't use CASE */
-            // return PyArrayScalar_VAL(scalar, Void);
+            /* Note: no & needed here, so can't use CASE */
+            return HPyArrayScalar_VAL(ctx, scalar, Void);
     }
 
     /*
@@ -1106,7 +1105,6 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         }
     }
     if (type_num == NPY_UNICODE) {
-        hpy_abort_not_implemented("unicode");
         /* we need the full string length here, else copyswap will write too
            many bytes */
         void *buff = PyArray_malloc(descr->elsize);
@@ -1117,35 +1115,50 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
          * dtype
          */
         int fake_base = 0;
-        if (base == NULL) {
+        if (HPy_IsNull(base)) {
             fake_base = 1;
             npy_intp shape = 1;
-            Py_INCREF(descr);
-            base = PyArray_NewFromDescr_int(
-                    &PyArray_Type, descr, 1,
+            // Py_INCREF(descr);
+            HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+            base = HPyArray_NewFromDescr_int(ctx,
+                    array_type, h_descr, 1,
                     &shape, NULL, NULL,
-                    0, NULL, NULL, 0, 1);
+                    0, HPy_NULL, HPy_NULL, 0, 1);
+            HPy_Close(ctx, array_type);
         }
-        copyswap(buff, data, swap, base);
-        if (fake_base) {
-            Py_CLEAR(base);
+        PyObject *py_base = HPy_AsPyObject(ctx, base);
+        CAPI_WARN("calling copyswap");
+        copyswap(buff, data, swap, py_base); // see VOID_copyswap and UNICODE_copyswapn
+        Py_DECREF(py_base);
+        if (fake_base && !HPy_IsNull(base)) {
+            HPy_Close(ctx, base);
+            base = HPy_NULL;
         }
 
         /* truncation occurs here */
+        CAPI_WARN("calling PyUnicode_FromKindAndData");
         PyObject *u = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, buff, itemsize / 4);
         PyArray_free(buff);
         if (u == NULL) {
-            return NULL;
+            return HPy_NULL;
         }
-
-        PyObject *args = Py_BuildValue("(O)", u);
-        if (args == NULL) {
-            Py_DECREF(u);
-            return NULL;
-        }
-        obj = type->tp_new(type, args, NULL);
+        HPy h_u = HPy_FromPyObject(ctx, u);
         Py_DECREF(u);
-        Py_DECREF(args);
+
+        HPy args = HPy_BuildValue(ctx, "(O)", u);
+        HPy_Close(ctx, h_u);
+        if (HPy_IsNull(args)) {
+            return HPy_NULL;
+        }
+        CAPI_WARN("calling tp_new with args");
+        PyTypeObject *py_type = HPy_AsPyObject(ctx, type);
+        PyObject *py_args = HPy_AsPyObject(ctx, args);
+        PyObject *py_obj = py_type->tp_new(py_type, py_args, NULL);
+        obj = HPy_FromPyObject(ctx, py_obj);
+        Py_DECREF(py_type);
+        Py_DECREF(py_args);
+        Py_DECREF(py_obj);
+        HPy_Close(ctx, args);
         return obj;
     }
     // HPY: we should have failed earlier already for string types..
