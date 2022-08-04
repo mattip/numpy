@@ -1831,7 +1831,10 @@ _hpy_array_fromobject_generic(
     // HPy version has to use two calls HPy_Type and HPy_Is
     // It would be faster to check subok first and then exact or subclass check
     array_type = HPyGlobal_Load(ctx, HPyArray_Type);
-    if (HPy_Is(ctx, HPy_Type(ctx, op), array_type) ||
+    HPy op_type = HPy_Type(ctx, op);
+    int is_op_HPyArray_Type = HPy_Is(ctx, op_type, array_type);
+    HPy_Close(ctx, op_type);
+    if (is_op_HPyArray_Type ||
         (subok && HPy_TypeCheck(ctx, op, array_type))) {
         oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
@@ -1852,7 +1855,6 @@ _hpy_array_fromobject_generic(
         /* One more chance */
         oldtype = HPyArray_DESCR(ctx, op, oparr);
         oldtype_data = PyArray_Descr_AsStruct(ctx, oldtype);
-         // HPY TODO: assumes that oldtype stays alive -> fix when porting this code
         if (HPyArray_EquivTypes(ctx, oldtype, type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);

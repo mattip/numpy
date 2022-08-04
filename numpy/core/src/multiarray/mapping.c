@@ -1187,7 +1187,30 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
          * array (an array scalar) or something invalid.
          */
         if (!HPyArray_Check(ctx, obj)) {
-            hpy_abort_not_implemented("!HPyArray_Check(ctx, obj)");
+            HPy tmp_arr = HPyArray_FROM_O(ctx, obj);
+            if (HPy_IsNull(tmp_arr)) {
+                /* TODO: Should maybe replace the error here? */
+                goto failed_building_indices;
+            }
+
+            /*
+             * For example an empty list can be cast to an integer array,
+             * however it will default to a float one.
+             */
+            PyArrayObject *tmp_arr_data = PyArrayObject_AsStruct(ctx, tmp_arr);
+            if (HPyArray_SIZE(tmp_arr_data) == 0) {
+                HPy indtype = HPyArray_DescrFromType(ctx, NPY_INTP); // PyArray_Descr *
+                PyArray_Descr *indtype_data = PyArray_Descr_AsStruct(ctx, indtype);
+                h_arr = HPyArray_FromArray(ctx, tmp_arr, tmp_arr_data, 
+                                            indtype, indtype_data, NPY_ARRAY_FORCECAST);
+                HPy_Close(ctx, tmp_arr);
+                if (HPy_IsNull(h_arr)) {
+                    goto failed_building_indices;
+                }
+            }
+            else {
+                h_arr = tmp_arr;
+            }
         } else {
             h_arr = HPy_Dup(ctx, obj);
         }
