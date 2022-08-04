@@ -182,7 +182,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     HPy tmp_descr;
     #define SET_DTYPE_FROM_NUM(num)                           \
         HPy_Close(ctx, dtype);                                \
-        tmp_descr = HPyArray_DescrFromType(ctx, NPY_UNICODE); \
+        tmp_descr = HPyArray_DescrFromType(ctx, num);         \
         dtype = HNPY_DTYPE(ctx, tmp_descr);                   \
         HPy_Close(ctx, tmp_descr);
 
