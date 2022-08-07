@@ -1273,7 +1273,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
             return HPy_NULL;
         }
         CAPI_WARN("calling tp_new with args");
-        PyTypeObject *py_type = HPy_AsPyObject(ctx, type);
+        PyTypeObject *py_type = (PyTypeObject *)HPy_AsPyObject(ctx, type);
         PyObject *py_args = HPy_AsPyObject(ctx, args);
         PyObject *py_obj = py_type->tp_new(py_type, py_args, NULL);
         obj = HPy_FromPyObject(ctx, py_obj);

@@ -333,7 +333,7 @@ PyUFunc_AddLoopFromSpec(PyObject *ufunc, PyArrayMethod_Spec *spec)
     // TODO HPY LABS PORT
     HPyContext *ctx = npy_get_context();
     HPy h_ufunc = HPy_FromPyObject(ctx, ufunc);
-    HPy h_spec = HPy_FromPyObject(ctx, spec);
+    HPy h_spec = HPy_FromPyObject(ctx, (PyObject*)spec);
     if (!HPyGlobal_TypeCheck(ctx, h_ufunc, HPyUFunc_Type)) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
                 "ufunc object passed is not a ufunc!");

@@ -3361,7 +3361,7 @@ HPyArray_FromArrayAttr_int(HPyContext *ctx,
     }
     // TODO HPY LABS PORT
     PyObject *op = HPy_AsPyObject(ctx, h_op);
-    PyArray_Descr *descr = HPy_AsPyObject(ctx, h_descr);
+    PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
     PyObject *ret = PyArray_FromArrayAttr_int(op, descr, never_copy);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(op);

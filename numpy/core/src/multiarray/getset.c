@@ -321,7 +321,7 @@ array_interface_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     }
 
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
     HPy h_obj = array_shape_get(ctx, h_self, NULL);
     obj = HPy_AsPyObject(ctx, h_obj);
     HPy_Close(ctx, h_self);

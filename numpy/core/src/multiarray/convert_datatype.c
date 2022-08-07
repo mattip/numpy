@@ -1101,8 +1101,8 @@ PyArray_CanCastArrayTo(PyArrayObject *arr, PyArray_Descr *to,
                         NPY_CASTING casting)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_arr = HPy_FromPyObject(ctx, arr);
-    HPy h_to = HPy_FromPyObject(ctx, to);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_to = HPy_FromPyObject(ctx, (PyObject*)to);
     return HPyArray_CanCastArrayTo(ctx, h_arr, h_to, casting);
 }
 
@@ -1304,9 +1304,9 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
     else {
         // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
         CAPI_WARN("hensure_dtype_nbo: calling PyArray_DescrNewByteorder");
-        PyArray_Descr *py_type = HPy_AsPyObject(ctx, type);
+        PyArray_Descr *py_type = (PyArray_Descr *)HPy_AsPyObject(ctx, type);
         PyArray_Descr *ret = PyArray_DescrNewByteorder(py_type, NPY_NATIVE);
-        HPy h_ret = HPy_FromPyObject(ctx, ret);
+        HPy h_ret = HPy_FromPyObject(ctx, (PyObject*)ret);
         Py_DECREF(py_type);
         Py_DECREF(ret);
         return h_ret;
@@ -1542,8 +1542,8 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
      * NOTE: Common instance preserves metadata (normally and of one input)
      */
     CAPI_WARN("HPyArray_PromoteTypes: calling NPY_DT_SLOTS(common_dtype)->common_instance");
-    PyArray_Descr *py_type1 = HPy_AsPyObject(ctx, hh_type1);
-    PyArray_Descr *py_type2 = HPy_AsPyObject(ctx, hh_type2);
+    PyArray_Descr *py_type1 = (PyArray_Descr *)HPy_AsPyObject(ctx, hh_type1);
+    PyArray_Descr *py_type2 = (PyArray_Descr *)HPy_AsPyObject(ctx, hh_type2);
     PyArray_Descr *py_res = NPY_DT_SLOTS(common_dtype)->common_instance(py_type1, py_type2);
     res = HPy_FromPyObject(ctx, (PyObject *)py_res);
     HPy_Close(ctx, hh_type1);

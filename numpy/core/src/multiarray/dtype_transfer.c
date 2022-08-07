@@ -225,7 +225,7 @@ _strided_to_strided_any_to_object(HPyContext *ctx,
     while (N > 0) {
         memcpy(&dst_ref, dst, sizeof(dst_ref));
         Py_XDECREF(dst_ref);
-        HPy h_arr = HPy_FromPyObject(ctx, data->arr);
+        HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)data->arr);
         h_dst_ref = data->getitem(ctx, src, h_arr, data->arr);
         dst_ref = HPy_AsPyObject(ctx, h_dst_ref);
         memcpy(dst, &dst_ref, sizeof(PyObject *));
@@ -389,7 +389,7 @@ object_to_any_get_loop(
     data->base.free = &_object_to_any_auxdata_free;
     data->base.clone = &_object_to_any_auxdata_clone;
 
-    PyArray_Descr *descr = HPy_AsPyObject(ctx, context->descriptors[1]);
+    PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(ctx, context->descriptors[1]);
     Py_INCREF(descr);
     data->descr = descr;
     data->move_references = move_references;
@@ -630,7 +630,7 @@ hwrap_copy_swap_function(
 {
     // TODO HPY LABS PORT
     CAPI_WARN("calling wrap_copy_swap_function");
-    PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtype);
+    PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
     int ret = wrap_copy_swap_function(py_dtype, should_swap, out_stransfer, out_transferdata);
     Py_DECREF(py_dtype);
     return ret;
@@ -1348,7 +1348,7 @@ hget_legacy_dtype_cast_function(
 
     /* Get the cast function */
     CAPI_WARN("calling PyArray_GetCastFunc");
-    PyArray_Descr *py_src_dtype = HPy_AsPyObject(ctx, src_dtype);
+    PyArray_Descr *py_src_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, src_dtype);
     castfunc = PyArray_GetCastFunc(py_src_dtype, dst_dtype_data->type_num);
     if (!castfunc) {
         *out_stransfer = NULL;
@@ -1386,7 +1386,7 @@ hget_legacy_dtype_cast_function(
             PyMem_Free(data);
             return NPY_FAIL;
         }
-        tmp_dtype = HPy_FromPyObject(ctx, py_tmp_dtype);
+        tmp_dtype = HPy_FromPyObject(ctx, (PyObject*)py_tmp_dtype);
         Py_DECREF(py_tmp_dtype);
         py_tmp_dtype = NULL;
     }
@@ -1402,7 +1402,7 @@ hget_legacy_dtype_cast_function(
         HPy_Close(ctx, h_array_type);
         return NPY_FAIL;
     }
-    data->aip = HPy_AsPyObject(ctx, h_aip);
+    data->aip = (PyArrayObject *)HPy_AsPyObject(ctx, h_aip);
     HPy_Close(ctx, h_aip);
     /*
      * TODO: This is a hack so the cast functions have an array.
@@ -1415,7 +1415,7 @@ hget_legacy_dtype_cast_function(
         // Py_INCREF(tmp_dtype);
     }
     else {
-        PyArray_Descr *py_dst_dtype = HPy_AsPyObject(ctx, dst_dtype);
+        PyArray_Descr *py_dst_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dst_dtype);
         py_tmp_dtype = PyArray_DescrNewByteorder(py_dst_dtype, NPY_NATIVE);
         Py_DECREF(py_dst_dtype);
         if (py_tmp_dtype == NULL) {
@@ -1423,7 +1423,7 @@ hget_legacy_dtype_cast_function(
             PyMem_Free(data);
             return NPY_FAIL;
         }
-        tmp_dtype = HPy_FromPyObject(ctx, py_tmp_dtype);
+        tmp_dtype = HPy_FromPyObject(ctx, (PyObject*)py_tmp_dtype);
         Py_DECREF(py_tmp_dtype);
         py_tmp_dtype = NULL;
     }
@@ -1438,7 +1438,7 @@ hget_legacy_dtype_cast_function(
         PyMem_Free(data);
         return NPY_FAIL;
     }
-    data->aop = HPy_AsPyObject(ctx, h_aop);
+    data->aop = (PyArrayObject *)HPy_AsPyObject(ctx, h_aop);
 
     /* If it's aligned and all native byte order, we're all done */
     if (move_references && src_dtype_data->type_num == NPY_OBJECT) {
@@ -2925,7 +2925,7 @@ hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
                             int *out_needs_api) {
     /* TODO HPY LABS PORT: cut off */
     CAPI_WARN("calling get_decref_transfer_function");
-    PyArray_Descr *src_dtype = HPy_AsPyObject(ctx, h_src_dtype);
+    PyArray_Descr *src_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_src_dtype);
     int ret = get_decref_transfer_function(aligned, src_stride, src_dtype, cast_info, out_needs_api);
     Py_DECREF(src_dtype);
     return ret;
