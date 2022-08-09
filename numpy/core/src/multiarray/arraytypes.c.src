@@ -795,9 +795,6 @@ UNICODE_hpy_getitem(HPyContext *ctx, void *ip, HPy h_vap, PyArrayObject *ap) {
     int align = !PyArray_ISALIGNED(ap);
 
     CAPI_WARN("missing PyUnicode_FromUCS4");
-    if (size == 0) {
-        printf("ip = %s\n", ip);
-    }
     PyObject *ret = (PyObject *)PyUnicode_FromUCS4(ip, size, swap, align);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(ret);
