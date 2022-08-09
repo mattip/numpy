@@ -367,7 +367,7 @@ hpy_multiarray_global_vars = {
 }
 
 hpy_multiarray_scalar_bool_values = {
-    # '_HPyArrayScalar_BoolValues':    (9,)
+    '_HPyArrayScalar_BoolValues':    (9,)
 }
 
 # index, annotations

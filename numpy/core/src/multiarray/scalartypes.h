@@ -119,42 +119,4 @@ NPY_NO_EXPORT PyTypeObject *_PyDatetimeArrType_Type_p;
 NPY_NO_EXPORT PyTypeObject *_PyTimedeltaArrType_Type_p;
 NPY_NO_EXPORT PyTypeObject *_PyHalfArrType_Type_p;
 
-extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyBoolArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyNumberArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyIntegerArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPySignedIntegerArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyUnsignedIntegerArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyInexactArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyFloatingArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyComplexFloatingArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyFlexibleArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyCharacterArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyByteArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyShortArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyIntArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyLongArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyLongLongArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyUByteArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyUShortArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyUIntArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyULongArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyULongLongArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyFloatArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyDoubleArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyLongDoubleArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyCFloatArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyCDoubleArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyCLongDoubleArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyObjectArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyStringArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyUnicodeArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyDatetimeArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyTimedeltaArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyHalfArrType_Type;
-
-extern NPY_NO_EXPORT HPyGlobal _HPyArrayScalar_BoolValues[2];
-
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SCALARTYPES_H_ */

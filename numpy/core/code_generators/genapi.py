@@ -390,11 +390,9 @@ extern NPY_NO_EXPORT %(type)s %(name)s;
 # array api
 class BoolValuesApi:
     def __init__(self, name, index, api_name, hpy=False):
-        if hpy:
-            raise ValueError("BoolValuesApi is not supported")
         self.name = name
         self.index = index
-        self.type = 'PyBoolScalarObject'
+        self.type = 'PyBoolScalarObject' if not hpy else 'HPyGlobal'
         self.api_name = api_name
         self.hpy = hpy
 
@@ -411,6 +409,10 @@ class BoolValuesApi:
         return None
 
     def internal_define(self):
+        if self.hpy:
+            return """\
+extern NPY_NO_EXPORT HPyGlobal _HPyArrayScalar_BoolValues[2];
+"""
         astr = """\
 extern NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[2];
 """
