@@ -194,6 +194,9 @@ NpyIter_EnableExternalLoop(NpyIter *iter)
     return HNpyIter_EnableExternalLoop(npy_get_context(), iter);
 }
 
+/*HPY_NUMPY_API
+ * Removes the inner loop handling (so HasExternalLoop returns true)
+ */
 NPY_NO_EXPORT int
 HNpyIter_EnableExternalLoop(HPyContext *ctx, NpyIter *iter)
 {
@@ -259,6 +262,18 @@ NpyIter_Reset(NpyIter *iter, char **errmsg)
     return HNpyIter_Reset(npy_get_context(), iter, errmsg);
 }
 
+/*HPY_NUMPY_API
+ * Resets the iterator to its initial state
+ *
+ * The use of errmsg is discouraged, it cannot be guaranteed that the GIL
+ * will not be grabbed on casting errors even when this is passed.
+ *
+ * If errmsg is non-NULL, it should point to a variable which will
+ * receive the error message, and no Python exception will be set.
+ * This is so that the function can be called from code not holding
+ * the GIL. Note that cast errors may still lead to the GIL being
+ * grabbed temporarily.
+ */
 NPY_NO_EXPORT int
 HNpyIter_Reset(HPyContext *ctx, NpyIter *iter, char **errmsg)
 {
@@ -330,6 +345,16 @@ NpyIter_ResetBasePointers(NpyIter *iter, char **baseptrs, char **errmsg)
     return HNpyIter_ResetBasePointers(npy_get_context(), iter, baseptrs, errmsg);
 }
 
+/*HPY_NUMPY_API
+ * Resets the iterator to its initial state, with new base data pointers.
+ * This function requires great caution.
+ *
+ * If errmsg is non-NULL, it should point to a variable which will
+ * receive the error message, and no Python exception will be set.
+ * This is so that the function can be called from code not holding
+ * the GIL. Note that cast errors may still lead to the GIL being
+ * grabbed temporarily.
+ */
 NPY_NO_EXPORT int
 HNpyIter_ResetBasePointers(HPyContext *ctx, NpyIter *iter, char **baseptrs, char **errmsg)
 {
@@ -1038,7 +1063,7 @@ NpyIter_CreateCompatibleStrides(NpyIter *iter,
                                                 outstrides);
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * Builds a set of strides which are the same as the strides of an
  * output array created using the NPY_ITER_ALLOCATE flag, where NULL
  * was passed for op_axes.  This is for data packed contiguously,
@@ -1151,6 +1176,18 @@ NpyIter_GetInitialDataPtrArray(NpyIter *iter)
     return NIT_RESETDATAPTR(iter);
 }
 
+/*HPY_NUMPY_API
+ * Get the array of data pointers (1 per object being iterated),
+ * directly into the arrays (never pointing to a buffer), for starting
+ * unbuffered iteration. This always returns the addresses for the
+ * iterator position as reset to iterator index 0.
+ *
+ * These pointers are different from the pointers accepted by
+ * NpyIter_ResetBasePointers, because the direction along some
+ * axes may have been reversed, requiring base offsets.
+ *
+ * This function may be safely called without holding the Python GIL.
+ */
 NPY_NO_EXPORT HPy *
 HNpyIter_GetDescrArray(NpyIter *iter)
 {
@@ -1206,6 +1243,9 @@ NpyIter_GetOperandArray(NpyIter *iter)
     return operands;
 }
 
+/*HPY_NUMPY_API
+ * Get the array of objects being iterated
+ */
 NPY_NO_EXPORT HPy *
 HNpyIter_GetOperandArray(NpyIter *iter)
 {
@@ -1409,6 +1449,15 @@ NpyIter_GetInnerFixedStrideArray(NpyIter *iter, npy_intp *out_strides)
     HNpyIter_GetInnerFixedStrideArray(npy_get_context(), iter, out_strides);
 }
 
+/*HPY_NUMPY_API
+ * Get an array of strides which are fixed.  Any strides which may
+ * change during iteration receive the value NPY_MAX_INTP.  Once
+ * the iterator is ready to iterate, call this to get the strides
+ * which will always be fixed in the inner loop, then choose optimized
+ * inner loop functions which take advantage of those fixed strides.
+ *
+ * This function may be safely called without holding the Python GIL.
+ */
 NPY_NO_EXPORT void
 HNpyIter_GetInnerFixedStrideArray(HPyContext *ctx, NpyIter *iter, npy_intp *out_strides)
 {

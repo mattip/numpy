@@ -20,8 +20,11 @@
 static void
 _UpdateContiguousFlags(PyArrayObject *ap);
 
-/* TODO HPY LABS PORT: will become part of Numpy's HPy API */
-static HPy
+/*HPY_NUMPY_API
+ *
+ * Get New ArrayFlagsObject
+ */
+NPY_NO_EXPORT HPy
 HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
 {
     HPy flagobj;
@@ -115,6 +118,9 @@ PyArray_UpdateFlags(PyArrayObject *ret, int flagmask)
 
 static void _hpy_UpdateContiguousFlags(HPyContext *ctx, HPy h_ap, PyArrayObject *ap);
 
+/*HPY_NUMPY_API
+ * Update Several Flags at once.
+ */
 NPY_NO_EXPORT void
 HPyArray_UpdateFlags(HPyContext *ctx, HPy h_ret, PyArrayObject *ret, int flagmask)
 {

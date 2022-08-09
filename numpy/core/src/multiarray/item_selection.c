@@ -188,6 +188,9 @@ npy_fasttake(
 }
 
 
+/*HPY_NUMPY_API
+ * Take
+ */
 NPY_NO_EXPORT HPy
 HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
                  HPy h_out, NPY_CLIPMODE clipmode)
@@ -2097,6 +2100,9 @@ PyArray_Diagonal(PyArrayObject *self, int offset, int axis1, int axis2)
     return ret;
 }
 
+/*HPY_NUMPY_API
+ * Compress
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Compress(HPyContext *ctx, HPy h_self, HPy condition, int axis,
                  HPy out)
@@ -2586,6 +2592,11 @@ HPyArray_CountNonzero_hpy_partial(HPyContext *ctx, PyArrayObject *self, PyArray_
     // see usertypes.c:188:PyArray_RegisterDataType
 }
 
+/*HPY_NUMPY_API
+ * Nonzero
+ *
+ * TODO: In NumPy 2.0, should make the iteration order a parameter.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
 {

@@ -282,7 +282,7 @@ PyArray_CastToType(PyArrayObject *arr, PyArray_Descr *dtype, int is_f_order)
     return res;
 }
 
-/*
+/*HPY_NUMPY_API
  * Similar to PyArray_CastToType but *DOES NOT* steal reference to dtype.
  */
 NPY_NO_EXPORT HPy
@@ -890,6 +890,10 @@ PyArray_CanCastTypeTo(PyArray_Descr *from, PyArray_Descr *to,
     return is_valid;
 }
 
+/*HPY_NUMPY_API
+ * Returns true if data of type 'from' may be cast to data of type
+ * 'to' according to the rule 'casting'.
+ */
 NPY_NO_EXPORT npy_bool
 HPyArray_CanCastTypeTo(HPyContext *ctx, HPy h_from, HPy h_to,
         NPY_CASTING casting)
@@ -1106,6 +1110,12 @@ PyArray_CanCastArrayTo(PyArrayObject *arr, PyArray_Descr *to,
     return HPyArray_CanCastArrayTo(ctx, h_arr, h_to, casting);
 }
 
+/*HPY_NUMPY_API
+ * Returns 1 if the array object may be cast to the given data type using
+ * the casting rule, 0 otherwise.  This differs from PyArray_CanCastTo in
+ * that it handles scalar arrays (0 dimensions) specially, by checking
+ * their value.
+ */
 NPY_NO_EXPORT npy_bool
 HPyArray_CanCastArrayTo(HPyContext *ctx, HPy /* (PyArrayObject *) */ arr,
                         HPy /* (PyArray_Descr *) */ to, NPY_CASTING casting)
@@ -1493,6 +1503,10 @@ PyArray_PromoteTypes(PyArray_Descr *type1, PyArray_Descr *type2)
     return res;
 }
 
+/*HPY_NUMPY_API
+ * Produces the smallest size and lowest kind type to which both
+ * input types can be cast.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
 {
@@ -1901,6 +1915,12 @@ PyArray_MinScalarType(PyArrayObject *arr)
     return ret;
 }
 
+/*HPY_NUMPY_API
+ * If arr is a scalar (has 0 dimensions) with a built-in number data type,
+ * finds the smallest type size/kind which can still represent its data.
+ * Otherwise, returns the array's data type.
+ *
+ */
 NPY_NO_EXPORT HPy
 HPyArray_MinScalarType(HPyContext *ctx, HPy h_arr)
 {
@@ -2098,6 +2118,21 @@ PyArray_ResultType(
     return result;
 }
 
+/*HPY_NUMPY_API
+ *
+ * Produces the result type of a bunch of inputs, using the same rules
+ * as `np.result_type`.
+ *
+ * NOTE: This function is expected to through a transitional period or
+ *       change behaviour.  DTypes should always be strictly enforced for
+ *       0-D arrays, while "weak DTypes" will be used to represent Python
+ *       integers, floats, and complex in all cases.
+ *       (Within this function, these are currently flagged on the array
+ *       object to work through `np.result_type`, this may change.)
+ *
+ *       Until a time where this transition is complete, we probably cannot
+ *       add new "weak DTypes" or allow users to create their own.
+ */
 NPY_NO_EXPORT HPy
 HPyArray_ResultType(HPyContext *ctx,
         npy_intp narrs, HPy /* (PyArrayObject *) */ arrs[],

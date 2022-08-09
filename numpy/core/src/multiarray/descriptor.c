@@ -1469,6 +1469,7 @@ PyArray_DescrNewFromType(int type_num)
     return new;
 }
 
+/*HPY_NUMPY_API*/
 NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
 HPyArray_DescrNewFromType(HPyContext *ctx, int type_num)
 {
@@ -1484,6 +1485,9 @@ HPyArray_DescrNewFromType(HPyContext *ctx, int type_num)
     return new;
 }
 
+/*HPY_NUMPY_API
+ * Get typenum from an object -- None goes to HPy_NULL
+ */
 NPY_NO_EXPORT int
 HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at)
 {
@@ -1787,8 +1791,7 @@ _hpy_convert_from_any(HPyContext *ctx, HPy obj, int align)
     }
 }
 
-// HPY TODO: NUMPY_API
-/*
+/*HPY_NUMPY_API
  * Get typenum from an object -- None goes to NPY_DEFAULT_TYPE
  * This function takes a Python object representing a type and converts it
  * to a the correct PyArray_Descr * structure to describe the type.
@@ -2073,7 +2076,7 @@ PyArray_DescrNew(PyArray_Descr *base)
     // return newdescr;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * base cannot be NULL
  */
 NPY_NO_EXPORT HPy

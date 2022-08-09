@@ -19,7 +19,10 @@ HPyType_LEGACY_HELPERS(PyBoolScalarObject)
 
 extern NPY_NO_EXPORT PyTypeObject *PyArrayMapIter_Type;
 extern NPY_NO_EXPORT PyTypeObject *PyArrayNeighborhoodIter_Type;
-extern NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[2];
+
+%s
+
+// HPy
 
 %s
 
@@ -32,13 +35,31 @@ extern NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[2];
 #if defined(NO_IMPORT) || defined(NO_IMPORT_ARRAY)
 extern void **PyArray_API;
 #else
-HPyContext *numpy_global_ctx = NULL;
 #if defined(PY_ARRAY_UNIQUE_SYMBOL)
 void **PyArray_API;
 #else
 static void **PyArray_API=NULL;
 #endif
 #endif
+
+#if defined(HPY_ARRAY_UNIQUE_SYMBOL)
+#define HPyArray_API HPY_ARRAY_UNIQUE_SYMBOL
+#endif
+
+#if defined(NO_IMPORT) || defined(NO_IMPORT_ARRAY)
+extern void **HPyArray_API;
+#else
+HPyContext *numpy_global_ctx = NULL;
+#if defined(HPY_ARRAY_UNIQUE_SYMBOL)
+void **HPyArray_API;
+#else
+static void **HPyArray_API=NULL;
+#endif
+#endif
+
+%s
+
+// HPy
 
 %s
 
@@ -49,6 +70,7 @@ _import_array(void)
   int st;
   PyObject *numpy = PyImport_ImportModule("numpy.core._multiarray_umath");
   PyObject *c_api = NULL;
+  PyObject *hpy_api = NULL;
   PyObject *ctx_capsule = NULL;
 
   if (numpy == NULL) {
@@ -88,6 +110,25 @@ _import_array(void)
   Py_DECREF(ctx_capsule);
   if (numpy_global_ctx == NULL) {
       PyErr_SetString(PyExc_RuntimeError, "_HPY_CONTEXT is NULL pointer");
+      return -1;
+  }
+
+  hpy_api = PyObject_GetAttrString(numpy, "_HPY_ARRAY_API");
+  if (c_api == NULL) {
+      HPyErr_SetString(numpy_global_ctx, numpy_global_ctx->h_AttributeError, "_HPY_ARRAY_API not found");
+      return -1;
+  }
+
+  if (!PyCapsule_CheckExact(hpy_api)) {
+      HPyErr_SetString(numpy_global_ctx, numpy_global_ctx->h_RuntimeError, "_HPY_ARRAY_API is not PyCapsule object");
+      Py_DECREF(hpy_api);
+      return -1;
+  }
+
+  HPyArray_API = (void **)PyCapsule_GetPointer(hpy_api, NULL);
+  Py_DECREF(hpy_api);
+  if (HPyArray_API == NULL) {
+      HPyErr_SetString(numpy_global_ctx, numpy_global_ctx->h_RuntimeError, "_HPY_ARRAY_API is NULL pointer");
       return -1;
   }
 
@@ -162,11 +203,25 @@ void *PyArray_API[] = {
 static void init_array_api() {
 %s
 }
+
+void *HPyArray_API[] = {
+%s
+};
+
+static void init_hpy_array_api() {
+%s
+}
 """
 
 c_api_header = """
 ===========
 NumPy C-API
+===========
+"""
+
+hpy_api_header = """
+===========
+NumPy HPy-API
 ===========
 """
 
@@ -183,14 +238,22 @@ def generate_api(output_dir, force=False):
     if (not force and not genapi.should_rebuild(targets, [numpy_api.__file__, __file__])):
         return targets
     else:
-        do_generate_api(targets, sources)
+        m, e, i, a, n = do_generate_api(sources)
+        hpy_sources = numpy_api.hpy_multiarray_api
+        print("*" * 50)
+        print("Number of Multiarray APIs ported to HPy: %d / %d" % (len(hpy_sources[3]), len(sources[3])))
+        print("*" * 50)
+        hm, he, hi, ha, hn = do_generate_api(hpy_sources, 'HPyArray_API', 'HPY_NUMPY_API', 'HPyGlobal', hpy=True)
+        # check for duplicates
+        write_sources(targets, m, e, i, a, n, hm, he, hi, ha, hn)
 
     return targets
 
-def do_generate_api(targets, sources):
-    header_file = targets[0]
-    c_file = targets[1]
-    doc_file = targets[2]
+def do_generate_api(sources, 
+                        api_name='PyArray_API', 
+                        tagname='NUMPY_API',
+                        py_type='PyTypeObject',
+                        hpy=False):
 
     global_vars = sources[0]
     scalar_bool_values = sources[1]
@@ -206,13 +269,12 @@ def do_generate_api(targets, sources):
 
     # Check multiarray api indexes
     multiarray_api_index = genapi.merge_api_dicts(multiarray_api)
-    genapi.check_api_dict(multiarray_api_index)
+    genapi.check_api_dict(multiarray_api_index, hpy)
 
-    numpyapi_list = genapi.get_api_functions('NUMPY_API',
+    numpyapi_list = genapi.get_api_functions(tagname,
                                              multiarray_funcs)
 
     # Create dict name -> *Api instance
-    api_name = 'PyArray_API'
     multiarray_api_dict = {}
     for f in numpyapi_list:
         name = f.name
@@ -220,52 +282,80 @@ def do_generate_api(targets, sources):
         annotations = multiarray_funcs[name][1:]
         multiarray_api_dict[f.name] = FunctionApi(f.name, index, annotations,
                                                   f.return_type,
-                                                  f.args, api_name)
+                                                  f.args, api_name, hpy=hpy)
 
     for name, val in global_vars.items():
         index, type = val
-        multiarray_api_dict[name] = GlobalVarApi(name, index, type, api_name)
+        multiarray_api_dict[name] = GlobalVarApi(name, index, type, api_name, hpy=hpy)
 
     for name, val in scalar_bool_values.items():
         index = val[0]
-        multiarray_api_dict[name] = BoolValuesApi(name, index, api_name)
+        multiarray_api_dict[name] = BoolValuesApi(name, index, api_name, hpy=hpy)
 
     for name, val in types_api.items():
         index = val[0]
         internal_type = None if len(val) <= 1 else val[1]
         dynamic_init = None if len(val) <= 2 else val[2]
         multiarray_api_dict[name] = TypeApi(
-            name, index, 'PyTypeObject', api_name, internal_type, dynamic_init)
+            name, index, py_type, api_name, internal_type, dynamic_init, hpy=hpy)
 
     if len(multiarray_api_dict) != len(multiarray_api_index):
         keys_dict = set(multiarray_api_dict.keys())
         keys_index = set(multiarray_api_index.keys())
+        api_type = '' if not hpy else 'HPy '
         raise AssertionError(
-            "Multiarray API size mismatch - "
+            "Multiarray {}API size mismatch - "
             "index has extra keys {}, dict has extra keys {}"
-            .format(keys_index - keys_dict, keys_dict - keys_index)
+            .format(api_type, keys_index - keys_dict, keys_dict - keys_index)
         )
 
     extension_list = []
+    cur_index = 0
     for name, index in genapi.order_dict(multiarray_api_index):
         api_item = multiarray_api_dict[name]
         extension_list.append(api_item.define_from_array_api_string())
+        if cur_index != index[0]: # fill gap in the array (remove once HPy api is complete)
+            for i in range(cur_index, index[0]):
+                init_list.append("        NULL")
         init_list.append(api_item.array_api_define())
+        cur_index = index[0] + 1
         assignment = api_item.array_api_assign()
         if assignment:
             assign_list.append(assignment)
         module_list.append(api_item.internal_define())
+    
+    return module_list, extension_list, init_list, assign_list, numpyapi_list
 
+
+def write_sources(targets, 
+                    module_list, 
+                    extension_list, 
+                    init_list, 
+                    assign_list, 
+                    numpyapi_list,
+                    hpy_module_list=[],
+                    hpy_extension_list=[],
+                    hpy_init_list=[],
+                    hpy_assign_list=[],
+                    hpy_numpyapi_list=[]):
+    header_file = targets[0]
+    c_file = targets[1]
+    doc_file = targets[2]
     # Write to header
     s = h_template % (
         '\n'.join(module_list),
-        '\n'.join(extension_list))
+        '\n'.join(hpy_module_list),
+        '\n'.join(extension_list),
+        '\n'.join(hpy_extension_list),
+    )
     genapi.write_file(header_file, s)
 
     # Write to c-code
     s = c_template % (
         ',\n'.join(init_list),
         '\n'.join(assign_list),
+        ',\n'.join(hpy_init_list),
+        '\n'.join(hpy_assign_list),
     )
     genapi.write_file(c_file, s)
 
@@ -274,6 +364,12 @@ def do_generate_api(targets, sources):
     for func in numpyapi_list:
         s += func.to_ReST()
         s += '\n\n'
+    if hpy_numpyapi_list:
+        s += '\n\n'
+        s += hpy_api_header
+        for func in hpy_numpyapi_list:
+            s += func.to_ReST()
+            s += '\n\n'
     genapi.write_file(doc_file, s)
 
     return targets

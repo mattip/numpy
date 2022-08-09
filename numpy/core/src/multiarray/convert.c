@@ -563,7 +563,7 @@ PyArray_NewCopy(PyArrayObject *obj, NPY_ORDER order)
     return (PyObject *)ret;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * Copy an array.
  */
 NPY_NO_EXPORT HPy
@@ -636,7 +636,7 @@ PyArray_View(PyArrayObject *self, PyArray_Descr *type, PyTypeObject *pytype)
     return (PyObject *)ret;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * View
  * steals a reference to type -- accepts NULL
  */
