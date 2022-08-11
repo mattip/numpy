@@ -695,6 +695,44 @@ add_loop(const char *ufunc_name,
     return res;
 }
 
+#include "ufunc_object.h" // remove once HPyUFunc_Type in 'ufuncobject.h'
+
+static int
+hpy_add_loop(HPyContext *ctx, const char *ufunc_name,
+        HPy /* PyArray_DTypeMeta * */dtypes[3], HPy meth_or_promoter)
+{
+    HPy mod = HPyImport_ImportModule(ctx, "numpy");
+    if (HPy_IsNull(mod)) {
+        return -1;
+    }
+    HPy ufunc = HPy_GetAttr_s(ctx, mod, ufunc_name);
+    HPy_Close(ctx, mod);
+    HPy ufunc_type = HPyGlobal_Load(ctx, HPyUFunc_Type);
+    if (!HPy_TypeCheck(ctx, ufunc, ufunc_type)) {
+        HPy_Close(ctx, ufunc);
+        HPy_Close(ctx, ufunc_type);
+        PyErr_Format(PyExc_TypeError,
+                "numpy.%s was not a ufunc!", ufunc_name);
+        return -1;
+    }
+    HPy_Close(ctx, ufunc_type);
+    HPy dtype_tup = HPyArray_TupleFromItems(ctx, 3, dtypes, 1);
+    if (HPy_IsNull(dtype_tup)) {
+        HPy_Close(ctx, ufunc);
+        return -1;
+    }
+    HPy info = HPyTuple_Pack(ctx, 2, dtype_tup, meth_or_promoter);
+    HPy_Close(ctx, dtype_tup);
+    if (HPy_IsNull(info)) {
+        HPy_Close(ctx, ufunc);
+        return -1;
+    }
+    int res = HPyUFunc_AddLoop(ctx, ufunc, info, 0);
+    HPy_Close(ctx, ufunc);
+    HPy_Close(ctx, info);
+    return res;
+}
+
 
 
 /*
@@ -723,7 +761,7 @@ promote_to_sfloat(PyUFuncObject *NPY_UNUSED(ufunc),
  * get less so with the introduction of public API).
  */
 static int
-init_ufuncs(void) {
+init_ufuncs(HPyContext *ctx) {
     PyArray_DTypeMeta *dtypes[3] = {
             &PyArray_SFloatDType, &PyArray_SFloatDType, &PyArray_SFloatDType};
     PyType_Slot slots[3] = {{0, NULL}};
@@ -740,16 +778,26 @@ init_ufuncs(void) {
     slots[0].pfunc = &multiply_sfloats_resolve_descriptors;
     slots[1].slot = NPY_METH_strided_loop;
     slots[1].pfunc = &multiply_sfloats;
-    PyBoundArrayMethodObject *bmeth = PyArrayMethod_FromSpec_int(&spec, 0);
-    if (bmeth == NULL) {
+    HPy h_bmeth = HPyArrayMethod_FromSpec_int(ctx, &spec, 0);
+    if (HPy_IsNull(h_bmeth)) {
         return -1;
     }
+    PyBoundArrayMethodObject *bmeth = PyBoundArrayMethodObject_AsStruct(ctx, h_bmeth);
     hpy_abort_not_implemented("init_ufuncs");
     int res = -1;
-    // TODO HPY LABS PORT
-//    int res = add_loop("multiply",
-//            bmeth->dtypes, (PyObject *)bmeth->method);
-    Py_DECREF(bmeth);
+    HPy h_bmeth_dtypes[] = {
+        HPyField_Load(ctx, h_bmeth, bmeth->dtypes[0]),
+        HPyField_Load(ctx, h_bmeth, bmeth->dtypes[1]),
+        HPyField_Load(ctx, h_bmeth, bmeth->dtypes[2]),
+    };
+    HPy h_bmeth_method = HPyField_Load(ctx, h_bmeth, bmeth->method);
+    res = hpy_add_loop(ctx, "multiply",
+            h_bmeth_dtypes, h_bmeth_method);
+    HPy_Close(ctx, h_bmeth_dtypes[0]);
+    HPy_Close(ctx, h_bmeth_dtypes[1]);
+    HPy_Close(ctx, h_bmeth_dtypes[2]);
+    HPy_Close(ctx, h_bmeth_method);
+    HPy_Close(ctx, h_bmeth);
     if (res < 0) {
         return -1;
     }
@@ -761,18 +809,27 @@ init_ufuncs(void) {
     slots[0].pfunc = &add_sfloats_resolve_descriptors;
     slots[1].slot = NPY_METH_strided_loop;
     slots[1].pfunc = &add_sfloats;
-    bmeth = PyArrayMethod_FromSpec_int(&spec, 0);
-    if (bmeth == NULL) {
+    h_bmeth = HPyArrayMethod_FromSpec_int(ctx, &spec, 0);
+    bmeth = PyBoundArrayMethodObject_AsStruct(ctx, h_bmeth);
+    if (HPy_IsNull(h_bmeth)) {
         return -1;
     }
-    // TODO HPY LABS PORT
-//    res = add_loop("add",
-//            bmeth->dtypes, (PyObject *)bmeth->method);
-    Py_DECREF(bmeth);
+    h_bmeth_dtypes[0] = HPyField_Load(ctx, h_bmeth, bmeth->dtypes[0]),
+    h_bmeth_dtypes[1] = HPyField_Load(ctx, h_bmeth, bmeth->dtypes[1]),
+    h_bmeth_dtypes[2] = HPyField_Load(ctx, h_bmeth, bmeth->dtypes[2]),
+    h_bmeth_method = HPyField_Load(ctx, h_bmeth, bmeth->method);
+    res = hpy_add_loop(ctx, "add",
+            h_bmeth_dtypes, h_bmeth_method);
+    HPy_Close(ctx, h_bmeth_dtypes[0]);
+    HPy_Close(ctx, h_bmeth_dtypes[1]);
+    HPy_Close(ctx, h_bmeth_dtypes[2]);
+    HPy_Close(ctx, h_bmeth_method);
+    HPy_Close(ctx, h_bmeth);
     if (res < 0) {
         return -1;
     }
 
+    CAPI_WARN("using promote_to_sfloat");
     /*
      * Add a promoter for both directions of multiply with double.
      */
@@ -845,7 +902,7 @@ get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
         return NULL;
     }
 
-    if (init_ufuncs() < 0) {
+    if (init_ufuncs(ctx) < 0) {
         return NULL;
     }
 

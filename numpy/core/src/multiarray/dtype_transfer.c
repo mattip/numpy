@@ -2910,7 +2910,7 @@ get_decref_transfer_function(int aligned,
     finalize:
     /* Make sure all important fields are either set or cleared */
     Py_INCREF(src_dtype);
-    cast_info->descriptors[0] = HPy_FromPyObject(npy_get_context(), src_dtype);
+    cast_info->descriptors[0] = HPy_FromPyObject(npy_get_context(), (PyObject *)src_dtype);
     cast_info->descriptors[1] = HPy_NULL;
     cast_info->context.method = HPy_NULL;
     cast_info->context.caller = HPy_NULL;

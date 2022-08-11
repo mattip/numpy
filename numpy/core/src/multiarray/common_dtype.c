@@ -336,7 +336,7 @@ HPyArray_PromoteDTypeSequence(HPyContext *ctx,
          */
         CAPI_WARN("HPyArray_PromoteDTypeSequence: call to PyArray_CommonDType");
         PyArray_DTypeMeta *py_common = PyArray_CommonDType(HPy_AsPyObject(ctx, result), promotion);
-        HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, py_common));
+        HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, (PyObject *)py_common));
         Py_DECREF(promotion);
         HPy_Close(ctx, h_promotion);
         if (HPy_IsNull(result)) {

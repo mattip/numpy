@@ -98,7 +98,7 @@ legacy_setitem_using_DType(HPyContext *ctx, HPy obj, void *data, HPy h_arr)
     CAPI_WARN("legacy_getitem_using_DType: calling a setitemfunction function pointer");
     PyObject *py_descr = HPy_AsPyObject(ctx, descr);
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    int ret = setitem(py_descr, py_obj, data);
+    int ret = setitem((PyArray_Descr *)py_descr, py_obj, data);
     Py_DECREF(py_descr);
     Py_DECREF(py_obj);
     return ret;
@@ -120,7 +120,7 @@ legacy_getitem_using_DType(HPyContext *ctx, void *data, HPy h_arr, void *arr)
     getitem = HNPY_DT_SLOTS(ctx, HNPY_DTYPE(ctx, descr))->getitem;
     CAPI_WARN("legacy_getitem_using_DType: calling a getitemfunction function pointer");
     PyObject *py_descr = HPy_AsPyObject(ctx, descr);
-    PyObject *ret = getitem(py_descr, data);
+    PyObject *ret = getitem((PyArray_Descr *)py_descr, data);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(py_descr);
     Py_DECREF(ret);
