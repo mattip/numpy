@@ -21,7 +21,7 @@ typedef struct {
     NpyAuxData *auxdata;
     HPyArrayMethod_Context context;
     /* Storage to be linked from "context" */
-    HPy descriptors[2];
+    HPy descriptors[2]; // PyArray_Descr *
 } NPY_cast_info;
 
 

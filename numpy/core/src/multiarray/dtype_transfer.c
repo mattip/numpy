@@ -1305,8 +1305,6 @@ hget_legacy_dtype_cast_function(
     _strided_cast_data *data;
     PyArray_VectorUnaryFunc *castfunc;
     HPy tmp_dtype;
-    PyArray_Descr *tmp_dtype_data;
-    PyArray_Descr *py_tmp_dtype;
     npy_intp shape = 1;
     PyArray_Descr *src_dtype_data = PyArray_Descr_AsStruct(ctx, src_dtype);
     PyArray_Descr *dst_dtype_data = PyArray_Descr_AsStruct(ctx, dst_dtype);
@@ -3057,9 +3055,76 @@ _multistep_cast_auxdata_clone_int(_multistep_castdata *castdata, int move_info)
 static NpyAuxData *
 _hmultistep_cast_auxdata_clone_int(HPyContext *ctx, _multistep_castdata *castdata, int move_info)
 {
-    // TODO HPY LABS PORT
-    return _multistep_cast_auxdata_clone_int(castdata, move_info);;
-}
+    /* Round up the structure size to 16-byte boundary for the buffers */
+    Py_ssize_t datasize = (sizeof(_multistep_castdata) + 15) & ~0xf;
+
+    Py_ssize_t from_buffer_offset = datasize;
+    if (castdata->from.func != NULL) {
+        Py_ssize_t src_itemsize = PyArray_Descr_AsStruct(ctx, castdata->main.context.descriptors[0])->elsize;
+        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * src_itemsize;
+        datasize = (datasize + 15) & ~0xf;
+    }
+    Py_ssize_t to_buffer_offset = datasize;
+    if (castdata->to.func != NULL) {
+        Py_ssize_t dst_itemsize = PyArray_Descr_AsStruct(ctx, castdata->main.context.descriptors[1])->elsize;
+        datasize += NPY_LOWLEVEL_BUFFER_BLOCKSIZE * dst_itemsize;
+    }
+
+    char *char_data = PyMem_Malloc(datasize);
+    if (char_data == NULL) {
+        return NULL;
+    }
+
+    _multistep_castdata *newdata = (_multistep_castdata *)char_data;
+
+    /* Fix up the basic information: */
+    newdata->base.free = &_multistep_cast_auxdata_free;
+    newdata->base.clone = &_multistep_cast_auxdata_clone;
+    /* And buffer information: */
+    newdata->from_buffer = char_data + from_buffer_offset;
+    newdata->to_buffer = char_data + to_buffer_offset;
+
+    /* Initialize funcs to NULL to signal no-cleanup in case of an error. */
+    newdata->from.func = NULL;
+    newdata->to.func = NULL;
+
+    if (move_info) {
+        HNPY_cast_info_move(ctx, &newdata->main, &castdata->main);
+    }
+    else if (HNPY_cast_info_copy(ctx, &newdata->main, &castdata->main) < 0) {
+        goto fail;
+    }
+
+    if (castdata->from.func != NULL) {
+        if (move_info) {
+            HNPY_cast_info_move(ctx, &newdata->from, &castdata->from);
+        }
+        else if (HNPY_cast_info_copy(ctx, &newdata->from, &castdata->from) < 0) {
+            goto fail;
+        }
+
+        if (PyDataType_FLAGCHK(PyArray_Descr_AsStruct(ctx, newdata->main.descriptors[0]), NPY_NEEDS_INIT)) {
+            memset(newdata->from_buffer, 0, to_buffer_offset - from_buffer_offset);
+        }
+    }
+    if (castdata->to.func != NULL) {
+        if (move_info) {
+            HNPY_cast_info_move(ctx, &newdata->to, &castdata->to);
+        }
+        else if (HNPY_cast_info_copy(ctx, &newdata->to, &castdata->to) < 0) {
+            goto fail;
+        }
+
+        if (PyDataType_FLAGCHK(PyArray_Descr_AsStruct(ctx, newdata->main.descriptors[1]), NPY_NEEDS_INIT)) {
+            memset(newdata->to_buffer, 0, datasize - to_buffer_offset);
+        }
+    }
+
+    return (NpyAuxData *)newdata;
+
+    fail:
+    NPY_AUXDATA_FREE((NpyAuxData *)newdata);
+    return NULL;}
 
 
 static NpyAuxData *
@@ -3550,74 +3615,74 @@ wrap_aligned_transferfunction(
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata, int *out_needs_api)
 {
-    // TODO HPY LABS PORT: migrate wrap_aligned_transferfunction
-    hpy_abort_not_implemented("wrap_aligned_transferfunction");
+    must_wrap = must_wrap | !aligned;
+
+    _multistep_castdata castdata;
+    NPY_cast_info_init(&castdata.main);
+    NPY_cast_info_init(&castdata.from);
+    NPY_cast_info_init(&castdata.to);
+
+    /* Finalize the existing cast information: */
+    castdata.main.func = *out_stransfer;
+    *out_stransfer = NULL;
+    castdata.main.auxdata = *out_transferdata;
+    *out_transferdata = NULL;
+    castdata.main.context.method = HPy_NULL;
+    HPyContext *ctx = npy_get_context();
+    /* These are always legacy casts that only support native-byte-order: */
+    // Py_INCREF(src_wrapped_dtype); // HPy_FromPyObject will incref
+    castdata.main.descriptors[0] = HPy_FromPyObject(ctx, src_wrapped_dtype);
+    if (HPy_IsNull(castdata.main.descriptors[0])) {
+        castdata.main.descriptors[1] = HPy_NULL;
+        goto fail;
+    }
+    // Py_INCREF(dst_wrapped_dtype); // HPy_FromPyObject will incref
+    castdata.main.descriptors[1] = HPy_FromPyObject(ctx, dst_wrapped_dtype);
+    if (HPy_IsNull(castdata.main.descriptors[1])) {
+        goto fail;
+    }
+
+    /*
+        * Similar to the normal multi-step cast, but we always have to wrap
+        * it all up, but we can simply do this via a "recursive" call.
+        * TODO: This is slightly wasteful, since it unnecessarily checks casting,
+        *       but this whole function is about corner cases, which should rather
+        *       have an explicit implementation instead if we want performance.
+        */
+    if (must_wrap || src_wrapped_dtype != src_dtype) {
+        PyArray_Descr *descr_0 = (PyArray_Descr *)HPy_AsPyObject(ctx, castdata.main.descriptors[0]);
+        if (PyArray_GetDTypeTransferFunction(aligned,
+                src_stride, descr_0->elsize,
+                src_dtype, descr_0, 0,
+                &castdata.from, out_needs_api) != NPY_SUCCEED) {
+            goto fail;
+        }
+    }
+    if (must_wrap || dst_wrapped_dtype != dst_dtype) {
+        PyArray_Descr *descr_1 = (PyArray_Descr *)HPy_AsPyObject(ctx, castdata.main.descriptors[1]);
+        if (PyArray_GetDTypeTransferFunction(aligned,
+                descr_1->elsize, dst_stride,
+                descr_1, dst_dtype,
+                1,  /* clear buffer if it includes references */
+                &castdata.to, out_needs_api) != NPY_SUCCEED) {
+            goto fail;
+        }
+    }
+
+    *out_transferdata = _multistep_cast_auxdata_clone_int(&castdata, 1);
+    if (*out_transferdata == NULL) {
+        PyErr_NoMemory();
+        goto fail;
+    }
+    *out_stransfer = &_strided_to_strided_multistep_cast;
+    return 0;
+
+fail:
+    NPY_cast_info_xfree(&castdata.main);
+    NPY_cast_info_xfree(&castdata.from);
+    NPY_cast_info_xfree(&castdata.to);
+
     return -1;
-//    must_wrap = must_wrap | !aligned;
-//
-//    _multistep_castdata castdata;
-//    NPY_cast_info_init(&castdata.main);
-//    NPY_cast_info_init(&castdata.from);
-//    NPY_cast_info_init(&castdata.to);
-//
-//    /* Finalize the existing cast information: */
-//    castdata.main.func = *out_stransfer;
-//    *out_stransfer = NULL;
-//    castdata.main.auxdata = *out_transferdata;
-//    *out_transferdata = NULL;
-//    castdata.main.context.method = NULL;
-//    /* These are always legacy casts that only support native-byte-order: */
-//    Py_INCREF(src_wrapped_dtype);
-//    castdata.main.descriptors[0] = src_wrapped_dtype;
-//    if (castdata.main.descriptors[0] == NULL) {
-//        castdata.main.descriptors[1] = NULL;
-//        goto fail;
-//    }
-//    Py_INCREF(dst_wrapped_dtype);
-//    castdata.main.descriptors[1] = dst_wrapped_dtype;
-//    if (castdata.main.descriptors[1] == NULL) {
-//        goto fail;
-//    }
-//
-//    /*
-//     * Similar to the normal multi-step cast, but we always have to wrap
-//     * it all up, but we can simply do this via a "recursive" call.
-//     * TODO: This is slightly wasteful, since it unnecessarily checks casting,
-//     *       but this whole function is about corner cases, which should rather
-//     *       have an explicit implementation instead if we want performance.
-//     */
-//    if (must_wrap || src_wrapped_dtype != src_dtype) {
-//        if (PyArray_GetDTypeTransferFunction(aligned,
-//                src_stride, castdata.main.descriptors[0]->elsize,
-//                src_dtype, castdata.main.descriptors[0], 0,
-//                &castdata.from, out_needs_api) != NPY_SUCCEED) {
-//            goto fail;
-//        }
-//    }
-//    if (must_wrap || dst_wrapped_dtype != dst_dtype) {
-//        if (PyArray_GetDTypeTransferFunction(aligned,
-//                castdata.main.descriptors[1]->elsize, dst_stride,
-//                castdata.main.descriptors[1], dst_dtype,
-//                1,  /* clear buffer if it includes references */
-//                &castdata.to, out_needs_api) != NPY_SUCCEED) {
-//            goto fail;
-//        }
-//    }
-//
-//    *out_transferdata = _multistep_cast_auxdata_clone_int(&castdata, 1);
-//    if (*out_transferdata == NULL) {
-//        PyErr_NoMemory();
-//        goto fail;
-//    }
-//    *out_stransfer = &_strided_to_strided_multistep_cast;
-//    return 0;
-//
-//  fail:
-//    NPY_cast_info_xfree(&castdata.main);
-//    NPY_cast_info_xfree(&castdata.from);
-//    NPY_cast_info_xfree(&castdata.to);
-//
-//    return -1;
 }
 
 NPY_NO_EXPORT int
@@ -3632,7 +3697,70 @@ hwrap_aligned_transferfunction(
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata, int *out_needs_api)
 {
-    hpy_abort_not_implemented("hwrap_aligned_transferfunction");
+    must_wrap = must_wrap | !aligned;
+
+    _multistep_castdata castdata;
+    HNPY_cast_info_init(ctx, &castdata.main);
+    HNPY_cast_info_init(ctx, &castdata.from);
+    HNPY_cast_info_init(ctx, &castdata.to);
+
+    /* Finalize the existing cast information: */
+    castdata.main.func = *out_stransfer;
+    *out_stransfer = NULL;
+    castdata.main.auxdata = *out_transferdata;
+    *out_transferdata = NULL;
+    castdata.main.context.method = HPy_NULL;
+    /* These are always legacy casts that only support native-byte-order: */
+    castdata.main.descriptors[0] = HPy_Dup(ctx, src_wrapped_dtype);
+    if (HPy_IsNull(castdata.main.descriptors[0])) {
+        castdata.main.descriptors[1] = HPy_NULL;
+        goto fail;
+    }
+    castdata.main.descriptors[1] = HPy_Dup(ctx, dst_wrapped_dtype);
+    if (HPy_IsNull(castdata.main.descriptors[1])) {
+        goto fail;
+    }
+
+    /*
+        * Similar to the normal multi-step cast, but we always have to wrap
+        * it all up, but we can simply do this via a "recursive" call.
+        * TODO: This is slightly wasteful, since it unnecessarily checks casting,
+        *       but this whole function is about corner cases, which should rather
+        *       have an explicit implementation instead if we want performance.
+        */
+    if (must_wrap || !HPy_Is(ctx, src_wrapped_dtype, src_dtype)) {
+        PyArray_Descr *descr_0 = PyArray_Descr_AsStruct(ctx, castdata.main.descriptors[0]);
+        if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                src_stride, descr_0->elsize,
+                src_dtype, castdata.main.descriptors[0], 0,
+                &castdata.from, out_needs_api) != NPY_SUCCEED) {
+            goto fail;
+        }
+    }
+    if (must_wrap || !HPy_Is(ctx, dst_wrapped_dtype, dst_dtype)) {
+        PyArray_Descr *descr_1 = PyArray_Descr_AsStruct(ctx, castdata.main.descriptors[1]);
+        if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                descr_1->elsize, dst_stride,
+                castdata.main.descriptors[1], dst_dtype,
+                1,  /* clear buffer if it includes references */
+                &castdata.to, out_needs_api) != NPY_SUCCEED) {
+            goto fail;
+        }
+    }
+
+    *out_transferdata = _multistep_cast_auxdata_clone_int(&castdata, 1);
+    if (*out_transferdata == NULL) {
+        PyErr_NoMemory();
+        goto fail;
+    }
+    *out_stransfer = &_strided_to_strided_multistep_cast;
+    return 0;
+
+fail:
+    NPY_cast_info_xfree(&castdata.main);
+    NPY_cast_info_xfree(&castdata.from);
+    NPY_cast_info_xfree(&castdata.to);
+
     return -1;
 }
 

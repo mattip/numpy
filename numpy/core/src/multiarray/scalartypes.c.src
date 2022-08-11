@@ -2476,7 +2476,7 @@ voidtype_ass_item(PyVoidScalarObject *self, Py_ssize_t n, PyObject *val)
 {
     npy_intp m;
     PyObject *flist=NULL;
-    PyObject *res;
+    int res;
 
     if (!(PyDataType_HASFIELDS(self->descr))) {
         PyErr_SetString(PyExc_IndexError,
