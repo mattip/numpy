@@ -103,6 +103,10 @@ HPyArray_CheckAxis(HPyContext *ctx, HPy h_arr, int *axis, int flags);
 NPY_NO_EXPORT int
 PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src,
                                 NPY_ORDER order);
+NPY_NO_EXPORT int
+HPyArray_CopyAsFlat(HPyContext *ctx, 
+                    HPy /* PyArrayObject * */ dst, 
+                    HPy /* PyArrayObject * */ src, NPY_ORDER order);
 
 /* FIXME: remove those from here */
 NPY_NO_EXPORT void

@@ -80,10 +80,12 @@ static void
 npyiter_reverse_axis_ordering(NpyIter *iter);
 static void
 npyiter_find_best_axis_ordering(NpyIter *iter);
-static PyArray_Descr *
-npyiter_get_common_dtype(int nop, PyArrayObject **op,
-                        const npyiter_opitflags *op_itflags, PyArray_Descr **op_dtype,
-                        PyArray_Descr **op_request_dtypes,
+static HPy // PyArray_Descr *
+hnpyiter_get_common_dtype(HPyContext *ctx, int nop, 
+                        HPy /* PyArrayObject ** */ *op,
+                        const npyiter_opitflags *op_itflags, 
+                        HPy /* PyArray_Descr ** */ *op_dtype,
+                        HPy /* PyArray_Descr ** */ *op_request_dtypes,
                         int only_inputs);
 static HPy
 hnpyiter_new_temp_array(HPyContext *ctx, NpyIter *iter, HPy subtype,
@@ -97,9 +99,10 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
                         const npy_uint32 *op_flags, npyiter_opitflags *op_itflags,
                         int **op_axes);
 static void
-npyiter_get_priority_subtype(int nop, PyArrayObject **op,
+hnpyiter_get_priority_subtype(HPyContext *ctx, int nop, HPy /* PyArrayObject ** */ *op,
                             const npyiter_opitflags *op_itflags,
-                            double *subtype_priority, PyTypeObject **subtype);
+                            double *subtype_priority,
+                            HPy *subtype);
 static int
 hnpyiter_allocate_transfer_functions(HPyContext *ctx, NpyIter *iter);
 
@@ -363,13 +366,9 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
     NPY_IT_TIME_POINT(c_find_best_axis_ordering);
 
     if (need_subtype) {
-        /* TODO HPY LABS PORT: cut off */
-        hpy_abort_not_implemented("HNpyIter_AdvancedNew");
-        /*
-        PyTypeObject *subtype = &PyArray_Type;
-        npyiter_get_priority_subtype(nop, op, op_itflags,
+        HPy subtype = HPyGlobal_Load(ctx, HPyArray_Type);
+        hnpyiter_get_priority_subtype(ctx, nop, op, op_itflags,
                                      &subtype_priority, &subtype);
-        */
     }
 
     NPY_IT_TIME_POINT(c_get_priority_subtype);
@@ -379,44 +378,40 @@ HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
      * dtype, we need to figure it out now, before allocating the outputs.
      */
     if (any_missing_dtypes || (flags & NPY_ITER_COMMON_DTYPE)) {
-        /* TODO HPY LABS PORT: cut off */
-        hpy_abort_not_implemented("HNpyIter_AdvancedNew");
-//        PyArray_Descr *dtype;
-//        int only_inputs = !(flags & NPY_ITER_COMMON_DTYPE);
-//
-//        op = NIT_OPERANDS(iter);
-//        op_dtype = NIT_DTYPES(iter);
-//
-//        dtype = npyiter_get_common_dtype(nop, op,
-//                                    op_itflags, op_dtype,
-//                                    op_request_dtypes,
-//                                    only_inputs);
-//        if (dtype == NULL) {
-//            NpyIter_Deallocate(iter);
-//            return NULL;
-//        }
-//        if (flags & NPY_ITER_COMMON_DTYPE) {
-//            NPY_IT_DBG_PRINT("Iterator: Replacing all data types\n");
-//            /* Replace all the data types */
-//            for (iop = 0; iop < nop; ++iop) {
-//                if (!HPy_Is(ctx, op_dtype[iop], dtype)) {
-//                    Py_XDECREF(op_dtype[iop]);
-//                    Py_INCREF(dtype);
-//                    op_dtype[iop] = dtype;
-//                }
-//            }
-//        }
-//        else {
-//            NPY_IT_DBG_PRINT("Iterator: Setting unset output data types\n");
-//            /* Replace the NULL data types */
-//            for (iop = 0; iop < nop; ++iop) {
-//                if (op_dtype[iop] == NULL) {
-//                    Py_INCREF(dtype);
-//                    op_dtype[iop] = dtype;
-//                }
-//            }
-//        }
-//        Py_DECREF(dtype);
+        HPy dtype; // PyArray_Descr *
+        int only_inputs = !(flags & NPY_ITER_COMMON_DTYPE);
+
+        op = NIT_OPERANDS(iter);
+        op_dtype = NIT_DTYPES(iter);
+
+        dtype = hnpyiter_get_common_dtype(ctx, nop, op,
+                                    op_itflags, op_dtype,
+                                    op_request_dtypes,
+                                    only_inputs);
+        if (HPy_IsNull(dtype)) {
+            NpyIter_Deallocate(iter);
+            return NULL;
+        }
+        if (flags & NPY_ITER_COMMON_DTYPE) {
+            NPY_IT_DBG_PRINT("Iterator: Replacing all data types\n");
+            /* Replace all the data types */
+            for (iop = 0; iop < nop; ++iop) {
+                if (!HPy_Is(ctx, op_dtype[iop], dtype)) {
+                    HPy_Close(ctx, op_dtype[iop]);
+                    op_dtype[iop] = HPy_Dup(ctx, dtype);
+                }
+            }
+        }
+        else {
+            NPY_IT_DBG_PRINT("Iterator: Setting unset output data types\n");
+            /* Replace the NULL data types */
+            for (iop = 0; iop < nop; ++iop) {
+                if (HPy_IsNull(op_dtype[iop])) {
+                    op_dtype[iop] = HPy_Dup(ctx, dtype);
+                }
+            }
+        }
+        HPy_Close(ctx, dtype);
     }
 
     NPY_IT_TIME_POINT(c_find_output_common_dtype);
@@ -2636,27 +2631,29 @@ npyiter_find_best_axis_ordering(NpyIter *iter)
  * ufunc rules.  If only_inputs is 1, it leaves any operands that
  * are not read from out of the calculation.
  */
-static PyArray_Descr *
-npyiter_get_common_dtype(int nop, PyArrayObject **op,
-                        const npyiter_opitflags *op_itflags, PyArray_Descr **op_dtype,
-                        PyArray_Descr **op_request_dtypes,
+static HPy // PyArray_Descr *
+hnpyiter_get_common_dtype(HPyContext *ctx, int nop, 
+                        HPy /* PyArrayObject ** */ *op,
+                        const npyiter_opitflags *op_itflags, 
+                        HPy /* PyArray_Descr ** */ *op_dtype,
+                        HPy /* PyArray_Descr ** */ *op_request_dtypes,
                         int only_inputs)
 {
     int iop;
     npy_intp narrs = 0, ndtypes = 0;
-    PyArrayObject *arrs[NPY_MAXARGS];
-    PyArray_Descr *dtypes[NPY_MAXARGS];
-    PyArray_Descr *ret;
+    HPy arrs[NPY_MAXARGS]; // PyArrayObject *
+    HPy dtypes[NPY_MAXARGS]; // PyArray_Descr *
+    HPy ret; // PyArray_Descr *
 
     NPY_IT_DBG_PRINT("Iterator: Getting a common data type from operands\n");
 
     for (iop = 0; iop < nop; ++iop) {
-        if (op_dtype[iop] != NULL &&
+        if (!HPy_IsNull(op_dtype[iop]) &&
                     (!only_inputs || (op_itflags[iop] & NPY_OP_ITFLAG_READ))) {
             /* If no dtype was requested and the op is a scalar, pass the op */
             if ((op_request_dtypes == NULL ||
-                            op_request_dtypes[iop] == NULL) &&
-                                            PyArray_NDIM(op[iop]) == 0) {
+                            HPy_IsNull(op_request_dtypes[iop])) &&
+                            PyArray_NDIM(PyArrayObject_AsStruct(ctx, op[iop])) == 0) {
                 arrs[narrs++] = op[iop];
             }
             /* Otherwise just pass in the dtype */
@@ -2670,23 +2667,23 @@ npyiter_get_common_dtype(int nop, PyArrayObject **op,
         npy_intp i;
         ret = dtypes[0];
         for (i = 1; i < ndtypes; ++i) {
-            if (ret != dtypes[i])
+            if (!HPy_Is(ctx, ret, dtypes[i]))
                 break;
         }
         if (i == ndtypes) {
-            if (ndtypes == 1 || PyArray_ISNBO(ret->byteorder)) {
-                Py_INCREF(ret);
+            if (ndtypes == 1 || PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, ret)->byteorder)) {
+                ret = HPy_Dup(ctx, ret);
             }
             else {
-                ret = PyArray_DescrNewByteorder(ret, NPY_NATIVE);
+                ret = HPyArray_DescrNewByteorder(ctx, ret, NPY_NATIVE);
             }
         }
         else {
-            ret = PyArray_ResultType(narrs, arrs, ndtypes, dtypes);
+            ret = HPyArray_ResultType(ctx, narrs, arrs, ndtypes, dtypes);
         }
     }
     else {
-        ret = PyArray_ResultType(narrs, arrs, ndtypes, dtypes);
+        ret = HPyArray_ResultType(ctx, narrs, arrs, ndtypes, dtypes);
     }
 
     return ret;
@@ -3355,20 +3352,21 @@ hnpyiter_allocate_arrays(HPyContext *ctx, NpyIter *iter,
  * the subtype of any output arrays.  This function finds the
  * subtype of the input array with highest priority.
  */
+// There might be leaks caused by 'subtype'
 static void
-npyiter_get_priority_subtype(int nop, PyArrayObject **op,
+hnpyiter_get_priority_subtype(HPyContext *ctx, int nop, HPy /* PyArrayObject ** */ *op,
                             const npyiter_opitflags *op_itflags,
                             double *subtype_priority,
-                            PyTypeObject **subtype)
+                            HPy *subtype)
 {
     int iop;
 
     for (iop = 0; iop < nop; ++iop) {
-        if (op[iop] != NULL && op_itflags[iop] & NPY_OP_ITFLAG_READ) {
-            double priority = PyArray_GetPriority((PyObject *)op[iop], 0.0);
+        if (!HPy_IsNull(op[iop]) && op_itflags[iop] & NPY_OP_ITFLAG_READ) {
+            double priority = HPyArray_GetPriority(ctx, op[iop], 0.0);
             if (priority > *subtype_priority) {
                 *subtype_priority = priority;
-                *subtype = Py_TYPE(op[iop]);
+                *subtype = HPy_Type(ctx, op[iop]);
             }
         }
     }

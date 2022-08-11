@@ -2026,54 +2026,6 @@ PyArray_DescrNew(PyArray_Descr *base)
     HPy_Close(ctx, h_base);
     HPy_Close(ctx, h_res);
     return ret;
-    // hpy_abort_not_implemented("PyArray_DescrNew");
-    // PyArray_Descr *newdescr = PyObject_New(PyArray_Descr, Py_TYPE(base));
-
-    // if (newdescr == NULL) {
-    //     return NULL;
-    // }
-    // /* Don't copy PyObject_HEAD part */
-    // memcpy((char *)newdescr + sizeof(PyObject),
-    //        (char *)base + sizeof(PyObject),
-    //        sizeof(PyArray_Descr) - sizeof(PyObject));
-
-    // /*
-    //  * The c_metadata has a by-value ownership model, need to clone it
-    //  * (basically a deep copy, but the auxdata clone function has some
-    //  * flexibility still) so the new PyArray_Descr object owns
-    //  * a copy of the data. Having both 'base' and 'newdescr' point to
-    //  * the same auxdata pointer would cause a double-free of memory.
-    //  */
-    // if (base->c_metadata != NULL) {
-    //     newdescr->c_metadata = NPY_AUXDATA_CLONE(base->c_metadata);
-    //     if (newdescr->c_metadata == NULL) {
-    //         PyErr_NoMemory();
-    //         /* TODO: This seems wrong, as the old fields get decref'd? */
-    //         Py_DECREF(newdescr);
-    //         return NULL;
-    //     }
-    // }
-
-    // if (newdescr->fields == Py_None) {
-    //     newdescr->fields = NULL;
-    // }
-    // Py_XINCREF(newdescr->fields);
-    // Py_XINCREF(newdescr->names);
-    // if (newdescr->subarray) {
-    //     newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
-    //     if (newdescr->subarray == NULL) {
-    //         Py_DECREF(newdescr);
-    //         return (PyArray_Descr *)PyErr_NoMemory();
-    //     }
-    //     memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
-    //     Py_INCREF(newdescr->subarray->shape);
-    //     Py_INCREF(newdescr->subarray->base);
-    // }
-    // Py_XINCREF(newdescr->typeobj);
-    // Py_XINCREF(newdescr->metadata);
-    // newdescr->hash = -1;
-
-    // return newdescr;
 }
 
 /*HPY_NUMPY_API
@@ -2830,7 +2782,7 @@ arraydescr_reduce(PyArray_Descr *self, PyObject *NPY_UNUSED(args))
     obj = HPyField_LoadPyObj((PyObject *)self, self->typeobj);
     if (PyTypeNum_ISUSERDEF(self->type_num)
             || ((self->type_num == NPY_VOID
-                    && obj != &PyVoidArrType_Type))) {
+                    && ((PyTypeObject *)obj) != &PyVoidArrType_Type))) {
         // obj = (PyObject *)self->typeobj;
         Py_INCREF(obj);
     }
@@ -3456,6 +3408,127 @@ PyArray_DescrNewByteorder(PyArray_Descr *self, char newendian)
         if (new->subarray->base == NULL) {
             Py_DECREF(new);
             return NULL;
+        }
+    }
+    return new;
+}
+
+
+/*HPY_NUMPY_API
+ *
+ * returns a copy of the PyArray_Descr structure with the byteorder
+ * altered:
+ * no arguments:  The byteorder is swapped (in all subfields as well)
+ * single argument:  The byteorder is forced to the given state
+ * (in all subfields as well)
+ *
+ * Valid states:  ('big', '>') or ('little' or '<')
+ * ('native', or '=')
+ *
+ * If a descr structure with | is encountered it's own
+ * byte-order is not changed but any fields are:
+ *
+ *
+ * Deep bytorder change of a data-type descriptor
+ * *** Leaves reference count of self unchanged --- does not DECREF self ***
+ */
+NPY_NO_EXPORT HPy /* PyArray_Descr * */
+HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char newendian)
+{
+    HPy new; // PyArray_Descr *
+    char endian;
+
+    new = HPyArray_DescrNew(ctx, self);
+    if (HPy_IsNull(new)) {
+        return HPy_NULL;
+    }
+    PyArray_Descr *new_data = PyArray_Descr_AsStruct(ctx, new);
+    endian = new_data->byteorder;
+    if (endian != NPY_IGNORE) {
+        if (newendian == NPY_SWAP) {
+            /* swap byteorder */
+            if (PyArray_ISNBO(endian)) {
+                endian = NPY_OPPBYTE;
+            }
+            else {
+                endian = NPY_NATBYTE;
+            }
+            new_data->byteorder = endian;
+        }
+        else if (newendian != NPY_IGNORE) {
+            new_data->byteorder = newendian;
+        }
+    }
+    if (PyDataType_HASFIELDS(new_data)) {
+        HPy newfields;
+        PyObject *key, *value;
+        HPy old;
+        HPy newdescr; // PyArray_Descr *
+        Py_ssize_t pos = 0;
+        int len, i;
+
+        newfields = HPyDict_New(ctx);
+        if (HPy_IsNull(newfields)) {
+            HPy_Close(ctx, new);
+            return HPy_NULL;
+        }
+        /* make new dictionary with replaced PyArray_Descr Objects */
+        CAPI_WARN("missing PyDict_Next");
+        while (PyDict_Next(new_data->fields, &pos, &key, &value)) {
+            if (NPY_TITLE_KEY(key, value)) {
+                continue;
+            }
+            HPy h_value = HPy_FromPyObject(ctx, value);
+            HPy h_key = HPy_FromPyObject(ctx, value);
+            if (!HPyUnicode_Check(ctx, h_key) || !HPyTuple_Check(ctx, h_value) ||
+                ((len=HPy_Length(ctx, h_value)) < 2)) {
+                HPy_Close(ctx, h_value);
+                HPy_Close(ctx, h_key);
+                continue;
+            }
+            old = HPy_GetItem_i(ctx, h_value, 0);
+            HPy_Close(ctx, h_value);
+            if (!HPyArray_DescrCheck(ctx, old)) {
+                HPy_Close(ctx, h_key);
+                continue;
+            }
+            newdescr = HPyArray_DescrNewByteorder(ctx,
+                    old, newendian);
+            if (HPy_IsNull(newdescr)) {
+                HPy_Close(ctx, h_key);
+                HPy_Close(ctx, newfields); 
+                HPy_Close(ctx, new);
+                return HPy_NULL;
+            }
+            HPyTupleBuilder tb_newvalue = HPyTupleBuilder_New(ctx, len);
+            HPyTupleBuilder_Set(ctx, tb_newvalue, 0, newdescr);
+            for (i = 1; i < len; i++) {
+                old = HPy_GetItem_i(ctx, h_value, i);
+                HPyTupleBuilder_Set(ctx, tb_newvalue, i, old);
+                HPy_Close(ctx, old);
+            }
+            HPy newvalue = HPyTupleBuilder_Build(ctx, tb_newvalue);
+            int ret = HPy_SetItem(ctx, newfields, h_key, newvalue);
+            HPy_Close(ctx, h_key);
+            HPy_Close(ctx, newvalue);
+            if (ret < 0) {
+                HPy_Close(ctx, newfields);
+                HPy_Close(ctx, new);
+                return HPy_NULL;
+            }
+        }
+        Py_DECREF(new_data->fields);
+        new_data->fields = HPy_AsPyObject(ctx, newfields);
+    }
+    if (PyDataType_HASSUBARRAY(new_data)) {
+        Py_DECREF(new_data->subarray->base);
+        PyArray_Descr *self_data = PyArray_Descr_AsStruct(ctx, self);
+        CAPI_WARN("using subarray->base");
+        new_data->subarray->base = PyArray_DescrNewByteorder(
+                self_data->subarray->base, newendian);
+        if (new_data->subarray->base == NULL) {
+            HPy_Close(ctx, new);
+            return HPy_NULL;
         }
     }
     return new;

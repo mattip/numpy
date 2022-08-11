@@ -1663,7 +1663,7 @@ _prepend_ones(PyArrayObject *arr, int nd, int ndmin, NPY_ORDER order)
     return ret;
 }
 
-static NPY_NO_EXPORT HPy
+static HPy
 _hpy_prepend_ones(HPyContext *ctx, 
                         HPy arr,
                         PyArrayObject *arr_data, 
@@ -3510,7 +3510,6 @@ NPY_NO_EXPORT HPy
 HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
 {
     HPy h_arr, h_ax, h_ay;
-    PyArrayObject *arr, *ax, *ay;
     HPy h_ret = HPy_NULL;
     PyObject *ret = NULL;
 
@@ -5220,7 +5219,6 @@ static HPyModuleDef moduledef = {
 /* Initialization function for the module */
 HPy_MODINIT(_multiarray_umath)
 static HPy init__multiarray_umath_impl(HPyContext *ctx) {
-    PyObject *s;
     HPy h_mod, h_d = HPy_NULL, h_s;
     HPy result = HPy_NULL;
     HPy h_array_type = HPy_NULL;
@@ -5413,6 +5411,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     }
     HPy_SetItem_s(ctx, h_d, "_HPY_ARRAY_API", hpy_api);
     HPy_Close(ctx, hpy_api);
+    init_hpy_array_api();
 
     /*
      * PyExc_Exception should catch all the standard errors that are

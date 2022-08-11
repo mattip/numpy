@@ -1380,15 +1380,11 @@ hget_legacy_dtype_cast_function(
         // Py_INCREF(tmp_dtype);
     }
     else {
-        CAPI_WARN("calling PyArray_DescrNewByteorder");
-        py_tmp_dtype = PyArray_DescrNewByteorder(py_src_dtype, NPY_NATIVE);
-        if (py_tmp_dtype == NULL) {
+        tmp_dtype = HPyArray_DescrNewByteorder(ctx, src_dtype, NPY_NATIVE);
+        if (HPy_IsNull(tmp_dtype)) {
             PyMem_Free(data);
             return NPY_FAIL;
         }
-        tmp_dtype = HPy_FromPyObject(ctx, (PyObject*)py_tmp_dtype);
-        Py_DECREF(py_tmp_dtype);
-        py_tmp_dtype = NULL;
     }
     HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     HPy h_aip = HPyArray_NewFromDescr_int(ctx,
@@ -1412,20 +1408,15 @@ hget_legacy_dtype_cast_function(
      */
     if (PyArray_ISNBO(dst_dtype_data->byteorder)) {
         tmp_dtype = dst_dtype;
-        // Py_INCREF(tmp_dtype);
+        // Py_INCREF(tmp_dtype); // There is no point of incref
     }
     else {
-        PyArray_Descr *py_dst_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dst_dtype);
-        py_tmp_dtype = PyArray_DescrNewByteorder(py_dst_dtype, NPY_NATIVE);
-        Py_DECREF(py_dst_dtype);
-        if (py_tmp_dtype == NULL) {
+        tmp_dtype = HPyArray_DescrNewByteorder(ctx, dst_dtype, NPY_NATIVE);
+        if (HPy_IsNull(tmp_dtype)) {
             Py_DECREF(data->aip);
             PyMem_Free(data);
             return NPY_FAIL;
         }
-        tmp_dtype = HPy_FromPyObject(ctx, (PyObject*)py_tmp_dtype);
-        Py_DECREF(py_tmp_dtype);
-        py_tmp_dtype = NULL;
     }
     HPy h_aop = HPyArray_NewFromDescr_int(ctx,
             h_array_type, tmp_dtype,
