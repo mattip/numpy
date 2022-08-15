@@ -639,15 +639,11 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
     HPy loop_descrs[NPY_MAXARGS]; // PyArray_Descr *
     HPy result = HPy_NULL;
 
-    HPy_ssize_t descr_tuple_len = HPy_Length(ctx, descr_tuple);
     if (!HPyTuple_CheckExact(ctx, descr_tuple) ||
-            descr_tuple_len != nin + nout) {
-        // PyErr_Format(PyExc_TypeError,
-        //         "_resolve_descriptors() takes exactly one tuple with as many "
-        //         "elements as the method takes arguments (%d+%d).", nin, nout);
-        HPyErr_SetString(ctx, ctx->h_TypeError,
+            HPy_Length(ctx, descr_tuple) != nin + nout) {
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
                 "_resolve_descriptors() takes exactly one tuple with as many "
-                "elements as the method takes arguments (%d+%d).");
+                "elements as the method takes arguments (%d+%d).", nin, nout);
         return HPy_NULL;
     }
     int nargs = nin + nout;
@@ -707,11 +703,12 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
     for (int i = 0; i < nin + nout; i++) {
         /* transfer ownership to the tuple. */
         HPyTupleBuilder_Set(ctx, tb_result_tuple, i, loop_descrs[i]);
+        HPy_Close(ctx, loop_descrs[i]);
     }
 
     HPy view_offset_obj;
     if (view_offset == NPY_MIN_INTP) {
-        Py_INCREF(Py_None);
+        // Py_INCREF(Py_None);
         view_offset_obj = HPy_Dup(ctx, ctx->h_None);
     }
     else {
@@ -739,13 +736,10 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
         NPY_CASTING cast = casting;
         if (self_method->casting !=
                 PyArray_MinCastSafety(cast, self_method->casting)) {
-            // PyErr_Format(PyExc_RuntimeError,
-            //         "resolve_descriptors cast level did not match stored one. "
-            //         "(set level is %d, got %d for method %s)",
-            //         self_method->casting, cast, self_method->name);
-            HPyErr_SetString(ctx, ctx->h_RuntimeError,
+            HPyErr_Format(ctx, ctx->h_RuntimeError,
                     "resolve_descriptors cast level did not match stored one. "
-                    "(set level is %d, got %d for method %s)");
+                    "(set level is %d, got %d for method %s)",
+                    self_method->casting, cast, self_method->name);
             HPyTupleBuilder_Cancel(ctx, tb_result_tuple);
             HPy_Close(ctx, view_offset_obj);
             goto clean_up;
@@ -776,6 +770,8 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
     }
     HPy result_tuple = HPyTupleBuilder_Build(ctx, tb_result_tuple);
     result = HPy_BuildValue(ctx, "iOO", casting, result_tuple, view_offset_obj);
+    HPy_Close(ctx, result_tuple);
+    HPy_Close(ctx, view_offset_obj);
 clean_up:
     for (int i = 0; i < nin + nout; i++) {
         HPy_Close(ctx, self_dtypes[i]);

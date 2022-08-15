@@ -3598,6 +3598,7 @@ nonstructured_to_structured_resolve_descriptors(
         casting = NPY_SAFE_CASTING;
         npy_intp sub_view_offset = NPY_MIN_INTP;
         /* Subarray dtype */
+        CAPI_WARN("using PyArray_Descr->PyArray_ArrayDescr->base (PyArray_Descr *)");
         HPy given_descrs_1_subarray_base = HPy_FromPyObject(ctx, (PyObject *)given_descrs_1->subarray->base);
         NPY_CASTING base_casting = HPyArray_GetCastInfo(ctx,
                 given_descrs[0], given_descrs_1_subarray_base, HPy_NULL,
@@ -3623,11 +3624,14 @@ nonstructured_to_structured_resolve_descriptors(
             /* Considered at most unsafe casting (but this could be changed) */
             casting = NPY_UNSAFE_CASTING;
 
-            Py_ssize_t pos = 0;
-            PyObject *key, *tuple;
-            CAPI_WARN("missing PyDict_Next");
-            while (PyDict_Next(given_descrs_1->fields, &pos, &key, &tuple)) {
-                HPy h_tuple = HPy_FromPyObject(ctx, tuple);
+            CAPI_WARN("using PyArray_Descr->fields (PyObject *)");
+            HPy fields = HPy_FromPyObject(ctx, given_descrs_1->fields);
+            HPy keys = HPyDict_Keys(ctx, fields);
+            HPy_ssize_t keys_len = HPy_Length(ctx, keys);
+            for (HPy_ssize_t i = 0; i < keys_len; i++) {
+                HPy key = HPy_GetItem_i(ctx, keys, i);
+                HPy h_tuple = HPy_GetItem(ctx, fields, key);
+                HPy_Close(ctx, key);
                 HPy field_descr = HPy_GetItem_i(ctx, h_tuple, 0); // PyArray_Descr *
                 npy_intp field_view_off = NPY_MIN_INTP;
                 NPY_CASTING field_casting = HPyArray_GetCastInfo(ctx,
@@ -3636,6 +3640,8 @@ nonstructured_to_structured_resolve_descriptors(
                 casting = PyArray_MinCastSafety(casting, field_casting);
                 if (casting < 0) {
                     HPy_Close(ctx, h_tuple);
+                    HPy_Close(ctx, fields);
+                    HPy_Close(ctx, keys);
                     return -1;
                 }
                 if (field_view_off != NPY_MIN_INTP) {
@@ -3644,12 +3650,16 @@ nonstructured_to_structured_resolve_descriptors(
                     HPy_Close(ctx, item);
                     if (error_converting(to_off)) {
                         HPy_Close(ctx, h_tuple);
+                        HPy_Close(ctx, fields);
+                        HPy_Close(ctx, keys);
                         return -1;
                     }
                     *view_offset = field_view_off - to_off;
                 }
                 HPy_Close(ctx, h_tuple);
             }
+            HPy_Close(ctx, fields);
+            HPy_Close(ctx, keys);
             if (given_descrs_1_names_len != 1) {
                 /*
                     * Assume that a view is impossible when there is more than one
@@ -3814,6 +3824,7 @@ structured_to_nonstructured_resolve_descriptors(
         }
         HPy key = HPy_GetItem_i(ctx, names, 0);
         HPy_Close(ctx, names);
+        CAPI_WARN("using PyArray_Descr.fields (PyObject *)");
         HPy given_descrs_0_fields = HPy_FromPyObject(ctx, given_descrs_0->fields);
         HPy base_tup = HPy_GetItem(ctx, given_descrs_0_fields, key);
         HPy_Close(ctx, given_descrs_0_fields);
@@ -3994,15 +4005,13 @@ hpy_can_cast_fields_safety(HPyContext *ctx,
     for (Py_ssize_t i = 0; i < field_count; i++) {
         npy_intp field_view_off = NPY_MIN_INTP;
         HPy from_key = HPy_GetItem_i(ctx, names, i);
-        CAPI_WARN("missing PyDict_GetItemWithError");
-        PyObject *py_from_key = HPy_AsPyObject(ctx, from_key);
-        PyObject *py_from_tup = PyDict_GetItemWithError(from_data->fields, py_from_key);
-        if (py_from_tup == NULL) {
+        CAPI_WARN("using PyArray_Descr.fields (PyObject *)");
+        HPy fields = HPy_FromPyObject(ctx, from_data->fields);
+        HPy from_tup = HPyDict_GetItemWithError(ctx, fields, from_key);
+        if (HPy_IsNull(from_tup)) {
             casting = (NPY_CASTING) hpy_give_bad_field_error(ctx, from_key);
             goto finish;
         }
-        HPy from_tup = HPy_FromPyObject(ctx, py_from_tup);
-        Py_DECREF(py_from_tup);
         HPy from_base = HPy_GetItem_i(ctx, from_tup, 0); // PyArray_Descr *
 
         /*
@@ -4010,6 +4019,7 @@ hpy_can_cast_fields_safety(HPyContext *ctx,
          *       by Allan Haldane.  And raise an error on failure.
          *       (Fixing that may also requires fixing/changing promotion.)
          */
+        CAPI_WARN("using PyArray_Descr.fields (PyObject *)");
         HPy to_fields = HPy_FromPyObject(ctx, to_data->fields);
         HPy to_tup = HPy_GetItem(ctx, to_fields, from_key);
         if (HPy_IsNull(to_tup)) {
@@ -4078,7 +4088,7 @@ hpy_can_cast_fields_safety(HPyContext *ctx,
         goto finish;
     }
 
-    CAPI_WARN("using PyArray_Descr.fields");
+    CAPI_WARN("using PyArray_Descr.fields (PyObject *)");
     int cmp = PyObject_RichCompareBool(from_data->fields, to_data->fields, Py_EQ);
     if (cmp != 1) {
         if (cmp == -1) {
@@ -4200,15 +4210,17 @@ void_to_void_resolve_descriptors(
         HPy from_base;
         if (from_sub == NULL) {
             from_base = given_descrs[0];
-        } else { 
+        } else {
+            CAPI_WARN("using PyArray_ArrayDescr->base (PyArray_Descr*)");
             from_base = HPy_FromPyObject(ctx, (PyObject *)from_sub->base); 
         }
         HPy to_base;
         if (to_sub == NULL) {
             to_base = given_descrs[1];
-         } else {
+        } else {
+            CAPI_WARN("using PyArray_ArrayDescr->base (PyArray_Descr*)");
             to_base = HPy_FromPyObject(ctx, (PyObject *)to_sub->base);
-         }
+        }
         /* An offset for  */
         NPY_CASTING field_casting = HPyArray_GetCastInfo(ctx,
                 from_base, to_base, HPy_NULL, view_offset);
