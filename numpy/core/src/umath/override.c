@@ -105,41 +105,51 @@ fail:
  * normalized version (and always pass it even if it was passed by position).
  */
 static int
-initialize_normal_kwds(PyObject *out_args,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames,
-        PyObject *normal_kwds)
+initialize_normal_kwds(HPyContext *ctx, HPy out_args,
+        const HPy *args, HPy_ssize_t len_args, HPy kwnames,
+        HPy normal_kwds)
 {
-    if (kwnames != NULL) {
-        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(kwnames); i++) {
-            if (PyDict_SetItem(normal_kwds,
-                    PyTuple_GET_ITEM(kwnames, i), args[i + len_args]) < 0) {
+    if (!HPy_IsNull(kwnames)) {
+        for (Py_ssize_t i = 0; i < HPy_Length(ctx, kwnames); i++) {
+            if (HPy_SetItem(ctx, normal_kwds,
+                    HPy_GetItem_i(ctx, kwnames, i), args[i + len_args]) < 0) {
                 return -1;
             }
         }
     }
-    static PyObject *out_str = NULL;
-    if (out_str == NULL) {
-        out_str = PyUnicode_InternFromString("out");
-        if (out_str == NULL) {
+    static HPyGlobal hg_out_str;
+    static int is_out_str_set = 0;
+    HPy out_str = HPyGlobal_Load(ctx, hg_out_str);
+    if (!is_out_str_set || HPy_IsNull(out_str)) {
+        out_str = HPyUnicode_InternFromString(ctx, "out");
+        if (HPy_IsNull(out_str)) {
             return -1;
         }
+        HPyGlobal_Store(ctx, &hg_out_str, out_str);
+        is_out_str_set = 1;
     }
 
-    if (out_args != NULL) {
+    if (!HPy_IsNull(out_args)) {
         /* Replace `out` argument with the normalized version */
-        int res = PyDict_SetItem(normal_kwds, out_str, out_args);
+        int res = HPy_SetItem(ctx, normal_kwds, out_str, out_args);
         if (res < 0) {
             return -1;
         }
     }
     else {
         /* Ensure that `out` is not present. */
-        int res = PyDict_Contains(normal_kwds, out_str);
+        int res = HPy_Contains(ctx, normal_kwds, out_str);
         if (res < 0) {
             return -1;
         }
         if (res) {
-            return PyDict_DelItem(normal_kwds, out_str);
+            CAPI_WARN("missing PyDict_DelItem");
+            PyObject *py_normal_kwds = HPy_AsPyObject(ctx, normal_kwds);
+            PyObject *py_out_str = HPy_AsPyObject(ctx, out_str);
+            int res = PyDict_DelItem(py_normal_kwds, py_out_str);
+            Py_DECREF(py_normal_kwds);
+            Py_DECREF(py_out_str);
+            return res;
         }
     }
     return 0;
@@ -152,35 +162,40 @@ initialize_normal_kwds(PyObject *out_args,
  * before checking for overrides.
  */
 static int
-normalize_signature_keyword(PyObject *normal_kwds)
+normalize_signature_keyword(HPyContext *ctx, HPy normal_kwds)
 {
     /* If the keywords include `sig` rename to `signature`. */
-    PyObject* obj = _PyDict_GetItemStringWithError(normal_kwds, "sig");
-    if (obj == NULL && PyErr_Occurred()) {
+    HPy sig = HPyUnicode_FromString(ctx, "sig");
+    HPy obj = HPyDict_GetItemWithError(ctx, normal_kwds, sig);
+    if (HPy_IsNull(obj) && HPyErr_Occurred(ctx)) {
         return -1;
     }
-    if (obj != NULL) {
-        /*
-         * No INCREF or DECREF needed: got a borrowed reference above,
-         * and, unlike e.g. PyList_SetItem, PyDict_SetItem INCREF's it.
-         */
-        if (PyDict_SetItemString(normal_kwds, "signature", obj) < 0) {
+    if (!HPy_IsNull(obj)) {
+        if (HPy_SetItem_s(ctx, normal_kwds, "signature", obj) < 0) {
+            HPy_Close(ctx, sig);
+            HPy_Close(ctx, obj);
             return -1;
         }
-        if (PyDict_DelItemString(normal_kwds, "sig") < 0) {
+        HPy_Close(ctx, sig);
+        HPy_Close(ctx, obj);
+        CAPI_WARN("missing PyDict_DelItemString");
+        PyObject *py_normal_kwds = HPy_AsPyObject(ctx, normal_kwds);
+        if (PyDict_DelItemString(py_normal_kwds, "sig") < 0) {
+            Py_DECREF(py_normal_kwds);
             return -1;
         }
+        Py_DECREF(py_normal_kwds);
     }
     return 0;
 }
 
 
 static int
-copy_positional_args_to_kwargs(const char **keywords,
-        PyObject *const *args, Py_ssize_t len_args,
-        PyObject *normal_kwds)
+copy_positional_args_to_kwargs(HPyContext *ctx, const char **keywords,
+        const HPy *args, HPy_ssize_t len_args,
+        HPy normal_kwds)
 {
-    for (Py_ssize_t i = 0; i < len_args; i++) {
+    for (HPy_ssize_t i = 0; i < len_args; i++) {
         if (keywords[i] == NULL) {
             /* keyword argument is either input or output and not set here */
             continue;
@@ -190,15 +205,23 @@ copy_positional_args_to_kwargs(const char **keywords,
              * This is only relevant for reduce, which is the only one with
              * 5 keyword arguments.
              */
-            static PyObject *NoValue = NULL;
+            static HPyGlobal hg_NoValue;
+            static int is_NoValue_set = 0;
+            HPy NoValue = HPy_NULL;
+            if (is_NoValue_set) {
+                NoValue = HPyGlobal_Load(ctx, hg_NoValue);
+            }
             assert(strcmp(keywords[i], "initial") == 0);
-            npy_cache_import("numpy", "_NoValue", &NoValue);
-            if (args[i] == NoValue) {
+            npy_hpy_cache_import(ctx, "numpy", "_NoValue", &NoValue);
+            if (!is_NoValue_set) {
+                HPyGlobal_Store(ctx, &hg_NoValue, NoValue);
+            }
+            if (HPy_Is(ctx, args[i], NoValue)) {
                 continue;
             }
         }
 
-        int res = PyDict_SetItemString(normal_kwds, keywords[i], args[i]);
+        int res = HPy_SetItem_s(ctx, normal_kwds, keywords[i], args[i]);
         if (res < 0) {
             return -1;
         }
@@ -256,10 +279,10 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
     HPy with_override[NPY_MAXARGS];
     HPy array_ufunc_methods[NPY_MAXARGS];
 
-    // HPy method_name = HPy_NULL;
-    // HPy normal_kwds = HPy_NULL;
+    HPy method_name = HPy_NULL;
+    HPy normal_kwds = HPy_NULL;
 
-    // HPy override_args = HPy_NULL;
+    HPy override_args = HPy_NULL;
 
     /*
      * Check inputs for overrides
@@ -277,198 +300,223 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         return 0;
     }
 
-    hpy_abort_not_implemented("remainder of HPyUFunc_CheckOverride");
-    return -1;
+    /*
+     * Normalize ufunc arguments, note that any input and output arguments
+     * have already been stored in `in_args` and `out_args`.
+     */
+    normal_kwds = HPyDict_New(ctx);
+    if (HPy_IsNull(normal_kwds)) {
+        goto fail;
+    }
+    if (initialize_normal_kwds(ctx, out_args,
+            args, len_args, kwnames, normal_kwds) < 0) {
+        goto fail;
+    }
 
-//    /*
-//     * Normalize ufunc arguments, note that any input and output arguments
-//     * have already been stored in `in_args` and `out_args`.
-//     */
-//    normal_kwds = PyDict_New();
-//    if (normal_kwds == NULL) {
-//        goto fail;
-//    }
-//    if (initialize_normal_kwds(out_args,
-//            args, len_args, kwnames, normal_kwds) < 0) {
-//        goto fail;
-//    }
-//
-//    /*
-//     * Reduce-like methods can pass keyword arguments also by position,
-//     * in which case the additional positional arguments have to be copied
-//     * into the keyword argument dictionary. The `__call__` and `__outer__`
-//     * method have to normalize sig and signature.
-//     */
-//
-//    /* ufunc.__call__ */
-//    if (strcmp(method, "__call__") == 0) {
-//        status = normalize_signature_keyword(normal_kwds);
-//    }
-//    /* ufunc.reduce */
-//    else if (strcmp(method, "reduce") == 0) {
-//        static const char *keywords[] = {
-//                NULL, "axis", "dtype", NULL, "keepdims",
-//                "initial", "where"};
-//        status = copy_positional_args_to_kwargs(keywords,
-//                args, len_args, normal_kwds);
-//    }
-//    /* ufunc.accumulate */
-//    else if (strcmp(method, "accumulate") == 0) {
-//        static const char *keywords[] = {
-//                NULL, "axis", "dtype", NULL};
-//        status = copy_positional_args_to_kwargs(keywords,
-//                args, len_args, normal_kwds);
-//    }
-//    /* ufunc.reduceat */
-//    else if (strcmp(method, "reduceat") == 0) {
-//        static const char *keywords[] = {
-//                NULL, NULL, "axis", "dtype", NULL};
-//        status = copy_positional_args_to_kwargs(keywords,
-//                args, len_args, normal_kwds);
-//    }
-//    /* ufunc.outer (identical to call) */
-//    else if (strcmp(method, "outer") == 0) {
-//        status = normalize_signature_keyword(normal_kwds);
-//    }
-//    /* ufunc.at */
-//    else if (strcmp(method, "at") == 0) {
-//        status = 0;
-//    }
-//    /* unknown method */
-//    else {
-//        PyErr_Format(PyExc_TypeError,
-//                     "Internal Numpy error: unknown ufunc method '%s' in call "
-//                     "to PyUFunc_CheckOverride", method);
-//        status = -1;
-//    }
-//    if (status != 0) {
-//        goto fail;
-//    }
-//
-//    method_name = PyUnicode_FromString(method);
-//    if (method_name == NULL) {
-//        goto fail;
-//    }
-//
-//    int len = (int)PyTuple_GET_SIZE(in_args);
-//
-//    /* Call __array_ufunc__ functions in correct order */
-//    while (1) {
-//        PyObject *override_obj;
-//        PyObject *override_array_ufunc;
-//
-//        override_obj = NULL;
-//        *result = NULL;
-//
-//        /* Choose an overriding argument */
-//        for (int i = 0; i < num_override_args; i++) {
-//            override_obj = with_override[i];
-//            if (override_obj == NULL) {
-//                continue;
-//            }
-//
-//            /* Check for sub-types to the right of obj. */
-//            for (int j = i + 1; j < num_override_args; j++) {
-//                PyObject *other_obj = with_override[j];
-//                if (other_obj != NULL &&
-//                    Py_TYPE(other_obj) != Py_TYPE(override_obj) &&
-//                    PyObject_IsInstance(other_obj,
-//                                        (PyObject *)Py_TYPE(override_obj))) {
-//                    override_obj = NULL;
-//                    break;
-//                }
-//            }
-//
-//            /* override_obj had no subtypes to the right. */
-//            if (override_obj) {
-//                override_array_ufunc = array_ufunc_methods[i];
-//                /* We won't call this one again (references decref'd below) */
-//                with_override[i] = NULL;
-//                array_ufunc_methods[i] = NULL;
-//                break;
-//            }
-//        }
-//        /*
-//         * Set override arguments for each call since the tuple must
-//         * not be mutated after use in PyPy
-//         * We increase all references since SET_ITEM steals
-//         * them and they will be DECREF'd when the tuple is deleted.
-//         */
-//        override_args = PyTuple_New(len + 3);
-//        if (override_args == NULL) {
-//            goto fail;
-//        }
-//        Py_INCREF(ufunc);
-//        PyTuple_SET_ITEM(override_args, 1, (PyObject *)ufunc);
-//        Py_INCREF(method_name);
-//        PyTuple_SET_ITEM(override_args, 2, method_name);
-//        for (int i = 0; i < len; i++) {
-//            PyObject *item = PyTuple_GET_ITEM(in_args, i);
-//
-//            Py_INCREF(item);
-//            PyTuple_SET_ITEM(override_args, i + 3, item);
-//        }
-//
-//        /* Check if there is a method left to call */
-//        if (!override_obj) {
-//            /* No acceptable override found. */
-//            static PyObject *errmsg_formatter = NULL;
-//            PyObject *errmsg;
-//
-//            npy_cache_import("numpy.core._internal",
-//                             "array_ufunc_errmsg_formatter",
-//                             &errmsg_formatter);
-//
-//            if (errmsg_formatter != NULL) {
-//                /* All tuple items must be set before use */
-//                Py_INCREF(Py_None);
-//                PyTuple_SET_ITEM(override_args, 0, Py_None);
-//                errmsg = PyObject_Call(errmsg_formatter, override_args,
-//                                       normal_kwds);
-//                if (errmsg != NULL) {
-//                    PyErr_SetObject(PyExc_TypeError, errmsg);
-//                    Py_DECREF(errmsg);
-//                }
-//            }
-//            Py_DECREF(override_args);
-//            goto fail;
-//        }
-//
-//        /*
-//         * Set the self argument of our unbound method.
-//         * This also steals the reference, so no need to DECREF after.
-//         */
-//        PyTuple_SET_ITEM(override_args, 0, override_obj);
-//        /* Call the method */
-//        *result = PyObject_Call(
-//            override_array_ufunc, override_args, normal_kwds);
-//        Py_DECREF(override_array_ufunc);
-//        Py_DECREF(override_args);
-//        if (*result == NULL) {
-//            /* Exception occurred */
-//            goto fail;
-//        }
-//        else if (*result == Py_NotImplemented) {
-//            /* Try the next one */
-//            Py_DECREF(*result);
-//            continue;
-//        }
-//        else {
-//            /* Good result. */
-//            break;
-//        }
-//    }
-//    status = 0;
-//    /* Override found, return it. */
-//    goto cleanup;
-//fail:
-//    status = -1;
-//cleanup:
-//    for (int i = 0; i < num_override_args; i++) {
-//        Py_XDECREF(with_override[i]);
-//        Py_XDECREF(array_ufunc_methods[i]);
-//    }
-//    Py_XDECREF(method_name);
-//    Py_XDECREF(normal_kwds);
-//    return status;
+    /*
+        * Reduce-like methods can pass keyword arguments also by position,
+        * in which case the additional positional arguments have to be copied
+        * into the keyword argument dictionary. The `__call__` and `__outer__`
+        * method have to normalize sig and signature.
+        */
+
+    /* ufunc.__call__ */
+    if (strcmp(method, "__call__") == 0) {
+        status = normalize_signature_keyword(ctx, normal_kwds);
+    }
+    /* ufunc.reduce */
+    else if (strcmp(method, "reduce") == 0) {
+        static const char *keywords[] = {
+                NULL, "axis", "dtype", NULL, "keepdims",
+                "initial", "where"};
+        status = copy_positional_args_to_kwargs(ctx, keywords,
+                args, len_args, normal_kwds);
+    }
+    /* ufunc.accumulate */
+    else if (strcmp(method, "accumulate") == 0) {
+        static const char *keywords[] = {
+                NULL, "axis", "dtype", NULL};
+        status = copy_positional_args_to_kwargs(ctx, keywords,
+                args, len_args, normal_kwds);
+    }
+    /* ufunc.reduceat */
+    else if (strcmp(method, "reduceat") == 0) {
+        static const char *keywords[] = {
+                NULL, NULL, "axis", "dtype", NULL};
+        status = copy_positional_args_to_kwargs(ctx, keywords,
+                args, len_args, normal_kwds);
+    }
+    /* ufunc.outer (identical to call) */
+    else if (strcmp(method, "outer") == 0) {
+        status = normalize_signature_keyword(ctx, normal_kwds);
+    }
+    /* ufunc.at */
+    else if (strcmp(method, "at") == 0) {
+        status = 0;
+    }
+    /* unknown method */
+    else {
+        // PyErr_Format(PyExc_TypeError,
+        //                 "Internal Numpy error: unknown ufunc method '%s' in call "
+        //                 "to PyUFunc_CheckOverride", method);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "Internal Numpy error: unknown ufunc method '%s' in call "
+                        "to PyUFunc_CheckOverride");
+        status = -1;
+    }
+    if (status != 0) {
+        goto fail;
+    }
+
+    method_name = HPyUnicode_FromString(ctx, method);
+    if (HPy_IsNull(method_name)) {
+        goto fail;
+    }
+
+    int len = (int)HPy_Length(ctx, in_args);
+
+    /* Call __array_ufunc__ functions in correct order */
+    while (1) {
+        HPy override_obj;
+        HPy override_array_ufunc;
+
+        override_obj = HPy_NULL;
+        *result = HPy_NULL;
+
+        /* Choose an overriding argument */
+        for (int i = 0; i < num_override_args; i++) {
+            override_obj = with_override[i];
+            if (HPy_IsNull(override_obj)) {
+                continue;
+            }
+
+            /* Check for sub-types to the right of obj. */
+            for (int j = i + 1; j < num_override_args; j++) {
+                HPy other_obj = with_override[j];
+                if (!HPy_IsNull(other_obj)) {
+                    HPy other_obj_type = HPy_Type(ctx, other_obj);
+                    HPy override_obj_type = HPy_Type(ctx, override_obj);
+                    int is_equal = HPy_Is(ctx, other_obj_type, override_obj_type);
+                    HPy_Close(ctx, other_obj_type);
+                    HPy_Close(ctx, override_obj_type);
+                    if (!is_equal) {
+                        CAPI_WARN("missing PyObject_IsInstance");
+                        PyObject *py_other_obj = HPy_AsPyObject(ctx, other_obj);
+                        PyObject *py_override_obj = HPy_AsPyObject(ctx, override_obj);
+                        int is_instance = PyObject_IsInstance(py_other_obj,
+                                        (PyObject *)Py_TYPE(py_override_obj));
+                        Py_DECREF(py_other_obj);
+                        Py_DECREF(py_override_obj);
+                        if (is_instance) {
+                            override_obj = HPy_NULL;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            /* override_obj had no subtypes to the right. */
+            if (!HPy_IsNull(override_obj)) {
+                override_array_ufunc = array_ufunc_methods[i];
+                /* We won't call this one again (references decref'd below) */
+                with_override[i] = HPy_NULL;
+                array_ufunc_methods[i] = HPy_NULL;
+                break;
+            }
+        }
+        /*
+            * Set override arguments for each call since the tuple must
+            * not be mutated after use in PyPy
+            * We increase all references since SET_ITEM steals
+            * them and they will be DECREF'd when the tuple is deleted.
+            */
+        HPyTupleBuilder tb_override_args = HPyTupleBuilder_New(ctx, len + 3);
+        if (HPyTupleBuilder_IsNull(tb_override_args)) {
+            goto fail;
+        }
+        // Py_INCREF(ufunc);
+        HPyTupleBuilder_Set(ctx, tb_override_args, 1, ufunc);
+        // Py_INCREF(method_name);
+        HPyTupleBuilder_Set(ctx, tb_override_args, 2, method_name);
+        for (int i = 0; i < len; i++) {
+            HPy item = HPy_GetItem_i(ctx, in_args, i);
+
+            // Py_INCREF(item);
+            HPyTupleBuilder_Set(ctx, tb_override_args, i + 3, item);
+        }
+
+        /* Check if there is a method left to call */
+        if (HPy_IsNull(override_obj)) {
+            /* No acceptable override found. */
+            static HPyGlobal hg_errmsg_formatter;
+            static int is_errmsg_formatter_set = 0;
+            HPy errmsg_formatter;
+            HPy errmsg;
+            if (is_errmsg_formatter_set) {
+                errmsg_formatter = HPyGlobal_Load(ctx, hg_errmsg_formatter);
+            }
+            npy_hpy_cache_import(ctx, "numpy.core._internal",
+                                "array_ufunc_errmsg_formatter",
+                                &errmsg_formatter);
+
+            if (!HPy_IsNull(errmsg_formatter)) {
+                if(!is_errmsg_formatter_set) {
+                    HPyGlobal_Store(ctx, &hg_errmsg_formatter, errmsg_formatter);
+                    is_errmsg_formatter_set = 1;
+                }
+                /* All tuple items must be set before use */
+                // Py_INCREF(Py_None);
+                HPyTupleBuilder_Set(ctx, tb_override_args, 0, ctx->h_None);
+                override_args = HPyTupleBuilder_Build(ctx, tb_override_args);
+                errmsg = HPy_CallTupleDict(ctx, errmsg_formatter, override_args,
+                                        normal_kwds);
+                if (!HPy_IsNull(errmsg)) {
+                    HPyErr_SetObject(ctx, ctx->h_TypeError, errmsg);
+                    HPy_Close(ctx, errmsg);
+                }
+            } else {
+                HPyTupleBuilder_Cancel(ctx, tb_override_args);
+            }
+            HPy_Close(ctx, override_args);
+            goto fail;
+        }
+
+        /*
+            * Set the self argument of our unbound method.
+            * This also steals the reference, so no need to DECREF after.
+            */
+        HPyTupleBuilder_Set(ctx, tb_override_args, 0, override_obj);
+        /* Call the method */
+        override_args = HPyTupleBuilder_Build(ctx, tb_override_args);
+        *result = HPy_CallTupleDict(ctx,
+            override_array_ufunc, override_args, normal_kwds);
+        HPy_Close(ctx, override_array_ufunc);
+        HPy_Close(ctx, override_args);
+        if (HPy_IsNull(*result)) {
+            /* Exception occurred */
+            goto fail;
+        }
+        else if (HPy_Is(ctx, *result, ctx->h_NotImplemented)) {
+            /* Try the next one */
+            HPy_Close(ctx, *result);
+            continue;
+        }
+        else {
+            /* Good result. */
+            break;
+        }
+    }
+    status = 0;
+    /* Override found, return it. */
+    goto cleanup;
+    fail:
+    status = -1;
+    cleanup:
+    for (int i = 0; i < num_override_args; i++) {
+        HPy_Close(ctx, with_override[i]);
+        HPy_Close(ctx, array_ufunc_methods[i]);
+    }
+    HPy_Close(ctx, method_name);
+    HPy_Close(ctx, normal_kwds);
+    return status;
 }

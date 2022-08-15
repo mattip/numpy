@@ -32,6 +32,10 @@ _fix_unknown_dimension(PyArray_Dims *newshape, PyArrayObject *arr);
 static int
 _attempt_nocopy_reshape(PyArrayObject *self, int newnd, const npy_intp *newdims,
                         npy_intp *newstrides, int is_f_order);
+static int
+_hpy_attempt_nocopy_reshape(HPyContext *ctx, HPy h_self,
+                        PyArrayObject *self, int newnd, const npy_intp *newdims,
+                        npy_intp *newstrides, int is_f_order);
 
 static void
 _putzero(char *optr, PyObject *zero, PyArray_Descr *dtype);
@@ -301,7 +305,8 @@ static int _hpy_fix_unknown_dimension(HPyContext *ctx, PyArray_Dims *newshape, P
  * New shape for an array
  */
 NPY_NO_EXPORT HPy
-HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObject* self,
+HPyArray_Newshape(HPyContext *ctx, 
+        HPy /* (PyArrayObject*) */h_arg_self, PyArrayObject* arg_self,
         PyArray_Dims *newdims, NPY_ORDER order)
 {
     npy_intp i;
@@ -311,6 +316,10 @@ HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObje
     npy_intp *strides = NULL;
     npy_intp newstrides[NPY_MAXDIMS];
     int flags;
+
+    HPy h_self = h_arg_self;
+    PyArrayObject *self = arg_self;
+    int should_close_self = 0;
 
     if (order == NPY_ANYORDER) {
         order = PyArray_ISFORTRAN(self);
@@ -331,11 +340,10 @@ HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObje
             i++;
         }
         if (same) {
-            CAPI_WARN("HPyArray_Newshape->PyArray_View");
-            PyObject *res = PyArray_View(self, NULL, NULL);
-            HPy hres = HPy_FromPyObject(ctx, res);
-            Py_DECREF(res);
-            return hres;
+            HPy self_descr = HPyArray_DESCR(ctx, h_self, self);
+            HPy res = HPyArray_View(ctx, h_self, self, self_descr, HPy_NULL, HPy_NULL);
+            HPy_Close(ctx, self_descr);
+            return res;
         }
     }
 
@@ -352,26 +360,25 @@ HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObje
      * data in the order it is in.
      * NPY_RELAXED_STRIDES_CHECKING: size check is unnecessary when set.
      */
-    if ((PyArray_SIZE(self) > 1) &&
+    if ((HPyArray_SIZE(self) > 1) &&
         ((order == NPY_CORDER && !PyArray_IS_C_CONTIGUOUS(self)) ||
          (order == NPY_FORTRANORDER && !PyArray_IS_F_CONTIGUOUS(self)))) {
-        hpy_abort_not_implemented("Unusual combinations of C/F orcer and C/F contiguous");
-        // int success = 0;
-        // success = _attempt_nocopy_reshape(self, ndim, dimensions,
-        //                                   newstrides, order);
-        // if (success) {
-        //     /* no need to copy the array after all */
-        //     strides = newstrides;
-        // }
-        // else {
-        //     PyObject *newcopy;
-        //     newcopy = PyArray_NewCopy(self, order);
-        //     Py_DECREF(self);
-        //     if (newcopy == NULL) {
-        //         return NULL;
-        //     }
-        //     self = (PyArrayObject *)newcopy;
-        // }
+        int success = _hpy_attempt_nocopy_reshape(ctx, h_self, self, 
+                                          ndim, dimensions, newstrides, order);
+        if (success) {
+            /* no need to copy the array after all */
+            strides = newstrides;
+        }
+        else {
+            HPy newcopy = HPyArray_NewCopy(ctx, h_self, order);
+            // Py_DECREF(self); // we do don't steel ref in HPyArray_NewCopy
+            if (HPy_IsNull(newcopy)) {
+                return HPy_NULL;
+            }
+            h_self = newcopy;
+            self = PyArrayObject_AsStruct(ctx, h_self);
+            should_close_self = 1;
+        }
     }
     /* We always have to interpret the contiguous buffer correctly */
 
@@ -396,6 +403,9 @@ HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObje
             flags, h_self, h_self,
             0, 1);
 
+    if (should_close_self) {
+        HPy_Close(ctx, h_self);
+    }
     HPy_Close(ctx, self_type);
     HPy_Close(ctx, self_h_descr);
     return ret;
@@ -561,6 +571,102 @@ _attempt_nocopy_reshape(PyArrayObject *self, int newnd, const npy_intp *newdims,
     }
     else {
         last_stride = PyArray_ITEMSIZE(self);
+    }
+    if (is_f_order) {
+        last_stride *= newdims[ni - 1];
+    }
+    for (nk = ni; nk < newnd; nk++) {
+        newstrides[nk] = last_stride;
+    }
+
+    return 1;
+}
+
+static int
+_hpy_attempt_nocopy_reshape(HPyContext *ctx, HPy h_self,
+                        PyArrayObject *self, int newnd, const npy_intp *newdims,
+                        npy_intp *newstrides, int is_f_order)
+{
+    int oldnd;
+    npy_intp olddims[NPY_MAXDIMS];
+    npy_intp oldstrides[NPY_MAXDIMS];
+    npy_intp last_stride;
+    int oi, oj, ok, ni, nj, nk;
+
+    oldnd = 0;
+    /*
+     * Remove axes with dimension 1 from the old array. They have no effect
+     * but would need special cases since their strides do not matter.
+     */
+    for (oi = 0; oi < PyArray_NDIM(self); oi++) {
+        if (PyArray_DIMS(self)[oi]!= 1) {
+            olddims[oldnd] = PyArray_DIMS(self)[oi];
+            oldstrides[oldnd] = PyArray_STRIDES(self)[oi];
+            oldnd++;
+        }
+    }
+
+    /* oi to oj and ni to nj give the axis ranges currently worked with */
+    oi = 0;
+    oj = 1;
+    ni = 0;
+    nj = 1;
+    while (ni < newnd && oi < oldnd) {
+        npy_intp np = newdims[ni];
+        npy_intp op = olddims[oi];
+
+        while (np != op) {
+            if (np < op) {
+                /* Misses trailing 1s, these are handled later */
+                np *= newdims[nj++];
+            } else {
+                op *= olddims[oj++];
+            }
+        }
+
+        /* Check whether the original axes can be combined */
+        for (ok = oi; ok < oj - 1; ok++) {
+            if (is_f_order) {
+                if (oldstrides[ok+1] != olddims[ok]*oldstrides[ok]) {
+                     /* not contiguous enough */
+                    return 0;
+                }
+            }
+            else {
+                /* C order */
+                if (oldstrides[ok] != olddims[ok+1]*oldstrides[ok+1]) {
+                    /* not contiguous enough */
+                    return 0;
+                }
+            }
+        }
+
+        /* Calculate new strides for all axes currently worked with */
+        if (is_f_order) {
+            newstrides[ni] = oldstrides[oi];
+            for (nk = ni + 1; nk < nj; nk++) {
+                newstrides[nk] = newstrides[nk - 1]*newdims[nk - 1];
+            }
+        }
+        else {
+            /* C order */
+            newstrides[nj - 1] = oldstrides[oj - 1];
+            for (nk = nj - 1; nk > ni; nk--) {
+                newstrides[nk - 1] = newstrides[nk]*newdims[nk];
+            }
+        }
+        ni = nj++;
+        oi = oj++;
+    }
+
+    /*
+     * Set strides corresponding to trailing 1s of the new shape.
+     */
+    if (ni >= 1) {
+        last_stride = newstrides[ni - 1];
+    }
+    else {
+        last_stride = HPyArray_ITEMSIZE(ctx, h_self, self);
     }
     if (is_f_order) {
         last_stride *= newdims[ni - 1];

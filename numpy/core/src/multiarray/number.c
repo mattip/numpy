@@ -96,19 +96,32 @@ _PyArray_SetNumericOps(HPyContext *ctx, HPy dict)
     return 0;
 }
 
+/*HPY_NUMPY_API
+ *Set internal structure with number functions that all arrays will use
+ */
+NPY_NO_EXPORT int
+HPyArray_SetNumericOps(HPyContext *ctx, HPy dict)
+{
+    /* 2018-09-09, 1.16 */
+    if (HPY_DEPRECATE(ctx, "PyArray_SetNumericOps is deprecated. Use "
+        "PyUFunc_ReplaceLoopBySignature to replace ufunc inner loop functions "
+        "instead.") < 0) {
+        return -1;
+    }
+    return _PyArray_SetNumericOps(ctx, dict);
+}
+
 /*NUMPY_API
  *Set internal structure with number functions that all arrays will use
  */
 NPY_NO_EXPORT int
 PyArray_SetNumericOps(PyObject *dict)
 {
-    /* 2018-09-09, 1.16 */
-    if (DEPRECATE("PyArray_SetNumericOps is deprecated. Use "
-        "PyUFunc_ReplaceLoopBySignature to replace ufunc inner loop functions "
-        "instead.") < 0) {
-        return -1;
-    }
-    hpy_abort_not_implemented("PyArray_SetNumericOps");
+    HPyContext *ctx = npy_get_context();
+    HPy h_dict = HPy_FromPyObject(ctx, dict);
+    int ret = HPyArray_SetNumericOps(ctx, h_dict);
+    HPy_Close(ctx, h_dict);
+    return ret;
 }
 
 /* Note - macro contains goto */

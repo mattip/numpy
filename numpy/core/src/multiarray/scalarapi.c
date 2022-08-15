@@ -1222,8 +1222,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         HPyArrayScalar_RETURN_BOOL_FROM_LONG(*(npy_bool*)data);
     }
     else if (PyDataType_FLAGCHK(descr, NPY_USE_GETITEM)) {
-        hpy_abort_not_implemented("Using getitem");
-        // return descr->f->getitem(data, base);
+        return descr->f->getitem(ctx, data, base, PyArrayObject_AsStruct(ctx, base));
     }
     itemsize = descr->elsize;
     copyswap = descr->f->copyswap;

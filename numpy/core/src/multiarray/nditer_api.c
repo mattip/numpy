@@ -1670,7 +1670,6 @@ NpyIter_DebugPrint(NpyIter *iter)
     printf("\n");
     printf("| Operand DTypes: ");
     for (iop = 0; iop < nop; ++iop) {
-        PyArray_Descr *dtype;
         if (!HPy_IsNull(NIT_OPERANDS(iter)[iop])) {
             HPy h_dtype = HPyArray_GetDescr(ctx, NIT_OPERANDS(iter)[iop]);
             if (!HPy_IsNull(h_dtype))

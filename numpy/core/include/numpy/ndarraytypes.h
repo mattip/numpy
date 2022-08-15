@@ -456,6 +456,7 @@ struct NpyAuxData_tag {
 struct _PyArray_Descr;
 
 /* These must deal with unaligned and swapped data if necessary */
+// HPyContext *ctx, void *input, HPy h_ap, PyArrayObject *ap
 typedef HPy (PyArray_GetItemFunc) (HPyContext *, void *, HPy, void *);
 typedef int (PyArray_SetItemFunc)(HPyContext *ctx, HPy, void *, HPy);
 

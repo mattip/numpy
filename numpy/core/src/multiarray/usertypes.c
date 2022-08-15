@@ -314,14 +314,14 @@ static int _hpy_warn_if_cast_exists_already(HPyContext *ctx, HPy h_descr,
         }
     }
     else {
-        char *extra_msg;
-        if (HPy_Is(ctx, cast_impl, ctx->h_None)) {
-            extra_msg = "the cast will continue to be considered impossible.";
-        }
-        else {
-            extra_msg = "the previous definition will continue to be used.";
-        }
-        HPy_Close(ctx,cast_impl);
+        // char *extra_msg;
+        // if (HPy_Is(ctx, cast_impl, ctx->h_None)) {
+        //     extra_msg = "the cast will continue to be considered impossible.";
+        // }
+        // else {
+        //     extra_msg = "the previous definition will continue to be used.";
+        // }
+        HPy_Close(ctx, cast_impl);
         HPy to_descr = HPyArray_DescrFromType(ctx, totype); // PyArray_Descr *
         // int ret = PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
         //         "A cast from %R to %R was registered/modified using `%s` "
@@ -687,7 +687,11 @@ PyArray_AddLegacyWrapping_CastingImpl(
         }
     }
 
-    PyArray_DTypeMeta *dtypes[2] = {from, to};
+    HPyContext *ctx = npy_get_context();
+    HPy dtypes[2] = { // PyArray_DTypeMeta *
+        HPy_FromPyObject(ctx, (PyObject *)from), 
+        HPy_FromPyObject(ctx, (PyObject *)to)
+    };
     PyArrayMethod_Spec spec = {
             /* Name is not actually used, but allows identifying these. */
             .name = "legacy_cast",
