@@ -59,7 +59,7 @@ wrapping_method_resolve_descriptors(
         wrapped_dtypes[i] = HPyField_Load(ctx, self, self_data->wrapped_dtypes[i]);
     }
     NPY_CASTING casting = h_wrapped_meth_data->resolve_descriptors(ctx,
-            h_wrapped_meth, self_data->wrapped_dtypes,
+            h_wrapped_meth, wrapped_dtypes,
             orig_given_descrs, orig_loop_descrs, view_offset);
     for (int i = 0; i < nargs; i++) {
         HPy_Close(ctx, orig_given_descrs[i]);
@@ -69,7 +69,6 @@ wrapping_method_resolve_descriptors(
     if (casting < 0) {
         return -1;
     }
-    hpy_abort_not_implemented("'translate_loop_descrs' is not clear what it will call");
     int res = self_data->translate_loop_descrs(
             nin, nout, dtypes, given_descrs, orig_loop_descrs, loop_descrs);
     for (int i = 0; i < nargs; i++) {
@@ -284,7 +283,7 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
     }
 
     // Py_INCREF(wrapped_meth);
-    HPyField_StorePyObj(meth, &meth->wrapped_meth, wrapped_meth);
+    HPyField_StorePyObj((PyObject *)meth, &meth->wrapped_meth, wrapped_meth);
     meth->translate_given_descrs = translate_given_descrs;
     meth->translate_loop_descrs = translate_loop_descrs;
     for (int i = 0; i < ufunc->nargs; i++) {

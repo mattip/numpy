@@ -329,6 +329,12 @@ add_minutes_to_datetimestruct(npy_datetimestruct *dts, int minutes);
  */
 NPY_NO_EXPORT npy_bool
 has_equivalent_datetime_metadata(PyArray_Descr *type1, PyArray_Descr *type2);
+NPY_NO_EXPORT npy_bool
+hpy_has_equivalent_datetime_metadata(HPyContext *ctx, 
+                                    HPy /* PyArray_Descr * */ type1,
+                                    PyArray_Descr *type1_data,
+                                    HPy /* PyArray_Descr * */ type2,
+                                    PyArray_Descr *type2_data);
 
 /*
  * Casts a single datetime from having src_meta metadata into

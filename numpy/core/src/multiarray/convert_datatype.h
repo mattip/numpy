@@ -9,10 +9,13 @@ NPY_NO_EXPORT PyObject *
 PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to);
 
 NPY_NO_EXPORT HPy
-HPyArray_GetCastingImpl(HPyContext *ctx, HPy from, HPy to);
+HPyArray_GetCastingImpl(HPyContext *ctx, 
+                            HPy /* PyArray_DTypeMeta * */ h_from, 
+                            PyArray_DTypeMeta *from, 
+                            HPy /* PyArray_DTypeMeta * */ h_to, 
+                            PyArray_DTypeMeta * to);
 
-NPY_NO_EXPORT PyObject *
-_get_castingimpl(PyObject *NPY_UNUSED(module), PyObject *args);
+extern NPY_NO_EXPORT HPyDef _get_castingimpl;
 
 NPY_NO_EXPORT PyArray_VectorUnaryFunc *
 PyArray_GetCastFunc(PyArray_Descr *descr, int type_num);

@@ -482,7 +482,7 @@ PyArrayDescr_Type and PyArray_Descr
            PyArray_FillWithScalarFunc *fillwithscalar;
            PyArray_SortFunc *sort[NPY_NSORTS];
            PyArray_ArgSortFunc *argsort[NPY_NSORTS];
-           PyObject *castdict;
+           HPyField  castdict;
            PyArray_ScalarKindFunc *scalarkind;
            int **cancastscalarkindto;
            int *cancastto;
@@ -642,7 +642,7 @@ PyArrayDescr_Type and PyArray_Descr
         ``result`` (which must be initialized with indices 0 to
         ``length-1`` inclusive).
 
-    .. c:member:: PyObject *castdict
+    .. c:member:: HPyField castdict
 
         Either ``NULL`` or a dictionary containing low-level casting
         functions for user- defined data-types. Each function is

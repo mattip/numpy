@@ -239,7 +239,7 @@ _strided_to_strided_any_to_object(HPyContext *ctx,
     }
     if (data->decref_src.func != NULL) {
         /* If necessary, clear the input buffer (`move_references`) */
-        if (data->decref_src.func(npy_get_context(), &data->decref_src.context,
+        if (data->decref_src.func(ctx, &data->decref_src.context,
                 &orig_src, &N, &src_stride, data->decref_src.auxdata) < 0) {
             return -1;
         }
@@ -275,21 +275,24 @@ any_to_object_get_loop(
     _any_to_object_auxdata *data = (_any_to_object_auxdata *)*out_transferdata;
     data->base.free = &_any_to_object_auxdata_free;
     data->base.clone = &_any_to_object_auxdata_clone;
-    PyArray_Descr *dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, context->descriptors[0]);
-    Py_INCREF(dtype);
     npy_intp shape = 1;
-    data->arr = (PyArrayObject *)PyArray_NewFromDescr_int(
-            &PyArray_Type, dtype, 1,
+    HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy arr = HPyArray_NewFromDescr_int(ctx,
+            h_array_type, context->descriptors[0], 1,
             &shape, NULL, NULL,
-            0, NULL, NULL, 0, 1);
+            0, HPy_NULL, HPy_NULL, 0, 1);
+    HPy_Close(ctx, h_array_type);
+    data->arr = (PyArrayObject *)HPy_AsPyObject(ctx, arr);
+    HPy_Close(ctx, arr);
 
+    PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, context->descriptors[0]);
     data->getitem = dtype->f->getitem;
-    NPY_cast_info_init(&data->decref_src);
+    HNPY_cast_info_init(ctx, &data->decref_src);
 
     if (move_references && PyDataType_REFCHK(dtype)) {
         int needs_api;
-        if (get_decref_transfer_function(
-                aligned, strides[0], dtype,
+        if (hpy_get_decref_transfer_function(ctx,
+                aligned, strides[0], context->descriptors[0],
                 &data->decref_src,
                 &needs_api) == NPY_FAIL)  {
             NPY_AUXDATA_FREE(*out_transferdata);
@@ -2775,7 +2778,7 @@ _strided_masked_wrapper_transfer_function(HPyContext *ctx,
 /*************************** CLEAR SRC *******************************/
 
 static int
-_hdec_src_ref_nop(HPyContext *hctx,
+_hpy_dec_src_ref_nop(HPyContext *hctx,
         HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const *NPY_UNUSED(args), const npy_intp *NPY_UNUSED(dimensions),
         const npy_intp *NPY_UNUSED(strides), NpyAuxData *NPY_UNUSED(auxdata))
@@ -2833,7 +2836,7 @@ get_decref_transfer_function(int aligned,
 
     /* If there are no references, it's a nop */
     if (!PyDataType_REFCHK(src_dtype)) {
-        cast_info->func = &_hdec_src_ref_nop;
+        cast_info->func = &_hpy_dec_src_ref_nop;
         cast_info->auxdata = NULL;
         goto finalize;
     }
@@ -3223,8 +3226,9 @@ h_init_cast_info(HPyContext *ctx,
     HPy dst_dtype_meta = HNPY_DTYPE(ctx, dst_dtype);
     HPy cast_info_descr_0 = HPy_NULL;
     HPy cast_info_descr_1 = HPy_NULL;
-
-    HPy meth = HPyArray_GetCastingImpl(ctx, src_dtype_meta, dst_dtype_meta);
+    PyArray_DTypeMeta *src_dtype_meta_data = PyArray_DTypeMeta_AsStruct(ctx, src_dtype_meta);
+    PyArray_DTypeMeta *dst_dtype_meta_data = PyArray_DTypeMeta_AsStruct(ctx, dst_dtype_meta);
+    HPy meth = HPyArray_GetCastingImpl(ctx, src_dtype_meta, src_dtype_meta_data, dst_dtype_meta, dst_dtype_meta_data);
     if (HPy_IsNull(meth)) {
         goto fail;
     }
@@ -3322,12 +3326,12 @@ fail:
 
 
 static void
-_hclear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_info)
+_hpy_clear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_info)
 {
     /* As public API we could choose to clear auxdata != NULL */
     assert(cast_info->auxdata == NULL);
     /* Set func to be non-null so that `NPY_cats_info_xfree` does not skip */
-    cast_info->func = &_hdec_src_ref_nop;
+    cast_info->func = &_hpy_dec_src_ref_nop;
     HNPY_cast_info_xfree(ctx, cast_info);
 }
 
@@ -3340,7 +3344,7 @@ _hclear_cast_info_after_get_loop_failure(HPyContext *ctx, HNPY_cast_info *cast_i
 static void
 _clear_cast_info_after_get_loop_failure(NPY_cast_info *cast_info)
 {
-    _hclear_cast_info_after_get_loop_failure(npy_get_context(), cast_info);
+    _hpy_clear_cast_info_after_get_loop_failure(npy_get_context(), cast_info);
 }
 
 
@@ -3407,86 +3411,86 @@ h_define_cast_for_descrs(HPyContext *ctx,
      * Wrap the input with an additional cast if necessary.
      */
     if (NPY_UNLIKELY(!HPy_Is(ctx, src_dtype, cast_info->descriptors[0]) || must_wrap)) {
-        // TODO HPY LABS PORT: cut off
-        hpy_abort_not_implemented("h_define_cast_for_descrs: branch 0");
-//        NPY_CASTING from_casting = -1;
-//        npy_intp from_view_offset = NPY_MIN_INTP;
-//        /* Cast function may not support the input, wrap if necessary */
-//        if (h_init_cast_info(
-//                &castdata.from, &from_casting, &from_view_offset,
-//                src_dtype, cast_info->descriptors[0], 0) < 0) {
-//            goto fail;
-//        }
-//        casting = PyArray_MinCastSafety(casting, from_casting);
-//
-//        /* Prepare the actual cast (if necessary): */
-//        if (from_view_offset == 0 && !must_wrap) {
-//            /* This step is not necessary and can be skipped */
-//            castdata.from.func = &_dec_src_ref_nop;  /* avoid NULL */
-//            NPY_cast_info_xfree(&castdata.from);
-//        }
-//        else {
-//            /* Fetch the cast function and set up */
-//            PyArrayMethod_Context *context = &castdata.from.context;
-//            npy_intp strides[2] = {src_stride, cast_info->descriptors[0]->elsize};
-//            NPY_ARRAYMETHOD_FLAGS flags;
-//            if (context->method->get_strided_loop(
-//                    context, aligned, move_references, strides,
-//                    &castdata.from.func, &castdata.from.auxdata, &flags) < 0) {
-//                _clear_cast_info_after_get_loop_failure(&castdata.from);
-//                goto fail;
-//            }
-//            assert(castdata.from.func != NULL);
-//
-//            *out_needs_api |= (flags & NPY_METH_REQUIRES_PYAPI) != 0;
-//            /* The main cast now uses a buffered input: */
-//            src_stride = strides[1];
-//            move_references = 1;  /* main cast has to clear the buffer */
-//        }
+        NPY_CASTING from_casting = -1;
+        npy_intp from_view_offset = NPY_MIN_INTP;
+        /* Cast function may not support the input, wrap if necessary */
+        if (h_init_cast_info(ctx,
+                &castdata.from, &from_casting, &from_view_offset,
+                src_dtype, cast_info->descriptors[0], 0) < 0) {
+            goto fail;
+        }
+        casting = PyArray_MinCastSafety(casting, from_casting);
+
+        /* Prepare the actual cast (if necessary): */
+        if (from_view_offset == 0 && !must_wrap) {
+            /* This step is not necessary and can be skipped */
+            castdata.from.func = &_hpy_dec_src_ref_nop;  /* avoid NULL */
+            NPY_cast_info_xfree(&castdata.from);
+        }
+        else {
+            /* Fetch the cast function and set up */
+            HPyArrayMethod_Context *context = &castdata.from.context;
+            PyArray_Descr *descriptors_0 = PyArray_Descr_AsStruct(ctx, cast_info->descriptors[0]);
+            npy_intp strides[2] = {src_stride, descriptors_0->elsize};
+            NPY_ARRAYMETHOD_FLAGS flags;
+            PyArrayMethodObject *method = PyArrayMethodObject_AsStruct(ctx, context->method);
+            if (method->get_strided_loop(ctx,
+                    context, aligned, move_references, strides,
+                    &castdata.from.func, &castdata.from.auxdata, &flags) < 0) {
+                _clear_cast_info_after_get_loop_failure(&castdata.from);
+                goto fail;
+            }
+            assert(castdata.from.func != NULL);
+
+            *out_needs_api |= (flags & NPY_METH_REQUIRES_PYAPI) != 0;
+            /* The main cast now uses a buffered input: */
+            src_stride = strides[1];
+            move_references = 1;  /* main cast has to clear the buffer */
+        }
     }
     /*
      * Wrap the output with an additional cast if necessary.
      */
     if (NPY_UNLIKELY(!HPy_Is(ctx, dst_dtype, cast_info->descriptors[1]) || must_wrap)) {
-        // TODO HPY LABS PORT: cut off
-        hpy_abort_not_implemented("h_define_cast_for_descrs: branch 1");
-//        NPY_CASTING to_casting = -1;
-//        npy_intp to_view_offset = NPY_MIN_INTP;
-//        /* Cast function may not support the output, wrap if necessary */
-//        if (h_init_cast_info(
-//                &castdata.to, &to_casting, &to_view_offset,
-//                cast_info->descriptors[1], dst_dtype,  0) < 0) {
-//            goto fail;
-//        }
-//        casting = PyArray_MinCastSafety(casting, to_casting);
-//
-//        /* Prepare the actual cast (if necessary): */
-//        if (to_view_offset == 0 && !must_wrap) {
-//            /* This step is not necessary and can be skipped. */
-//            castdata.to.func = &_dec_src_ref_nop;  /* avoid NULL */
-//            NPY_cast_info_xfree(&castdata.to);
-//        }
-//        else {
-//            /* Fetch the cast function and set up */
-//            PyArrayMethod_Context *context = &castdata.to.context;
-//            npy_intp strides[2] = {cast_info->descriptors[1]->elsize, dst_stride};
-//            NPY_ARRAYMETHOD_FLAGS flags;
-//            if (context->method->get_strided_loop(
-//                    context, aligned, 1 /* clear buffer */, strides,
-//                    &castdata.to.func, &castdata.to.auxdata, &flags) < 0) {
-//                _clear_cast_info_after_get_loop_failure(&castdata.to);
-//                goto fail;
-//            }
-//            assert(castdata.to.func != NULL);
-//
-//            *out_needs_api |= (flags & NPY_METH_REQUIRES_PYAPI) != 0;
-//            /* The main cast now uses a buffered input: */
-//            dst_stride = strides[0];
-//            if (castdata.from.func != NULL) {
-//                /* Both input and output are wrapped, now always aligned */
-//                aligned = 1;
-//            }
-//        }
+        NPY_CASTING to_casting = -1;
+        npy_intp to_view_offset = NPY_MIN_INTP;
+        /* Cast function may not support the output, wrap if necessary */
+        if (h_init_cast_info(ctx,
+                &castdata.to, &to_casting, &to_view_offset,
+                cast_info->descriptors[1], dst_dtype,  0) < 0) {
+            goto fail;
+        }
+        casting = PyArray_MinCastSafety(casting, to_casting);
+
+        /* Prepare the actual cast (if necessary): */
+        if (to_view_offset == 0 && !must_wrap) {
+            /* This step is not necessary and can be skipped. */
+            castdata.to.func = &_hpy_dec_src_ref_nop;  /* avoid NULL */
+            HNPY_cast_info_xfree(ctx, &castdata.to);
+        }
+        else {
+            /* Fetch the cast function and set up */
+            HPyArrayMethod_Context *context = &castdata.to.context;
+            PyArray_Descr *descriptors_1 = PyArray_Descr_AsStruct(ctx, cast_info->descriptors[1]);
+            npy_intp strides[2] = {descriptors_1->elsize, dst_stride};
+            NPY_ARRAYMETHOD_FLAGS flags;
+            PyArrayMethodObject *method = PyArrayMethodObject_AsStruct(ctx, context->method);
+            if (method->get_strided_loop(ctx,
+                    context, aligned, 1 /* clear buffer */, strides,
+                    &castdata.to.func, &castdata.to.auxdata, &flags) < 0) {
+                _clear_cast_info_after_get_loop_failure(&castdata.to);
+                goto fail;
+            }
+            assert(castdata.to.func != NULL);
+
+            *out_needs_api |= (flags & NPY_METH_REQUIRES_PYAPI) != 0;
+            /* The main cast now uses a buffered input: */
+            dst_stride = strides[0];
+            if (castdata.from.func != NULL) {
+                /* Both input and output are wrapped, now always aligned */
+                aligned = 1;
+            }
+        }
     }
 
     /* Fetch the main cast function (with updated values) */
@@ -3496,7 +3500,7 @@ h_define_cast_for_descrs(HPyContext *ctx,
     if (PyArrayMethodObject_AsStruct(ctx, context->method)->get_strided_loop(ctx,
             context, aligned, move_references, strides,
             &cast_info->func, &cast_info->auxdata, &flags) < 0) {
-        _hclear_cast_info_after_get_loop_failure(ctx, cast_info);
+        _hpy_clear_cast_info_after_get_loop_failure(ctx, cast_info);
         goto fail;
     }
 

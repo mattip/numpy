@@ -128,8 +128,7 @@ PyArray_InitArrFuncs(PyArray_ArrFuncs *f)
         f->sort[i] = NULL;
         f->argsort[i] = NULL;
     }
-    f->castdict = NULL;
-    f->h_castdict = HPyField_NULL;
+    f->castdict = HPyField_NULL;
     f->scalarkind = NULL;
     f->cancastscalarkindto = NULL;
     f->cancastto = NULL;
@@ -295,6 +294,57 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
  * but this may also happen accidentally during setup (and may never have
  * mattered).  See https://github.com/numpy/numpy/issues/20009
  */
+static int _hpy_warn_if_cast_exists_already(HPyContext *ctx, HPy h_descr,
+        PyArray_Descr *descr, int totype, char *funcname)
+{
+    HPy to_DType = HPyArray_DTypeFromTypeNum(ctx, totype); // PyArray_DTypeMeta *
+    if (HPy_IsNull(to_DType)) {
+        return -1;
+    }
+    HPy descr_type = HPy_Type(ctx, h_descr);
+    PyArray_DTypeMeta *descr_type_data = PyArray_DTypeMeta_AsStruct(ctx, descr_type);
+    HPy castingimpl = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, descr_type, descr_type_data);
+    HPy cast_impl = HPy_GetItem(ctx, castingimpl, to_DType);
+    HPy_Close(ctx, to_DType);
+    if (HPy_IsNull(cast_impl)) {
+        if (HPyErr_Occurred(ctx)) {
+            return -1;
+        }
+    }
+    else {
+        char *extra_msg;
+        if (HPy_Is(ctx, cast_impl, ctx->h_None)) {
+            extra_msg = "the cast will continue to be considered impossible.";
+        }
+        else {
+            extra_msg = "the previous definition will continue to be used.";
+        }
+        HPy_Close(ctx,cast_impl);
+        HPy to_descr = HPyArray_DescrFromType(ctx, totype); // PyArray_Descr *
+        // int ret = PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+        //         "A cast from %R to %R was registered/modified using `%s` "
+        //         "after the cast had been used.  "
+        //         "This registration will have (mostly) no effect: %s\n"
+        //         "The most likely fix is to ensure that casts are the first "
+        //         "thing initialized after dtype registration.  "
+        //         "Please contact the NumPy developers with any questions!",
+        //         descr, to_descr, funcname, extra_msg);
+        int ret = HPyErr_WarnEx(ctx, ctx->h_RuntimeWarning,
+                "A cast from %R to %R was registered/modified using `%s` "
+                "after the cast had been used.  "
+                "This registration will have (mostly) no effect: %s\n"
+                "The most likely fix is to ensure that casts are the first "
+                "thing initialized after dtype registration.  "
+                "Please contact the NumPy developers with any questions!",
+                1);
+        HPy_Close(ctx, to_descr);
+        if (ret < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int _warn_if_cast_exists_already(
         PyArray_Descr *descr, int totype, char *funcname)
 {
@@ -344,16 +394,31 @@ NPY_NO_EXPORT int
 PyArray_RegisterCastFunc(PyArray_Descr *descr, int totype,
                          PyArray_VectorUnaryFunc *castfunc)
 {
-    PyObject *cobj, *key;
+    HPyContext *ctx = npy_get_context();
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject *)descr);
+    int ret = HPyArray_RegisterCastFunc(ctx, h_descr, totype, castfunc);
+    HPy_Close(ctx, h_descr);
+    return ret;
+}
+
+/*HPY_NUMPY_API
+  Register Casting Function
+  Replaces any function currently stored.
+*/
+NPY_NO_EXPORT int
+HPyArray_RegisterCastFunc(HPyContext *ctx, HPy /* PyArray_Descr * */ h_descr, int totype,
+                         PyArray_VectorUnaryFunc *castfunc)
+{
+    HPy cobj, key;
     int ret;
-    HPy h_castdict;
 
     if (totype >= NPY_NTYPES && !PyTypeNum_ISUSERDEF(totype)) {
-        PyErr_SetString(PyExc_TypeError, "invalid type number.");
+        HPyErr_SetString(ctx, ctx->h_TypeError, "invalid type number.");
         return -1;
     }
-    if (_warn_if_cast_exists_already(
-            descr, totype, "PyArray_RegisterCastFunc") < 0) {
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    if (_hpy_warn_if_cast_exists_already(ctx,
+            h_descr, descr, totype, "PyArray_RegisterCastFunc") < 0) {
         return -1;
     }
 
@@ -361,25 +426,26 @@ PyArray_RegisterCastFunc(PyArray_Descr *descr, int totype,
         descr->f->cast[totype] = castfunc;
         return 0;
     }
-    CAPI_WARN("PyArray_GetCastFunc: Accessing castdict without going through field\n");
-    if (descr->f->castdict == NULL) {
-        descr->f->castdict = PyDict_New();
-        if (descr->f->castdict == NULL) {
+    if (HPyField_IsNull(descr->f->castdict)) {
+        HPyField_Store(ctx, h_descr, &descr->f->castdict, HPyDict_New(ctx));
+        if (HPyField_IsNull(descr->f->castdict)) {
             return -1;
         }
     }
-    key = PyLong_FromLong(totype);
-    if (PyErr_Occurred()) {
+    key = HPyLong_FromLong(ctx, totype);
+    if (HPyErr_Occurred(ctx)) {
         return -1;
     }
-    cobj = PyCapsule_New((void *)castfunc, NULL, NULL);
-    if (cobj == NULL) {
-        Py_DECREF(key);
+    cobj = HPyCapsule_New(ctx, (void *)castfunc, NULL, NULL);
+    if (HPy_IsNull(cobj)) {
+        HPy_Close(ctx, key);
         return -1;
     }
-    ret = PyDict_SetItem(descr->f->castdict, key, cobj);
-    Py_DECREF(key);
-    Py_DECREF(cobj);
+    HPy castdict = HPyField_Load(ctx, h_descr, descr->f->castdict);
+    ret = HPy_SetItem(ctx, castdict, key, cobj);
+    HPy_Close(ctx, castdict);
+    HPy_Close(ctx, key);
+    HPy_Close(ctx, cobj);
     return ret;
 }
 
@@ -654,23 +720,22 @@ HPyArray_AddLegacyWrapping_CastingImpl(HPyContext *ctx,
         HPy h_from, HPy h_to, NPY_CASTING casting)
 {
     if (casting < 0) {
-        hpy_abort_not_implemented("casting < 0 in HPyArray_AddLegacyWrapping_CastingImpl");
-        // PyArray_Descr *from_singleton = dtypemeta_get_singleton(from);
-        // PyArray_Descr *to_singleton = dtypemeta_get_singleton(to);
-        // if (from == to) {
-        //     casting = NPY_NO_CASTING;
-        // }
-        // else if (PyArray_LegacyCanCastTypeTo(
-        //         from_singleton, to_singleton, NPY_SAFE_CASTING)) {
-        //     casting = NPY_SAFE_CASTING;
-        // }
-        // else if (PyArray_LegacyCanCastTypeTo(
-        //         from_singleton, to_singleton, NPY_SAME_KIND_CASTING)) {
-        //     casting = NPY_SAME_KIND_CASTING;
-        // }
-        // else {
-        //     casting = NPY_UNSAFE_CASTING;
-        // }
+        HPy from_singleton = hdtypemeta_get_singleton(ctx, h_from); // PyArray_Descr *
+        HPy to_singleton = hdtypemeta_get_singleton(ctx, h_to); // PyArray_Descr *
+        if (HPy_Is(ctx, h_from, h_to)) {
+            casting = NPY_NO_CASTING;
+        }
+        else if (HPyArray_LegacyCanCastTypeTo(ctx,
+                from_singleton, to_singleton, NPY_SAFE_CASTING)) {
+            casting = NPY_SAFE_CASTING;
+        }
+        else if (HPyArray_LegacyCanCastTypeTo(ctx,
+                from_singleton, to_singleton, NPY_SAME_KIND_CASTING)) {
+            casting = NPY_SAME_KIND_CASTING;
+        }
+        else {
+            casting = NPY_UNSAFE_CASTING;
+        }
     }
 
     HPy dtypes[2] = {h_from, h_to};

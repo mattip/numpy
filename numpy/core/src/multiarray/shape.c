@@ -1267,6 +1267,7 @@ HPyArray_Ravel(HPyContext *ctx, /*PyArrayObject*/ HPy h_arr, NPY_ORDER order)
                     PyArray_FLAGS(arr), h_arr, h_arr);
             HPy_Close(ctx, arr_descr);
             HPy_Close(ctx, arr_type);
+            return ret;
         }
     }
 
