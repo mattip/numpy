@@ -111,10 +111,13 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
 {
     if (!HPy_IsNull(kwnames)) {
         for (Py_ssize_t i = 0; i < HPy_Length(ctx, kwnames); i++) {
+            HPy item = HPy_GetItem_i(ctx, kwnames, i);
             if (HPy_SetItem(ctx, normal_kwds,
-                    HPy_GetItem_i(ctx, kwnames, i), args[i + len_args]) < 0) {
+                    item, args[i + len_args]) < 0) {
+                HPy_Close(ctx, item);
                 return -1;
             }
+            HPy_Close(ctx, item);
         }
     }
     static HPyGlobal hg_out_str;
