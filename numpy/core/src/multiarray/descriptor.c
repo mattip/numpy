@@ -1469,6 +1469,7 @@ PyArray_DescrNewFromType(int type_num)
     return new;
 }
 
+/*HPY_NUMPY_API*/
 NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
 HPyArray_DescrNewFromType(HPyContext *ctx, int type_num)
 {
@@ -1484,6 +1485,9 @@ HPyArray_DescrNewFromType(HPyContext *ctx, int type_num)
     return new;
 }
 
+/*HPY_NUMPY_API
+ * Get typenum from an object -- None goes to HPy_NULL
+ */
 NPY_NO_EXPORT int
 HPyArray_DescrConverter2(HPyContext *ctx, HPy obj, HPy *at)
 {
@@ -1787,8 +1791,7 @@ _hpy_convert_from_any(HPyContext *ctx, HPy obj, int align)
     }
 }
 
-// HPY TODO: NUMPY_API
-/*
+/*HPY_NUMPY_API
  * Get typenum from an object -- None goes to NPY_DEFAULT_TYPE
  * This function takes a Python object representing a type and converts it
  * to a the correct PyArray_Descr * structure to describe the type.
@@ -2017,7 +2020,7 @@ NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrNew(PyArray_Descr *base)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_base = HPy_FromPyObject(ctx, base);
+    HPy h_base = HPy_FromPyObject(ctx, (PyObject *)base);
     HPy h_res = HPyArray_DescrNew(ctx, h_base);
     PyArray_Descr *ret = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_base);
@@ -2073,7 +2076,7 @@ PyArray_DescrNew(PyArray_Descr *base)
     // return newdescr;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * base cannot be NULL
  */
 NPY_NO_EXPORT HPy
@@ -2802,112 +2805,113 @@ arraydescr_reduce(PyArray_Descr *self, PyObject *NPY_UNUSED(args))
      * change the format. Be sure to handle the old versions in
      * arraydescr_setstate.
     */
-   hpy_abort_not_implemented("arraydescr_reduce");
-    // const int version = 4;
-    // PyObject *ret, *mod, *obj;
-    // PyObject *state;
-    // char endian;
-    // int elsize, alignment;
+    const int version = 4;
+    PyObject *ret, *mod, *obj;
+    PyObject *state;
+    char endian;
+    int elsize, alignment;
 
-    // ret = PyTuple_New(3);
-    // if (ret == NULL) {
-    //     return NULL;
-    // }
-    // mod = PyImport_ImportModule("numpy.core._multiarray_umath");
-    // if (mod == NULL) {
-    //     Py_DECREF(ret);
-    //     return NULL;
-    // }
-    // obj = PyObject_GetAttrString(mod, "dtype");
-    // Py_DECREF(mod);
-    // if (obj == NULL) {
-    //     Py_DECREF(ret);
-    //     return NULL;
-    // }
-    // PyTuple_SET_ITEM(ret, 0, obj);
-    // if (PyTypeNum_ISUSERDEF(self->type_num)
-    //         || ((self->type_num == NPY_VOID
-    //                 && self->typeobj != &PyVoidArrType_Type))) {
-    //     obj = (PyObject *)self->typeobj;
-    //     Py_INCREF(obj);
-    // }
-    // else {
-    //     elsize = self->elsize;
-    //     if (self->type_num == NPY_UNICODE) {
-    //         elsize >>= 2;
-    //     }
-    //     obj = PyUnicode_FromFormat("%c%d",self->kind, elsize);
-    // }
-    // PyTuple_SET_ITEM(ret, 1, Py_BuildValue("(NOO)", obj, Py_False, Py_True));
+    ret = PyTuple_New(3);
+    if (ret == NULL) {
+        return NULL;
+    }
+    mod = PyImport_ImportModule("numpy.core._multiarray_umath");
+    if (mod == NULL) {
+        Py_DECREF(ret);
+        return NULL;
+    }
+    obj = PyObject_GetAttrString(mod, "dtype");
+    Py_DECREF(mod);
+    if (obj == NULL) {
+        Py_DECREF(ret);
+        return NULL;
+    }
+    PyTuple_SET_ITEM(ret, 0, obj);
+    obj = HPyField_LoadPyObj((PyObject *)self, self->typeobj);
+    if (PyTypeNum_ISUSERDEF(self->type_num)
+            || ((self->type_num == NPY_VOID
+                    && obj != &PyVoidArrType_Type))) {
+        // obj = (PyObject *)self->typeobj;
+        Py_INCREF(obj);
+    }
+    else {
+        elsize = self->elsize;
+        if (self->type_num == NPY_UNICODE) {
+            elsize >>= 2;
+        }
+        obj = PyUnicode_FromFormat("%c%d",self->kind, elsize);
+    }
+    PyTuple_SET_ITEM(ret, 1, Py_BuildValue("(NOO)", obj, Py_False, Py_True));
 
-    // /*
-    //  * Now return the state which is at least byteorder,
-    //  * subarray, and fields
-    //  */
-    // endian = self->byteorder;
-    // if (endian == '=') {
-    //     endian = '<';
-    //     if (!PyArray_IsNativeByteOrder(endian)) {
-    //         endian = '>';
-    //     }
-    // }
-    // if (PyDataType_ISDATETIME(self)) {
-    //     PyObject *newobj;
-    //     state = PyTuple_New(9);
-    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
-    //     /*
-    //      * newobj is a tuple of the Python metadata dictionary
-    //      * and tuple of date_time info (str, num)
-    //      */
-    //     newobj = _get_pickleabletype_from_datetime_metadata(self);
-    //     if (newobj == NULL) {
-    //         Py_DECREF(state);
-    //         Py_DECREF(ret);
-    //         return NULL;
-    //     }
-    //     PyTuple_SET_ITEM(state, 8, newobj);
-    // }
-    // else if (self->metadata) {
-    //     state = PyTuple_New(9);
-    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
-    //     Py_INCREF(self->metadata);
-    //     PyTuple_SET_ITEM(state, 8, self->metadata);
-    // }
-    // else { /* Use version 3 pickle format */
-    //     state = PyTuple_New(8);
-    //     PyTuple_SET_ITEM(state, 0, PyLong_FromLong(3));
-    // }
+    /*
+     * Now return the state which is at least byteorder,
+     * subarray, and fields
+     */
+    endian = self->byteorder;
+    if (endian == '=') {
+        endian = '<';
+        if (!PyArray_IsNativeByteOrder(endian)) {
+            endian = '>';
+        }
+    }
+    if (PyDataType_ISDATETIME(self)) {
+        PyObject *newobj;
+        state = PyTuple_New(9);
+        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
+        /*
+         * newobj is a tuple of the Python metadata dictionary
+         * and tuple of date_time info (str, num)
+         */
+        newobj = _get_pickleabletype_from_datetime_metadata(self);
+        if (newobj == NULL) {
+            Py_DECREF(state);
+            Py_DECREF(ret);
+            return NULL;
+        }
+        PyTuple_SET_ITEM(state, 8, newobj);
+    }
+    else if (self->metadata) {
+        state = PyTuple_New(9);
+        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(version));
+        Py_INCREF(self->metadata);
+        PyTuple_SET_ITEM(state, 8, self->metadata);
+    }
+    else { /* Use version 3 pickle format */
+        state = PyTuple_New(8);
+        PyTuple_SET_ITEM(state, 0, PyLong_FromLong(3));
+    }
 
-    // PyTuple_SET_ITEM(state, 1, PyUnicode_FromFormat("%c", endian));
-    // PyTuple_SET_ITEM(state, 2, arraydescr_subdescr_get(self, NULL));
-    // if (PyDataType_HASFIELDS(self)) {
-    //     Py_INCREF(self->names);
-    //     Py_INCREF(self->fields);
-    //     PyTuple_SET_ITEM(state, 3, self->names);
-    //     PyTuple_SET_ITEM(state, 4, self->fields);
-    // }
-    // else {
-    //     PyTuple_SET_ITEM(state, 3, Py_None);
-    //     PyTuple_SET_ITEM(state, 4, Py_None);
-    //     Py_INCREF(Py_None);
-    //     Py_INCREF(Py_None);
-    // }
+    PyTuple_SET_ITEM(state, 1, PyUnicode_FromFormat("%c", endian));
+    PyTuple_SET_ITEM(state, 2, arraydescr_subdescr_get(self, NULL));
+    if (PyDataType_HASFIELDS(self)) {
+        PyObject *names = HPyField_LoadPyObj((PyObject *)self, self->names);
+        Py_INCREF(names);
+        Py_INCREF(self->fields);
+        PyTuple_SET_ITEM(state, 3, names);
+        PyTuple_SET_ITEM(state, 4, self->fields);
+    }
+    else {
+        PyTuple_SET_ITEM(state, 3, Py_None);
+        PyTuple_SET_ITEM(state, 4, Py_None);
+        Py_INCREF(Py_None);
+        Py_INCREF(Py_None);
+    }
 
-    // /* for extended types it also includes elsize and alignment */
-    // if (PyTypeNum_ISEXTENDED(self->type_num)) {
-    //     elsize = self->elsize;
-    //     alignment = self->alignment;
-    // }
-    // else {
-    //     elsize = -1;
-    //     alignment = -1;
-    // }
-    // PyTuple_SET_ITEM(state, 5, PyLong_FromLong(elsize));
-    // PyTuple_SET_ITEM(state, 6, PyLong_FromLong(alignment));
-    // PyTuple_SET_ITEM(state, 7, PyLong_FromLong(self->flags));
+    /* for extended types it also includes elsize and alignment */
+    if (PyTypeNum_ISEXTENDED(self->type_num)) {
+        elsize = self->elsize;
+        alignment = self->alignment;
+    }
+    else {
+        elsize = -1;
+        alignment = -1;
+    }
+    PyTuple_SET_ITEM(state, 5, PyLong_FromLong(elsize));
+    PyTuple_SET_ITEM(state, 6, PyLong_FromLong(alignment));
+    PyTuple_SET_ITEM(state, 7, PyLong_FromLong(self->flags));
 
-    // PyTuple_SET_ITEM(ret, 2, state);
-    // return ret;
+    PyTuple_SET_ITEM(ret, 2, state);
+    return ret;
 }
 
 /*
@@ -3885,7 +3889,7 @@ NPY_NO_EXPORT PyArray_Descr *
 arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     HPy h_ind = HPy_FromPyObject(ctx, ind);
     HPy h_ret = harraydescr_field_subset_view(ctx, PyArray_Descr_AsStruct(ctx, h_self), h_ind);
     PyArray_Descr *ret = (PyArray_Descr *)HPy_AsPyObject(ctx, h_ret);

@@ -84,6 +84,10 @@ PyArray_OutputConverter(PyObject *object, PyArrayObject **address)
     }
 }
 
+/*HPY_NUMPY_API
+ * Useful to pass as converter function for O& processing in
+ * PyArgs_ParseTuple for output arrays
+ */
 NPY_NO_EXPORT int
 HPyArray_OutputConverter(HPyContext *ctx, HPy object, HPy *address)
 {
@@ -177,6 +181,15 @@ PyArray_IntpConverter(PyObject *obj, PyArray_Dims *seq)
 // HPY TODO: make a NUMPY_API??
 // HPY TODO: turn PyArray_IntpConverter into simple delegate to this,
 // but first sort out METH_FASTCALL args parsing
+/*HPY_NUMPY_API
+ * Get intp chunk from sequence
+ *
+ * This function takes a Python sequence object and allocates and
+ * fills in an intp array with the converted values.
+ *
+ * Remember to free the pointer seq.ptr when done using
+ * PyDimMem_FREE(seq.ptr)**
+ */
 NPY_NO_EXPORT int
 HPyArray_IntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq)
 {
@@ -395,6 +408,18 @@ PyArray_BufferConverter(PyObject *obj, PyArray_Chunk *buf)
     return NPY_SUCCEED;
 }
 
+/*HPY_NUMPY_API
+ * Get buffer chunk from object
+ *
+ * this function takes a Python object which exposes the (single-segment)
+ * buffer interface and returns a pointer to the data segment
+ *
+ * You should increment the reference count by one of buf->base
+ * if you will hang on to a reference
+ *
+ * You only get a borrowed reference to the object. Do not free the
+ * memory...
+ */
 NPY_NO_EXPORT int
 HPyArray_BufferConverter(HPyContext *ctx, HPy obj, HPyArray_Chunk *buf)
 {
@@ -432,6 +457,11 @@ PyArray_AxisConverter(PyObject *obj, int *axis)
     return NPY_SUCCEED;
 }
 
+/*HPY_NUMPY_API
+ * Get axis from an object (possibly None) -- a converter function,
+ *
+ * See also PyArray_ConvertMultiAxis, which also handles a tuple of axes.
+ */
 NPY_NO_EXPORT int
 HPyArray_AxisConverter(HPyContext *ctx, HPy obj, int *axis)
 {
@@ -542,6 +572,9 @@ PyArray_BoolConverter(PyObject *object, npy_bool *val)
     return NPY_SUCCEED;
 }
 
+/*HPY_NUMPY_API
+ * Convert an object to true / false
+ */
 NPY_NO_EXPORT int
 HPyArray_BoolConverter(HPyContext *ctx, HPy object, npy_bool *val)
 {
@@ -835,6 +868,9 @@ PyArray_OrderConverter(PyObject *object, NPY_ORDER *val)
         "must be one of 'C', 'F', 'A', or 'K'");
 }
 
+/*HPY_NUMPY_API
+ * Convert an object to FORTRAN / C / ANY / KEEP
+ */
 NPY_NO_EXPORT int
 HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val)
 {
@@ -1094,7 +1130,9 @@ PyArray_CastingConverter(PyObject *obj, NPY_CASTING *casting)
     return 0;
 }
 
-// TODO HPY LABS PORT: NUMPY_API?
+/*HPY_NUMPY_API
+ * Convert any Python object, *obj*, to an NPY_CASTING enum.
+ */
 NPY_NO_EXPORT int
 HPyArray_CastingConverter(HPyContext *ctx, HPy obj, NPY_CASTING *casting)
 {
@@ -1314,6 +1352,7 @@ overflow_check:
     return long_value;
 }
 
+/*HPY_NUMPY_API*/
 NPY_NO_EXPORT npy_intp
 HPyArray_PyIntAsIntp(HPyContext *ctx, HPy o)
 {
@@ -1669,6 +1708,9 @@ PyArray_IntTupleFromIntp(int len, npy_intp const *vals)
     return intTuple;
 }
 
+/*HPY_NUMPY_API
+  HPyArray_IntTupleFromIntp
+*/
 NPY_NO_EXPORT HPy
 HPyArray_IntTupleFromIntp(HPyContext *ctx, int len, npy_intp const *vals)
 {

@@ -196,7 +196,7 @@ PyArray_RegisterDataType(PyArray_Descr *descr)
     return ret;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
   HPy Register Data type
   Does not change the reference count of descr
 */

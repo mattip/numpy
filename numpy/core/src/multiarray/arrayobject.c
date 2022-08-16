@@ -149,14 +149,14 @@ PyArray_SetWritebackIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
     return -1;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  *
  * Precondition: 'arr' is a copy of 'base' (though possibly with different
  * strides, ordering, etc.). This function sets the WRITEBACKIFCOPY flag and the
  * ->base pointer on 'arr', call PyArray_ResolveWritebackIfCopy to copy any
  * changes back to 'base' before deallocating the array.
  *
- * Steals a reference to 'base'.
+ * ATTENTION: does not steal a reference to 'base'.
  *
  * Returns 0 on success, -1 on failure.
  */
@@ -290,7 +290,9 @@ PyArray_SetBaseObject(PyArrayObject *arr, PyObject *obj)
     return 0;
 }
 
-// ATTENTION: does not steal obj anymore
+/*HPY_NUMPY_API
+ *    ATTENTION: does not steal obj anymore
+ */
 NPY_NO_EXPORT int
 HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_in)
 {
@@ -460,6 +462,9 @@ PyArray_CopyObject(PyArrayObject *dest, PyObject *src_object)
     return -1;
 }
 
+/*HPY_NUMPY_API
+    ATTENTION: does not steal obj anymore
+ */
 NPY_NO_EXPORT int
 HPyArray_CopyObject(HPyContext *ctx, HPy h_dest, PyArrayObject *dest, HPy h_src_object)
 {
@@ -609,6 +614,8 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
     return res;
 }
 
+/*HPY_NUMPY_API
+ */
 NPY_NO_EXPORT int
 HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self)
 {
@@ -982,6 +989,8 @@ hpy_array_might_be_written(HPyContext *ctx, HPy obj, PyArrayObject *obj_data)
     return 0;
 }
 
+/*HPY_NUMPY_API
+ */
 NPY_NO_EXPORT int
 HPyArray_FailUnlessWriteable(HPyContext *ctx, HPy obj, const char *name)
 {
@@ -1877,6 +1886,8 @@ PyArray_ElementStrides(PyObject *obj)
     return _PyArray_ElementStrides((PyArrayObject *)obj);
 }
 
+/*HPY_NUMPY_API
+ */
 NPY_NO_EXPORT int
 HPyArray_ElementStrides(HPyContext *ctx, HPy obj)
 {

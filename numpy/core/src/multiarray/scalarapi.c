@@ -284,6 +284,9 @@ PyArray_CheckAnyScalarExact(PyObject * obj)
     return is_anyscalar_exact(obj);
 }
 
+/*HPY_NUMPY_API
+ * return 1 if an object is exactly a numpy scalar
+ */
 NPY_NO_EXPORT int
 HPyArray_CheckAnyScalarExact(HPyContext *ctx, HPy obj)
 {
@@ -496,7 +499,16 @@ PyArray_FromScalar(PyObject *scalar, PyArray_Descr *outcode)
     return ret;
 }
 
-// Note: does not steal outcode anymore
+/*HPY_NUMPY_API
+ * Get 0-dim array from scalar
+ *
+ * 0-dim array from array-scalar object
+ * always contains a copy of the data
+ * unless outcode is NULL, it is of void type and the referrer does
+ * not own it either.
+ *
+ * Note: does not steal outcode anymore
+ */
 NPY_NO_EXPORT HPy
 HPyArray_FromScalar(HPyContext *ctx, HPy h_scalar, /*PyArray_Descr*/ HPy h_outcode)
 {
@@ -760,9 +772,6 @@ PyArray_DescrFromTypeObject(PyObject *type)
     return _descr_from_subtype(type);
 }
 
-// HPY TODO: once the necessary helper functions are in API, no need to include:
-#include "arraytypes.h"
-
 int hpy_check_type(HPyContext *ctx, HPy type, HPyGlobal gtype) {
     HPy g_type = HPyGlobal_Load(ctx, gtype);
     int ret = HPy_Is(ctx, type, g_type);
@@ -770,6 +779,8 @@ int hpy_check_type(HPyContext *ctx, HPy type, HPyGlobal gtype) {
     return ret;
 }
 
+/*HPY_NUMPY_API
+ */
 NPY_NO_EXPORT HPy 
 HPyArray_DescrFromTypeObject(HPyContext *ctx, HPy type)
 {
@@ -928,6 +939,11 @@ PyArray_DescrFromScalar(PyObject *sc)
     return res;
 }
 
+/*HPY_NUMPY_API
+ * Return descr object from array scalar.
+ *
+ * New reference
+ */
 NPY_NO_EXPORT HPy /* (PyArray_Descr *) */
 HPyArray_DescrFromScalar(HPyContext *ctx, HPy sc)
 {
@@ -1186,6 +1202,9 @@ PyArray_Scalar(void *data, PyArray_Descr *descr, PyObject *base)
 }
 
 /* Does nothing with descr (cannot be NULL) */
+/*HPY_NUMPY_API
+  Get scalar-equivalent to a region of memory described by a descriptor.
+*/
 NPY_NO_EXPORT HPy
 HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy base, PyArrayObject *base_struct)
 {
@@ -1398,7 +1417,8 @@ PyArray_Return(PyArrayObject *mp)
     }
 }
 
-/*
+/*HPY_NUMPY_API
+ *
  * Return either an array or the appropriate Python object if the array
  * is 0d and matches a Python type.
  * ATTENTION: does *NOT* steal reference to mp

@@ -297,6 +297,9 @@ PyArray_Newshape(PyArrayObject *self, PyArray_Dims *newdims,
 
 static int _hpy_fix_unknown_dimension(HPyContext *ctx, PyArray_Dims *newshape, PyArrayObject *arr);
 
+/*HPY_NUMPY_API
+ * New shape for an array
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObject* self,
         PyArray_Dims *newdims, NPY_ORDER order)
@@ -903,7 +906,7 @@ PyArray_Transpose(PyArrayObject *ap, PyArray_Dims *permute)
     return (PyObject *)ret;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * Return Transpose.
  */
 NPY_NO_EXPORT HPy
@@ -1196,6 +1199,10 @@ PyArray_Ravel(PyArrayObject *arr, NPY_ORDER order)
     return PyArray_Flatten(arr, order);
 }
 
+/*HPY_NUMPY_API
+ * Ravel
+ * Returns a contiguous array
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Ravel(HPyContext *ctx, /*PyArrayObject*/ HPy h_arr, NPY_ORDER order)
 {

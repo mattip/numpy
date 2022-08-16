@@ -307,7 +307,7 @@ def write_file(filename, data):
 # Those *Api classes instances know how to output strings for the generated code
 class TypeApi:
     def __init__(self, name, index, ptr_cast, api_name, internal_type=None,
-                 dynamic_init=None):
+                 dynamic_init=None, hpy=False):
         self.index = index
         self.name = name
         self.ptr_cast = ptr_cast
@@ -315,6 +315,7 @@ class TypeApi:
         # The type used internally, if None, same as exported (ptr_cast)
         self.internal_type = internal_type
         self.dynamic_init = dynamic_init
+        self.hpy = hpy
 
     def define_from_array_api_string(self):
         return "#define %s (*(%s *)%s[%d])" % (self.name,
@@ -329,7 +330,9 @@ class TypeApi:
             return "        (void *) &%s" % self.name
 
     def array_api_assign(self):
-        if self.dynamic_init:
+        if self.hpy and self.dynamic_init:
+            return f"  HPyArray_API[{self.index}] = {self.dynamic_init};"
+        elif self.dynamic_init:
             return f"  PyArray_API[{self.index}] = {self.dynamic_init};"
         else:
             return None
@@ -358,11 +361,12 @@ class TypeApi:
         return astr
 
 class GlobalVarApi:
-    def __init__(self, name, index, type, api_name):
+    def __init__(self, name, index, type, api_name, hpy=False):
         self.name = name
         self.index = index
         self.type = type
         self.api_name = api_name
+        self.hpy = hpy
 
     def define_from_array_api_string(self):
         return "#define %s (*(%s *)%s[%d])" % (self.name,
@@ -385,11 +389,12 @@ extern NPY_NO_EXPORT %(type)s %(name)s;
 # Dummy to be able to consistently use *Api instances for all items in the
 # array api
 class BoolValuesApi:
-    def __init__(self, name, index, api_name):
+    def __init__(self, name, index, api_name, hpy=False):
         self.name = name
         self.index = index
-        self.type = 'PyBoolScalarObject'
+        self.type = 'PyBoolScalarObject' if not hpy else 'HPyGlobal'
         self.api_name = api_name
+        self.hpy = hpy
 
     def define_from_array_api_string(self):
         return "#define %s ((%s *)%s[%d])" % (self.name,
@@ -404,19 +409,24 @@ class BoolValuesApi:
         return None
 
     def internal_define(self):
+        if self.hpy:
+            return """\
+extern NPY_NO_EXPORT HPyGlobal _HPyArrayScalar_BoolValues[2];
+"""
         astr = """\
 extern NPY_NO_EXPORT PyBoolScalarObject *_PyArrayScalar_BoolValues[2];
 """
         return astr
 
 class FunctionApi:
-    def __init__(self, name, index, annotations, return_type, args, api_name):
+    def __init__(self, name, index, annotations, return_type, args, api_name, hpy=False):
         self.name = name
         self.index = index
         self.annotations = annotations
         self.return_type = return_type
         self.args = args
         self.api_name = api_name
+        self.hpy = hpy
 
     def _argtypes_string(self):
         if not self.args:
@@ -464,7 +474,7 @@ def merge_api_dicts(dicts):
 
     return ret
 
-def check_api_dict(d):
+def check_api_dict(d, hpy_wip_port=False):
     """Check that an api dict is valid (does not use the same index twice)."""
     # remove the extra value fields that aren't the index
     index_d = {k: v[0] for k, v in d.items()}
@@ -488,6 +498,8 @@ def check_api_dict(d):
         )
         raise ValueError(fmt.format(val))
 
+    if hpy_wip_port:
+        return
     # No 'hole' in the indexes may be allowed, and it must starts at 0
     indexes = set(index_d.values())
     expected = set(range(len(indexes)))

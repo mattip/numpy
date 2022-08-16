@@ -21,32 +21,9 @@ extern "C" {
 #include "__multiarray_api.h"
 
 
-/* TODO HPY LABS PORT: This is a workaround since we don't export the
- * appropriate HPyGlobals yet in the Numpy API. Once we have our own
- * Numpy HPy API, we should remove this.
- * Actual definition is in 'scalartypes.c'. The global is owned by
- * the multiarray module.
- */
-extern NPY_NO_EXPORT HPyGlobal HPyGenericArrType_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
-extern NPY_NO_EXPORT HPyGlobal HPyVoidArrType_Type;
-
-/* arraytypes.c */
-NPY_NO_EXPORT HPy HPyArray_DescrFromType(HPyContext *ctx, int type);
-
-/* shape.c */
-NPY_NO_EXPORT HPy
-HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObject* self,
-        PyArray_Dims *newdims, NPY_ORDER order);
-
-
 /* C-API that requires previous API to be defined */
 
 #define PyArray_DescrCheck(op) PyObject_TypeCheck(op, &PyArrayDescr_Type)
-
-static NPY_INLINE int
-HPyArray_DescrCheck(HPyContext *ctx, HPy op);
 
 static NPY_INLINE int
 HPyArray_DescrCheck(HPyContext *ctx, HPy op)
@@ -336,21 +313,6 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
         PyArray_FromDimsAndDataAndDescr(nd, d, PyArray_DescrFromType(type),   \
                                         data)
 
-/* Numpy HPy API */
-
-NPY_NO_EXPORT int
-HPyArray_ResolveWritebackIfCopy(HPyContext *ctx, HPy self);
-
-NPY_NO_EXPORT HPy
-HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
-                 HPy h_out, NPY_CLIPMODE clipmode);
-
-NPY_NO_EXPORT HPy
-HPyArray_Nonzero(HPyContext *ctx, HPy h_self);
-
-NPY_NO_EXPORT HPy
-HPyArray_Compress(HPyContext *ctx, HPy h_self, HPy condition, int axis,
-                 HPy out);
 
 /*
    Check to see if this key in the dictionary is the "title"

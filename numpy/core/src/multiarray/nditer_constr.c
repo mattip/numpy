@@ -129,6 +129,10 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     return res;
 }
 
+/*HPY_NUMPY_API
+ * Allocate a new iterator for multiple array objects, and advanced
+ * options for controlling the broadcasting, shape, and buffer size.
+ */
 NPY_NO_EXPORT NpyIter *
 HNpyIter_AdvancedNew(HPyContext *ctx, int nop, HPy *op_in, npy_uint32 flags,
                  NPY_ORDER order, NPY_CASTING casting,
@@ -564,6 +568,10 @@ NpyIter_MultiNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
                             -1, NULL, NULL, 0);
 }
 
+/*HPY_NUMPY_API
+ * Allocate a new iterator for more than one array object, using
+ * standard NumPy broadcasting rules and the default buffer size.
+ */
 NPY_NO_EXPORT NpyIter *
 HNpyIter_MultiNew(HPyContext *ctx, int nop, /*PyArrayObject*/ HPy *op_in, npy_uint32 flags,
                  NPY_ORDER order, NPY_CASTING casting,
@@ -592,6 +600,9 @@ NpyIter_New(PyArrayObject *op, npy_uint32 flags,
                             -1, NULL, NULL, 0);
 }
 
+/*HPY_NUMPY_API
+ * Allocate a new iterator for one array object.
+ */
 NPY_NO_EXPORT NpyIter *
 HNpyIter_New(HPyContext *ctx, HPy op, npy_uint32 flags,
                   NPY_ORDER order, NPY_CASTING casting,
@@ -725,6 +736,14 @@ NpyIter_Deallocate(NpyIter *iter)
     return HNpyIter_Deallocate(npy_get_context(), iter);
 }
 
+/*HPY_NUMPY_API
+ * Deallocate an iterator.
+ *
+ * To correctly work when an error is in progress, we have to check
+ * `PyErr_Occurred()`. This is necessary when buffers are not finalized
+ * or WritebackIfCopy is used. We could avoid that check by exposing a new
+ * function which is passed in whether or not a Python error is already set.
+ */
 NPY_NO_EXPORT int
 HNpyIter_Deallocate(HPyContext *ctx, NpyIter *iter)
 {

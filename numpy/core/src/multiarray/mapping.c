@@ -167,10 +167,20 @@ PyArray_MapIterSwapAxes(PyArrayMapIterObject *mit, PyArrayObject **ret, int getm
     *ret = (PyArrayObject *)new;
 }
 
+/*HPY_NUMPY_API
+ *
+ * Swap the axes to or from their inserted form. MapIter always puts the
+ * advanced (array) indices first in the iteration. But if they are
+ * consecutive, will insert/transpose them back before returning.
+ * This is stored as `mit->consec != 0` (the place where they are inserted)
+ * For assignments, the opposite happens: The values to be assigned are
+ * transposed (getmap=1 instead of getmap=0). `getmap=0` and `getmap=1`
+ * undo the other operation.
+ */
 NPY_NO_EXPORT void
 HPyArray_MapIterSwapAxes(HPyContext *ctx, 
                             PyArrayMapIterObject *mit, 
-                            HPy *ret, // PyArrayObject **
+                            HPy /* PyArrayObject ** */ *ret,
                             int getmap)
 {
     HPy new;
@@ -4187,7 +4197,7 @@ PyArray_MapIterArrayCopyIfOverlap(PyArrayObject * a, PyObject * index,
     return ret;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  *
  * Same as PyArray_MapIterArray, but:
  *

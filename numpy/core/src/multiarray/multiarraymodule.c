@@ -155,6 +155,9 @@ PyArray_GetPriority(PyObject *obj, double default_)
     return priority;
 }
 
+/*HPY_NUMPY_API
+ * Get Priority from object
+ */
 NPY_NO_EXPORT double
 HPyArray_GetPriority(HPyContext *ctx, HPy obj, double default_)
 {
@@ -1552,6 +1555,11 @@ PyArray_EquivTypes(PyArray_Descr *type1, PyArray_Descr *type2)
     return PyArray_MinCastSafety(safety, NPY_NO_CASTING) == NPY_NO_CASTING;
 }
 
+/*HPY_NUMPY_API
+ *
+ * This function returns true if the two typecodes are
+ * equivalent (same basic kind and same itemsize).
+ */
 NPY_NO_EXPORT unsigned char
 HPyArray_EquivTypes(HPyContext *ctx, /*PyArray_Descr*/HPy type1, /*PyArray_Descr*/HPy type2)
 {
@@ -3326,6 +3334,16 @@ PyArray_GetNDArrayCVersion(void)
     return (unsigned int)NPY_ABI_VERSION;
 }
 
+/*HPY_NUMPY_API
+ *
+ * Included at the very first so not auto-grabbed and thus not labeled.
+ */
+NPY_NO_EXPORT unsigned int
+HPyArray_GetNDArrayCVersion(void)
+{
+    return PyArray_GetNDArrayCVersion();
+}
+
 /*NUMPY_API
  * Returns the built-in (at compilation time) C API version
  */
@@ -3485,6 +3503,9 @@ array_set_datetimeparse_function(PyObject *NPY_UNUSED(self),
     } while(0)
 
 
+/*HPY_NUMPY_API
+ * Where
+ */
 NPY_NO_EXPORT HPy
 HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
 {
@@ -5385,6 +5406,13 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPyErr_Occurred(ctx)) {
         goto err;
     }
+
+    HPy hpy_api = HPyCapsule_New(ctx, (void *)HPyArray_API, NULL, NULL);
+    if (HPy_IsNull(hpy_api)) {
+        goto err;
+    }
+    HPy_SetItem_s(ctx, h_d, "_HPY_ARRAY_API", hpy_api);
+    HPy_Close(ctx, hpy_api);
 
     /*
      * PyExc_Exception should catch all the standard errors that are

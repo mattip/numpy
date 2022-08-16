@@ -1248,6 +1248,10 @@ HPyArray_NewFromDescrAndBase(
                                     flags, obj, base, 0, 0);
 }
 
+/*HPY_NUMPY_API
+ * Generic new array creation routine.
+ *
+ */
 NPY_NO_EXPORT HPy
 HPyArray_NewFromDescr(
         HPyContext *ctx, HPy subtype, HPy descr,
@@ -1520,6 +1524,20 @@ PyArray_NewLikeArray(PyArrayObject *prototype, NPY_ORDER order,
     return PyArray_NewLikeArrayWithShape(prototype, order, dtype, -1, NULL, subok);
 }
 
+/*HPY_NUMPY_API
+ * Creates a new array with the same shape as the provided one,
+ * with possible memory layout order and data type changes.
+ *
+ * prototype - The array the new one should be like.
+ * order     - NPY_CORDER - C-contiguous result.
+ *             NPY_FORTRANORDER - Fortran-contiguous result.
+ *             NPY_ANYORDER - Fortran if prototype is Fortran, C otherwise.
+ *             NPY_KEEPORDER - Keeps the axis ordering of prototype.
+ * dtype     - If not NULL, overrides the data type of the result.
+ * subok     - If 1, use the prototype's array subtype, otherwise
+ *             always create a base-class array.
+ *
+ */
 NPY_NO_EXPORT HPy
 HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
                      HPy dtype, int subok)
@@ -2132,7 +2150,8 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
     return res;
 }
 
-/*
+/*HPY_NUMPY_API
+ * Does not check for NPY_ARRAY_ENSURECOPY and NPY_ARRAY_NOTSWAPPED in flags
  * Same as PyArray_FromAny but *DOES NOT* steal reference to newtype.
  */
 NPY_NO_EXPORT HPy
@@ -2508,11 +2527,8 @@ PyArray_CheckFromAny(PyObject *op, PyArray_Descr *descr, int min_depth,
     return obj;
 }
 
-// HPY TODO: not needed once HPyArray_DescrNew, HPyArray_ElementStrides are in API
-#include "descriptor.h"
-#include "arrayobject.h"
 
-/*
+/*HPY_NUMPY_API
  * Same as PyArray_CheckFromAny but *DOES NOT* steal reference to descr.
  */
 NPY_NO_EXPORT HPy
@@ -2700,8 +2716,8 @@ PyArray_FromArray(PyArrayObject *arr, PyArray_Descr *newtype, int flags)
     return (PyObject *)ret;
 }
 
-/*NUMPY_API
- * steals reference to newtype --- acc. NULL
+/*HPY_NUMPY_API
+ * ATTENTION: does not steal reference to newtype --- acc. NULL
  */
 NPY_NO_EXPORT HPy
 HPyArray_FromArray(HPyContext *ctx, 
@@ -2943,6 +2959,7 @@ PyArray_FromStructInterface(PyObject *input)
     return NULL;
 }
 
+/*HPY_NUMPY_API */
 NPY_NO_EXPORT HPy
 HPyArray_FromStructInterface(HPyContext *ctx, HPy h_input)
 {
@@ -3259,6 +3276,7 @@ PyArray_FromInterface(PyObject *origin)
 }
 
 
+/*HPY_NUMPY_API*/
 NPY_NO_EXPORT HPy
 HPyArray_FromInterface(HPyContext *ctx, HPy h_origin)
 {
@@ -3271,6 +3289,7 @@ HPyArray_FromInterface(HPyContext *ctx, HPy h_origin)
         return HPy_Dup(ctx, ctx->h_NotImplemented);
     }
     PyObject *origin = HPy_AsPyObject(ctx, h_origin);
+    CAPI_WARN("calling PyArray_FromInterface");
     PyObject *ret = PyArray_FromInterface(origin);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(origin);
@@ -3684,6 +3703,12 @@ PyArray_CopyInto(PyArrayObject *dst, PyArrayObject *src)
     return PyArray_AssignArray(dst, src, NULL, NPY_UNSAFE_CASTING);
 }
 
+/*HPY_NUMPY_API
+ * Copy an Array into another array.
+ * Broadcast to the destination shape if necessary.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
 NPY_NO_EXPORT int
 HPyArray_CopyInto(HPyContext *ctx, HPy /* (PyArrayObject *) */ dst, HPy /* (PyArrayObject *) */ src)
 {
@@ -3756,6 +3781,12 @@ PyArray_CheckAxis(PyArrayObject *arr, int *axis, int flags)
     return temp2;
 }
 
+/*HPY_NUMPY_API
+ * PyArray_CheckAxis
+ *
+ * check that axis is valid
+ * convert 0-d arrays to 1-d arrays
+ */
 NPY_NO_EXPORT HPy
 HPyArray_CheckAxis(HPyContext *ctx, HPy h_arr, int *axis, int flags)
 {
@@ -3821,7 +3852,7 @@ PyArray_Zeros(int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
     return result;
 }
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * Zeros
  *
  * accepts HPy_NULL type
