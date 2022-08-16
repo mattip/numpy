@@ -394,16 +394,28 @@ fill_arraymethod_from_slots(HPyContext *ctx,
 NPY_NO_EXPORT PyObject *
 PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec)
 {
-    hpy_abort_not_implemented("PyArrayMethod_FromSpec");
-    return NULL;
-//    for (int i = 0; i < spec->nin + spec->nout; i++) {
-//        if (!PyObject_TypeCheck(spec->dtypes[i], PyArrayDTypeMeta_Type)) {
-//            PyErr_SetString(PyExc_RuntimeError,
-//                    "ArrayMethod spec contained a non DType.");
-//            return NULL;
-//        }
-//    }
-//    return (PyObject *)PyArrayMethod_FromSpec_int(spec, 0);
+    HPyContext *ctx = npy_get_context();
+    for (int i = 0; i < spec->nin + spec->nout; i++) {
+        if (!HPyGlobal_TypeCheck(ctx, spec->dtypes[i], HPyArrayDTypeMeta_Type)) {
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                    "ArrayMethod spec contained a non DType.");
+            return NULL;
+        }
+    }
+    return (PyObject *)PyArrayMethod_FromSpec_int(spec, 0);
+}
+
+NPY_NO_EXPORT HPy
+HPyArrayMethod_FromSpec(HPyContext *ctx, HPy spec, PyArrayMethod_Spec *spec_data)
+{
+    for (int i = 0; i < spec_data->nin + spec_data->nout; i++) {
+        if (!HPyGlobal_TypeCheck(ctx, spec_data->dtypes[i], HPyArrayDTypeMeta_Type)) {
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                    "ArrayMethod spec contained a non DType.");
+            return HPy_NULL;
+        }
+    }
+    return HPyArrayMethod_FromSpec_int(ctx, spec_data, 0);
 }
 
 
@@ -753,136 +765,158 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
 HPyDef_METH(boundarraymethod__simple_strided_call, "", boundarraymethod__simple_strided_call_impl, HPyFunc_O, .doc="call on 1-d inputs and pre-allocated outputs (single call).")
 static HPy
 boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
-        HPy self, HPy arr_tuple)
+        HPy h_self, // PyBoundArrayMethodObject *self
+        HPy h_arr_tuple)
 {
-    // PyBoundArrayMethodObject *self, PyObject *arr_tuple
-    // TODO HPY LABS PORT
-    hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
-    return HPy_NULL;
-//    PyArrayObject *arrays[NPY_MAXARGS];
-//    PyArray_Descr *descrs[NPY_MAXARGS];
-//    PyArray_Descr *out_descrs[NPY_MAXARGS];
-//    Py_ssize_t length = -1;
-//    int aligned = 1;
-//    char *args[NPY_MAXARGS];
-//    npy_intp strides[NPY_MAXARGS];
-//    int nin = self->method->nin;
-//    int nout = self->method->nout;
-//
-//    if (!PyTuple_CheckExact(arr_tuple) ||
-//            PyTuple_Size(arr_tuple) != nin + nout) {
-//        PyErr_Format(PyExc_TypeError,
-//                "_simple_strided_call() takes exactly one tuple with as many "
-//                "arrays as the method takes arguments (%d+%d).", nin, nout);
-//        return NULL;
-//    }
-//
-//    for (int i = 0; i < nin + nout; i++) {
-//        PyObject *tmp = PyTuple_GetItem(arr_tuple, i);
-//        if (tmp == NULL) {
-//            return NULL;
-//        }
-//        else if (!PyArray_CheckExact(tmp)) {
-//            PyErr_SetString(PyExc_TypeError,
-//                    "All inputs must be NumPy arrays.");
-//            return NULL;
-//        }
-//        arrays[i] = (PyArrayObject *)tmp;
-//        descrs[i] = PyArray_DESCR(arrays[i]);
-//
-//        /* Check that the input is compatible with a simple method call. */
-//        if (Py_TYPE(descrs[i]) != (PyTypeObject *)self->dtypes[i]) {
-//            PyErr_Format(PyExc_TypeError,
-//                    "input dtype %S was not an exact instance of the bound "
-//                    "DType class %S.", descrs[i], self->dtypes[i]);
-//            return NULL;
-//        }
-//        if (PyArray_NDIM(arrays[i]) != 1) {
-//            PyErr_SetString(PyExc_ValueError,
-//                    "All arrays must be one dimensional.");
-//            return NULL;
-//        }
-//        if (i == 0) {
-//            length = PyArray_SIZE(arrays[i]);
-//        }
-//        else if (PyArray_SIZE(arrays[i]) != length) {
-//            PyErr_SetString(PyExc_ValueError,
-//                    "All arrays must have the same length.");
-//            return NULL;
-//        }
-//        if (i >= nin) {
-//            if (PyArray_FailUnlessWriteable(
-//                    arrays[i], "_simple_strided_call() output") < 0) {
-//                return NULL;
-//            }
-//        }
-//
-//        args[i] = PyArray_BYTES(arrays[i]);
-//        strides[i] = PyArray_STRIDES(arrays[i])[0];
-//        /* TODO: We may need to distinguish aligned and itemsize-aligned */
-//        aligned &= PyArray_ISALIGNED(arrays[i]);
-//    }
-//    if (!aligned && !(self->method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
-//        PyErr_SetString(PyExc_ValueError,
-//                "method does not support unaligned input.");
-//        return NULL;
-//    }
-//
-//    npy_intp view_offset = NPY_MIN_INTP;
-//    hpy_abort_not_implemented("boundarraymethod__simple_strided_call");
-////    NPY_CASTING casting = self->method->resolve_descriptors(
-////            self->method, self->dtypes, descrs, out_descrs, &view_offset);
-//    NPY_CASTING casting = NPY_NO_CASTING;
-//
-//    if (casting < 0) {
-//        PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
-//        PyErr_Fetch(&err_type, &err_value, &err_traceback);
-//        PyErr_SetString(PyExc_TypeError,
-//                "cannot perform method call with the given dtypes.");
-//        npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
-//        return NULL;
-//    }
-//
-//    int dtypes_were_adapted = 0;
-//    for (int i = 0; i < nin + nout; i++) {
-//        /* NOTE: This check is probably much stricter than necessary... */
-//        dtypes_were_adapted |= descrs[i] != out_descrs[i];
-//        Py_DECREF(out_descrs[i]);
-//    }
-//    if (dtypes_were_adapted) {
-//        PyErr_SetString(PyExc_TypeError,
-//                "_simple_strided_call(): requires dtypes to not require a cast "
-//                "(must match exactly with `_resolve_descriptors()`).");
-//        return NULL;
-//    }
-//
-//    PyArrayMethod_Context context = {
-//            .caller = NULL,
-//            .method = self->method,
-//            .descriptors = descrs,
-//    };
-//    PyArrayMethod_StridedLoop *strided_loop = NULL;
-//    NpyAuxData *loop_data = NULL;
-//    NPY_ARRAYMETHOD_FLAGS flags = 0;
-//
-//    if (self->method->get_strided_loop(
-//            &context, aligned, 0, strides,
-//            &strided_loop, &loop_data, &flags) < 0) {
-//        return NULL;
-//    }
-//
-//    /*
-//     * TODO: Add floating point error checks if requested and
-//     *       possibly release GIL if allowed by the flags.
-//     */
-//    int res = strided_loop(&context, args, &length, strides, loop_data);
-//    if (loop_data != NULL) {
-//        loop_data->free(loop_data);
-//    }
-//    if (res < 0) {
-//        return NULL;
-//    }
-//    Py_RETURN_NONE;
+    HPy arrays[NPY_MAXARGS]; // PyArrayObject *
+    HPy descrs[NPY_MAXARGS]; // PyArray_Descr *
+    HPy out_descrs[NPY_MAXARGS]; // PyArray_Descr *
+    Py_ssize_t length = -1;
+    int aligned = 1;
+    char *args[NPY_MAXARGS];
+    npy_intp strides[NPY_MAXARGS];
+    PyBoundArrayMethodObject *self_data = PyBoundArrayMethodObject_AsStruct(ctx, h_self);
+    HPy h_method = HPyField_Load(ctx, h_self, self_data->method);
+    PyArrayMethodObject *method = PyArrayMethodObject_AsStruct(ctx, h_method);
+    int nin = method->nin;
+    int nout = method->nout;
+
+    if (!HPyTuple_CheckExact(ctx, h_arr_tuple) ||
+            HPy_Length(ctx, h_arr_tuple) != nin + nout) {
+        // PyErr_Format(PyExc_TypeError,
+        //         "_simple_strided_call() takes exactly one tuple with as many "
+        //         "arrays as the method takes arguments (%d+%d).", nin, nout);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "_simple_strided_call() takes exactly one tuple with as many "
+                "arrays as the method takes arguments.");
+        return HPy_NULL;
+    }
+
+    HPy *dtypes_arr = (HPy *)malloc((nin + nout) * sizeof(HPy));
+    for (int i = 0; i < nin + nout; i++) {
+        HPy tmp = HPy_GetItem_i(ctx, h_arr_tuple, i);
+        if (HPy_IsNull(tmp)) {
+            free(dtypes_arr);
+            return HPy_NULL;
+        }
+        else if (!HPyArray_CheckExact(ctx, tmp)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "All inputs must be NumPy arrays.");
+            free(dtypes_arr);
+            return HPy_NULL;
+        }
+        arrays[i] = tmp;
+        PyArrayObject *arrays_i_data = PyArrayObject_AsStruct(ctx, arrays[i]);
+        descrs[i] = HPyArray_DESCR(ctx, arrays[i], arrays_i_data);
+
+        /* Check that the input is compatible with a simple method call. */
+        dtypes_arr[i] = HPyField_Load(ctx, h_self, self_data->dtypes[i]);
+        PyObject *dtype_i = HPy_AsPyObject(ctx, dtypes_arr[i]);
+        HPy descrs_i_type = HPy_Type(ctx, descrs[i]);
+        if (HPy_Is(ctx, descrs_i_type, dtypes_arr[i])) {
+            HPy_Close(ctx, descrs_i_type);
+            // PyErr_Format(PyExc_TypeError,
+            //         "input dtype %S was not an exact instance of the bound "
+            //         "DType class %S.", descrs[i], self_data->dtypes[i]);
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "input dtype %S was not an exact instance of the bound "
+                    "DType class %S.");
+            free(dtypes_arr);
+            return HPy_NULL;
+        }
+        HPy_Close(ctx, descrs_i_type);
+        if (PyArray_NDIM(arrays_i_data) != 1) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "All arrays must be one dimensional.");
+            free(dtypes_arr);
+            return HPy_NULL;
+        }
+        if (i == 0) {
+            length = HPyArray_SIZE(arrays_i_data);
+        }
+        else if (HPyArray_SIZE(arrays_i_data) != length) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "All arrays must have the same length.");
+            free(dtypes_arr);
+            return HPy_NULL;
+        }
+        if (i >= nin) {
+            if (HPyArray_FailUnlessWriteableWithStruct(ctx,
+                    arrays[i], arrays_i_data, "_simple_strided_call() output") < 0) {
+                free(dtypes_arr);
+                return HPy_NULL;
+            }
+        }
+
+        args[i] = PyArray_BYTES(arrays_i_data);
+        strides[i] = PyArray_STRIDES(arrays_i_data)[0];
+        /* TODO: We may need to distinguish aligned and itemsize-aligned */
+        aligned &= PyArray_ISALIGNED(arrays_i_data);
+    }
+    if (!aligned && !(method->flags & NPY_METH_SUPPORTS_UNALIGNED)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "method does not support unaligned input.");
+        free(dtypes_arr);
+        return HPy_NULL;
+    }
+
+    npy_intp view_offset = NPY_MIN_INTP;
+
+    NPY_CASTING casting = method->resolve_descriptors(ctx,
+            h_method, dtypes_arr, descrs, out_descrs, &view_offset);
+
+    free(dtypes_arr);
+    if (casting < 0) {
+        CAPI_WARN("boundarraymethod__simple_strided_call_impl: PyErr_Fetch & npy_PyErr_ChainExceptions");
+        PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
+        PyErr_Fetch(&err_type, &err_value, &err_traceback);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "cannot perform method call with the given dtypes.");
+        npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
+        return HPy_NULL;
+    }
+
+    int dtypes_were_adapted = 0;
+    for (int i = 0; i < nin + nout; i++) {
+        /* NOTE: This check is probably much stricter than necessary... */
+        dtypes_were_adapted |= !HPy_Is(ctx, descrs[i], out_descrs[i]);
+        HPy_Close(ctx, out_descrs[i]);
+    }
+    if (dtypes_were_adapted) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "_simple_strided_call(): requires dtypes to not require a cast "
+                "(must match exactly with `_resolve_descriptors()`).");
+        return HPy_NULL;
+    }
+
+    HPy *h_descrs = HPy_FromPyObjectArray(ctx, descrs, NPY_MAXARGS);
+    HPyArrayMethod_Context context = {
+            .caller = HPy_NULL,
+            .method = h_method,
+            .descriptors = h_descrs,
+    };
+    HPyArrayMethod_StridedLoop *strided_loop = NULL;
+    NpyAuxData *loop_data = NULL;
+    NPY_ARRAYMETHOD_FLAGS flags = 0;
+
+    if (method->get_strided_loop(ctx,
+            &context, aligned, 0, strides,
+            &strided_loop, &loop_data, &flags) < 0) {
+        return HPy_NULL;
+    }
+
+    /*
+        * TODO: Add floating point error checks if requested and
+        *       possibly release GIL if allowed by the flags.
+        */
+    int res = strided_loop(ctx, &context, args, &length, strides, loop_data);
+    if (loop_data != NULL) {
+        loop_data->free(loop_data);
+    }
+    if (res < 0) {
+        return HPy_NULL;
+    }
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
 
@@ -926,49 +960,47 @@ _masked_stridedloop_data_free(NpyAuxData *auxdata)
  *       masks are common enough.
  */
 static int
-generic_masked_strided_loop(PyArrayMethod_Context *context,
+generic_masked_strided_loop(HPyContext *hctx,
+        HPyArrayMethod_Context *context,
         char *const *data, const npy_intp *dimensions,
         const npy_intp *strides, NpyAuxData *_auxdata)
 {
-    // TODO HPY LABS PORT: migrate generic_masked_strided_loop
-    hpy_abort_not_implemented("generic_masked_strided_loop");
-    return -1;
-//    _masked_stridedloop_data *auxdata = (_masked_stridedloop_data *)_auxdata;
-//    int nargs = auxdata->nargs;
-//    PyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
-//    NpyAuxData *strided_loop_auxdata = auxdata->unmasked_auxdata;
-//
-//    char **dataptrs = auxdata->dataptrs;
-//    memcpy(dataptrs, data, nargs * sizeof(char *));
-//    char *mask = data[nargs];
-//    npy_intp mask_stride = strides[nargs];
-//
-//    npy_intp N = dimensions[0];
-//    /* Process the data as runs of unmasked values */
-//    do {
-//        Py_ssize_t subloopsize;
-//
-//        /* Skip masked values */
-//        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 1);
-//        for (int i = 0; i < nargs; i++) {
-//            dataptrs[i] += subloopsize * strides[i];
-//        }
-//        N -= subloopsize;
-//
-//        /* Process unmasked values */
-//        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 0);
-//        int res = strided_loop(context,
-//                dataptrs, &subloopsize, strides, strided_loop_auxdata);
-//        if (res != 0) {
-//            return res;
-//        }
-//        for (int i = 0; i < nargs; i++) {
-//            dataptrs[i] += subloopsize * strides[i];
-//        }
-//        N -= subloopsize;
-//    } while (N > 0);
-//
-//    return 0;
+    _masked_stridedloop_data *auxdata = (_masked_stridedloop_data *)_auxdata;
+    int nargs = auxdata->nargs;
+    HPyArrayMethod_StridedLoop *strided_loop = auxdata->unmasked_stridedloop;
+    NpyAuxData *strided_loop_auxdata = auxdata->unmasked_auxdata;
+
+    char **dataptrs = auxdata->dataptrs;
+    memcpy(dataptrs, data, nargs * sizeof(char *));
+    char *mask = data[nargs];
+    npy_intp mask_stride = strides[nargs];
+
+    npy_intp N = dimensions[0];
+    /* Process the data as runs of unmasked values */
+    do {
+        Py_ssize_t subloopsize;
+
+        /* Skip masked values */
+        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 1);
+        for (int i = 0; i < nargs; i++) {
+            dataptrs[i] += subloopsize * strides[i];
+        }
+        N -= subloopsize;
+
+        /* Process unmasked values */
+        mask = npy_memchr(mask, 0, mask_stride, N, &subloopsize, 0);
+        int res = strided_loop(hctx, context,
+                dataptrs, &subloopsize, strides, strided_loop_auxdata);
+        if (res != 0) {
+            return res;
+        }
+        for (int i = 0; i < nargs; i++) {
+            dataptrs[i] += subloopsize * strides[i];
+        }
+        N -= subloopsize;
+    } while (N > 0);
+
+    return 0;
 }
 
 
@@ -988,8 +1020,9 @@ PyArrayMethod_GetMaskedStridedLoop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    hpy_abort_not_implemented("PyArrayMethod_GetMaskedStridedLoop");
-    return -1;
+    return HPyArrayMethod_GetMaskedStridedLoop(npy_get_context(), 
+                                            context, aligned, fixed_strides, 
+                                            out_loop, out_transferdata, flags);
 }
 
 NPY_NO_EXPORT int

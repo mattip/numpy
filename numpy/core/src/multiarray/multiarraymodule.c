@@ -5023,6 +5023,8 @@ intern_strings(HPyContext *ctx)
 static HPyDef *array_module_hpy_methods[] = {
     &array_zeros,
     &array_array,
+    &array_promote_types,
+    &array_min_scalar_type,
     NULL
 };
 
@@ -5170,7 +5172,7 @@ static HPyModuleDef moduledef = {
     .name = "numpy.core._multiarray_umath",
     .doc = NULL,
     .size = -1,
-    // .legacy_methods = array_module_methods,
+    .legacy_methods = array_module_methods,
     .defines = array_module_hpy_methods,
     .globals = module_globals,
 };

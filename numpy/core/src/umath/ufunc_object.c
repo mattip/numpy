@@ -1124,8 +1124,16 @@ _hpy_wheremask_converter(HPyContext *ctx, HPy obj, HPy *wheremask)
         return NPY_SUCCEED;
     }
     else {
-        hpy_abort_not_implemented("_hpy_wheremask_converter");
-        return NPY_FAIL;
+        HPy dtype = HPyArray_DescrFromType(ctx, NPY_BOOL);
+        if (HPy_IsNull(dtype)) {
+            return NPY_FAIL;
+        }
+        /* PyArray_FromAny steals reference to dtype, even on failure */
+        *wheremask = HPyArray_FromAny(ctx, obj, dtype, 0, 0, 0, HPy_NULL);
+        if (HPy_IsNull(*wheremask)) {
+            return NPY_FAIL;
+        }
+        return NPY_SUCCEED;
     }
 }
 
@@ -5720,6 +5728,7 @@ HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(HPyContext *ctx, PyUFuncGenericF
     ufunc->iter_flags = 0;
 
     /* Type resolution and inner loop selection functions */
+    ufunc->hpy_type_resolver = &HPyUFunc_DefaultTypeResolver;
     ufunc->type_resolver = &PyUFunc_DefaultTypeResolver;
     ufunc->legacy_inner_loop_selector = &PyUFunc_DefaultLegacyInnerLoopSelector;
     ufunc->_always_null_previously_masked_innerloop_selector = NULL;

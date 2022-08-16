@@ -1954,7 +1954,14 @@ fail:
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_DescrNew(PyArray_Descr *base)
 {
-    hpy_abort_not_implemented("PyArray_DescrNew");
+    HPyContext *ctx = npy_get_context();
+    HPy h_base = HPy_FromPyObject(ctx, base);
+    HPy h_res = HPyArray_DescrNew(ctx, h_base);
+    PyArray_Descr *ret = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_base);
+    HPy_Close(ctx, h_res);
+    return ret;
+    // hpy_abort_not_implemented("PyArray_DescrNew");
     // PyArray_Descr *newdescr = PyObject_New(PyArray_Descr, Py_TYPE(base));
 
     // if (newdescr == NULL) {
@@ -2004,6 +2011,9 @@ PyArray_DescrNew(PyArray_Descr *base)
     // return newdescr;
 }
 
+/*NUMPY_API
+ * base cannot be NULL
+ */
 NPY_NO_EXPORT HPy
 HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
 {
@@ -2039,27 +2049,34 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
         }
     }
 
-    hpy_abort_not_implemented("HPyArray_DescrNew: reminder");
-    // if (newdescr->fields == Py_None) {
-    //     newdescr->fields = NULL;
-    // }
-    // Py_XINCREF(newdescr->fields);
-    // Py_XINCREF(newdescr->names);
-    // if (newdescr->subarray) {
-    //     newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
-    //     if (newdescr->subarray == NULL) {
-    //         HPyErr_NoMemory(ctx);
-    //         return HPy_NULL;
-    //     }
-    //     memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
-    //     Py_INCREF(newdescr->subarray->shape);
-    //     Py_INCREF(newdescr->subarray->base);
-    // }
-    // Py_XINCREF(newdescr->typeobj);
-    // Py_XINCREF(newdescr->metadata);
-    // newdescr->hash = -1;
+    if (newdescr->fields == Py_None) {
+        newdescr->fields = NULL;
+    }
+    Py_XINCREF(newdescr->fields);
+    if (!HPyField_IsNull(newdescr->names)) {
+        HPy h_names = HPyField_Load(ctx, h_newdescr, newdescr->names);
+        HPyField_Store(ctx, h_newdescr, &newdescr->names, h_names);
+        HPy_Close(ctx, h_names);
+    }
+    if (newdescr->subarray) {
+        newdescr->subarray = PyArray_malloc(sizeof(PyArray_ArrayDescr));
+        if (newdescr->subarray == NULL) {
+            HPyErr_NoMemory(ctx);
+            return HPy_NULL;
+        }
+        memcpy(newdescr->subarray, base->subarray, sizeof(PyArray_ArrayDescr));
+        Py_INCREF(newdescr->subarray->shape);
+        Py_INCREF(newdescr->subarray->base);
+    }
+    if (!HPyField_IsNull(newdescr->typeobj)) {
+        HPy h_typeobj = HPyField_Load(ctx, h_newdescr, newdescr->typeobj);
+        HPyField_Store(ctx, h_newdescr, &newdescr->typeobj, h_typeobj);
+        HPy_Close(ctx, h_typeobj);
+    }
+    Py_XINCREF(newdescr->metadata);
+    newdescr->hash = -1;
 
-    // return h_newdescr;
+    return h_newdescr;
 }
 
 /*

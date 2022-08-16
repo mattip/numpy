@@ -75,6 +75,7 @@ PyArray_GetCastingImpl(PyArray_DTypeMeta *from, PyArray_DTypeMeta *to)
     HPyContext *ctx = npy_get_context();
     HPy h_from = HPy_FromPyObject(ctx, (PyObject *)from);
     HPy h_to = HPy_FromPyObject(ctx, (PyObject *)to);
+    CAPI_WARN("PyArray_GetCastingImpl");
     HPy h_res = HPyArray_GetCastingImpl(ctx, h_from, h_to);
     PyObject *res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_res);
@@ -705,17 +706,19 @@ HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
         return 1;
     }
 
-    hpy_abort_not_implemented("HPyArray_CheckCastSafety: generic code path");
-    // PyArray_DTypeMeta *dtypes[2] = {PyArray_DTypeMeta_AsStruct(ctx, h_from_dtype), PyArray_DTypeMeta_AsStruct(ctx, h_to_dtype)};
-    // npy_intp view_offset;
-    // NPY_CASTING safety = _get_cast_safety_from_castingimpl(castingimpl,
-    //         dtypes, PyArray_Descr_AsStruct(ctx, h_from), PyArray_Descr_AsStruct(ctx, h_to), &view_offset);
-    // Py_DECREF(meth);
-    // /* If casting is the smaller (or equal) safety we match */
-    // if (safety < 0) {
-    //     return -1;
-    // }
-    // return PyArray_MinCastSafety(safety, casting) == casting;
+    HPy dtypes[2] = {
+        h_from_dtype, 
+        h_to_dtype
+    };
+    npy_intp view_offset;
+    NPY_CASTING safety = _hget_cast_safety_from_castingimpl(ctx, meth,
+            dtypes, h_from, h_to, &view_offset);
+    HPy_Close(ctx, meth);
+    /* If casting is the smaller (or equal) safety we match */
+    if (safety < 0) {
+        return -1;
+    }
+    return PyArray_MinCastSafety(safety, casting) == casting;
 }
 
 
@@ -1097,8 +1100,10 @@ NPY_NO_EXPORT npy_bool
 PyArray_CanCastArrayTo(PyArrayObject *arr, PyArray_Descr *to,
                         NPY_CASTING casting)
 {
-    hpy_abort_not_implemented("PyArray_CanCastArrayTo");
-    return NPY_FALSE;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, arr);
+    HPy h_to = HPy_FromPyObject(ctx, to);
+    return HPyArray_CanCastArrayTo(ctx, h_arr, h_to, casting);
 }
 
 NPY_NO_EXPORT npy_bool
@@ -1280,10 +1285,14 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
         return HPy_Dup(ctx, type);
     }
     else {
-        hpy_abort_not_implemented("hensure_dtype_nbo");
         // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
-        // return PyArray_DescrNewByteorder(type, NPY_NATIVE);
-        return HPy_NULL;
+        CAPI_WARN("hensure_dtype_nbo: calling PyArray_DescrNewByteorder");
+        PyArray_Descr *py_type = HPy_AsPyObject(ctx, type);
+        PyArray_Descr *ret = PyArray_DescrNewByteorder(py_type, NPY_NATIVE);
+        HPy h_ret = HPy_FromPyObject(ctx, ret);
+        Py_DECREF(py_type);
+        Py_DECREF(ret);
+        return h_ret;
     }
 }
 
@@ -1482,7 +1491,7 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
     CAPI_WARN("HPyArray_PromoteTypes: calling PyArray_CommonDType (common_dtype)");
     PyArray_DTypeMeta *py_dtype1 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type1);
     PyArray_DTypeMeta *py_dtype2 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type2);
-    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(py_dtype1, py_dtype2);
+    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(NPY_DTYPE(py_dtype1), NPY_DTYPE(py_dtype2));
     HPy h_common_dtype = HPy_FromPyObject(ctx, common_dtype);
     Py_DECREF(py_dtype1);
     Py_DECREF(py_dtype2);
@@ -2009,18 +2018,19 @@ hshould_use_min_scalar(HPyContext *ctx, npy_intp narrs, HPy *arr,
  * Utility function used only in PyArray_ResultType for value-based logic.
  * See that function for the meaning and contents of the parameters.
  */
-static PyArray_Descr *
-get_descr_from_cast_or_value(
+static HPy // PyArray_Descr *
+hpy_get_descr_from_cast_or_value(HPyContext *ctx,
         npy_intp i,
-        PyArrayObject *arrs[],
+        HPy arrs[], /* PyArrayObject * */
         npy_intp ndtypes,
-        PyArray_Descr *descriptor,
-        PyArray_DTypeMeta *common_dtype)
+        HPy descriptor, /* PyArray_Descr * */
+        HPy common_dtype) /* PyArray_DTypeMeta * */
 {
-    PyArray_Descr *curr;
+    HPy curr;
+    PyArrayObject *arr_i = PyArrayObject_AsStruct(ctx, arrs[i-ndtypes]); // i-ndtypes < 0 ?
     if (NPY_LIKELY(i < ndtypes ||
-            !(PyArray_FLAGS(arrs[i-ndtypes]) & _NPY_ARRAY_WAS_PYSCALAR))) {
-        curr = PyArray_CastDescrToDType(descriptor, common_dtype);
+            !(PyArray_FLAGS(arr_i) & _NPY_ARRAY_WAS_PYSCALAR))) {
+        curr = HPyArray_CastDescrToDType(ctx, descriptor, common_dtype);
     }
     else {
         /*
@@ -2028,13 +2038,13 @@ get_descr_from_cast_or_value(
          * plain Python values "graciously". This recovers the original
          * value the long route, but it should almost never happen...
          */
-        PyObject *tmp = PyArray_GETITEM(arrs[i-ndtypes],
-                                        PyArray_BYTES(arrs[i-ndtypes]));
-        if (tmp == NULL) {
-            return NULL;
+        HPy h_tmp = HPyArray_GETITEM(ctx, arrs[i-ndtypes],
+                                        PyArray_BYTES(arr_i));
+        if (HPy_IsNull(h_tmp)) {
+            return HPy_NULL;
         }
-        curr = NPY_DT_CALL_discover_descr_from_pyobject(common_dtype, tmp);
-        Py_DECREF(tmp);
+        curr = HNPY_DT_CALL_discover_descr_from_pyobject(ctx, common_dtype, h_tmp);
+        HPy_Close(ctx, h_tmp);
     }
     return curr;
 }
@@ -2178,15 +2188,13 @@ HPyArray_ResultType(HPyContext *ctx,
 
     PyArray_DTypeMeta *common_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, common_dtype);
     if (NPY_DT_is_abstract(common_dtype_data)) {
-        hpy_abort_not_implemented("HPyArray_ResultType: branch is_abstract");
-//        /* (ab)use default descriptor to define a default */
-//        PyArray_Descr *tmp_descr = NPY_DT_CALL_default_descr(common_dtype);
-//        if (tmp_descr == NULL) {
-//            goto error;
-//        }
-//        Py_INCREF(NPY_DTYPE(tmp_descr));
-//        Py_SETREF(common_dtype, NPY_DTYPE(tmp_descr));
-//        Py_DECREF(tmp_descr);
+        /* (ab)use default descriptor to define a default */
+        HPy tmp_descr = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_data);
+        if (HPy_IsNull(tmp_descr)) {
+            goto error;
+        }
+        HPy_SETREF(ctx, common_dtype, HNPY_DTYPE(ctx, tmp_descr));
+        HPy_Close(ctx, tmp_descr);
     }
 
     /*
@@ -2198,25 +2206,30 @@ HPyArray_ResultType(HPyContext *ctx,
         result = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_data);
     }
     else {
-        hpy_abort_not_implemented("HPyArray_ResultType: branch is_parametric");
-//        result = get_descr_from_cast_or_value(
-//                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
-//        if (result == NULL) {
-//            goto error;
-//        }
-//
-//        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
-//            PyArray_Descr *curr = get_descr_from_cast_or_value(
-//                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
-//            if (curr == NULL) {
-//                goto error;
-//            }
-//            Py_SETREF(result, NPY_DT_SLOTS(common_dtype)->common_instance(result, curr));
-//            Py_DECREF(curr);
-//            if (result == NULL) {
-//                goto error;
-//            }
-//        }
+        result = hpy_get_descr_from_cast_or_value(ctx,
+                    0, arrs, ndtypes, all_descriptors[0], common_dtype);
+        if (HPy_IsNull(result)) {
+            goto error;
+        }
+
+        for (npy_intp i = 1; i < ndtypes+narrs; i++) {
+            HPy curr = hpy_get_descr_from_cast_or_value(ctx,
+                    i, arrs, ndtypes, all_descriptors[i], common_dtype);
+            if (HPy_IsNull(curr)) {
+                goto error;
+            }
+            PyObject *py_result = HPy_AsPyObject(ctx, result);
+            PyObject *py_curr = HPy_AsPyObject(ctx, curr);
+            CAPI_WARN("HPyArray_ResultType: calling HNPY_DT_SLOTS(ctx, common_dtype)->common_instance");
+            py_result = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(py_result, py_curr);
+            HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, py_result));
+            Py_DECREF(py_curr);
+            HPy_Close(ctx, curr);
+            if (HPy_IsNull(result)) {
+                goto error;
+            }
+            Py_DECREF(py_result);
+        }
     }
 
     /*
@@ -3318,39 +3331,41 @@ add_other_to_and_from_string_cast(
 
 NPY_NO_EXPORT NPY_CASTING
 string_to_string_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[2]), // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *view_offset)
 {
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
 
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = ensure_dtype_nbo(loop_descrs[0]);
-        if (loop_descrs[1] == NULL) {
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, loop_descrs[0]);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
     }
     else {
-        Py_INCREF(given_descrs[1]);
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
 
-    if (loop_descrs[0]->elsize < loop_descrs[1]->elsize) {
+    PyArray_Descr *loop_descrs_0 = PyArray_Descr_AsStruct(ctx, loop_descrs[0]);
+    PyArray_Descr *loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
+
+    if (loop_descrs_0->elsize < loop_descrs_1->elsize) {
         /* New string is longer: safe but cannot be a view */
         return NPY_SAFE_CASTING;
     }
     else {
         /* New string fits into old: if the byte-order matches can be a view */
-        int not_swapped = (PyDataType_ISNOTSWAPPED(loop_descrs[0])
-                           == PyDataType_ISNOTSWAPPED(loop_descrs[1]));
+        int not_swapped = (PyDataType_ISNOTSWAPPED(loop_descrs_0)
+                           == PyDataType_ISNOTSWAPPED(loop_descrs_1));
         if (not_swapped) {
             *view_offset = 0;
         }
 
-        if (loop_descrs[0]->elsize > loop_descrs[1]->elsize) {
+        if (loop_descrs_0->elsize > loop_descrs_1->elsize) {
             return NPY_SAME_KIND_CASTING;
         }
         /* The strings have the same length: */

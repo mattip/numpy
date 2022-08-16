@@ -16,6 +16,9 @@ NPY_NO_EXPORT int
 PyArray_RegisterDataType(PyArray_Descr *descr);
 
 NPY_NO_EXPORT int
+HPyArray_RegisterDataType(HPyContext* ctx, HPy h_descr);
+
+NPY_NO_EXPORT int
 PyArray_RegisterCastFunc(PyArray_Descr *descr, int totype,
                          PyArray_VectorUnaryFunc *castfunc);
 

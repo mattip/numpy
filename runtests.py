@@ -442,7 +442,7 @@ def build_project(args):
                 '-Werror=pointer-arith',
                 '-Wlogical-op',
                 # from sysconfig
-                '-Werror=unused-function',
+                # '-Werror=unused-function',
             ])
             env['CFLAGS'] = warnings_as_errors + ' ' + env.get('CFLAGS', '')
     if args.debug or args.gcov:

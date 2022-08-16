@@ -151,7 +151,7 @@ fail:
     return -1;
 }
 
-#include "ndarraytypes.h"
+#include "numpy/ndarraytypes.h"
 
 NPY_NO_EXPORT int
 hpy_raw_array_assign_array(HPyContext *ctx, int ndim, npy_intp const *shape,

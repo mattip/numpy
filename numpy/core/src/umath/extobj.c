@@ -301,11 +301,17 @@ _hpy_extract_pyvals(HPyContext *ctx, HPy h_ref, const char *name, int *bufsize,
 
     CAPI_WARN("calling _extract_pyvals");
     PyObject *py_ref = HPy_AsPyObject(ctx, h_ref);
-    PyObject *py_errobj = NULL;
-    int result = _extract_pyvals(py_ref, name, bufsize, errmask, &errobj);
-    Py_DECREF(py_ref);
-    *errobj = HPy_FromPyObject(ctx, py_errobj);
-    Py_XDECREF(py_errobj);
+    int result;
+    if (errobj) {
+        PyObject *py_errobj = NULL;
+        result = _extract_pyvals(py_ref, name, bufsize, errmask, &py_errobj);
+        Py_DECREF(py_ref);
+        *errobj = HPy_FromPyObject(ctx, py_errobj);
+        Py_DECREF(py_errobj);
+    } else {
+        result = _extract_pyvals(py_ref, name, bufsize, errmask, NULL);
+        Py_DECREF(py_ref);
+    }
     return result;
 }
 

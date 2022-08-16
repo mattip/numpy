@@ -284,6 +284,8 @@ HPyArrayMethod_GetMaskedStridedLoop(
 NPY_NO_EXPORT PyObject *
 PyArrayMethod_FromSpec(PyArrayMethod_Spec *spec);
 
+NPY_NO_EXPORT HPy
+HPyArrayMethod_FromSpec(HPyContext *ctx, HPy spec, PyArrayMethod_Spec *spec_data);
 
 /*
  * TODO: This function is the internal version, and its error paths may

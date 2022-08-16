@@ -1090,21 +1090,20 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     type = HPyField_Load(ctx, h_descr, descr->typeobj);
     swap = !PyArray_ISNBO(descr->byteorder);
     if (PyTypeNum_ISSTRING(type_num)) {
-        hpy_abort_not_implemented("strings");
-        // /* Eliminate NULL bytes */
-        // char *dptr = data;
+        /* Eliminate NULL bytes */
+        char *dptr = data;
 
-        // dptr += itemsize - 1;
-        // while(itemsize && *dptr-- == 0) {
-        //     itemsize--;
-        // }
-        // if (type_num == NPY_UNICODE && itemsize) {
-        //     /*
-        //      * make sure itemsize is a multiple of 4
-        //      * so round up to nearest multiple
-        //      */
-        //     itemsize = (((itemsize - 1) >> 2) + 1) << 2;
-        // }
+        dptr += itemsize - 1;
+        while(itemsize && *dptr-- == 0) {
+            itemsize--;
+        }
+        if (type_num == NPY_UNICODE && itemsize) {
+            /*
+             * make sure itemsize is a multiple of 4
+             * so round up to nearest multiple
+             */
+            itemsize = (((itemsize - 1) >> 2) + 1) << 2;
+        }
     }
     if (type_num == NPY_UNICODE) {
         hpy_abort_not_implemented("unicode");

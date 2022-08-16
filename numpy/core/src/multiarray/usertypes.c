@@ -188,86 +188,102 @@ test_deprecated_arrfuncs_members(PyArray_ArrFuncs *f) {
 NPY_NO_EXPORT int
 PyArray_RegisterDataType(PyArray_Descr *descr)
 {
-    hpy_abort_not_implemented("custom data-types");
-    // PyArray_Descr *descr2;
-    // int typenum;
-    // int i;
-    // PyArray_ArrFuncs *f;
+    // HPy this isn't used anymore.. we keep it for the numpy API.
+    HPyContext *ctx = npy_get_context();
+    HPy h_descr = HPy_FromPyObject(ctx, descr);
+    int ret = HPyArray_RegisterDataType(ctx, h_descr);
+    HPy_Close(ctx, h_descr);
+    return ret;
+}
 
-    // /* See if this type is already registered */
-    // for (i = 0; i < NPY_NUMUSERTYPES; i++) {
-    //     descr2 = userdescrs[i];
-    //     if (descr2 == descr) {
-    //         return descr->type_num;
-    //     }
-    // }
-    // typenum = NPY_USERDEF + NPY_NUMUSERTYPES;
-    // descr->type_num = -1;
-    // if (PyDataType_ISUNSIZED(descr)) {
-    //     PyErr_SetString(PyExc_ValueError, "cannot register a" \
-    //                     "flexible data-type");
-    //     return -1;
-    // }
-    // f = descr->f;
-    // if (f->nonzero == NULL) {
-    //     f->nonzero = _default_nonzero;
-    // }
-    // if (f->copyswapn == NULL) {
-    //     f->copyswapn = _default_copyswapn;
-    // }
-    // if (f->copyswap == NULL || f->getitem == NULL ||
-    //     f->setitem == NULL) {
-    //     PyErr_SetString(PyExc_ValueError, "a required array function"   \
-    //                     " is missing.");
-    //     return -1;
-    // }
-    // if (PyArray_Descr_typeobj(descr) == NULL) {
-    //     PyErr_SetString(PyExc_ValueError, "missing typeobject");
-    //     return -1;
-    // }
-    // if (descr->flags & (NPY_ITEM_IS_POINTER | NPY_ITEM_REFCOUNT)) {
-    //     /*
-    //      * User dtype can't actually do reference counting, however, there
-    //      * are existing hacks (e.g. xpress), which use a structured one:
-    //      *     dtype((xpress.var, [('variable', 'O')]))
-    //      * so we have to support this. But such a structure must be constant
-    //      * (i.e. fixed at registration time, this is the case for `xpress`).
-    //      */
-    //     if (descr->names == NULL || descr->fields == NULL ||
-    //         !PyDict_CheckExact(descr->fields)) {
-    //         PyErr_Format(PyExc_ValueError,
-    //                 "Failed to register dtype for S: Legacy user dtypes "
-    //                 "using `NPY_ITEM_IS_POINTER` or `NPY_ITEM_REFCOUNT` are "
-    //                 "unsupported.  It is possible to create such a dtype only "
-    //                 "if it is a structured dtype with names and fields "
-    //                 "hardcoded at registration time.\n"
-    //                 "Please contact the NumPy developers if this used to work "
-    //                 "but now fails."/*, descr->typeobj*/);
-    //         return -1;
-    //     }
-    // }
+/*NUMPY_API
+  HPy Register Data type
+  Does not change the reference count of descr
+*/
+NPY_NO_EXPORT int
+HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
+{
+    PyArray_Descr *s_descr = PyArray_Descr_AsStruct(ctx, h_descr);
+    PyArray_Descr *descr = HPy_AsPyObject(ctx, h_descr);
+    PyArray_Descr *descr2;
+    int typenum;
+    int i;
+    PyArray_ArrFuncs *f;
 
-    // if (test_deprecated_arrfuncs_members(f) < 0) {
-    //     return -1;
-    // }
+    /* See if this type is already registered */
+    for (i = 0; i < NPY_NUMUSERTYPES; i++) {
+        descr2 = userdescrs[i];
+        if (descr2 == descr) {
+            return s_descr->type_num;
+        }
+    }
+    typenum = NPY_USERDEF + NPY_NUMUSERTYPES;
+    s_descr->type_num = -1;
+    if (PyDataType_ISUNSIZED(s_descr)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "cannot register a" \
+                        "flexible data-type");
+        return -1;
+    }
+    f = s_descr->f;
+    if (f->nonzero == NULL) {
+        f->nonzero = _default_nonzero;
+    }
+    if (f->copyswapn == NULL) {
+        f->copyswapn = _default_copyswapn;
+    }
+    if (f->copyswap == NULL || f->getitem == NULL ||
+        f->setitem == NULL) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "a required array function"   \
+                        " is missing.");
+        return -1;
+    }
+    if (HPyField_IsNull(s_descr->typeobj) == NULL) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "missing typeobject");
+        return -1;
+    }
+    if (s_descr->flags & (NPY_ITEM_IS_POINTER | NPY_ITEM_REFCOUNT)) {
+        /*
+         * User dtype can't actually do reference counting, however, there
+         * are existing hacks (e.g. xpress), which use a structured one:
+         *     dtype((xpress.var, [('variable', 'O')]))
+         * so we have to support this. But such a structure must be constant
+         * (i.e. fixed at registration time, this is the case for `xpress`).
+         */
+        if (HPyField_IsNull(s_descr->names) || s_descr->fields == NULL ||
+            !PyDict_CheckExact(s_descr->fields)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError, // PyErr_Format
+                    "Failed to register dtype for S: Legacy user dtypes " // %S
+                    "using `NPY_ITEM_IS_POINTER` or `NPY_ITEM_REFCOUNT` are "
+                    "unsupported.  It is possible to create such a dtype only "
+                    "if it is a structured dtype with names and fields "
+                    "hardcoded at registration time.\n"
+                    "Please contact the NumPy developers if this used to work "
+                    "but now fails."/*, s_->typeobj*/);
+            return -1;
+        }
+    }
 
-    // userdescrs = realloc(userdescrs,
-    //                      (NPY_NUMUSERTYPES+1)*sizeof(void *));
-    // if (userdescrs == NULL) {
-    //     PyErr_SetString(PyExc_MemoryError, "RegisterDataType");
-    //     return -1;
-    // }
+    if (test_deprecated_arrfuncs_members(f) < 0) {
+        return -1;
+    }
 
-    // userdescrs[NPY_NUMUSERTYPES++] = descr;
+    userdescrs = realloc(userdescrs,
+                         (NPY_NUMUSERTYPES+1)*sizeof(void *));
+    if (userdescrs == NULL) {
+        HPyErr_SetString(ctx, ctx->h_MemoryError, "RegisterDataType");
+        return -1;
+    }
 
-    // descr->type_num = typenum;
-    // if (dtypemeta_wrap_legacy_descriptor(npy_get_context(), descr) < 0) {
-    //     descr->type_num = -1;
-    //     NPY_NUMUSERTYPES--;
-    //     return -1;
-    // }
+    userdescrs[NPY_NUMUSERTYPES++] = descr;
 
-    // return typenum;
+    s_descr->type_num = typenum;
+    if (dtypemeta_wrap_legacy_descriptor(ctx, h_descr, s_descr) < 0) {
+        s_descr->type_num = -1;
+        NPY_NUMUSERTYPES--;
+        return -1;
+    }
+
+    return typenum;
 }
 
 

@@ -126,6 +126,26 @@ npy_casting_to_py_object(NPY_CASTING casting)
 }
 
 
+static HPy
+hpy_npy_casting_to_py_object(HPyContext *ctx, NPY_CASTING casting)
+{
+    switch (casting) {
+        case NPY_NO_CASTING:
+            return HPyUnicode_FromString(ctx, "no");
+        case NPY_EQUIV_CASTING:
+            return HPyUnicode_FromString(ctx, "equiv");
+        case NPY_SAFE_CASTING:
+            return HPyUnicode_FromString(ctx, "safe");
+        case NPY_SAME_KIND_CASTING:
+            return HPyUnicode_FromString(ctx, "same_kind");
+        case NPY_UNSAFE_CASTING:
+            return HPyUnicode_FromString(ctx, "unsafe");
+        default:
+            return HPyLong_FromLong(ctx, casting);
+    }
+}
+
+
 /**
  * Always returns -1 to indicate the exception was raised, for convenience
  */
@@ -232,6 +252,40 @@ raise_casting_error(
     return -1;
 }
 
+static int
+hpy_raise_casting_error(HPyContext *ctx,
+        HPy exc_type,
+        HPy ufunc,
+        NPY_CASTING casting,
+        HPy from,
+        HPy to,
+        npy_intp i)
+{
+    HPy exc_value;
+    HPy casting_value;
+
+    casting_value = hpy_npy_casting_to_py_object(ctx, casting);
+    if (HPy_IsNull(casting_value)) {
+        return -1;
+    }
+
+    exc_value = HPy_BuildValue(ctx,
+        "OOOOi",
+        ufunc,
+        casting_value,
+        from,
+        to,
+        i
+    );
+    if (HPy_IsNull(exc_value)){
+        return -1;
+    }
+    HPyErr_SetObject(ctx, exc_type, exc_value);
+    HPy_Close(ctx, exc_value);
+
+    return -1;
+}
+
 /** Helper function to raise UFuncInputCastingError
  * Always returns -1 to indicate the exception was raised, for convenience
  */
@@ -262,8 +316,15 @@ hpy_raise_input_casting_error(HPyContext *ctx,
         HPy /* (PyArray_Descr *) */ to,
         npy_intp i)
 {
-    hpy_abort_not_implemented("hpy_raise_input_casting_error");
-    return -1;
+    static HPy exc_type = HPy_NULL; // HPyGlobal ?
+    npy_hpy_cache_import(ctx,
+        "numpy.core._exceptions", "_UFuncInputCastingError",
+        &exc_type);
+    if (HPy_IsNull(exc_type)) {
+        return -1;
+    }
+
+    return hpy_raise_casting_error(ctx, exc_type, ufunc, casting, from, to, i);
 }
 
 /** Helper function to raise UFuncOutputCastingError
@@ -296,8 +357,15 @@ hpy_raise_output_casting_error(HPyContext *ctx,
         HPy /* (PyArray_Descr *) */ to,
         npy_intp i)
 {
-    hpy_abort_not_implemented("hpy_raise_output_casting_error");
-    return -1;
+    static HPy exc_type = HPy_NULL; // HPyGlobal ?
+    npy_hpy_cache_import(ctx,
+        "numpy.core._exceptions", "_UFuncOutputCastingError",
+        &exc_type);
+    if (HPy_IsNull(exc_type)) {
+        return -1;
+    }
+
+    return hpy_raise_casting_error(ctx, exc_type, ufunc, casting, from, to, i);
 }
 
 /*UFUNC_API
@@ -452,6 +520,34 @@ PyUFunc_DefaultTypeResolver(PyUFuncObject *ufunc,
     return retval;
 }
 
+NPY_NO_EXPORT int
+HPyUFunc_DefaultTypeResolver(HPyContext *ctx,
+                                HPy /* (PyUFuncObject *) */ ufunc,
+                                NPY_CASTING casting,
+                                HPy /* (PyArrayObject **) */ *operands,
+                                HPy type_tup,
+                                HPy /* (PyArray_Descr **) */ *out_dtypes)
+{
+    CAPI_WARN("HPyUFunc_DefaultTypeResolver: calling PyUFunc_DefaultTypeResolver");
+    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
+    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
+    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
+    PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
+    PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+    }
+    int res = PyUFunc_DefaultTypeResolver(py_ufunc, casting, py_operands,
+            py_type_tup, py_out_dtypes);
+    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
+    Py_DECREF(py_ufunc);
+    // Py_DECREF(py_type_tup);
+    for (int i=0; i < ufunc_data->nargs; i++) {
+        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
+        Py_XDECREF(py_out_dtypes[i]);
+    }
+    return res;
+}
 /*
  * This function applies special type resolution rules for the case
  * where all the functions have the pattern XX->bool, using

@@ -339,6 +339,7 @@ PyArray_CopyObject(PyArrayObject *dest, PyObject *src_object)
 
     if (cache != NULL && !(cache->sequence)) {
         /* The input is an array or array object, so assign directly */
+        CAPI_WARN("PyArray_AssignArray");
         HPyContext *ctx = npy_get_context();
         PyObject *tmp = HPy_AsPyObject(ctx, cache->converted_obj);
         assert(tmp == src_object);
@@ -1580,6 +1581,7 @@ HPyDef_SLOT(array_richcompare_def, hpy_array_richcompare, HPy_tp_richcompare);
 
 PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
+    CAPI_WARN("array_richcompare");
     HPyContext *ctx = npy_get_context();
     HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
     HPy h_other = HPy_FromPyObject(ctx, (PyObject*)other);
@@ -1977,14 +1979,15 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         }
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_HASOBJECT)) {
             /* place Py_None in object positions */
-            hpy_abort_not_implemented("array_array: objects");
-            // PyObject *ret = HPy_AsPyObject(ctx, h_result);
-            // PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
-            // Py_DECREF(ret);
-            // if (HPyErr_Occurred(ctx)) {
-            //     descr = NULL;
-            //     goto fail;
-            // }
+            CAPI_WARN("PyArray_FillObjectArray");
+            // TODO HPY LABS PORT
+            PyObject *ret = HPy_AsPyObject(ctx, h_result);
+            PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
+            Py_DECREF(ret);
+            if (HPyErr_Occurred(ctx)) {
+                descr = NULL;
+                goto fail;
+            }
         }
     }
     else {
@@ -2075,14 +2078,14 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
 
     {Py_sq_concat, (binaryfunc)array_concat},
-    // {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
+    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
     {Py_sq_contains, (objobjproc)array_contains},
 
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
     {Py_tp_methods, array_methods},
-    // {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
+    {Py_tp_getset, array_getsetlist}, // HPY: they are not needed for the example
     {0, NULL},
 };
 
