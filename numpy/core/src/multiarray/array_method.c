@@ -468,7 +468,7 @@ HPyArrayMethod_FromSpec_int(HPyContext *ctx, PyArrayMethod_Spec *spec, int priva
     data->method = HPyField_NULL;
     data->nargs = nargs;
     // TODO: HPY LABS PORT: PyMem_Malloc
-    data->dtypes = calloc(nargs, sizeof(HPy));
+    data->dtypes = calloc(nargs, sizeof(HPyField));
     if (data->dtypes == NULL) {
         HPy_Close(ctx, res);
         HPyErr_NoMemory(ctx);
@@ -626,135 +626,158 @@ boundarraymethod_destroy_impl(void *object)
 HPyDef_METH(boundarraymethod__resolve_descripors, "_resolve_descriptors", boundarraymethod__resolve_descripors_impl, HPyFunc_O, .doc="Resolve the given dtypes.")
 static HPy
 boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
-        HPy self, HPy descr_tuple)
+        HPy h_self, HPy descr_tuple)
 {
     // PyBoundArrayMethodObject *self, PyObject *descr_tuple)
-    // TODO HPY LABS PORT
-    hpy_abort_not_implemented("boundarraymethod__resolve_descripors");
-    return HPy_NULL;
-//    int nin = self->method->nin;
-//    int nout = self->method->nout;
-//
-//    PyArray_Descr *given_descrs[NPY_MAXARGS];
-//    PyArray_Descr *loop_descrs[NPY_MAXARGS];
-//
-//    if (!PyTuple_CheckExact(descr_tuple) ||
-//            PyTuple_Size(descr_tuple) != nin + nout) {
-//        PyErr_Format(PyExc_TypeError,
-//                "_resolve_descriptors() takes exactly one tuple with as many "
-//                "elements as the method takes arguments (%d+%d).", nin, nout);
-//        return NULL;
-//    }
-//
-//    for (int i = 0; i < nin + nout; i++) {
-//        PyObject *tmp = PyTuple_GetItem(descr_tuple, i);
-//        if (tmp == NULL) {
-//            return NULL;
-//        }
-//        else if (tmp == Py_None) {
-//            if (i < nin) {
-//                PyErr_SetString(PyExc_TypeError,
-//                        "only output dtypes may be omitted (set to None).");
-//                return NULL;
-//            }
-//            given_descrs[i] = NULL;
-//        }
-//        else if (PyArray_DescrCheck(tmp)) {
-//            if (Py_TYPE(tmp) != (PyTypeObject *)self->dtypes[i]) {
-//                PyErr_Format(PyExc_TypeError,
-//                        "input dtype %S was not an exact instance of the bound "
-//                        "DType class %S.", tmp, self->dtypes[i]);
-//                return NULL;
-//            }
-//            given_descrs[i] = (PyArray_Descr *)tmp;
-//        }
-//        else {
-//            PyErr_SetString(PyExc_TypeError,
-//                    "dtype tuple can only contain dtype instances or None.");
-//            return NULL;
-//        }
-//    }
-//
-//    npy_intp view_offset = NPY_MIN_INTP;
-////    NPY_CASTING casting = self->method->resolve_descriptors(
-////            self->method, self->dtypes, given_descrs, loop_descrs, &view_offset);
-//    NPY_CASTING casting = NPY_NO_CASTING;
-//
-//    if (casting < 0 && PyErr_Occurred()) {
-//        return NULL;
-//    }
-//    else if (casting < 0) {
-//        return Py_BuildValue("iO", casting, Py_None, Py_None);
-//    }
-//
-//    PyObject *result_tuple = PyTuple_New(nin + nout);
-//    if (result_tuple == NULL) {
-//        return NULL;
-//    }
-//    for (int i = 0; i < nin + nout; i++) {
-//        /* transfer ownership to the tuple. */
-//        PyTuple_SET_ITEM(result_tuple, i, (PyObject *)loop_descrs[i]);
-//    }
-//
-//    PyObject *view_offset_obj;
-//    if (view_offset == NPY_MIN_INTP) {
-//        Py_INCREF(Py_None);
-//        view_offset_obj = Py_None;
-//    }
-//    else {
-//        view_offset_obj = PyLong_FromSsize_t(view_offset);
-//        if (view_offset_obj == NULL) {
-//            Py_DECREF(result_tuple);
-//            return NULL;
-//        }
-//    }
-//
-//    /*
-//     * The casting flags should be the most generic casting level.
-//     * If no input is parametric, it must match exactly.
-//     *
-//     * (Note that these checks are only debugging checks.)
-//     */
-//    int parametric = 0;
-//    for (int i = 0; i < nin + nout; i++) {
-//        if (NPY_DT_is_parametric(self->dtypes[i])) {
-//            parametric = 1;
-//            break;
-//        }
-//    }
-//    if (self->method->casting != -1) {
-//        NPY_CASTING cast = casting;
-//        if (self->method->casting !=
-//                PyArray_MinCastSafety(cast, self->method->casting)) {
-//            PyErr_Format(PyExc_RuntimeError,
-//                    "resolve_descriptors cast level did not match stored one. "
-//                    "(set level is %d, got %d for method %s)",
-//                    self->method->casting, cast, self->method->name);
-//            Py_DECREF(result_tuple);
-//            Py_DECREF(view_offset_obj);
-//            return NULL;
-//        }
-//        if (!parametric) {
-//            /*
-//             * Non-parametric can only mismatch if it switches from equiv to no
-//             * (e.g. due to byteorder changes).
-//             */
-//            if (cast != self->method->casting &&
-//                    self->method->casting != NPY_EQUIV_CASTING) {
-//                PyErr_Format(PyExc_RuntimeError,
-//                        "resolve_descriptors cast level changed even though "
-//                        "the cast is non-parametric where the only possible "
-//                        "change should be from equivalent to no casting. "
-//                        "(set level is %d, got %d for method %s)",
-//                        self->method->casting, cast, self->method->name);
-//                Py_DECREF(result_tuple);
-//                Py_DECREF(view_offset_obj);
-//                return NULL;
-//            }
-//        }
-//    }
-//
-//    return Py_BuildValue("iNN", casting, result_tuple, view_offset_obj);
+    PyBoundArrayMethodObject *self = PyBoundArrayMethodObject_AsStruct(ctx, h_self);
+    HPy h_self_method = HPyField_Load(ctx, h_self, self->method);
+    PyArrayMethodObject *self_method = PyArrayMethodObject_AsStruct(ctx, h_self_method);
+    int nin = self_method->nin;
+    int nout = self_method->nout;
+
+    HPy given_descrs[NPY_MAXARGS]; // PyArray_Descr *
+    HPy loop_descrs[NPY_MAXARGS]; // PyArray_Descr *
+    HPy result = HPy_NULL;
+
+    if (!HPyTuple_CheckExact(ctx, descr_tuple) ||
+            HPy_Length(ctx, descr_tuple) != nin + nout) {
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
+                "_resolve_descriptors() takes exactly one tuple with as many "
+                "elements as the method takes arguments (%d+%d).", nin, nout);
+        return HPy_NULL;
+    }
+    int nargs = nin + nout;
+    HPy *self_dtypes = (HPy *)malloc(nargs * sizeof(HPy));
+    for (int i = 0; i < nin + nout; i++) {
+        self_dtypes[i] = HPyField_Load(ctx, h_self, self->dtypes[i]);
+        HPy tmp = HPy_GetItem_i(ctx, descr_tuple, i);
+        if (HPy_IsNull(tmp)) {
+            goto clean_up;
+        }
+        else if (HPy_Is(ctx, tmp, ctx->h_None)) {
+            if (i < nin) {
+                HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "only output dtypes may be omitted (set to None).");
+                goto clean_up;
+            }
+            given_descrs[i] = HPy_NULL;
+        }
+        else if (HPyArray_DescrCheck(ctx, tmp)) {
+            HPy tmp_type = HPy_Type(ctx, tmp);
+            if (!HPy_Is(ctx, tmp, self_dtypes[i])) {
+                // PyErr_Format(PyExc_TypeError,
+                //         "input dtype %S was not an exact instance of the bound "
+                //         "DType class %S.", tmp, self->dtypes[i]);
+                HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "input dtype %S was not an exact instance of the bound "
+                        "DType class %S.");
+                HPy_Close(ctx, tmp_type);
+                goto clean_up;
+            }
+            HPy_Close(ctx, tmp_type);
+            given_descrs[i] = tmp; // (PyArray_Descr *)
+        }
+        else {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "dtype tuple can only contain dtype instances or None.");
+            goto clean_up;
+        }
+    }
+
+    npy_intp view_offset = NPY_MIN_INTP;
+    NPY_CASTING casting = self_method->resolve_descriptors(ctx,
+            h_self_method, self_dtypes, given_descrs, loop_descrs, &view_offset);
+
+    if (casting < 0 && HPyErr_Occurred(ctx)) {
+        goto clean_up;
+    }
+    else if (casting < 0) {
+        result = HPy_BuildValue(ctx, "iO", casting, ctx->h_None, ctx->h_None);
+        goto clean_up;
+    }
+
+    HPyTupleBuilder tb_result_tuple = HPyTupleBuilder_New(ctx, nin + nout);
+    if (HPyTupleBuilder_IsNull(tb_result_tuple)) {
+        goto clean_up;
+    }
+    for (int i = 0; i < nin + nout; i++) {
+        /* transfer ownership to the tuple. */
+        HPyTupleBuilder_Set(ctx, tb_result_tuple, i, loop_descrs[i]);
+        HPy_Close(ctx, loop_descrs[i]);
+    }
+
+    HPy view_offset_obj;
+    if (view_offset == NPY_MIN_INTP) {
+        // Py_INCREF(Py_None);
+        view_offset_obj = HPy_Dup(ctx, ctx->h_None);
+    }
+    else {
+        view_offset_obj = HPyLong_FromSsize_t(ctx, view_offset);
+        if (HPy_IsNull(view_offset_obj)) {
+            HPyTupleBuilder_Cancel(ctx, tb_result_tuple);
+            goto clean_up;
+        }
+    }
+
+    /*
+        * The casting flags should be the most generic casting level.
+        * If no input is parametric, it must match exactly.
+        *
+        * (Note that these checks are only debugging checks.)
+        */
+    int parametric = 0;
+    for (int i = 0; i < nin + nout; i++) {
+        if (HNPY_DT_is_parametric(ctx, self_dtypes[i])) {
+            parametric = 1;
+            break;
+        }
+    }
+    if (self_method->casting != -1) {
+        NPY_CASTING cast = casting;
+        if (self_method->casting !=
+                PyArray_MinCastSafety(cast, self_method->casting)) {
+            HPyErr_Format(ctx, ctx->h_RuntimeError,
+                    "resolve_descriptors cast level did not match stored one. "
+                    "(set level is %d, got %d for method %s)",
+                    self_method->casting, cast, self_method->name);
+            HPyTupleBuilder_Cancel(ctx, tb_result_tuple);
+            HPy_Close(ctx, view_offset_obj);
+            goto clean_up;
+        }
+        if (!parametric) {
+            /*
+                * Non-parametric can only mismatch if it switches from equiv to no
+                * (e.g. due to byteorder changes).
+                */
+            if (cast != self_method->casting &&
+                    self_method->casting != NPY_EQUIV_CASTING) {
+                // PyErr_Format(PyExc_RuntimeError,
+                //         "resolve_descriptors cast level changed even though "
+                //         "the cast is non-parametric where the only possible "
+                //         "change should be from equivalent to no casting. "
+                //         "(set level is %d, got %d for method %s)",
+                //         self_method->casting, cast, self_method->name);
+                HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                        "resolve_descriptors cast level changed even though "
+                        "the cast is non-parametric where the only possible "
+                        "change should be from equivalent to no casting. "
+                        "(set level is %d, got %d for method %s)");
+                HPyTupleBuilder_Cancel(ctx, tb_result_tuple);
+                HPy_Close(ctx, view_offset_obj);
+                goto clean_up;
+            }
+        }
+    }
+    HPy result_tuple = HPyTupleBuilder_Build(ctx, tb_result_tuple);
+    result = HPy_BuildValue(ctx, "iOO", casting, result_tuple, view_offset_obj);
+    HPy_Close(ctx, result_tuple);
+    HPy_Close(ctx, view_offset_obj);
+clean_up:
+    for (int i = 0; i < nin + nout; i++) {
+        HPy_Close(ctx, self_dtypes[i]);
+    }
+    free(self_dtypes);
+    return result;
 }
 
 
