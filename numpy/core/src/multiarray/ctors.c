@@ -2305,6 +2305,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
                 op_data->flags,
                 HPy_NULL, op);
         HPy_Close(ctx, array_type);
+        HPy_Close(ctx, dtype);
         return res;
     }
     /*

@@ -432,6 +432,8 @@ _hunpack_field(HPyContext *ctx,
     }
     else {
         HPyErr_SetString(ctx, ctx->h_IndexError, "can't convert offset");
+        HPy_Close(ctx, *descr);
+        HPy_Close(ctx, off);
         return -1;
     }
 

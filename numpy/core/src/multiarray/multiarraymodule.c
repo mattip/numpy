@@ -1919,7 +1919,7 @@ finish:
 
     /*
      * create a new array from the same data with ones in the shape
-     * steals a reference to ret
+     * Does not steal a reference to ret
      */
     return _hpy_prepend_ones(ctx, ret, PyArrayObject_AsStruct(ctx, ret), nd, ndmin, order);
 

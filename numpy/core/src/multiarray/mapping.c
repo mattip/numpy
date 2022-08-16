@@ -2271,7 +2271,7 @@ _get_field_view(HPyContext *ctx,
 
         /* get the field offset and dtype */
         HPy h_fields = HPy_FromPyObject(ctx, arr_descr_data->fields);
-        tup = HPy_GetItem(ctx, h_fields, ind); // TODO HPy: PyDict_GetItemWithError
+        tup = HPyDict_GetItemWithError(ctx, h_fields, ind);
         HPy_Close(ctx, h_fields);
         if (HPy_IsNull(tup) && HPyErr_Occurred(ctx)) {
             return 0;
@@ -2556,7 +2556,9 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
     // Py_INCREF(result);
 
     if (mit->consec) {
+        HPy tmp_h_result = h_result;
         HPyArray_MapIterSwapAxes(ctx, mit, &h_result, 1);
+        HPy_Close(ctx, tmp_h_result);
     }
 
   wrap_out_array:
@@ -2588,7 +2590,7 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 
   finish:
     HPy_Close(ctx, h_self_descr);
-    // Py_XDECREF(mit); -- relevant code pushed behind hpy_abort_not_implemented
+    Py_XDECREF(mit);
     HPy_Close(ctx, h_view);
     /* Clean up indices */
     for (i=0; i < index_num; i++) {
