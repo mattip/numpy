@@ -815,9 +815,12 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
         HPy descrs_i_type = HPy_Type(ctx, descrs[i]);
         if (HPy_Is(ctx, descrs_i_type, dtypes_arr[i])) {
             HPy_Close(ctx, descrs_i_type);
-            PyErr_Format(PyExc_TypeError,
+            // PyErr_Format(PyExc_TypeError,
+            //         "input dtype %S was not an exact instance of the bound "
+            //         "DType class %S.", descrs[i], self_data->dtypes[i]);
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "input dtype %S was not an exact instance of the bound "
-                    "DType class %S.", descrs[i], self_data->dtypes[i]);
+                    "DType class %S.");
             free(dtypes_arr);
             return HPy_NULL;
         }

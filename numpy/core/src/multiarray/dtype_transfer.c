@@ -99,6 +99,7 @@ _strided_to_strided_move_references(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
+    hpy_abort_not_implemented("stop here and inspect the caller for args {src, dst}");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
@@ -266,6 +267,7 @@ any_to_object_get_loop(
     *flags = NPY_METH_REQUIRES_PYAPI;  /* No need for floating point errors */
 
     *out_loop = _strided_to_strided_any_to_object;
+    CAPI_WARN("calling PyMem_Malloc(sizeof(_any_to_object_auxdata))");
     *out_transferdata = PyMem_Malloc(sizeof(_any_to_object_auxdata));
     if (*out_transferdata == NULL) {
         return -1;
@@ -337,10 +339,12 @@ strided_to_strided_object_to_any(
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate strided_to_strided_object_to_any
+    hpy_abort_not_implemented("stop and inspect caller with NpyAuxData *auxdata");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
     _object_to_any_auxdata *data = (_object_to_any_auxdata *)auxdata;
+    CAPI_WARN("using (_object_to_any_auxdata *)auxdata");
 
     PyObject *src_ref;
 
@@ -377,6 +381,7 @@ object_to_any_get_loop(
     *flags = NPY_METH_REQUIRES_PYAPI;
 
     /* NOTE: auxdata is only really necessary to flag `move_references` */
+    CAPI_WARN("missing PyMem_Malloc and using _object_to_any_auxdata");
     _object_to_any_auxdata *data = PyMem_Malloc(sizeof(*data));
     if (data == NULL) {
         return -1;
@@ -624,6 +629,7 @@ hwrap_copy_swap_function(
         NpyAuxData **out_transferdata)
 {
     // TODO HPY LABS PORT
+    CAPI_WARN("calling wrap_copy_swap_function");
     PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtype);
     int ret = wrap_copy_swap_function(py_dtype, should_swap, out_stransfer, out_transferdata);
     Py_DECREF(py_dtype);
@@ -707,6 +713,7 @@ _aligned_strided_to_strided_cast_decref_src(HPyContext *ctx,
         NpyAuxData *auxdata)
 {
     // TODO HPY LABS PORT: migrate _aligned_strided_to_strided_cast_decref_src
+    hpy_abort_not_implemented("stop and inspect (_any_to_object_auxdata *)auxdata once reached");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
@@ -2906,6 +2913,7 @@ hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
                             NPY_cast_info *cast_info,
                             int *out_needs_api) {
     /* TODO HPY LABS PORT: cut off */
+    CAPI_WARN("calling get_decref_transfer_function");
     PyArray_Descr *src_dtype = HPy_AsPyObject(ctx, h_src_dtype);
     int ret = get_decref_transfer_function(aligned, src_stride, src_dtype, cast_info, out_needs_api);
     Py_DECREF(src_dtype);

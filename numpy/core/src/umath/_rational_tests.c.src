@@ -727,6 +727,7 @@ static int
 npyrational_setitem(HPyContext *ctx, HPy item, void* data, HPy arr) {
     rational r;
     PyObject *py_item = HPy_AsPyObject(ctx, item);
+    CAPI_WARN("missing PyRational_Check");
     if (PyRational_Check(py_item)) {
         r = ((PyRational*)py_item)->r;
         Py_DECREF(py_item);

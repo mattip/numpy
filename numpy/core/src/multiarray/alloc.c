@@ -560,15 +560,14 @@ HPyDataMem_SetHandler(HPyContext *ctx, HPy handler)
 {
     HPy h_handler = handler;
     HPy old_handler = HPy_NULL;
-#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
     HPy token;
     HPy h_current_handler = HPyGlobal_Load(ctx, current_handler);
-    PyObject *py_current_handler = HPy_AsPyObject(ctx, h_current_handler);
     HPy_Close(ctx, h_current_handler);
     if (HPyContextVar_Get(ctx, h_current_handler, HPy_NULL, &old_handler)) {
         return HPy_NULL;
     }
     if (HPy_IsNull(h_handler)) {
+        CAPI_WARN("using global PyObject *PyDataMem_DefaultHandler");
         h_handler = HPy_FromPyObject(ctx, PyDataMem_DefaultHandler);
     }
     token = HPyContextVar_Set(ctx, h_current_handler, h_handler);
@@ -578,28 +577,6 @@ HPyDataMem_SetHandler(HPyContext *ctx, HPy handler)
     }
     HPy_Close(ctx, token);
     return old_handler;
-#else
-    hpy_abort_not_implemented("HPyDataMem_SetHandler on older Pypy versions");
-    // PyObject *p;
-    // p = PyThreadState_GetDict();
-    // if (p == NULL) {
-    //     return NULL;
-    // }
-    // old_handler = PyDict_GetItemString(p, "current_allocator");
-    // if (old_handler == NULL) {
-    //     old_handler = PyDataMem_DefaultHandler
-    // }
-    // Py_INCREF(old_handler);
-    // if (handler == NULL) {
-    //     handler = PyDataMem_DefaultHandler;
-    // }
-    // const int error = PyDict_SetItemString(p, "current_allocator", handler);
-    // if (error) {
-    //     Py_DECREF(old_handler);
-    //     return HPy_NULL;
-    // }
-    return old_handler;
-#endif
 }
 
 /*NUMPY_API
