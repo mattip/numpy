@@ -677,7 +677,42 @@ HPyArray_AssignFromCache_Recursive(
      * unrolled in the sequence branch below.
      */
     if (NPY_UNLIKELY(depth == ndim)) {
-        hpy_abort_not_implemented("depth == ndim");
+        /*
+         * We have reached the maximum depth. We should simply assign to the
+         * element in principle. There is one exception. If this is a 0-D
+         * array being stored into a 0-D array (but we do not reach here then).
+         */
+        if (PyArray_ISOBJECT(self)) {
+            assert(ndim != 0);  /* guaranteed by PyArray_AssignFromCache */
+            assert(PyArray_NDIM(self) == 0);
+            HPy_Close(ctx, h_obj);
+            HPy self_descr = HPyArray_DESCR(ctx, h_self, self);
+            return HPyArray_Pack(ctx, self_descr, PyArray_BYTES(self),
+                                h_original_obj);
+        }
+        if (sequence) {
+            /*
+             * Sanity check which may be removed, the error is raised already
+             * in `PyArray_DiscoverDTypeAndShape`.
+             */
+            assert(0);
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                    "setting an array element with a sequence");
+            goto fail;
+        }
+        else if (!HPy_Is(ctx, h_original_obj, h_obj) || !HPyArray_CheckExact(ctx, h_obj)) {
+            /*
+             * If the leave node is an array-like, but not a numpy array,
+             * we pretend it is an arbitrary scalar.  This means that in
+             * most cases (where the dtype is int or float), we will end
+             * up using float(array-like), or int(array-like).  That does
+             * not support general casting, but helps Quantity and masked
+             * arrays, because it allows them to raise an error when
+             * `__float__()` or `__int__()` is called.
+             */
+            HPy_Close(ctx, h_obj);
+            return HPyArray_SETITEM(ctx, h_self, PyArray_BYTES(self), h_original_obj);
+        }
     }
 
     /* The element is either a sequence, or an array */

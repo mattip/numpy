@@ -422,7 +422,7 @@ hpy_multiarray_global_types_api = {
 HPY_API_START = 0
 hpy_multiarray_funcs_api = {
     'HPyArray_GetNDArrayCVersion':           (0,),
-    # 'HPyArray_SetNumericOps':                (40,),
+    'HPyArray_SetNumericOps':                (40,),
     # 'HPyArray_GetNumericOps':                (41,),
     # 'HPyArray_INCREF':                       (42,),
     # 'HPyArray_XDECREF':                      (43,),

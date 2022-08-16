@@ -866,7 +866,7 @@ HPyArray_LegacyCanCastTypeTo(HPyContext *ctx,
                 if (PyDataType_HASSUBARRAY(field_data)) {
                     PyArray_Descr *py_field = field_data->subarray->base;
                     HPy_Close(ctx, field);
-                    field = HPy_FromPyObject(ctx, py_field);
+                    field = HPy_FromPyObject(ctx, (PyObject*)py_field);
                     npy_bool ret = HPyArray_LegacyCanCastTypeTo(ctx, field, to, casting);
                     HPy_Close(ctx, field);
                     return ret;
