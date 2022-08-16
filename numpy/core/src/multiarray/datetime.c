@@ -3012,6 +3012,42 @@ has_equivalent_datetime_metadata(PyArray_Descr *type1, PyArray_Descr *type2)
             meta1->num == meta2->num;
 }
 
+NPY_NO_EXPORT npy_bool
+hpy_has_equivalent_datetime_metadata(HPyContext *ctx, 
+                                    HPy /* PyArray_Descr * */ h_type1,
+                                    PyArray_Descr *type1,
+                                    HPy /* PyArray_Descr * */ h_type2,
+                                    PyArray_Descr *type2)
+{
+    PyArray_DatetimeMetaData *meta1, *meta2;
+
+    if ((type1->type_num != NPY_DATETIME &&
+                        type1->type_num != NPY_TIMEDELTA) ||
+                    (type2->type_num != NPY_DATETIME &&
+                        type2->type_num != NPY_TIMEDELTA)) {
+        return 0;
+    }
+
+    meta1 = h_get_datetime_metadata_from_dtype(ctx, type1);
+    if (meta1 == NULL) {
+        HPyErr_Clear(ctx);
+        return 0;
+    }
+    meta2 = h_get_datetime_metadata_from_dtype(ctx, type2);
+    if (meta2 == NULL) {
+        HPyErr_Clear(ctx);
+        return 0;
+    }
+
+    /* For generic units, the num is ignored */
+    if (meta1->base == NPY_FR_GENERIC && meta2->base == NPY_FR_GENERIC) {
+        return 1;
+    }
+
+    return meta1->base == meta2->base &&
+            meta1->num == meta2->num;
+}
+
 /*
  * Casts a single datetime from having src_meta metadata into
  * dst_meta metadata.

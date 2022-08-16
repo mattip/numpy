@@ -5097,16 +5097,15 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      */
     h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[NPY_@name1@]);
     dtype = PyArray_Descr_AsStruct(ctx, h_descr);
-    if (HPyField_IsNull(dtype->f->h_castdict)) {
+    if (HPyField_IsNull(dtype->f->castdict)) {
         castdict = HPyDict_New(ctx);
         if (HPy_IsNull(castdict)) {
             HPy_Close(ctx, h_descr);
             return -1;
         }
-        dtype->f->castdict = HPy_AsPyObject(ctx, castdict);
-        HPyField_Store(ctx, h_descr, &dtype->f->h_castdict, castdict);
+        HPyField_Store(ctx, h_descr, &dtype->f->castdict, castdict);
     } else {
-        castdict = HPyField_Load(ctx, h_descr, dtype->f->h_castdict);
+        castdict = HPyField_Load(ctx, h_descr, dtype->f->castdict);
     }
     key = HPyLong_FromLong(ctx, NPY_@name2@);
     if (HPy_IsNull(key)) {
