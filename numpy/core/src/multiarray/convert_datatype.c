@@ -253,6 +253,7 @@ _get_castingimpl_impl(HPyContext *ctx, HPy NPY_UNUSED(module), HPy *args, HPy_ss
         HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
         HPyErr_SetString(ctx, ctx->h_TypeError,
                 "must be ?, not ?"); // TODO
+        return HPy_NULL;
     }
     HPy_Close(ctx, from_type);
     HPy to_type = HPy_Type(ctx, to);
@@ -261,7 +262,7 @@ _get_castingimpl_impl(HPyContext *ctx, HPy NPY_UNUSED(module), HPy *args, HPy_ss
         HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
         HPyErr_SetString(ctx, ctx->h_TypeError,
                 "must be ?, not ?"); // TODO
-
+        return HPy_NULL;
     }
     HPy_Close(ctx, to_type);
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);

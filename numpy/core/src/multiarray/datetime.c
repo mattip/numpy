@@ -3030,12 +3030,12 @@ hpy_has_equivalent_datetime_metadata(HPyContext *ctx,
 
     meta1 = h_get_datetime_metadata_from_dtype(ctx, type1);
     if (meta1 == NULL) {
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
         return 0;
     }
     meta2 = h_get_datetime_metadata_from_dtype(ctx, type2);
     if (meta2 == NULL) {
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
         return 0;
     }
 

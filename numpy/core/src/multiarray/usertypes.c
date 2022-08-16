@@ -306,6 +306,8 @@ static int _hpy_warn_if_cast_exists_already(HPyContext *ctx, HPy h_descr,
     HPy castingimpl = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, descr_type, descr_type_data);
     HPy cast_impl = HPy_GetItem(ctx, castingimpl, to_DType);
     HPy_Close(ctx, to_DType);
+    HPy_Close(ctx, descr_type);
+    HPy_Close(ctx, castingimpl);
     if (HPy_IsNull(cast_impl)) {
         if (HPyErr_Occurred(ctx)) {
             return -1;
