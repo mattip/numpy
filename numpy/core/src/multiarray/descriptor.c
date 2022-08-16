@@ -3508,6 +3508,13 @@ HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char
                 HPy_Close(ctx, old);
             }
             HPy newvalue = HPyTupleBuilder_Build(ctx, tb_newvalue);
+            if (HPy_IsNull(newvalue)) {
+                HPy_Close(ctx, h_key);
+                HPy_Close(ctx, newvalue);
+                HPy_Close(ctx, newfields);
+                HPy_Close(ctx, new);
+                return HPy_NULL;
+            }
             int ret = HPy_SetItem(ctx, newfields, h_key, newvalue);
             HPy_Close(ctx, h_key);
             HPy_Close(ctx, newvalue);

@@ -3695,7 +3695,7 @@ HPyArray_CopyAsFlat(HPyContext *ctx,
     npy_intp dst_size, src_size;
     int needs_api;
 
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF;
 
     PyArrayObject *dst_data = PyArrayObject_AsStruct(ctx, dst);
     if (HPyArray_FailUnlessWriteableWithStruct(ctx, dst, dst_data, "destination array") < 0) {
@@ -3804,7 +3804,7 @@ HPyArray_CopyAsFlat(HPyContext *ctx,
     }
 
     if (!needs_api) {
-        NPY_BEGIN_THREADS;
+        HPY_NPY_BEGIN_THREADS(ctx);
     }
 
     dst_count = *dst_countptr;
@@ -3851,7 +3851,7 @@ HPyArray_CopyAsFlat(HPyContext *ctx,
         }
     }
 
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(ctx);
 
     HNPY_cast_info_xfree(ctx, &cast_info);
     HNpyIter_Deallocate(ctx, dst_iter);
