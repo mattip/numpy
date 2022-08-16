@@ -2365,10 +2365,35 @@ HPyDef_METH(array_transpose, "transpose", array_transpose_impl, HPyFunc_VARARGS)
 static HPy
 array_transpose_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy *args, HPy_ssize_t n)
 {
-    if (n != 0) {
-        hpy_abort_not_implemented("transpose with a shape");
+    HPy shape = ctx->h_None;
+    PyArray_Dims permute;
+    HPy ret;
+
+    if (n > 1) {
+        shape = HPyTuple_FromArray(ctx, args, n);
     }
-    return HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), NULL);
+    else if (n == 1) {
+        shape = args[0];
+    }
+
+    if (HPy_Is(ctx, shape, ctx->h_None)) {
+        ret = HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), NULL);
+    }
+    else {
+        if (!HPyArray_IntpConverter(ctx, shape, &permute)) {
+            if (n > 1) {
+                HPy_Close(ctx, shape);
+            }
+            return HPy_NULL;
+        }
+        ret = HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), &permute);
+        if (n > 1) {
+            HPy_Close(ctx, shape);
+        }
+        npy_free_cache_dim_obj(permute);
+    }
+
+    return ret;
 }
 
 #define _CHKTYPENUM(typ) ((typ) ? (typ)->type_num : NPY_NOTYPE)

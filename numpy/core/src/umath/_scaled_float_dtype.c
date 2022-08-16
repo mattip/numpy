@@ -783,7 +783,6 @@ init_ufuncs(HPyContext *ctx) {
         return -1;
     }
     PyBoundArrayMethodObject *bmeth = PyBoundArrayMethodObject_AsStruct(ctx, h_bmeth);
-    hpy_abort_not_implemented("init_ufuncs");
     int res = -1;
     HPy h_bmeth_dtypes[] = {
         HPyField_Load(ctx, h_bmeth, bmeth->dtypes[0]),

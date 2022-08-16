@@ -3674,6 +3674,191 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
     return res;
 }
 
+/*
+ * Private implementation of PyArray_CopyAnyInto with an additional order
+ * parameter.
+ */
+NPY_NO_EXPORT int
+HPyArray_CopyAsFlat(HPyContext *ctx, 
+                    HPy /* PyArrayObject * */ dst, 
+                    HPy /* PyArrayObject * */ src, NPY_ORDER order)
+{
+    NpyIter *dst_iter, *src_iter;
+
+    NpyIter_IterNextFunc *dst_iternext, *src_iternext;
+    char **dst_dataptr, **src_dataptr;
+    npy_intp dst_stride, src_stride;
+    npy_intp *dst_countptr, *src_countptr;
+    npy_uint32 baseflags;
+
+    npy_intp dst_count, src_count, count;
+    npy_intp dst_size, src_size;
+    int needs_api;
+
+    HPY_NPY_BEGIN_THREADS_DEF;
+
+    PyArrayObject *dst_data = PyArrayObject_AsStruct(ctx, dst);
+    if (HPyArray_FailUnlessWriteableWithStruct(ctx, dst, dst_data, "destination array") < 0) {
+        return -1;
+    }
+
+    /*
+     * If the shapes match and a particular order is forced
+     * for both, use the more efficient CopyInto
+     */
+    PyArrayObject *src_data = PyArrayObject_AsStruct(ctx, src);
+    if (order != NPY_ANYORDER && order != NPY_KEEPORDER &&
+            PyArray_NDIM(dst_data) == PyArray_NDIM(src_data) &&
+            PyArray_CompareLists(PyArray_DIMS(dst_data), PyArray_DIMS(src_data),
+                                PyArray_NDIM(dst_data))) {
+        return HPyArray_CopyInto(ctx, dst, src);
+    }
+
+    dst_size = HPyArray_SIZE(dst_data);
+    src_size = HPyArray_SIZE(src_data);
+    if (dst_size != src_size) {
+        // PyErr_Format(PyExc_ValueError,
+        //         "cannot copy from array of size %" NPY_INTP_FMT " into an array "
+        //         "of size %" NPY_INTP_FMT, src_size, dst_size);
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "cannot copy from array of size %" NPY_INTP_FMT " into an array "
+                "of size %" NPY_INTP_FMT);
+        return -1;
+    }
+
+    /* Zero-sized arrays require nothing be done */
+    if (dst_size == 0) {
+        return 0;
+    }
+
+    baseflags = NPY_ITER_EXTERNAL_LOOP |
+                NPY_ITER_DONT_NEGATE_STRIDES |
+                NPY_ITER_REFS_OK;
+
+    /*
+     * This copy is based on matching C-order traversals of src and dst.
+     * By using two iterators, we can find maximal sub-chunks that
+     * can be processed at once.
+     */
+    dst_iter = HNpyIter_New(ctx, dst, NPY_ITER_WRITEONLY | baseflags,
+                                order,
+                                NPY_NO_CASTING,
+                                HPy_NULL);
+    if (dst_iter == NULL) {
+        return -1;
+    }
+    src_iter = HNpyIter_New(ctx, src, NPY_ITER_READONLY | baseflags,
+                                order,
+                                NPY_NO_CASTING,
+                                HPy_NULL);
+    if (src_iter == NULL) {
+        HNpyIter_Deallocate(ctx, dst_iter);
+        return -1;
+    }
+
+    /* Get all the values needed for the inner loop */
+    dst_iternext = HNpyIter_GetIterNext(ctx, dst_iter, NULL);
+    dst_dataptr = NpyIter_GetDataPtrArray(dst_iter);
+    /* Since buffering is disabled, we can cache the stride */
+    dst_stride = NpyIter_GetInnerStrideArray(dst_iter)[0];
+    dst_countptr = NpyIter_GetInnerLoopSizePtr(dst_iter);
+
+    src_iternext = HNpyIter_GetIterNext(ctx, src_iter, NULL);
+    src_dataptr = NpyIter_GetDataPtrArray(src_iter);
+    /* Since buffering is disabled, we can cache the stride */
+    src_stride = NpyIter_GetInnerStrideArray(src_iter)[0];
+    src_countptr = NpyIter_GetInnerLoopSizePtr(src_iter);
+
+    if (dst_iternext == NULL || src_iternext == NULL) {
+        HNpyIter_Deallocate(ctx, dst_iter);
+        HNpyIter_Deallocate(ctx, src_iter);
+        return -1;
+    }
+
+    needs_api = NpyIter_IterationNeedsAPI(dst_iter) ||
+                NpyIter_IterationNeedsAPI(src_iter);
+
+    /*
+     * Because buffering is disabled in the iterator, the inner loop
+     * strides will be the same throughout the iteration loop.  Thus,
+     * we can pass them to this function to take advantage of
+     * contiguous strides, etc.
+     */
+    NPY_cast_info cast_info;
+    HPy src_descr = HPyArray_DESCR(ctx, src, src_data);
+    PyArray_Descr *src_descr_data = PyArray_Descr_AsStruct(ctx, src_descr);
+    HPy dst_descr = HPyArray_DESCR(ctx, src, dst_data);
+    PyArray_Descr *dst_descr_data = PyArray_Descr_AsStruct(ctx, dst_descr);
+    if (HPyArray_GetDTypeTransferFunction(ctx,
+                    HIsUintAlignedWithDescr(ctx, src, src_data, src_descr_data) && 
+                    HPyIsAlignedWithDescr(ctx, src, src_data, src_descr_data) &&
+                    HIsUintAlignedWithDescr(ctx, dst, dst_data, dst_descr_data) && 
+                    HPyIsAlignedWithDescr(ctx, dst, dst_data, dst_descr_data),
+                    src_stride, dst_stride,
+                    src_descr, src_descr,
+                    0,
+                    &cast_info, &needs_api) != NPY_SUCCEED) {
+        HNpyIter_Deallocate(ctx, dst_iter);
+        HNpyIter_Deallocate(ctx, src_iter);
+        return -1;
+    }
+
+    if (!needs_api) {
+        HPY_NPY_BEGIN_THREADS(ctx);
+    }
+
+    dst_count = *dst_countptr;
+    src_count = *src_countptr;
+    char *args[2] = {src_dataptr[0], dst_dataptr[0]};
+    npy_intp strides[2] = {src_stride, dst_stride};
+
+    int res = 0;
+    for(;;) {
+        /* Transfer the biggest amount that fits both */
+        count = (src_count < dst_count) ? src_count : dst_count;
+        if (cast_info.func(ctx, &cast_info.context,
+                args, &count, strides, cast_info.auxdata) < 0) {
+            res = -1;
+            break;
+        }
+
+        /* If we exhausted the dst block, refresh it */
+        if (dst_count == count) {
+            res = dst_iternext(ctx, dst_iter);
+            if (res == 0) {
+                break;
+            }
+            dst_count = *dst_countptr;
+            args[1] = dst_dataptr[0];
+        }
+        else {
+            dst_count -= count;
+            args[1] += count*dst_stride;
+        }
+
+        /* If we exhausted the src block, refresh it */
+        if (src_count == count) {
+            res = src_iternext(ctx, src_iter);
+            if (res == 0) {
+                break;
+            }
+            src_count = *src_countptr;
+            args[0] = src_dataptr[0];
+        }
+        else {
+            src_count -= count;
+            args[0] += count*src_stride;
+        }
+    }
+
+    HPY_NPY_END_THREADS(ctx);
+
+    HNPY_cast_info_xfree(ctx, &cast_info);
+    HNpyIter_Deallocate(ctx, dst_iter);
+    HNpyIter_Deallocate(ctx, src_iter);
+    return res;
+}
+
 /*NUMPY_API
  * Copy an Array into another array -- memory must not overlap
  * Does not require src and dest to have "broadcastable" shapes
@@ -3689,6 +3874,25 @@ NPY_NO_EXPORT int
 PyArray_CopyAnyInto(PyArrayObject *dst, PyArrayObject *src)
 {
     return PyArray_CopyAsFlat(dst, src, NPY_CORDER);
+}
+
+/*HPY_NUMPY_API
+ * Copy an Array into another array -- memory must not overlap
+ * Does not require src and dest to have "broadcastable" shapes
+ * (only the same number of elements).
+ *
+ * TODO: For NumPy 2.0, this could accept an order parameter which
+ *       only allows NPY_CORDER and NPY_FORDER.  Could also rename
+ *       this to CopyAsFlat to make the name more intuitive.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+NPY_NO_EXPORT int
+HPyArray_CopyAnyInto(HPyContext *ctx, 
+                        HPy /* PyArrayObject * */ dst, 
+                        HPy /* PyArrayObject * */ src)
+{
+    return HPyArray_CopyAsFlat(ctx, dst, src, NPY_CORDER);
 }
 
 /*NUMPY_API

@@ -1228,8 +1228,49 @@ HPyArray_Ravel(HPyContext *ctx, /*PyArrayObject*/ HPy h_arr, NPY_ORDER order)
     if (order == NPY_CORDER && PyArray_IS_C_CONTIGUOUS(arr)) {
         return HPyArray_Newshape(ctx, h_arr, arr, &newdim, NPY_CORDER);
     }
-    hpy_abort_not_implemented("remainder of HPyArray_Ravel");
-}
+    else if (order == NPY_FORTRANORDER && PyArray_IS_F_CONTIGUOUS(arr)) {
+        return HPyArray_Newshape(ctx, h_arr, arr, &newdim, NPY_FORTRANORDER);
+    }
+    /* For KEEPORDER, check if we can make a flattened view */
+    else if (order == NPY_KEEPORDER) {
+        npy_stride_sort_item strideperm[NPY_MAXDIMS];
+        npy_intp stride;
+        int i, ndim = PyArray_NDIM(arr);
+
+        PyArray_CreateSortedStridePerm(PyArray_NDIM(arr),
+                                PyArray_STRIDES(arr), strideperm);
+
+        /* The output array must be contiguous, so the first stride is fixed */
+        stride = HPyArray_ITEMSIZE(ctx, h_arr, arr);
+
+        for (i = ndim-1; i >= 0; --i) {
+            if (PyArray_DIM(arr, strideperm[i].perm) == 1) {
+                /* A size one dimension does not matter */
+                continue;
+            }
+            if (strideperm[i].stride != stride) {
+                break;
+            }
+            stride *= PyArray_DIM(arr, strideperm[i].perm);
+        }
+
+        /* If all the strides matched a contiguous layout, return a view */
+        if (i < 0) {
+            stride = HPyArray_ITEMSIZE(ctx, h_arr, arr);
+            val[0] = HPyArray_SIZE(arr);
+
+            HPy arr_descr = HPyArray_DESCR(ctx, h_arr, arr);
+            HPy arr_type = HPy_Type(ctx, h_arr);
+            HPy ret = HPyArray_NewFromDescrAndBase(ctx,
+                    arr_type, arr_descr,
+                    1, val, &stride, PyArray_BYTES(arr),
+                    PyArray_FLAGS(arr), h_arr, h_arr);
+            HPy_Close(ctx, arr_descr);
+            HPy_Close(ctx, arr_type);
+        }
+    }
+
+    return HPyArray_Flatten(ctx, h_arr, order);}
 
 /*NUMPY_API
  * Flatten
@@ -1261,6 +1302,39 @@ PyArray_Flatten(PyArrayObject *a, NPY_ORDER order)
         return NULL;
     }
     return (PyObject *)ret;
+}
+
+/*HPY_NUMPY_API
+ * Flatten
+ */
+NPY_NO_EXPORT HPy
+HPyArray_Flatten(HPyContext *ctx, HPy /* PyArrayObject * */ h_a, NPY_ORDER order)
+{
+    HPy ret; // PyArrayObject *
+    npy_intp size;
+    PyArrayObject *a = PyArrayObject_AsStruct(ctx, h_a);
+    if (order == NPY_ANYORDER) {
+        order = PyArray_ISFORTRAN(a) ? NPY_FORTRANORDER : NPY_CORDER;
+    }
+
+    size = HPyArray_SIZE(a);
+    HPy a_type = HPy_Type(ctx, h_a);
+    HPy a_descr = HPyArray_DESCR(ctx, h_a, a);
+    ret = HPyArray_NewFromDescr(ctx, a_type,
+                               a_descr,
+                               1, &size,
+                               NULL,
+                               NULL,
+                               0, h_a);
+    if (HPy_IsNull(ret)) {
+        return HPy_NULL;
+    }
+
+    if (HPyArray_CopyAsFlat(ctx, ret, h_a, order) < 0) {
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
+    }
+    return ret;
 }
 
 

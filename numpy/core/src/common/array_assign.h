@@ -120,6 +120,11 @@ raw_array_is_aligned(int ndim, npy_intp const *shape,
  */
 NPY_NO_EXPORT int
 IsAligned(PyArrayObject *ap);
+NPY_NO_EXPORT int
+HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap);
+NPY_NO_EXPORT int
+HPyIsAlignedWithDescr(HPyContext *ctx, HPy h_ap, PyArrayObject *ap, 
+                        PyArray_Descr *ap_descr_data);
 
 /*
  * Checks if an array is aligned to its "uint alignment"

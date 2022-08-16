@@ -343,8 +343,34 @@ NPY_TITLE_KEY_check(PyObject *key, PyObject *value)
     return 0;
 }
 
+static NPY_INLINE int
+HNPY_TITLE_KEY_check(HPyContext *ctx, HPy key, HPy value)
+{
+    HPy title;
+    if (HPy_Length(ctx, value) != 3) {
+        return 0;
+    }
+    title = HPy_GetItem_i(ctx, value, 2);
+    if (HPy_Is(ctx, key, title)) {
+        return 1;
+    }
+#ifdef PYPY_VERSION
+    /*
+     * On PyPy, dictionary keys do not always preserve object identity.
+     * Fall back to comparison by value.
+     */
+    hpy_abort_not_implemented("PyPy unimplemeted path 'PyUnicode_Compare' missing");
+//     if (PyUnicode_Check(title) && PyUnicode_Check(key)) {
+//         return PyUnicode_Compare(title, key) == 0 ? 1 : 0;
+//     }
+#endif
+    return 0;
+}
+
+
 /* Macro, for backward compat with "if NPY_TITLE_KEY(key, value) { ..." */
 #define NPY_TITLE_KEY(key, value) (NPY_TITLE_KEY_check((key), (value)))
+#define HNPY_TITLE_KEY(ctx, key, value) (HNPY_TITLE_KEY_check(ctx, (key), (value)))
 
 #define DEPRECATE(msg) PyErr_WarnEx(PyExc_DeprecationWarning,msg,1)
 #define HPY_DEPRECATE(ctx, msg) HPyErr_WarnEx(ctx,ctx->h_DeprecationWarning,msg,1)

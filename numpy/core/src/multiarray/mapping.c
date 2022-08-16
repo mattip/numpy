@@ -1368,7 +1368,23 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
             continue;
         }
 
-        hpy_abort_not_implemented("unimplemented branch in prepare_index");
+        /*
+         * The array does not have a valid type.
+         */
+        if (HPy_Is(ctx, h_arr, obj)) {
+            /* The input was an array already */
+            HPyErr_SetString(ctx, ctx->h_IndexError,
+                "arrays used as indices must be of integer (or boolean) type");
+        }
+        else {
+            /* The input was not an array, so give a general error message */
+            HPyErr_SetString(ctx, ctx->h_IndexError,
+                    "only integers, slices (`:`), ellipsis (`...`), "
+                    "numpy.newaxis (`None`) and integer or boolean "
+                    "arrays are valid indices");
+        }
+        HPy_Close(ctx, h_arr);
+        goto failed_building_indices;
     }
 
     /*
@@ -2848,9 +2864,8 @@ array_assign_subscript_impl(HPyContext *ctx, HPy h_self, HPy h_ind, HPy h_op)
          * So allocate a temporary array of the right size and use the
          * normal assignment to handle this case.
          */
-        if (PyDataType_REFCHK(descr) /*&& PySequence_Check(op)*/) {
-            hpy_abort_not_implemented("references in arrays");
-            // tmp_arr = NULL;
+        if (PyDataType_REFCHK(descr) && HPySequence_Check(ctx, h_op)) {
+            tmp_arr = HPy_NULL;
         }
         else {
             /* There is nothing fancy possible, so just make an array */

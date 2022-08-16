@@ -580,7 +580,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
     _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
     if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        PyArray_Item_INCREF(data, HPy_AsPyObject(ctx, tmp_descr));
+        PyArray_Item_INCREF(data, (PyArray_Descr *)HPy_AsPyObject(ctx, tmp_descr));
     }
 
     int res = 0;
@@ -604,7 +604,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
   finish:
     if (PyDataType_REFCHK(tmp_descr_data)) {
         /* We could probably use move-references above */
-        PyArray_Item_XDECREF(data, HPy_AsPyObject(ctx, tmp_descr));
+        PyArray_Item_XDECREF(data, (PyArray_Descr *)HPy_AsPyObject(ctx, tmp_descr));
     }
     // TODO HPY LABS PORT: PyObject_Free
     // PyObject_Free(data);
@@ -1062,7 +1062,7 @@ h_find_descriptor_from_array(HPyContext *ctx, HPy h_arr, HPy h_DType, HPy *h_out
     PyArray_DTypeMeta *DType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_DType);
     PyArray_Descr *out_descr = NULL;
     int ret = find_descriptor_from_array(arr, DType, &out_descr);
-    *h_out_descr = HPy_FromPyObject(ctx, out_descr);
+    *h_out_descr = HPy_FromPyObject(ctx, (PyObject *)out_descr);
     return ret;
 }
 
@@ -1140,7 +1140,7 @@ HPyArray_AdaptDescriptorToArray(HPyContext *ctx, HPy arr, HPy dtype)
         if (HPy_IsNull(new_dtype)) {
             /* This is an object array but contained no elements, use default */
             PyArray_DTypeMeta *new_DType_data = PyArray_DTypeMeta_AsStruct(ctx, new_DType);
-            HPy new_dtype = HNPY_DT_CALL_default_descr(ctx, new_DType, new_DType_data);
+            new_DType = HNPY_DT_CALL_default_descr(ctx, new_DType, new_DType_data);
         }
     }
     HPy_Close(ctx, new_DType);
