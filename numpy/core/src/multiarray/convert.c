@@ -638,7 +638,7 @@ PyArray_View(PyArrayObject *self, PyArray_Descr *type, PyTypeObject *pytype)
 
 /*HPY_NUMPY_API
  * View
- * steals a reference to type -- accepts NULL
+ * ATTENTION: does not steal a reference to type -- accepts NULL
  */
 NPY_NO_EXPORT HPy
 HPyArray_View(HPyContext *ctx, 

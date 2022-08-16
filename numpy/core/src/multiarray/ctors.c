@@ -2717,7 +2717,7 @@ PyArray_FromArray(PyArrayObject *arr, PyArray_Descr *newtype, int flags)
 }
 
 /*HPY_NUMPY_API
- * steals reference to newtype --- acc. NULL
+ * ATTENTION: does not steal reference to newtype --- acc. NULL
  */
 NPY_NO_EXPORT HPy
 HPyArray_FromArray(HPyContext *ctx, 

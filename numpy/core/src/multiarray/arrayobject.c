@@ -156,7 +156,7 @@ PyArray_SetWritebackIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
  * ->base pointer on 'arr', call PyArray_ResolveWritebackIfCopy to copy any
  * changes back to 'base' before deallocating the array.
  *
- * Steals a reference to 'base'.
+ * ATTENTION: does not steal a reference to 'base'.
  *
  * Returns 0 on success, -1 on failure.
  */
