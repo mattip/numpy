@@ -146,12 +146,18 @@ IsAligned(PyArrayObject *ap)
 }
 
 NPY_NO_EXPORT int
+HPyIsAlignedWithDescr(HPyContext *ctx, HPy h_ap, PyArrayObject *ap, PyArray_Descr *ap_descr_data)
+{
+    return raw_array_is_aligned(PyArray_NDIM(ap), PyArray_DIMS(ap),
+                                PyArray_DATA(ap), PyArray_STRIDES(ap),
+                                ap_descr_data->alignment);
+}
+
+NPY_NO_EXPORT int
 HPyIsAligned(HPyContext *ctx, HPy h_ap, PyArrayObject *ap)
 {
     HPy h_descr = HPyArray_DESCR(ctx, h_ap, ap);
-    int result = raw_array_is_aligned(PyArray_NDIM(ap), PyArray_DIMS(ap),
-                                PyArray_DATA(ap), PyArray_STRIDES(ap),
-                                PyArray_Descr_AsStruct(ctx, h_descr)->alignment);
+    int result = HPyIsAlignedWithDescr(ctx, h_ap, ap, PyArray_Descr_AsStruct(ctx, h_descr));
     HPy_Close(ctx, h_descr);
     return result;
 }
@@ -165,12 +171,18 @@ IsUintAligned(PyArrayObject *ap)
 }
 
 NPY_NO_EXPORT int
+HIsUintAlignedWithDescr(HPyContext *ctx, HPy arr, PyArrayObject *arr_data, PyArray_Descr *arr_descr_data)
+{
+    return raw_array_is_aligned(PyArray_NDIM(arr_data), PyArray_DIMS(arr_data),
+                                PyArray_DATA(arr_data), PyArray_STRIDES(arr_data),
+                                npy_uint_alignment(arr_descr_data->elsize));
+}
+
+NPY_NO_EXPORT int
 HIsUintAligned(HPyContext *ctx, HPy arr, PyArrayObject *arr_data)
 {
     HPy descr = HPyArray_DESCR(ctx, arr, arr_data);
-    int res = raw_array_is_aligned(PyArray_NDIM(arr_data), PyArray_DIMS(arr_data),
-                                PyArray_DATA(arr_data), PyArray_STRIDES(arr_data),
-                                npy_uint_alignment(PyArray_Descr_AsStruct(ctx, descr)->elsize));
+    int res = HIsUintAlignedWithDescr(ctx, arr, arr_data, PyArray_Descr_AsStruct(ctx, descr));
     HPy_Close(ctx, descr);
     return res;
 }

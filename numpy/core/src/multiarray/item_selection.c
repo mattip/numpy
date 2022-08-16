@@ -193,7 +193,7 @@ HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
                  HPy h_out, NPY_CLIPMODE clipmode)
 {
     HPy h_dtype;
-    PyArray_Descr *dtype;
+    PyArray_Descr *h_dtype_data;
     HPy h_obj = HPy_NULL, h_self, h_indices = HPy_NULL;
     PyArrayObject *obj = NULL, *self, *indices, *out;
     npy_intp nd, i, n, m, max_item, chunk, itemsize, nelem;
@@ -235,7 +235,6 @@ HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
     }
     if (HPy_IsNull(h_out)) {
         h_dtype = HPyArray_DESCR(ctx, h_self, self);
-        dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_dtype);
         HPy h_self_type = HPy_Type(ctx, h_self);
         h_obj = HPyArray_NewFromDescr(ctx, h_self_type,
                                                 h_dtype,
@@ -271,16 +270,11 @@ HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
             flags |= NPY_ARRAY_ENSURECOPY;
         }
         h_dtype = HPyArray_DESCR(ctx, h_self, self);
-        dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_dtype);
-        // Py_INCREF(dtype); not borrowed since we use our HPyArray_DESCR
-        CAPI_WARN("PyArray_FromArray");
-        PyObject *py_obj = PyArray_FromArray(
-                                (PyArrayObject *)HPy_AsPyObject(ctx, h_out), 
-                                dtype, flags);
-        if (py_obj == NULL) {
+        h_dtype_data = PyArray_Descr_AsStruct(ctx, h_dtype);
+        h_obj = HPyArray_FromArray(ctx, h_out, out, h_dtype, h_dtype_data, flags);
+        if (HPy_IsNull(h_obj)) {
             goto fail;
         }
-        h_obj = HPy_FromPyObject(ctx, py_obj);
     }
 
     max_item = PyArray_DIMS(self)[axis];
@@ -301,11 +295,14 @@ HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
     }
 
     CAPI_WARN("npy_fasttake");
+    PyArray_Descr *dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_dtype);
     if (npy_fasttake(
             dest, src, indices_data, n, m, max_item, nelem, chunk,
             clipmode, itemsize, needs_refcounting, dtype, axis) < 0) {
+        Py_DECREF(dtype);
         goto fail;
     }
+    Py_DECREF(dtype);
 
     HPy_Close(ctx, h_dtype);
     HPy_Close(ctx, h_indices);

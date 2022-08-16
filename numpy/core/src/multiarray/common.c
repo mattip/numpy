@@ -414,6 +414,32 @@ _unpack_field(PyObject *value, PyArray_Descr **descr, npy_intp *offset)
     return 0;
 }
 
+NPY_NO_EXPORT int
+_hunpack_field(HPyContext *ctx, 
+                    HPy value, 
+                    HPy *descr, // PyArray_Descr **
+                    npy_intp *offset)
+{
+    HPy off;
+    if (HPy_Length(ctx, value) < 2) {
+        return -1;
+    }
+    *descr = HPy_GetItem_i(ctx, value, 0);
+    off  = HPy_GetItem_i(ctx, value, 1);
+
+    if (HPyLong_Check(ctx, off)) {
+        *offset = HPyLong_AsSsize_t(ctx, off);
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_IndexError, "can't convert offset");
+        HPy_Close(ctx, *descr);
+        HPy_Close(ctx, off);
+        return -1;
+    }
+
+    return 0;
+}
+
 /*
  * check whether arrays with datatype dtype might have object fields. This will
  * only happen for structured dtypes (which may have hidden objects even if the

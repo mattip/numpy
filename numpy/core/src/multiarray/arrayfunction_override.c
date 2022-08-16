@@ -19,6 +19,17 @@ get_ndarray_array_function(void)
     return method;
 }
 
+static HPy
+hpy_get_ndarray_array_function(HPyContext *ctx)
+{
+    HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy method = HPy_GetAttr_s(ctx, h_array_type,
+                                              "__array_function__");
+    HPy_Close(ctx, h_array_type);
+    assert(!HPy_IsNull(method));
+    return method;
+}
+
 
 /*
  * Get an object's __array_function__ method in the fastest way possible.
@@ -48,11 +59,46 @@ get_array_function(PyObject *obj)
 }
 
 
+static HPy
+hpy_get_array_function(HPyContext *ctx, HPy obj)
+{
+    CAPI_WARN("should use HPyGlobal ndarray_array_function");
+    // static PyObject *ndarray_array_function = NULL;
+
+    // if (ndarray_array_function == NULL) {
+    //     ndarray_array_function = get_ndarray_array_function();
+    // }
+
+    /* Fast return for ndarray */
+    if (HPyArray_CheckExact(ctx, obj)) {
+        // Py_INCREF(ndarray_array_function);
+        // return ndarray_array_function;
+        return hpy_get_ndarray_array_function(ctx);
+    }
+    HPy obj_type = HPy_Type(ctx, obj);
+    HPy array_function = HPyArray_LookupSpecial_OnType(ctx, obj_type, "__array_function__");
+    if (HPy_IsNull(array_function) && HPyErr_Occurred(ctx)) {
+        HPyErr_Clear(ctx); /* TODO[gh-14801]: propagate crashes during attribute access? */
+    }
+
+    return array_function;
+}
+
+
 /*
  * Like list.insert(), but for C arrays of PyObject*. Skips error checking.
  */
 static void
 pyobject_array_insert(PyObject **array, int length, int index, PyObject *item)
+{
+    for (int j = length; j > index; j--) {
+        array[j] = array[j - 1];
+    }
+    array[index] = item;
+}
+
+static void
+hpy_array_insert(HPy *array, int length, int index, HPy item)
 {
     for (int j = length; j > index; j--) {
         array[j] = array[j - 1];
@@ -133,6 +179,85 @@ fail:
     return -1;
 }
 
+static int
+hpy_get_implementing_args_and_methods(HPyContext *ctx, HPy relevant_args,
+                                  HPy *implementing_args,
+                                  HPy *methods)
+{
+    int num_implementing_args = 0;
+
+    HPy_ssize_t length = HPy_Length(ctx, relevant_args);
+
+    for (HPy_ssize_t i = 0; i < length; i++) {
+        int new_class = 1;
+        HPy argument = HPy_GetItem_i(ctx, relevant_args, i);
+
+        /* Have we seen this type before? */
+        HPy argument_type = HPy_Type(ctx, argument);
+        for (int j = 0; j < num_implementing_args; j++) {
+            HPy implementing_arg_type = HPy_Type(ctx, implementing_args[j]);
+            int is_equal = HPy_Is(ctx, argument_type, implementing_arg_type);
+            HPy_Close(ctx, implementing_arg_type);
+            if (is_equal) {
+                new_class = 0;
+                break;
+            }
+        }
+        HPy_Close(ctx, argument_type);
+        if (new_class) {
+            HPy method = hpy_get_array_function(ctx, argument);
+
+            if (!HPy_IsNull(method)) {
+                int arg_index;
+
+                if (num_implementing_args >= NPY_MAXARGS) {
+                    // PyErr_Format(
+                    //     PyExc_TypeError,
+                    //     "maximum number (%d) of distinct argument types " \
+                    //     "implementing __array_function__ exceeded",
+                    //     NPY_MAXARGS);
+                    HPyErr_SetString(ctx,
+                        ctx->h_TypeError,
+                        "maximum number (%d) of distinct argument types " \
+                        "implementing __array_function__ exceeded");
+                    HPy_Close(ctx, method);
+                    goto fail;
+                }
+
+                /* "subclasses before superclasses, otherwise left to right" */
+                PyObject *py_argument = HPy_AsPyObject(ctx, argument);
+                arg_index = num_implementing_args;
+                CAPI_WARN("calling PyObject_IsInstance");
+                for (int j = 0; j < num_implementing_args; j++) {
+                    HPy other_type = HPy_Type(ctx, implementing_args[j]);
+                    PyObject *py_other_type = HPy_AsPyObject(ctx, other_type);
+                    HPy_Close(ctx, other_type);
+                    int is_instance = PyObject_IsInstance(py_argument, py_other_type);
+                    Py_DECREF(py_other_type);
+                    if (is_instance) {
+                        arg_index = j;
+                        break;
+                    }
+                }
+                Py_DECREF(py_argument);
+                hpy_array_insert(implementing_args, num_implementing_args,
+                                      arg_index, argument);
+                HPy_Close(ctx, argument);
+                hpy_array_insert(methods, num_implementing_args,
+                                      arg_index, method);
+                ++num_implementing_args;
+            }
+        }
+    }
+    return num_implementing_args;
+
+fail:
+    for (int j = 0; j < num_implementing_args; j++) {
+        HPy_Close(ctx, implementing_args[j]);
+        HPy_Close(ctx, methods[j]);
+    }
+    return -1;
+}
 
 /*
  * Is this object ndarray.__array_function__?
@@ -148,6 +273,16 @@ is_default_array_function(PyObject *obj)
     return obj == ndarray_array_function;
 }
 
+static int
+hpy_is_default_array_function(HPyContext *ctx, HPy obj)
+{
+    // static PyObject *ndarray_array_function = NULL;
+
+    // if (ndarray_array_function == NULL) {
+        HPy ndarray_array_function = hpy_get_ndarray_array_function(ctx);
+    // }
+    return HPy_Is(ctx, obj, ndarray_array_function);
+}
 
 /*
  * Core implementation of ndarray.__array_function__. This is exposed
@@ -184,6 +319,43 @@ array_function_method_impl(PyObject *func, PyObject *types, PyObject *args,
     return result;
 }
 
+NPY_NO_EXPORT HPy
+hpy_array_function_method_impl(HPyContext *ctx, HPy func, HPy types, HPy args,
+                           HPy kwargs)
+{
+    HPy_ssize_t length = HPy_Length(ctx, types);
+
+    HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    PyObject *py_array_type = HPy_AsPyObject(ctx, h_array_type);
+    HPy_Close(ctx, h_array_type);
+    for (HPy_ssize_t j = 0; j < length; j++) {
+        HPy item = HPy_GetItem_i(ctx, types, j);
+        PyObject *py_item = HPy_AsPyObject(ctx, item);
+        CAPI_WARN("calling PyObject_IsSubclass");
+        int is_subclass = PyObject_IsSubclass(
+            py_item, py_array_type);
+        HPy_Close(ctx, item);
+        Py_DECREF(py_item);
+        if (is_subclass == -1) {
+            Py_DECREF(py_array_type);
+            return HPy_NULL;
+        }
+        if (!is_subclass) {
+            return HPy_Dup(ctx, ctx->h_NotImplemented);
+        }
+    }
+
+    HPy tmp = HPyGlobal_Load(ctx, npy_ma_str_implementation);
+    HPy implementation = HPy_GetAttr(ctx, func, tmp);
+    HPy_Close(ctx, tmp);
+    if (HPy_IsNull(implementation)) {
+        return HPy_NULL;
+    }
+    HPy result = HPy_CallTupleDict(ctx, implementation, args, kwargs);
+    HPy_Close(ctx, implementation);
+    return result;
+}
+
 
 /*
  * Calls __array_function__ on the provided argument, with a fast-path for
@@ -200,6 +372,22 @@ call_array_function(PyObject* argument, PyObject* method,
     else {
         return PyObject_CallFunctionObjArgs(
             method, argument, public_api, types, args, kwargs, NULL);
+    }
+}
+
+static HPy
+hpy_call_array_function(HPyContext *ctx, HPy argument, HPy method,
+                    HPy public_api, HPy types,
+                    HPy args, HPy kwargs)
+{
+    if (hpy_is_default_array_function(ctx, method)) {
+        return hpy_array_function_method_impl(ctx, public_api, types, args, kwargs);
+    }
+    else {
+        HPy args_tuple = HPyTuple_Pack(ctx, 5, argument, public_api, types, args, kwargs);
+        HPy ret = HPy_CallTupleDict(ctx, method, args_tuple, HPy_NULL);
+        HPy_Close(ctx, args_tuple);
+        return ret;
     }
 }
 
@@ -328,6 +516,124 @@ cleanup:
     return result;
 }
 
+static HPy
+hpy_array_implement_array_function_internal(HPyContext *ctx,
+    HPy public_api, HPy relevant_args,
+    HPy args, HPy kwargs)
+{
+    HPy implementing_args[NPY_MAXARGS];
+    HPy array_function_methods[NPY_MAXARGS];
+    HPy types = HPy_NULL;
+
+    HPy result = HPy_NULL;
+
+    // static PyObject *errmsg_formatter = NULL;
+
+    if (!HPySequence_Check(ctx, relevant_args)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, 
+                "dispatcher for __array_function__ did not return an iterable");
+        return HPy_NULL;
+    }
+    // relevant_args = PySequence_Fast(
+    //     relevant_args,
+    //     "dispatcher for __array_function__ did not return an iterable");
+    // if (relevant_args == NULL) {
+    //     return NULL;
+    // }
+
+    /* Collect __array_function__ implementations */
+    int num_implementing_args = hpy_get_implementing_args_and_methods(ctx,
+        relevant_args, implementing_args, array_function_methods);
+    if (num_implementing_args == -1) {
+        goto cleanup;
+    }
+
+    /*
+     * Handle the typical case of no overrides. This is merely an optimization
+     * if some arguments are ndarray objects, but is also necessary if no
+     * arguments implement __array_function__ at all (e.g., if they are all
+     * built-in types).
+     */
+    int any_overrides = 0;
+    for (int j = 0; j < num_implementing_args; j++) {
+        if (!hpy_is_default_array_function(ctx, array_function_methods[j])) {
+            any_overrides = 1;
+            break;
+        }
+    }
+    if (!any_overrides) {
+        /*
+         * When the default implementation should be called, return
+         * `Py_NotImplemented` to indicate this.
+         */
+        result = ctx->h_NotImplemented;
+        goto cleanup;
+    }
+
+    /*
+     * Create a Python object for types.
+     * We use a tuple, because it's the fastest Python collection to create
+     * and has the bonus of being immutable.
+     */
+    HPyTupleBuilder tb_types = HPyTupleBuilder_New(ctx, num_implementing_args);
+    if (HPyTupleBuilder_IsNull(tb_types)) {
+        goto cleanup;
+    }
+    for (int j = 0; j < num_implementing_args; j++) {
+        HPy arg_type = HPy_Type(ctx, implementing_args[j]);
+        HPyTupleBuilder_Set(ctx, tb_types, j, arg_type);
+        HPy_Close(ctx, arg_type);
+    }
+
+    types = HPyTupleBuilder_Build(ctx, tb_types);
+
+    /* Call __array_function__ methods */
+    for (int j = 0; j < num_implementing_args; j++) {
+        HPy argument = implementing_args[j];
+        HPy method = array_function_methods[j];
+
+        /*
+         * We use `public_api` instead of `implementation` here so
+         * __array_function__ implementations can do equality/identity
+         * comparisons.
+         */
+        result = hpy_call_array_function(ctx,
+            argument, method, public_api, types, args, kwargs);
+
+        if (HPy_Is(ctx, result, ctx->h_NotImplemented)) {
+            /* Try the next one */
+            HPy_Close(ctx, result);
+            result = HPy_NULL;
+        }
+        else {
+            /* Either a good result, or an exception was raised. */
+            goto cleanup;
+        }
+    }
+
+    /* No acceptable override found, raise TypeError. */
+    npy_hpy_cache_import(ctx, "numpy.core._internal",
+                     "array_function_errmsg_formatter",
+                     NULL);
+    CAPI_WARN("missing errmsg_formatter");
+    // if (errmsg_formatter != NULL) {
+    //     PyObject *errmsg = PyObject_CallFunctionObjArgs(
+    //         errmsg_formatter, public_api, types, NULL);
+    //     if (errmsg != NULL) {
+    //         PyErr_SetObject(PyExc_TypeError, errmsg);
+    //         Py_DECREF(errmsg);
+    //     }
+    // }
+
+cleanup:
+    for (int j = 0; j < num_implementing_args; j++) {
+        HPy_Close(ctx, implementing_args[j]);
+        HPy_Close(ctx, array_function_methods[j]);
+    }
+    HPy_Close(ctx, types);
+    HPy_Close(ctx, relevant_args);
+    return result;
+}
 
 /*
  * Implements the __array_function__ protocol for a Python function, as described in
@@ -482,6 +788,112 @@ array_implement_c_array_function_creation(
     return result;
 }
 
+NPY_NO_EXPORT HPy
+hpy_array_implement_c_array_function_creation(HPyContext *ctx,
+    const char *function_name, HPy like,
+    HPy args, HPy kwargs,
+    HPy *fast_args, Py_ssize_t len_args, HPy kwnames)
+{
+    HPy relevant_args = HPy_NULL;
+    PyObject *numpy_module = NULL;
+    HPy public_api = HPy_NULL;
+    HPy result = HPy_NULL;
+
+    /* If `like` doesn't implement `__array_function__`, raise a `TypeError` */
+    HPy tmp_has_override = hpy_get_array_function(ctx, like);
+    if (HPy_IsNull(tmp_has_override)) {
+        return HPyErr_SetString(ctx, ctx->h_TypeError,
+                "The `like` argument must be an array-like that "
+                "implements the `__array_function__` protocol.");
+    }
+    HPy_Close(ctx, tmp_has_override);
+
+    if (fast_args != NULL) {
+        /*
+         * Convert from vectorcall convention, since the protocol requires
+         * the normal convention.  We have to do this late to ensure the
+         * normal path where NotImplemented is returned is fast.
+         */
+        assert(HPy_IsNull(args));
+        assert(HPy_IsNull(kwargs));
+        HPyTupleBuilder tb_args = HPyTupleBuilder_New(ctx, len_args);
+        if (HPyTupleBuilder_IsNull(tb_args)) {
+            return HPy_NULL;
+        }
+        for (HPy_ssize_t i = 0; i < len_args; i++) {
+            // Py_INCREF(fast_args[i]);
+            HPyTupleBuilder_Set(ctx, tb_args, i, fast_args[i]);
+        }
+        if (!HPy_IsNull(kwnames)) {
+            kwargs = HPyDict_New(ctx);
+            if (HPy_IsNull(kwargs)) {
+                HPyTupleBuilder_Cancel(ctx, tb_args);
+                return HPy_NULL;
+            }
+            HPy_ssize_t nkwargs = HPy_Length(ctx, kwnames);
+            for (HPy_ssize_t i = 0; i < nkwargs; i++) {
+                HPy key = HPy_GetItem_i(ctx, kwnames, i);
+                HPy value = fast_args[i+len_args];
+                if (HPy_SetItem(ctx, kwargs, key, value) < 0) {
+                    HPyTupleBuilder_Cancel(ctx, tb_args);
+                    HPy_Close(ctx, kwargs);
+                    return HPy_NULL;
+                }
+            }
+        }
+        args = HPyTupleBuilder_Build(ctx, tb_args);
+    }
+
+    relevant_args = HPyTuple_Pack(ctx, 1, like);
+    if (HPy_IsNull(relevant_args)) {
+        goto finish;
+    }
+    /* The like argument must be present in the keyword arguments, remove it */
+    CAPI_WARN("calling PyImport_Import & PyDict_DelItem");
+    PyObject *py_kwargs = HPy_AsPyObject(ctx, kwargs);
+    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_like);
+    if (PyDict_DelItem(py_kwargs, tmp) < 0) {
+        Py_DECREF(py_kwargs);
+        Py_XDECREF(tmp);
+        goto finish;
+    }
+    Py_DECREF(py_kwargs);
+    Py_XDECREF(tmp);
+
+    tmp = HPyGlobal_LoadPyObj(npy_ma_str_numpy);
+    numpy_module = PyImport_Import(tmp);
+    Py_XDECREF(tmp);
+    if (numpy_module == NULL) {
+        goto finish;
+    }
+    HPy h_numpy_module = HPy_FromPyObject(ctx, numpy_module);
+
+    public_api = HPy_GetAttr_s(ctx, h_numpy_module, function_name);
+    HPy_Close(ctx, h_numpy_module);
+    if (HPy_IsNull(public_api)) {
+        goto finish;
+    }
+    if (!HPyCallable_Check(ctx, public_api)) {
+        // PyErr_Format(PyExc_RuntimeError,
+        //         "numpy.%s is not callable.", function_name);
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                "numpy.%s is not callable.");
+        goto finish;
+    }
+
+    result = hpy_array_implement_array_function_internal(ctx, 
+            public_api, relevant_args, args, kwargs);
+
+  finish:
+    if (!HPy_IsNull(kwnames)) {
+        /* args and kwargs were converted from vectorcall convention */
+        HPy_Close(ctx, args);
+        HPy_Close(ctx, kwargs);
+    }
+    HPy_Close(ctx, relevant_args);
+    HPy_Close(ctx, public_api);
+    return result;
+}
 
 /*
  * Python wrapper for get_implementing_args_and_methods, for testing purposes.

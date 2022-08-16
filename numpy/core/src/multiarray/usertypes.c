@@ -190,7 +190,7 @@ PyArray_RegisterDataType(PyArray_Descr *descr)
 {
     // HPy this isn't used anymore.. we keep it for the numpy API.
     HPyContext *ctx = npy_get_context();
-    HPy h_descr = HPy_FromPyObject(ctx, descr);
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject*)descr);
     int ret = HPyArray_RegisterDataType(ctx, h_descr);
     HPy_Close(ctx, h_descr);
     return ret;
@@ -204,7 +204,7 @@ NPY_NO_EXPORT int
 HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
 {
     PyArray_Descr *s_descr = PyArray_Descr_AsStruct(ctx, h_descr);
-    PyArray_Descr *descr = HPy_AsPyObject(ctx, h_descr);
+    PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
     PyArray_Descr *descr2;
     int typenum;
     int i;
@@ -237,7 +237,7 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
                         " is missing.");
         return -1;
     }
-    if (HPyField_IsNull(s_descr->typeobj) == NULL) {
+    if (HPyField_IsNull(s_descr->typeobj)) {
         HPyErr_SetString(ctx, ctx->h_ValueError, "missing typeobject");
         return -1;
     }

@@ -57,7 +57,7 @@ static PyArray_Descr *
 sfloat_discover_from_pyobject(PyArray_DTypeMeta *cls, PyObject *NPY_UNUSED(obj))
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_cls = HPy_FromPyObject(ctx, cls);
+    HPy h_cls = HPy_FromPyObject(ctx, (PyObject*)cls);
     HPy h_res = sfloat_default_descr(ctx, h_cls);
     PyArray_Descr *res = (PyArray_Descr *)HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, h_cls);
@@ -825,7 +825,7 @@ get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
         return NULL;
     }
     HPyContext *ctx = npy_get_context();
-    HPy h_dtype = HPy_FromPyObject(ctx, &PyArray_SFloatDType);
+    HPy h_dtype = HPy_FromPyObject(ctx, (PyObject*)&PyArray_SFloatDType);
     HPy h_castingimpls = HPyDict_New(ctx);
     if (HPy_IsNull(h_castingimpls)) {
         HPy_Close(ctx, h_dtype);

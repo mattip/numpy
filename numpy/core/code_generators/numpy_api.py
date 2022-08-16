@@ -360,6 +360,13 @@ multiarray_funcs_api = {
     'HPyArray_Zeros':                       (307,),
     'HPyArray_RegisterDataType':            (308,),
     'HPyArray_DescrNew':                    (309,),
+    'HPyArray_View':                        (310,),
+    'HPyArray_NewCopy':                     (311,),
+    'HPyArray_Transpose':                   (312,),
+    'HPyArray_MapIterArrayCopyIfOverlap':   (313,),
+    'HPyArray_SetWritebackIfCopyBase':      (314,),
+    'HNpyIter_CreateCompatibleStrides':     (315,),
+    'HPyArray_FromArray':                   (316,),
 }
 
 ufunc_types_api = {

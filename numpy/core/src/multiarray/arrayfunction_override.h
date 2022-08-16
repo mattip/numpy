@@ -15,6 +15,12 @@ array_implement_c_array_function_creation(
         PyObject *args, PyObject *kwargs,
         PyObject *const *fast_args, Py_ssize_t len_args, PyObject *kwnames);
 
+NPY_NO_EXPORT HPy
+hpy_array_implement_c_array_function_creation(HPyContext *ctx,
+    const char *function_name, HPy like,
+    HPy args, HPy kwargs,
+    HPy *fast_args, Py_ssize_t len_args, HPy kwnames);
+
 NPY_NO_EXPORT PyObject *
 array_function_method_impl(PyObject *func, PyObject *types, PyObject *args,
                            PyObject *kwargs);

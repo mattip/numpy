@@ -949,7 +949,9 @@ HPyArray_NewFromDescr_int(
         }
         else if (PyDataType_ISSTRING(descr) && !allow_emptystring &&
                  data == NULL) {
-            HPyArray_DESCR_REPLACE(ctx, h_descr);
+            HPy dup_h_descr = HPy_Dup(ctx, h_descr); // duplicate before closing an arg
+            HPyArray_DESCR_REPLACE(ctx, dup_h_descr);
+            h_descr = dup_h_descr;
             if (HPy_IsNull(h_descr)) {
                 return HPy_NULL;
             }
@@ -2272,15 +2274,10 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
          */
         assert(HPy_Is(ctx, cache->converted_obj, op));
         arr = cache->arr_or_sequence;
-        CAPI_WARN("HPyArray_FromAny: call to PyArray_FromArray");
-        PyArrayObject *py_arr = (PyArrayObject *)HPy_AsPyObject(ctx, arr);
-        PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
+        PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+        PyArray_Descr *dtype_data = PyArray_Descr_AsStruct(ctx, dtype);
         /* we may need to cast or assert flags (e.g. copy) */
-        PyObject *py_res = PyArray_FromArray(py_arr, py_dtype, flags);
-        HPy res = HPy_FromPyObject(ctx, py_res);
-        Py_DECREF(py_res);
-        Py_DECREF(py_arr);
-        Py_DECREF(py_dtype);
+        HPy res = HPyArray_FromArray(ctx, arr, arr_data, dtype, dtype_data, flags);
         npy_unlink_coercion_cache(cache);
         return res;
     }
@@ -2308,6 +2305,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
                 op_data->flags,
                 HPy_NULL, op);
         HPy_Close(ctx, array_type);
+        HPy_Close(ctx, dtype);
         return res;
     }
     /*
@@ -2700,6 +2698,153 @@ PyArray_FromArray(PyArrayObject *arr, PyArray_Descr *newtype, int flags)
     }
 
     return (PyObject *)ret;
+}
+
+/*NUMPY_API
+ * steals reference to newtype --- acc. NULL
+ */
+NPY_NO_EXPORT HPy
+HPyArray_FromArray(HPyContext *ctx, 
+                        HPy /* PyArrayObject * */ arr,
+                        PyArrayObject *arr_data,
+                        HPy /* PyArray_Descr * */newtype,
+                        PyArray_Descr *newtype_data, int flags)
+{
+
+    HPy ret = HPy_NULL; // PyArrayObject *
+    int copy = 0;
+    int arrflags;
+    HPy oldtype; // PyArray_Descr *
+    NPY_CASTING casting = NPY_SAFE_CASTING;
+
+    oldtype = HPyArray_DESCR(ctx, arr, arr_data);
+    PyArray_Descr *oldtype_data = PyArray_Descr_AsStruct(ctx, oldtype);
+    if (HPy_IsNull(newtype)) {
+        /*
+         * Check if object is of array with Null newtype.
+         * If so return it directly instead of checking for casting.
+         */
+        if (flags == 0) {
+            return HPy_Dup(ctx, arr);
+        }
+        newtype = HPy_Dup(ctx, oldtype);
+    }
+    else if (PyDataType_ISUNSIZED(newtype_data)) {
+        HPyArray_DESCR_REPLACE(ctx, newtype);
+        if (HPy_IsNull(newtype)) {
+            return HPy_NULL;
+        }
+        newtype_data->elsize = oldtype_data->elsize;
+    }
+
+    /* If the casting if forced, use the 'unsafe' casting rule */
+    if (flags & NPY_ARRAY_FORCECAST) {
+        casting = NPY_UNSAFE_CASTING;
+    }
+
+    /* Raise an error if the casting rule isn't followed */
+    if (!HPyArray_CanCastArrayTo(ctx, arr, newtype, casting)) {
+        HPyErr_Clear(ctx);
+        HPy arr_descr = HPyArray_DESCR(ctx, arr, arr_data);
+        PyArray_Descr *arr_descr_data = PyArray_Descr_AsStruct(ctx, arr_descr);
+        hpy_npy_set_invalid_cast_error(ctx,
+                arr_descr_data, newtype_data, casting, PyArray_NDIM(arr_data) == 0);
+        HPy_Close(ctx, arr_descr);
+        HPy_Close(ctx, newtype);
+        return HPy_NULL;
+    }
+
+    arrflags = PyArray_FLAGS(arr_data);
+           /* If a guaranteed copy was requested */
+    copy = (flags & NPY_ARRAY_ENSURECOPY) ||
+           /* If C contiguous was requested, and arr is not */
+           ((flags & NPY_ARRAY_C_CONTIGUOUS) &&
+                   (!(arrflags & NPY_ARRAY_C_CONTIGUOUS))) ||
+           /* If an aligned array was requested, and arr is not */
+           ((flags & NPY_ARRAY_ALIGNED) &&
+                   (!(arrflags & NPY_ARRAY_ALIGNED))) ||
+           /* If a Fortran contiguous array was requested, and arr is not */
+           ((flags & NPY_ARRAY_F_CONTIGUOUS) &&
+                   (!(arrflags & NPY_ARRAY_F_CONTIGUOUS))) ||
+           /* If a writeable array was requested, and arr is not */
+           ((flags & NPY_ARRAY_WRITEABLE) &&
+                   (!(arrflags & NPY_ARRAY_WRITEABLE))) ||
+           !HPyArray_EquivTypes(ctx, oldtype, newtype);
+
+    if (copy) {
+        if (flags & NPY_ARRAY_ENSURENOCOPY ) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "Unable to avoid copy while creating an array from given array.");
+            HPy_Close(ctx, newtype);
+            return HPy_NULL;
+        }
+
+        NPY_ORDER order = NPY_KEEPORDER;
+        int subok = 1;
+
+        /* Set the order for the copy being made based on the flags */
+        if (flags & NPY_ARRAY_F_CONTIGUOUS) {
+            order = NPY_FORTRANORDER;
+        }
+        else if (flags & NPY_ARRAY_C_CONTIGUOUS) {
+            order = NPY_CORDER;
+        }
+
+        if ((flags & NPY_ARRAY_ENSUREARRAY)) {
+            subok = 0;
+        }
+        ret = HPyArray_NewLikeArray(ctx, arr, order,
+                                                    newtype, subok);
+        if (HPy_IsNull(ret)) {
+            return HPy_NULL;
+        }
+
+        if (HPyArray_CopyInto(ctx, ret, arr) < 0) {
+            HPy_Close(ctx, ret);
+            return HPy_NULL;
+        }
+
+
+        if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
+            // Py_INCREF(arr);
+            if (HPyArray_SetWritebackIfCopyBase(ctx, ret, PyArrayObject_AsStruct(ctx, ret), 
+                                                    arr, PyArrayObject_AsStruct(ctx, arr)) < 0) {
+                HPy_Close(ctx, ret);
+                return HPy_NULL;
+            }
+        }
+    }
+    /*
+     * If no copy then take an appropriate view if necessary, or
+     * just return a reference to ret itself.
+     */
+    else {
+        int needview = ((flags & NPY_ARRAY_ENSUREARRAY) &&
+                        !HPyArray_CheckExact(ctx, arr));
+
+        HPy_Close(ctx, newtype);
+        if (needview) {
+            HPy subtype = HPy_NULL;
+
+            if (flags & NPY_ARRAY_ENSUREARRAY) {
+                subtype = HPyGlobal_Load(ctx, HPyArray_Type);
+            }
+            HPy arr_descr = HPyArray_DESCR(ctx, arr, arr_data);
+            ret = HPyArray_View(ctx, arr, PyArrayObject_AsStruct(ctx, arr), arr_descr, HPy_NULL, subtype);
+            if (HPy_IsNull(subtype)) {
+                HPy_Close(ctx, subtype);
+            }
+            HPy_Close(ctx, arr_descr);
+            if (HPy_IsNull(ret)) {
+                return HPy_NULL;
+            }
+        }
+        else {
+            ret = HPy_Dup(ctx, arr);
+        }
+    }
+
+    return ret;
 }
 
 /*NUMPY_API */
@@ -3217,7 +3362,7 @@ HPyArray_FromArrayAttr_int(HPyContext *ctx,
     }
     // TODO HPY LABS PORT
     PyObject *op = HPy_AsPyObject(ctx, h_op);
-    PyArray_Descr *descr = HPy_AsPyObject(ctx, h_descr);
+    PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
     PyObject *ret = PyArray_FromArrayAttr_int(op, descr, never_copy);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(op);

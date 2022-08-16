@@ -12,6 +12,8 @@ array_set_typeDict(PyObject *NPY_UNUSED(ignored), PyObject *args);
 NPY_NO_EXPORT PyArray_Descr *
 _arraydescr_try_convert_from_dtype_attr(PyObject *obj);
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+_hpy_arraydescr_try_convert_from_dtype_attr(HPyContext *ctx, HPy obj);
 
 NPY_NO_EXPORT int
 is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype);
@@ -27,6 +29,11 @@ is_dtype_struct_simple_unaligned_layout(PyArray_Descr *dtype);
  */
 NPY_NO_EXPORT PyArray_Descr *
 arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind);
+
+NPY_NO_EXPORT HPy
+harraydescr_field_subset_view(HPyContext *ctx,
+                    PyArray_Descr *self_data,
+                    HPy ind);
 
 extern NPY_NO_EXPORT char const *_datetime_strings[];
 

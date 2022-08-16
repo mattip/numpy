@@ -66,6 +66,11 @@ npy_set_invalid_cast_error(
         PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
         NPY_CASTING casting, npy_bool scalar);
 
+NPY_NO_EXPORT void
+hpy_npy_set_invalid_cast_error(HPyContext *ctx,
+        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        NPY_CASTING casting, npy_bool scalar);
+        
 NPY_NO_EXPORT PyArray_Descr *
 PyArray_CastDescrToDType(PyArray_Descr *descr, PyArray_DTypeMeta *given_DType);
 

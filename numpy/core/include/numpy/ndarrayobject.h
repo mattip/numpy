@@ -46,6 +46,9 @@ HPyArray_Newshape(HPyContext *ctx, HPy /* (PyArrayObject*) */h_self, PyArrayObje
 #define PyArray_DescrCheck(op) PyObject_TypeCheck(op, &PyArrayDescr_Type)
 
 static NPY_INLINE int
+HPyArray_DescrCheck(HPyContext *ctx, HPy op);
+
+static NPY_INLINE int
 HPyArray_DescrCheck(HPyContext *ctx, HPy op)
 {
     HPy array_descr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
@@ -67,10 +70,18 @@ HPyArray_Check(HPyContext *ctx, HPy op)
 }
 
 static NPY_INLINE int
+HPyArray_CheckExactWithType(HPyContext *ctx, HPy op, HPy array_type) {
+    HPy op_type = HPy_Type(ctx, op);
+    int ret = HPy_Is(ctx, op_type, array_type);
+    HPy_Close(ctx, op_type);
+    return ret;
+}
+
+static NPY_INLINE int
 HPyArray_CheckExact(HPyContext *ctx, HPy op)
 {
     HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
-    int res = HPy_Is(ctx, HPy_Type(ctx, op), array_type);
+    int res = HPyArray_CheckExactWithType(ctx, op, array_type);
     HPy_Close(ctx, array_type);
     return res;
 }

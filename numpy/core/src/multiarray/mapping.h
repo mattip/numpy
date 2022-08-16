@@ -77,13 +77,15 @@ PyArray_MapIterCheckIndices(PyArrayMapIterObject *mit);
 NPY_NO_EXPORT void
 PyArray_MapIterSwapAxes(PyArrayMapIterObject *mit, PyArrayObject **ret, int getmap);
 
-NPY_NO_EXPORT PyObject*
-PyArray_MapIterNew(npy_index_info *indices , int index_num, int index_type,
+NPY_NO_EXPORT HPy
+HPyArray_MapIterNew(HPyContext *ctx, hpy_npy_index_info *indices , int index_num, int index_type,
                    int ndim, int fancy_ndim,
-                   PyArrayObject *arr, PyArrayObject *subspace,
+                   HPy arr,  // PyArrayObject *
+                   HPy subspace, // PyArrayObject *
                    npy_uint32 subspace_iter_flags, npy_uint32 subspace_flags,
-                   npy_uint32 extra_op_flags, PyArrayObject *extra_op,
-                   PyArray_Descr *extra_op_dtype);
+                   npy_uint32 extra_op_flags, 
+                   HPy extra_op_arg, // PyArrayObject *
+                   HPy extra_op_dtype); // PyArray_Descr *
 
 extern NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec;
 
