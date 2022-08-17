@@ -736,7 +736,7 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
         NPY_CASTING cast = casting;
         if (self_method->casting !=
                 PyArray_MinCastSafety(cast, self_method->casting)) {
-            HPyErr_Format(ctx, ctx->h_RuntimeError,
+            HPyErr_Format_p(ctx, ctx->h_RuntimeError,
                     "resolve_descriptors cast level did not match stored one. "
                     "(set level is %d, got %d for method %s)",
                     self_method->casting, cast, self_method->name);
