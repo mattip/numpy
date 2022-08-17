@@ -63,7 +63,7 @@ typedef int (PyArray_ReduceLoopFunc)(HPyContext *ctx,
  * errormask   : forwarded from _get_bufsize_errmask
  */
 NPY_NO_EXPORT PyArrayObject *
-PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
+PyUFunc_ReduceWrapper(HPyArrayMethod_Context *context,
         PyArrayObject *operand, PyArrayObject *out, PyArrayObject *wheremask,
         npy_bool *axis_flags, int reorderable, int keepdims,
         PyObject *identity, PyArray_ReduceLoopFunc *loop,

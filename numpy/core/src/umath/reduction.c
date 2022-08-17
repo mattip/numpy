@@ -180,7 +180,7 @@ PyArray_CopyInitialReduceValues(
  * generalized ufuncs!)
  */
 NPY_NO_EXPORT PyArrayObject *
-PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
+PyUFunc_ReduceWrapper(HPyArrayMethod_Context *context,
         PyArrayObject *operand, PyArrayObject *out, PyArrayObject *wheremask,
         npy_bool *axis_flags, int reorderable, int keepdims,
         PyObject *identity, PyArray_ReduceLoopFunc *loop,
@@ -215,12 +215,12 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         return NULL;
     }
 
-
+    HPyContext *ctx = npy_get_context();
     /* Set up the iterator */
     op[0] = out;
     op[1] = operand;
-    op_dtypes[0] = context->descriptors[0];
-    op_dtypes[1] = context->descriptors[1];
+    op_dtypes[0] = (PyArray_Descr *)HPy_AsPyObject(ctx, context->descriptors[0]);
+    op_dtypes[1] = (PyArray_Descr *)HPy_AsPyObject(ctx, context->descriptors[1]);
 
     it_flags = NPY_ITER_BUFFERED |
             NPY_ITER_EXTERNAL_LOOP |
@@ -293,6 +293,8 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
                                op_flags,
                                op_dtypes,
                                PyArray_NDIM(operand), op_axes, NULL, buffersize);
+    Py_DECREF(op_dtypes[0]); // HPy to Py 'context->descriptors[0]'
+    Py_DECREF(op_dtypes[1]); // HPy to Py 'context->descriptors[1]'
     if (iter == NULL) {
         goto fail;
     }
@@ -348,7 +350,7 @@ PyUFunc_ReduceWrapper(PyArrayMethod_Context *context,
         }
     }
     else {
-        if (context->method->get_strided_loop(npy_get_context(), context,
+        if (PyArrayMethodObject_AsStruct(ctx, context->method)->get_strided_loop(ctx, context,
                 1, 0, fixed_strides, &strided_loop, &auxdata, &flags) < 0) {
             goto fail;
         }

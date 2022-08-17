@@ -834,7 +834,6 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
 
         /* Check that the input is compatible with a simple method call. */
         dtypes_arr[i] = HPyField_Load(ctx, h_self, self_data->dtypes[i]);
-        PyObject *dtype_i = HPy_AsPyObject(ctx, dtypes_arr[i]);
         HPy descrs_i_type = HPy_Type(ctx, descrs[i]);
         if (HPy_Is(ctx, descrs_i_type, dtypes_arr[i])) {
             HPy_Close(ctx, descrs_i_type);
@@ -1037,7 +1036,7 @@ generic_masked_strided_loop(HPyContext *hctx,
  */
 NPY_NO_EXPORT int
 PyArrayMethod_GetMaskedStridedLoop(
-        PyArrayMethod_Context *context,
+        HPyArrayMethod_Context *context,
         int aligned, npy_intp *fixed_strides,
         HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,

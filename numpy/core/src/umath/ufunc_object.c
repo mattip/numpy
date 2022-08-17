@@ -3305,16 +3305,20 @@ PyUFunc_Reduce(PyUFuncObject *ufunc,
         return NULL;
     }
 
-    PyArrayMethod_Context context = {
-        .caller = (PyObject *)ufunc,
-        .method = ufuncimpl,
-        .descriptors = descrs,
+    HPyContext *ctx = npy_get_context();
+    HPyArrayMethod_Context context = {
+        .caller = HPy_FromPyObject(ctx, (PyObject *)ufunc),
+        .method = HPy_FromPyObject(ctx, (PyObject *)ufuncimpl),
+        .descriptors = HPy_FromPyObjectArray(ctx, (PyObject **)descrs, 3),
     };
 
     PyArrayObject *result = PyUFunc_ReduceWrapper(&context,
             arr, out, wheremask, axis_flags, reorderable, keepdims,
             initial, reduce_loop, ufunc, buffersize, ufunc_name, errormask);
 
+    HPy_Close(ctx, context.caller);
+    HPy_Close(ctx, context.method);
+    HPy_CloseAndFreeArray(ctx, context.descriptors, 3);
     for (int i = 0; i < 3; i++) {
         Py_DECREF(descrs[i]);
     }

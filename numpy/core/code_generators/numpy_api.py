@@ -441,7 +441,7 @@ hpy_multiarray_funcs_api = {
     # 'HPyArray_ConvertToCommonType':          (56,),
     'HPyArray_DescrFromScalar':              (57,),
     'HPyArray_DescrFromTypeObject':          (58,),
-    # 'HPyArray_Size':                         (59,),
+    'HPyArray_Size':                         (59,),
     'HPyArray_Scalar':                       (60,),
     'HPyArray_FromScalar':                   (61,),
     # 'HPyArray_ScalarAsCtype':                (62,),
