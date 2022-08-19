@@ -36,13 +36,13 @@ struct NewNpyArrayIterObject_tag {
     /* Flag indicating iteration started/stopped */
     char started, finished;
     /* Child to update for nested iteration */
-    NewNpyArrayIterObject *nested_child;
+    HPyField nested_child; // NewNpyArrayIterObject *
     /* Cached values from the iterator */
     NpyIter_IterNextFunc *iternext;
     NpyIter_GetMultiIndexFunc *get_multi_index;
     char **dataptrs;
-    PyArray_Descr **dtypes;
-    PyArrayObject **operands;
+    HPyField *dtypes; // PyArray_Descr **
+    HPyField *operands; // PyArrayObject **
     npy_intp *innerstrides, *innerloopsizeptr;
     char readflags[NPY_MAXARGS];
     char writeflags[NPY_MAXARGS];
@@ -50,18 +50,18 @@ struct NewNpyArrayIterObject_tag {
 
 HPyType_LEGACY_HELPERS(NewNpyArrayIterObject)
 
-static int npyiter_cache_values(NewNpyArrayIterObject *self)
+static int npyiter_cache_values(HPyContext *ctx, HPy h_self, NewNpyArrayIterObject *self)
 {
     NpyIter *iter = self->iter;
 
     /* iternext and get_multi_index functions */
-    self->iternext = NpyIter_GetIterNext(iter, NULL);
+    self->iternext = HNpyIter_GetIterNext(ctx, iter, NULL);
     if (self->iternext == NULL) {
         return -1;
     }
 
     if (NpyIter_HasMultiIndex(iter) && !NpyIter_HasDelayedBufAlloc(iter)) {
-        self->get_multi_index = NpyIter_GetGetMultiIndex(iter, NULL);
+        self->get_multi_index = HNpyIter_GetGetMultiIndex(ctx, iter, NULL);
     }
     else {
         self->get_multi_index = NULL;
@@ -69,9 +69,18 @@ static int npyiter_cache_values(NewNpyArrayIterObject *self)
 
     /* Internal data pointers */
     self->dataptrs = NpyIter_GetDataPtrArray(iter);
-    self->dtypes = HNpyIter_GetDescrArray(iter);
-    self->operands = NpyIter_GetOperandArray(iter);
-
+    int nop = NpyIter_GetNOp(iter);
+    HPy_CloseAndFreeFieldArray(ctx, h_self, self->dtypes, nop);
+    HPy_CloseAndFreeFieldArray(ctx, h_self, self->operands, nop);
+    HPy *h_dtypes = HNpyIter_GetDescrArray(iter);
+    self->dtypes = (HPyField *)malloc(nop * sizeof(HPyField));
+    HPy *h_operands = HNpyIter_GetOperandArray(iter);
+    self->operands = (HPyField *)malloc(nop * sizeof(HPyField));
+    for (npy_int i = 0; i < nop; i++) {
+        HPyField_Store(ctx, h_self, &self->dtypes[i], h_dtypes[i]);
+        HPyField_Store(ctx, h_self, &self->operands[i], h_operands[i]);
+    }
+    
     if (NpyIter_HasExternalLoop(iter)) {
         self->innerstrides = NpyIter_GetInnerStrideArray(iter);
         self->innerloopsizeptr = NpyIter_GetInnerLoopSizePtr(iter);
@@ -87,66 +96,69 @@ static int npyiter_cache_values(NewNpyArrayIterObject *self)
     return 0;
 }
 
-static PyObject *
-npyiter_new(PyTypeObject *subtype, PyObject *NPY_UNUSED(args),
-            PyObject *NPY_UNUSED(kwds))
+HPyDef_SLOT(npyiter_new, npyiter_new_impl, HPy_tp_new)
+static HPy
+npyiter_new_impl(HPyContext *ctx, HPy h_subtype, HPy *NPY_UNUSED(args_h),
+                          HPy_ssize_t NPY_UNUSED(nargs), HPy NPY_UNUSED(kwds))
 {
     NewNpyArrayIterObject *self;
 
-    self = (NewNpyArrayIterObject *)subtype->tp_alloc(subtype, 0);
-    if (self != NULL) {
+    HPy h_self = HPy_New(ctx, h_subtype, &self);
+    if (!HPy_IsNull(h_self)) {
         self->iter = NULL;
-        self->nested_child = NULL;
+        self->nested_child = HPyField_NULL;
     }
 
-    return (PyObject *)self;
+    return h_self;
 }
 
 static int
-NpyIter_GlobalFlagsConverter(PyObject *flags_in, npy_uint32 *flags)
+HNpyIter_GlobalFlagsConverter(HPyContext *ctx, HPy flags_in, npy_uint32 *flags)
 {
     npy_uint32 tmpflags = 0;
     int iflags, nflags;
 
-    PyObject *f;
+    HPy f;
     char *str = NULL;
-    Py_ssize_t length = 0;
+    HPy_ssize_t length = 0;
     npy_uint32 flag;
 
-    if (flags_in == NULL || flags_in == Py_None) {
+    if (HPy_IsNull(flags_in) || HPy_Is(ctx, flags_in, ctx->h_None)) {
         return 1;
     }
 
-    if (!PyTuple_Check(flags_in) && !PyList_Check(flags_in)) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!HPyTuple_Check(ctx, flags_in) && !HPyList_Check(ctx, flags_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator global flags must be a list or tuple of strings");
         return 0;
     }
 
-    nflags = PySequence_Size(flags_in);
+    nflags = HPy_Length(ctx, flags_in);
 
     for (iflags = 0; iflags < nflags; ++iflags) {
-        f = PySequence_GetItem(flags_in, iflags);
-        if (f == NULL) {
+        f = HPy_GetItem_i(ctx, flags_in, iflags);
+        if (HPy_IsNull(f)) {
             return 0;
         }
 
-        if (PyUnicode_Check(f)) {
+        if (HPyUnicode_Check(ctx, f)) {
             /* accept unicode input */
-            PyObject *f_str;
-            f_str = PyUnicode_AsASCIIString(f);
-            if (f_str == NULL) {
-                Py_DECREF(f);
+            HPy f_str;
+            f_str = HPyUnicode_AsASCIIString(ctx, f);
+            if (HPy_IsNull(f_str)) {
+                HPy_Close(ctx, f);
                 return 0;
             }
-            Py_DECREF(f);
+            HPy_Close(ctx, f);
             f = f_str;
         }
 
-        if (PyBytes_AsStringAndSize(f, &str, &length) < 0) {
-            Py_DECREF(f);
+        if (!HPyBytes_Check(ctx, f)) {
+            HPy_Close(ctx, f);
             return 0;
         }
+        str = HPyBytes_AS_STRING(ctx, f);
+        length = HPyBytes_GET_SIZE(ctx, f);
         /* Use switch statements to quickly isolate the right flag */
         flag = 0;
         switch (str[0]) {
@@ -224,13 +236,13 @@ NpyIter_GlobalFlagsConverter(PyObject *flags_in, npy_uint32 *flags)
         if (flag == 0) {
             PyErr_Format(PyExc_ValueError,
                     "Unexpected iterator global flag \"%s\"", str);
-            Py_DECREF(f);
+            HPy_Close(ctx, f);
             return 0;
         }
         else {
             tmpflags |= flag;
         }
-        Py_DECREF(f);
+        HPy_Close(ctx, f);
     }
 
     *flags |= tmpflags;
@@ -238,50 +250,50 @@ NpyIter_GlobalFlagsConverter(PyObject *flags_in, npy_uint32 *flags)
 }
 
 static int
-NpyIter_OpFlagsConverter(PyObject *op_flags_in,
+HNpyIter_OpFlagsConverter(HPyContext *ctx, HPy op_flags_in,
                          npy_uint32 *op_flags)
 {
     int iflags, nflags;
     npy_uint32 flag;
 
-    if (!PyTuple_Check(op_flags_in) && !PyList_Check(op_flags_in)) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!HPyTuple_Check(ctx, op_flags_in) && !HPyList_Check(ctx, op_flags_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "op_flags must be a tuple or array of per-op flag-tuples");
         return 0;
     }
 
-    nflags = PySequence_Size(op_flags_in);
+    nflags = HPy_Length(ctx, op_flags_in);
 
     *op_flags = 0;
     for (iflags = 0; iflags < nflags; ++iflags) {
-        PyObject *f;
+        HPy f;
         char *str = NULL;
         Py_ssize_t length = 0;
 
-        f = PySequence_GetItem(op_flags_in, iflags);
-        if (f == NULL) {
+        f = HPy_GetItem_i(ctx, op_flags_in, iflags);
+        if (HPy_IsNull(f)) {
             return 0;
         }
 
-        if (PyUnicode_Check(f)) {
+        if (HPyUnicode_Check(ctx, f)) {
             /* accept unicode input */
-            PyObject *f_str;
-            f_str = PyUnicode_AsASCIIString(f);
-            if (f_str == NULL) {
-                Py_DECREF(f);
+            HPy f_str;
+            f_str = HPyUnicode_AsASCIIString(ctx, f);
+            HPy_Close(ctx, f);
+            if (HPy_IsNull(f_str)) {
                 return 0;
             }
-            Py_DECREF(f);
             f = f_str;
         }
-
-        if (PyBytes_AsStringAndSize(f, &str, &length) < 0) {
-            PyErr_Clear();
-            Py_DECREF(f);
-            PyErr_SetString(PyExc_ValueError,
+        if (!HPyBytes_Check(ctx, f)) {
+            HPyErr_Clear(ctx);
+            HPy_Close(ctx, f);
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                    "op_flags must be a tuple or array of per-op flag-tuples");
             return 0;
         }
+        str = HPyBytes_AS_STRING(ctx, f);
+        length = HPyBytes_GET_SIZE(ctx, f);
 
         /* Use switch statements to quickly isolate the right flag */
         flag = 0;
@@ -379,59 +391,59 @@ NpyIter_OpFlagsConverter(PyObject *op_flags_in,
                 break;
         }
         if (flag == 0) {
-            PyErr_Format(PyExc_ValueError,
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
                     "Unexpected per-op iterator flag \"%s\"", str);
-            Py_DECREF(f);
+            HPy_Close(ctx, f);
             return 0;
         }
         else {
             *op_flags |= flag;
         }
-        Py_DECREF(f);
+        HPy_Close(ctx, f);
     }
 
     return 1;
 }
 
 static int
-npyiter_convert_op_flags_array(PyObject *op_flags_in,
+npyiter_convert_op_flags_array(HPyContext *ctx, HPy op_flags_in,
                          npy_uint32 *op_flags_array, npy_intp nop)
 {
     npy_intp iop;
 
-    if (!PyTuple_Check(op_flags_in) && !PyList_Check(op_flags_in)) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!HPyTuple_Check(ctx, op_flags_in) && !HPyList_Check(ctx, op_flags_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "op_flags must be a tuple or array of per-op flag-tuples");
         return 0;
     }
 
-    if (PySequence_Size(op_flags_in) != nop) {
+    if (HPy_Length(ctx, op_flags_in) != nop) {
         goto try_single_flags;
     }
 
     for (iop = 0; iop < nop; ++iop) {
-        PyObject *f = PySequence_GetItem(op_flags_in, iop);
-        if (f == NULL) {
+        HPy f = HPy_GetItem_i(ctx, op_flags_in, iop);
+        if (HPy_IsNull(f)) {
             return 0;
         }
         /* If the first item is a string, try as one set of flags */
-        if (iop == 0 && (PyBytes_Check(f) || PyUnicode_Check(f))) {
-            Py_DECREF(f);
+        if (iop == 0 && (HPyBytes_Check(ctx, f) || HPyUnicode_Check(ctx, f))) {
+            HPy_Close(ctx, f);
             goto try_single_flags;
         }
-        if (NpyIter_OpFlagsConverter(f,
+        if (HNpyIter_OpFlagsConverter(ctx, f,
                         &op_flags_array[iop]) != 1) {
-            Py_DECREF(f);
+            HPy_Close(ctx, f);
             return 0;
         }
 
-        Py_DECREF(f);
+        HPy_Close(ctx, f);
     }
 
     return 1;
 
 try_single_flags:
-    if (NpyIter_OpFlagsConverter(op_flags_in,
+    if (HNpyIter_OpFlagsConverter(ctx, op_flags_in,
                         &op_flags_array[0]) != 1) {
         return 0;
     }
@@ -444,8 +456,8 @@ try_single_flags:
 }
 
 static int
-npyiter_convert_dtypes(PyObject *op_dtypes_in,
-                        PyArray_Descr **op_dtypes,
+npyiter_convert_dtypes(HPyContext *ctx, HPy op_dtypes_in,
+                        HPy /* PyArray_Descr ** */ *op_dtypes,
                         npy_intp nop)
 {
     npy_intp iop;
@@ -454,42 +466,42 @@ npyiter_convert_dtypes(PyObject *op_dtypes_in,
      * If the input isn't a tuple of dtypes, try converting it as-is
      * to a dtype, and replicating to all operands.
      */
-    if ((!PyTuple_Check(op_dtypes_in) && !PyList_Check(op_dtypes_in)) ||
-                                    PySequence_Size(op_dtypes_in) != nop) {
+    if ((!HPyTuple_Check(ctx, op_dtypes_in) && !HPyList_Check(ctx, op_dtypes_in)) ||
+                                    HPy_Length(ctx, op_dtypes_in) != nop) {
         goto try_single_dtype;
     }
 
     for (iop = 0; iop < nop; ++iop) {
-        PyObject *dtype = PySequence_GetItem(op_dtypes_in, iop);
-        if (dtype == NULL) {
+        HPy dtype = HPy_GetItem_i(ctx, op_dtypes_in, iop);
+        if (HPy_IsNull(dtype)) {
             npy_intp i;
             for (i = 0; i < iop; ++i ) {
-                Py_XDECREF(op_dtypes[i]);
+                HPy_Close(ctx, op_dtypes[i]);
             }
             return 0;
         }
 
         /* Try converting the object to a descr */
-        if (PyArray_DescrConverter2(dtype, &op_dtypes[iop]) != 1) {
+        if (HPyArray_DescrConverter2(ctx, dtype, &op_dtypes[iop]) != 1) {
             npy_intp i;
             for (i = 0; i < iop; ++i ) {
-                Py_XDECREF(op_dtypes[i]);
+                HPy_Close(ctx, op_dtypes[i]);
             }
-            Py_DECREF(dtype);
-            PyErr_Clear();
+            HPy_Close(ctx, dtype);
+            HPyErr_Clear(ctx);
             goto try_single_dtype;
         }
 
-        Py_DECREF(dtype);
+        HPy_Close(ctx, dtype);
     }
 
     return 1;
 
 try_single_dtype:
-    if (PyArray_DescrConverter2(op_dtypes_in, &op_dtypes[0]) == 1) {
+    if (HPyArray_DescrConverter2(ctx, op_dtypes_in, &op_dtypes[0]) == 1) {
         for (iop = 1; iop < nop; ++iop) {
-            op_dtypes[iop] = op_dtypes[0];
-            Py_XINCREF(op_dtypes[iop]);
+            op_dtypes[iop] = HPy_Dup(ctx, op_dtypes[0]);
+            // Py_XINCREF(op_dtypes[iop]);
         }
         return 1;
     }
@@ -498,15 +510,15 @@ try_single_dtype:
 }
 
 static int
-npyiter_convert_op_axes(PyObject *op_axes_in, int nop,
+npyiter_convert_op_axes(HPyContext *ctx, HPy op_axes_in, int nop,
                         int **op_axes, int *oa_ndim)
 {
-    PyObject *a;
+    HPy a;
     int iop;
 
-    if ((!PyTuple_Check(op_axes_in) && !PyList_Check(op_axes_in)) ||
-                                PySequence_Size(op_axes_in) != nop) {
-        PyErr_SetString(PyExc_ValueError,
+    if ((!HPyTuple_Check(ctx, op_axes_in) && !HPyList_Check(ctx, op_axes_in)) ||
+                                HPy_Length(ctx, op_axes_in) != nop) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "op_axes must be a tuple/list matching the number of ops");
         return 0;
     }
@@ -516,62 +528,62 @@ npyiter_convert_op_axes(PyObject *op_axes_in, int nop,
     /* Copy the tuples into op_axes */
     for (iop = 0; iop < nop; ++iop) {
         int idim;
-        a = PySequence_GetItem(op_axes_in, iop);
-        if (a == NULL) {
+        a = HPy_GetItem_i(ctx, op_axes_in, iop);
+        if (HPy_IsNull(a)) {
             return 0;
         }
-        if (a == Py_None) {
+        if (HPy_Is(ctx, a, ctx->h_None)) {
             op_axes[iop] = NULL;
         } else {
-            if (!PyTuple_Check(a) && !PyList_Check(a)) {
-                PyErr_SetString(PyExc_ValueError,
+            if (!HPyTuple_Check(ctx, a) && !HPyList_Check(ctx, a)) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "Each entry of op_axes must be None "
                         "or a tuple/list");
-                Py_DECREF(a);
+                HPy_Close(ctx, a);
                 return 0;
             }
             if (*oa_ndim == -1) {
-                *oa_ndim = PySequence_Size(a);
+                *oa_ndim = HPy_Length(ctx, a);
                 if (*oa_ndim > NPY_MAXDIMS) {
-                    PyErr_SetString(PyExc_ValueError,
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Too many dimensions in op_axes");
-                    Py_DECREF(a);
+                    HPy_Close(ctx, a);
                     return 0;
                 }
             }
-            if (PySequence_Size(a) != *oa_ndim) {
-                PyErr_SetString(PyExc_ValueError,
+            if (HPy_Length(ctx, a) != *oa_ndim) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "Each entry of op_axes must have the same size");
-                Py_DECREF(a);
+                HPy_Close(ctx, a);
                 return 0;
             }
             for (idim = 0; idim < *oa_ndim; ++idim) {
-                PyObject *v = PySequence_GetItem(a, idim);
-                if (v == NULL) {
-                    Py_DECREF(a);
+                HPy v = HPy_GetItem_i(ctx, a, idim);
+                if (HPy_IsNull(v)) {
+                    HPy_Close(ctx, a);
                     return 0;
                 }
                 /* numpy.newaxis is None */
-                if (v == Py_None) {
+                if (HPy_Is(ctx, v, ctx->h_None)) {
                     op_axes[iop][idim] = -1;
                 }
                 else {
-                    op_axes[iop][idim] = PyArray_PyIntAsInt(v);
+                    op_axes[iop][idim] = HPyArray_PyIntAsInt(ctx, v);
                     if (op_axes[iop][idim]==-1 &&
                                                 PyErr_Occurred()) {
-                        Py_DECREF(a);
-                        Py_DECREF(v);
+                        HPy_Close(ctx, a);
+                        HPy_Close(ctx, v);
                         return 0;
                     }
                 }
-                Py_DECREF(v);
+                HPy_Close(ctx, v);
             }
         }
-        Py_DECREF(a);
+        HPy_Close(ctx, a);
     }
 
     if (*oa_ndim == -1) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "If op_axes is provided, at least one list of axes "
                 "must be contained within it");
         return 0;
@@ -586,60 +598,60 @@ npyiter_convert_op_axes(PyObject *op_axes_in, int nop,
  * op[i] owns a reference to an array object.
  */
 static int
-npyiter_convert_ops(PyObject *op_in, PyObject *op_flags_in,
-                    PyArrayObject **op, npy_uint32 *op_flags,
+npyiter_convert_ops(HPyContext *ctx, HPy op_in, HPy op_flags_in,
+                    HPy /* PyArrayObject ** */ *op, npy_uint32 *op_flags,
                     int *nop_out)
 {
     int iop, nop;
 
     /* nop and op */
-    if (PyTuple_Check(op_in) || PyList_Check(op_in)) {
-        nop = PySequence_Size(op_in);
+    if (HPyTuple_Check(ctx, op_in) || HPyList_Check(ctx, op_in)) {
+        nop = HPy_Length(ctx, op_in);
         if (nop == 0) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Must provide at least one operand");
             return 0;
         }
         if (nop > NPY_MAXARGS) {
-            PyErr_SetString(PyExc_ValueError, "Too many operands");
+            HPyErr_SetString(ctx, ctx->h_ValueError, "Too many operands");
             return 0;
         }
 
         for (iop = 0; iop < nop; ++iop) {
-            PyObject *item = PySequence_GetItem(op_in, iop);
-            if (item == NULL) {
+            HPy item = HPy_GetItem_i(ctx, op_in, iop);
+            if (HPy_IsNull(item)) {
                 npy_intp i;
                 for (i = 0; i < iop; ++i) {
-                    Py_XDECREF(op[i]);
+                    HPy_Close(ctx, op[i]);
                 }
                 return 0;
             }
-            else if (item == Py_None) {
-                Py_DECREF(item);
-                item = NULL;
+            else if (HPy_Is(ctx,item, ctx->h_None)) {
+                HPy_Close(ctx, item);
+                item = HPy_NULL;
             }
             /* This is converted to an array after op flags are retrieved */
-            op[iop] = (PyArrayObject *)item;
+            op[iop] = item;
         }
     }
     else {
         nop = 1;
         /* Is converted to an array after op flags are retrieved */
-        Py_INCREF(op_in);
-        op[0] = (PyArrayObject *)op_in;
+        // Py_INCREF(op_in);
+        op[0] = HPy_Dup(ctx, op_in);
     }
 
     *nop_out = nop;
 
     /* op_flags */
-    if (op_flags_in == NULL || op_flags_in == Py_None) {
+    if (HPy_IsNull(op_flags_in) || HPy_Is(ctx, op_flags_in, ctx->h_None)) {
         for (iop = 0; iop < nop; ++iop) {
             /*
              * By default, make NULL operands writeonly and flagged for
              * allocation, and everything else readonly.  To write
              * to a provided operand, you must specify the write flag manually.
              */
-            if (op[iop] == NULL) {
+            if (HPy_IsNull(op[iop])) {
                 op_flags[iop] = NPY_ITER_WRITEONLY | NPY_ITER_ALLOCATE;
             }
             else {
@@ -647,10 +659,10 @@ npyiter_convert_ops(PyObject *op_in, PyObject *op_flags_in,
             }
         }
     }
-    else if (npyiter_convert_op_flags_array(op_flags_in,
+    else if (npyiter_convert_op_flags_array(ctx, op_flags_in,
                                       op_flags, nop) != 1) {
         for (iop = 0; iop < nop; ++iop) {
-            Py_XDECREF(op[iop]);
+            HPy_Close(ctx, op[iop]);
         }
         *nop_out = 0;
         return 0;
@@ -658,30 +670,30 @@ npyiter_convert_ops(PyObject *op_in, PyObject *op_flags_in,
 
     /* Now that we have the flags - convert all the ops to arrays */
     for (iop = 0; iop < nop; ++iop) {
-        if (op[iop] != NULL) {
-            PyArrayObject *ao;
+        if (!HPy_IsNull(op[iop])) {
+            HPy ao; // PyArrayObject *
             int fromanyflags = 0;
 
             if (op_flags[iop]&(NPY_ITER_READWRITE|NPY_ITER_WRITEONLY)) {
                 fromanyflags |= NPY_ARRAY_WRITEBACKIFCOPY;
             }
-            ao = (PyArrayObject *)PyArray_FROM_OF((PyObject *)op[iop],
+            ao = HPyArray_FROM_OF(ctx, op[iop],
                                                   fromanyflags);
-            if (ao == NULL) {
-                if (PyErr_Occurred() &&
-                            PyErr_ExceptionMatches(PyExc_TypeError)) {
-                    PyErr_SetString(PyExc_TypeError,
+            if (HPy_IsNull(ao)) {
+                if (HPyErr_Occurred(ctx) &&
+                            HPyErr_ExceptionMatches(ctx, ctx->h_TypeError)) {
+                    HPyErr_SetString(ctx, ctx->h_TypeError,
                             "Iterator operand is flagged as writeable, "
                             "but is an object which cannot be written "
                             "back to via WRITEBACKIFCOPY");
                 }
                 for (iop = 0; iop < nop; ++iop) {
-                    Py_DECREF(op[iop]);
+                    HPy_Close(ctx, op[iop]);
                 }
                 *nop_out = 0;
                 return 0;
             }
-            Py_DECREF(op[iop]);
+            HPy_Close(ctx, op[iop]);
             op[iop] = ao;
         }
     }
@@ -689,47 +701,78 @@ npyiter_convert_ops(PyObject *op_in, PyObject *op_flags_in,
     return 1;
 }
 
+HPyDef_SLOT(npyiter_init, npyiter_init_impl, HPy_tp_init)
 static int
-npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
+npyiter_init_impl(HPyContext *ctx, HPy h_self,
+        HPy *args, HPy_ssize_t len_args, HPy kwds)
 {
     static char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
                              "order", "casting", "op_axes", "itershape",
                              "buffersize",
                              NULL};
 
-    PyObject *op_in = NULL, *op_flags_in = NULL,
-                *op_dtypes_in = NULL, *op_axes_in = NULL;
+    HPy op_in = HPy_NULL, op_flags_in = HPy_NULL,
+                op_dtypes_in = HPy_NULL, op_axes_in = HPy_NULL;
 
     int iop, nop = 0;
-    PyArrayObject *op[NPY_MAXARGS];
+    HPy op[NPY_MAXARGS]; // PyArrayObject *
     npy_uint32 flags = 0;
     NPY_ORDER order = NPY_KEEPORDER;
     NPY_CASTING casting = NPY_SAFE_CASTING;
     npy_uint32 op_flags[NPY_MAXARGS];
-    PyArray_Descr *op_request_dtypes[NPY_MAXARGS];
+    HPy op_request_dtypes[NPY_MAXARGS]; // PyArray_Descr *
     int oa_ndim = -1;
     int op_axes_arrays[NPY_MAXARGS][NPY_MAXDIMS];
     int *op_axes[NPY_MAXARGS];
     PyArray_Dims itershape = {NULL, -1};
     int buffersize = 0;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter != NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator was already initialized");
         return -1;
     }
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&OOO&O&OO&i:nditer", kwlist,
+    HPyTracker ht;
+    HPy h_flags = HPy_NULL, h_order = HPy_NULL, h_casting = HPy_NULL, h_itershape = HPy_NULL;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwds, "O|OOOOOOOi:nditer", kwlist,
                     &op_in,
-                    NpyIter_GlobalFlagsConverter, &flags,
+                    &h_flags,
                     &op_flags_in,
                     &op_dtypes_in,
-                    PyArray_OrderConverter, &order,
-                    PyArray_CastingConverter, &casting,
+                    &h_order,
+                    &h_casting,
                     &op_axes_in,
-                    PyArray_OptionalIntpConverter, &itershape,
+                    &h_itershape,
                     &buffersize)) {
         npy_free_cache_dim_obj(itershape);
+        return -1;
+    }
+
+    if (!HNpyIter_GlobalFlagsConverter(ctx, h_flags, &flags)) {
+        npy_free_cache_dim_obj(itershape);
+        HPyTracker_Close(ctx, ht);
+        return -1;
+    }
+
+    if (!HPyArray_OrderConverter(ctx, h_order, &order)) {
+        npy_free_cache_dim_obj(itershape);
+        HPyTracker_Close(ctx, ht);
+        return -1;
+    }
+
+    if (!HPy_IsNull(h_casting) && !HPy_Is(ctx, h_casting, ctx->h_None)) {
+        if (!HPyArray_CastingConverter(ctx, h_casting, &casting)) {
+            npy_free_cache_dim_obj(itershape);
+            HPyTracker_Close(ctx, ht);
+            return -1;
+        }
+    }
+
+    if (!HPyArray_OptionalIntpConverter(ctx, h_itershape, &itershape)) {
+        npy_free_cache_dim_obj(itershape);
+        HPyTracker_Close(ctx, ht);
         return -1;
     }
 
@@ -737,26 +780,26 @@ npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
     memset(op_request_dtypes, 0, sizeof(op_request_dtypes));
 
     /* op and op_flags */
-    if (npyiter_convert_ops(op_in, op_flags_in, op, op_flags, &nop)
+    if (npyiter_convert_ops(ctx, op_in, op_flags_in, op, op_flags, &nop)
                                                         != 1) {
         goto fail;
     }
 
     /* op_request_dtypes */
-    if (op_dtypes_in != NULL && op_dtypes_in != Py_None &&
-            npyiter_convert_dtypes(op_dtypes_in,
+    if (!HPy_IsNull(op_dtypes_in) && !HPy_Is(ctx, op_dtypes_in, ctx->h_None) &&
+            npyiter_convert_dtypes(ctx, op_dtypes_in,
                                    op_request_dtypes, nop) != 1) {
         goto fail;
     }
 
     /* op_axes */
-    if (op_axes_in != NULL && op_axes_in != Py_None) {
+    if (!HPy_IsNull(op_axes_in) && !HPy_Is(ctx, op_axes_in, ctx->h_None)) {
         /* Initialize to point to the op_axes arrays */
         for (iop = 0; iop < nop; ++iop) {
             op_axes[iop] = op_axes_arrays[iop];
         }
 
-        if (npyiter_convert_op_axes(op_axes_in, nop,
+        if (npyiter_convert_op_axes(ctx, op_axes_in, nop,
                                     op_axes, &oa_ndim) != 1) {
             goto fail;
         }
@@ -768,14 +811,14 @@ npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
             memset(op_axes, 0, sizeof(op_axes[0]) * nop);
         }
         else if (oa_ndim != itershape.len) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                         "'op_axes' and 'itershape' must have the same number "
                         "of entries equal to the iterator ndim");
             goto fail;
         }
     }
 
-    self->iter = NpyIter_AdvancedNew(nop, op, flags, order, casting, op_flags,
+    self->iter = HNpyIter_AdvancedNew(ctx, nop, op, flags, order, casting, op_flags,
                                   op_request_dtypes,
                                   oa_ndim, oa_ndim >= 0 ? op_axes : NULL,
                                   itershape.ptr,
@@ -786,7 +829,7 @@ npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Cache some values for the member functions to use */
-    if (npyiter_cache_values(self) < 0) {
+    if (npyiter_cache_values(ctx, h_self, self) < 0) {
         goto fail;
     }
 
@@ -803,8 +846,8 @@ npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
 
     /* Release the references we got to the ops and dtypes */
     for (iop = 0; iop < nop; ++iop) {
-        Py_XDECREF(op[iop]);
-        Py_XDECREF(op_request_dtypes[iop]);
+        HPy_Close(ctx, op[iop]);
+        HPy_Close(ctx, op_request_dtypes[iop]);
     }
 
     return 0;
@@ -812,32 +855,33 @@ npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
 fail:
     npy_free_cache_dim_obj(itershape);
     for (iop = 0; iop < nop; ++iop) {
-        Py_XDECREF(op[iop]);
-        Py_XDECREF(op_request_dtypes[iop]);
+        HPy_Close(ctx, op[iop]);
+        HPy_Close(ctx, op_request_dtypes[iop]);
     }
     return -1;
 }
 
-NPY_NO_EXPORT PyObject *
-NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
-                    PyObject *args, PyObject *kwds)
+HPyDef_METH(NpyIter_NestedIters, "nested_iters", NpyIter_NestedIters_impl, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+NpyIter_NestedIters_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
+        HPy *args, HPy_ssize_t len_args, HPy kwds)
 {
     static char *kwlist[] = {"op", "axes", "flags", "op_flags",
                              "op_dtypes", "order",
                              "casting", "buffersize",
                              NULL};
 
-    PyObject *op_in = NULL, *axes_in = NULL,
-            *op_flags_in = NULL, *op_dtypes_in = NULL;
+    HPy op_in = HPy_NULL, axes_in = HPy_NULL,
+            op_flags_in = HPy_NULL, op_dtypes_in = HPy_NULL;
 
     int iop, nop = 0, inest, nnest = 0;
-    PyArrayObject *op[NPY_MAXARGS];
+    HPy op[NPY_MAXARGS]; // PyArrayObject *
     npy_uint32 flags = 0, flags_inner;
     NPY_ORDER order = NPY_KEEPORDER;
     NPY_CASTING casting = NPY_SAFE_CASTING;
     npy_uint32 op_flags[NPY_MAXARGS], op_flags_inner[NPY_MAXARGS];
-    PyArray_Descr *op_request_dtypes[NPY_MAXARGS],
-                  *op_request_dtypes_inner[NPY_MAXARGS];
+    HPy op_request_dtypes[NPY_MAXARGS],
+        op_request_dtypes_inner[NPY_MAXARGS]; // PyArray_Descr *
     int op_axes_data[NPY_MAXDIMS];
     int *nested_op_axes[NPY_MAXDIMS];
     int nested_naxes[NPY_MAXDIMS], iaxes, naxes;
@@ -845,90 +889,109 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
     char used_axes[NPY_MAXDIMS];
     int buffersize = 0;
 
-    PyObject *ret = NULL;
+    HPy ret = HPy_NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|O&OOO&O&i", kwlist,
+    HPyTracker ht;
+    HPy h_flags = HPy_NULL, h_order = HPy_NULL, h_casting = HPy_NULL;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwds, "OO|OOOOOi", kwlist,
                     &op_in,
                     &axes_in,
-                    NpyIter_GlobalFlagsConverter, &flags,
+                    &h_flags,
                     &op_flags_in,
                     &op_dtypes_in,
-                    PyArray_OrderConverter, &order,
-                    PyArray_CastingConverter, &casting,
+                    &h_order,
+                    &h_casting,
                     &buffersize)) {
-        return NULL;
+        return HPy_NULL;
+    }
+
+    if (!HNpyIter_GlobalFlagsConverter(ctx, h_flags, &flags)) {
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    if (!HPyArray_OrderConverter(ctx, h_order, &order)) {
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    if (!HPy_IsNull(h_casting) && !HPy_Is(ctx, h_casting, ctx->h_None)) {
+        if (!HPyArray_CastingConverter(ctx, h_casting, &casting)) {
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
+        }
     }
 
     /* axes */
-    if (!PyTuple_Check(axes_in) && !PyList_Check(axes_in)) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!HPyTuple_Check(ctx, axes_in) && !HPyList_Check(ctx, axes_in)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "axes must be a tuple of axis arrays");
-        return NULL;
+        return HPy_NULL;
     }
-    nnest = PySequence_Size(axes_in);
+    nnest = HPy_Length(ctx, axes_in);
     if (nnest < 2) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "axes must have at least 2 entries for nested iteration");
-        return NULL;
+        return HPy_NULL;
     }
     naxes = 0;
     memset(used_axes, 0, NPY_MAXDIMS);
     for (inest = 0; inest < nnest; ++inest) {
-        PyObject *item = PySequence_GetItem(axes_in, inest);
+        HPy item = HPy_GetItem_i(ctx, axes_in, inest);
         npy_intp i;
-        if (item == NULL) {
-            return NULL;
+        if (HPy_IsNull(item)) {
+            return HPy_NULL;
         }
-        if (!PyTuple_Check(item) && !PyList_Check(item)) {
-            PyErr_SetString(PyExc_ValueError,
+        if (!HPyTuple_Check(ctx, item) && !HPyList_Check(ctx, item)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Each item in axes must be a an integer tuple");
-            Py_DECREF(item);
-            return NULL;
+            HPy_Close(ctx, item);
+            return HPy_NULL;
         }
-        nested_naxes[inest] = PySequence_Size(item);
+        nested_naxes[inest] = HPy_Length(ctx, item);
         if (naxes + nested_naxes[inest] > NPY_MAXDIMS) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Too many axes given");
-            Py_DECREF(item);
-            return NULL;
+            HPy_Close(ctx, item);
+            return HPy_NULL;
         }
         for (i = 0; i < nested_naxes[inest]; ++i) {
-            PyObject *v = PySequence_GetItem(item, i);
+            HPy v = HPy_GetItem_i(ctx, item, i);
             npy_intp axis;
-            if (v == NULL) {
-                Py_DECREF(item);
-                return NULL;
+            if (HPy_IsNull(v)) {
+                HPy_Close(ctx, item);
+                return HPy_NULL;
             }
-            axis = PyLong_AsLong(v);
-            Py_DECREF(v);
+            axis = HPyLong_AsLong(ctx, v);
+            HPy_Close(ctx, v);
             if (axis < 0 || axis >= NPY_MAXDIMS) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "An axis is out of bounds");
-                Py_DECREF(item);
-                return NULL;
+                HPy_Close(ctx, item);
+                return HPy_NULL;
             }
             /*
              * This check is very important, without it out of bounds
              * data accesses are possible.
              */
             if (used_axes[axis] != 0) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "An axis is used more than once");
-                Py_DECREF(item);
-                return NULL;
+                HPy_Close(ctx, item);
+                return HPy_NULL;
             }
             used_axes[axis] = 1;
             op_axes_data[naxes+i] = axis;
         }
         nested_op_axes[inest] = &op_axes_data[naxes];
         naxes += nested_naxes[inest];
-        Py_DECREF(item);
+        HPy_Close(ctx, item);
     }
 
     /* op and op_flags */
-    if (npyiter_convert_ops(op_in, op_flags_in, op, op_flags, &nop)
+    if (npyiter_convert_ops(ctx, op_in, op_flags_in, op, op_flags, &nop)
                                                         != 1) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Set the dtypes to all NULL to start as well */
@@ -937,14 +1000,9 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
                         sizeof(op_request_dtypes_inner[0])*nop);
 
     /* op_request_dtypes */
-    if (op_dtypes_in != NULL && op_dtypes_in != Py_None &&
-            npyiter_convert_dtypes(op_dtypes_in,
+    if (!HPy_IsNull(op_dtypes_in) && !HPy_Is(ctx, op_dtypes_in, ctx->h_None) &&
+            npyiter_convert_dtypes(ctx, op_dtypes_in,
                                    op_request_dtypes, nop) != 1) {
-        goto fail;
-    }
-
-    ret = PyTuple_New(nnest);
-    if (ret == NULL) {
         goto fail;
     }
 
@@ -959,7 +1017,7 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
      * the inner loop flags.
      */
     for (iop = 0; iop < nop; ++iop) {
-        if ((op_flags[iop]&NPY_ITER_ALLOCATE) && op[iop] != NULL) {
+        if ((op_flags[iop]&NPY_ITER_ALLOCATE) && !HPy_IsNull(op[iop])) {
             op_flags[iop] &= ~NPY_ITER_ALLOCATE;
         }
 
@@ -981,7 +1039,7 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
                                    NPY_ITER_ALLOCATE))) {
             op_flags[iop] &= ~(NPY_ITER_NBO|NPY_ITER_ALIGNED|NPY_ITER_CONTIG);
             op_request_dtypes_inner[iop] = op_request_dtypes[iop];
-            op_request_dtypes[iop] = NULL;
+            op_request_dtypes[iop] = HPy_NULL;
         }
     }
 
@@ -989,6 +1047,11 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
     flags_inner = flags&~NPY_ITER_COMMON_DTYPE;
     flags &= ~(NPY_ITER_EXTERNAL_LOOP|
                     NPY_ITER_BUFFERED);
+
+    HPyTupleBuilder tb_ret = HPyTupleBuilder_New(ctx, nnest);
+    if (HPyTupleBuilder_IsNull(tb_ret)) {
+        goto fail;
+    }
 
     for (inest = 0; inest < nnest; ++inest) {
         NewNpyArrayIterObject *iter;
@@ -1025,21 +1088,24 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
         */
 
         /* Allocate the iterator */
-        iter = (NewNpyArrayIterObject *)npyiter_new(&NpyIter_Type, NULL, NULL);
-        if (iter == NULL) {
-            Py_DECREF(ret);
+        HPy h_NpyIter_Type = HPy_FromPyObject(ctx, (PyObject *)&NpyIter_Type);
+        HPy h_iter = npyiter_new_impl(ctx, h_NpyIter_Type, NULL, 0, HPy_NULL);
+        iter = NewNpyArrayIterObject_AsStruct(ctx, h_iter);
+
+        if (HPy_IsNull(h_iter)) {
+            HPyTupleBuilder_Cancel(ctx, tb_ret);
             goto fail;
         }
 
         if (inest < nnest-1) {
-            iter->iter = NpyIter_AdvancedNew(nop, op, flags, order,
+            iter->iter = HNpyIter_AdvancedNew(ctx, nop, op, flags, order,
                                 casting, op_flags, op_request_dtypes,
                                 nested_naxes[inest], op_axes_nop,
                                 NULL,
                                 0);
         }
         else {
-            iter->iter = NpyIter_AdvancedNew(nop, op, flags_inner, order,
+            iter->iter = HNpyIter_AdvancedNew(ctx, nop, op, flags_inner, order,
                                 casting, op_flags_inner,
                                 op_request_dtypes_inner,
                                 nested_naxes[inest], op_axes_nop,
@@ -1048,13 +1114,13 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
         }
 
         if (iter->iter == NULL) {
-            Py_DECREF(ret);
+            HPyTupleBuilder_Cancel(ctx, tb_ret);
             goto fail;
         }
 
         /* Cache some values for the member functions to use */
-        if (npyiter_cache_values(iter) < 0) {
-            Py_DECREF(ret);
+        if (npyiter_cache_values(ctx, h_iter, iter) < 0) {
+            HPyTupleBuilder_Cancel(ctx, tb_ret);
             goto fail;
         }
 
@@ -1072,12 +1138,12 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
          * adjust op so that the other iterators use the same ones.
          */
         if (inest == 0) {
-            PyArrayObject **operands = NpyIter_GetOperandArray(iter->iter);
+            HPy *operands = HNpyIter_GetOperandArray(iter->iter); // PyArrayObject **
             for (iop = 0; iop < nop; ++iop) {
-                if (op[iop] != operands[iop]) {
-                    Py_XDECREF(op[iop]);
-                    op[iop] = operands[iop];
-                    Py_INCREF(op[iop]);
+                if (!HPy_Is(ctx, op[iop], operands[iop])) {
+                    HPy_Close(ctx, op[iop]);
+                    op[iop] = HPy_Dup(ctx, operands[iop]);
+                    // Py_INCREF(op[iop]);
                 }
 
                 /*
@@ -1091,47 +1157,52 @@ NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
             flags &= ~NPY_ITER_COMMON_DTYPE;
         }
 
-        PyTuple_SET_ITEM(ret, inest, (PyObject *)iter);
+        HPyTupleBuilder_Set(ctx, tb_ret, inest, h_iter);
     }
 
     /* Release our references to the ops and dtypes */
     for (iop = 0; iop < nop; ++iop) {
-        Py_XDECREF(op[iop]);
-        Py_XDECREF(op_request_dtypes[iop]);
-        Py_XDECREF(op_request_dtypes_inner[iop]);
+        HPy_Close(ctx, op[iop]);
+        HPy_Close(ctx, op_request_dtypes[iop]);
+        HPy_Close(ctx, op_request_dtypes_inner[iop]);
     }
+
+    ret = HPyTupleBuilder_Build(ctx, tb_ret);
 
     /* Set up the nested child references */
     for (inest = 0; inest < nnest-1; ++inest) {
-        NewNpyArrayIterObject *iter;
-        iter = (NewNpyArrayIterObject *)PyTuple_GET_ITEM(ret, inest);
+        HPy h_iter; // NewNpyArrayIterObject *
+        h_iter = HPy_GetItem_i(ctx, ret, inest);
         /*
          * Indicates which iterator to reset with new base pointers
          * each iteration step.
          */
-        iter->nested_child =
-                (NewNpyArrayIterObject *)PyTuple_GET_ITEM(ret, inest+1);
-        Py_INCREF(iter->nested_child);
+        NewNpyArrayIterObject *iter = NewNpyArrayIterObject_AsStruct(ctx, h_iter);
+        HPy h_next_iter = HPy_GetItem_i(ctx, ret, inest+1);
+        HPyField_Store(ctx, h_iter, &iter->nested_child, h_next_iter);
         /*
          * Need to do a nested reset so all the iterators point
          * at the right data
          */
-        if (NpyIter_ResetBasePointers(iter->nested_child->iter,
+        NewNpyArrayIterObject *next_iter = NewNpyArrayIterObject_AsStruct(ctx, h_next_iter);
+        if (HNpyIter_ResetBasePointers(ctx, next_iter->iter,
                                 iter->dataptrs, NULL) != NPY_SUCCEED) {
-            Py_DECREF(ret);
-            return NULL;
+            HPy_Close(ctx, h_next_iter);
+            HPy_Close(ctx, ret);
+            return HPy_NULL;
         }
+        HPy_Close(ctx, h_next_iter);
     }
 
     return ret;
 
 fail:
     for (iop = 0; iop < nop; ++iop) {
-        Py_XDECREF(op[iop]);
-        Py_XDECREF(op_request_dtypes[iop]);
-        Py_XDECREF(op_request_dtypes_inner[iop]);
+        HPy_Close(ctx, op[iop]);
+        HPy_Close(ctx, op_request_dtypes[iop]);
+        HPy_Close(ctx, op_request_dtypes_inner[iop]);
     }
-    return NULL;
+    return HPy_NULL;
 }
 
 
@@ -1139,71 +1210,87 @@ static void
 npyiter_dealloc(NewNpyArrayIterObject *self)
 {
     if (self->iter) {
+        HPyContext *ctx = npy_get_context();
         /* Store error, so that WriteUnraisable cannot clear an existing one */
+        CAPI_WARN("missing PyErr_Fetch & PyErr_Restore");
         PyObject *exc, *val, *tb;
         PyErr_Fetch(&exc, &val, &tb);
         if (npyiter_has_writeback(self->iter)) {
-            if (PyErr_WarnEx(PyExc_RuntimeWarning,
+            if (HPyErr_WarnEx(ctx, ctx->h_RuntimeWarning,
                     "Temporary data has not been written back to one of the "
                     "operands. Typically nditer is used as a context manager "
                     "otherwise 'close' must be called before reading iteration "
                     "results.", 1) < 0) {
-                PyObject *s;
+                HPy s;
 
-                s = PyUnicode_FromString("npyiter_dealloc");
-                if (s) {
-                    PyErr_WriteUnraisable(s);
-                    Py_DECREF(s);
+                s = HPyUnicode_FromString(ctx, "npyiter_dealloc");
+                if (!HPy_IsNull(s)) {
+                    HPyErr_WriteUnraisable(ctx, s);
+                    HPy_Close(ctx, s);
                 }
                 else {
-                    PyErr_WriteUnraisable(Py_None);
+                    HPyErr_WriteUnraisable(ctx, ctx->h_None);
                 }
             }
         }
-        if (!NpyIter_Deallocate(self->iter)) {
-            PyErr_WriteUnraisable(Py_None);
+        if (!HNpyIter_Deallocate(ctx, self->iter)) {
+            HPyErr_WriteUnraisable(ctx, ctx->h_None);
         }
         self->iter = NULL;
-        Py_XDECREF(self->nested_child);
-        self->nested_child = NULL;
+        HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+        HPyField_Store(ctx, h_self, &self->nested_child, HPy_NULL);
+        HPy_Close(ctx, h_self);
+        self->nested_child = HPyField_NULL;
         PyErr_Restore(exc, val, tb);
     }
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 static int
-npyiter_resetbasepointers(NewNpyArrayIterObject *self)
+npyiter_resetbasepointers(HPyContext *ctx, HPy h_self, NewNpyArrayIterObject *self)
 {
-    while (self->nested_child) {
-        if (NpyIter_ResetBasePointers(self->nested_child->iter,
-                                        self->dataptrs, NULL) != NPY_SUCCEED) {
+    HPy h_cur_self = h_self;
+    NewNpyArrayIterObject *cur_self = self;
+    int skip_close = 1;
+    while (!HPyField_IsNull(cur_self->nested_child)) {
+        HPy h_nested_child = HPyField_Load(ctx, h_cur_self, cur_self->nested_child);
+        NewNpyArrayIterObject *nested_child = NewNpyArrayIterObject_AsStruct(ctx, h_nested_child);
+        if (HNpyIter_ResetBasePointers(ctx, nested_child->iter,
+                                        cur_self->dataptrs, NULL) != NPY_SUCCEED) {
             return NPY_FAIL;
         }
-        self = self->nested_child;
-        if (NpyIter_GetIterSize(self->iter) == 0) {
-            self->started = 1;
-            self->finished = 1;
+        if (!skip_close) {
+            HPy_Close(ctx, h_cur_self);
+        }
+        h_cur_self = h_nested_child;
+        cur_self = nested_child;
+        if (NpyIter_GetIterSize(cur_self->iter) == 0) {
+            cur_self->started = 1;
+            cur_self->finished = 1;
         }
         else {
-            self->started = 0;
-            self->finished = 0;
+            cur_self->started = 0;
+            cur_self->finished = 0;
         }
+        skip_close = 0;
     }
 
     return NPY_SUCCEED;
 }
 
-static PyObject *
-npyiter_reset(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_reset, "reset", npyiter_reset_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_reset_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_Reset(self->iter, NULL) != NPY_SUCCEED) {
-        return NULL;
+        return HPy_NULL;
     }
     if (NpyIter_GetIterSize(self->iter) == 0) {
         self->started = 1;
@@ -1215,100 +1302,119 @@ npyiter_reset(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
     }
 
     if (self->get_multi_index == NULL && NpyIter_HasMultiIndex(self->iter)) {
-        self->get_multi_index = NpyIter_GetGetMultiIndex(self->iter, NULL);
+        self->get_multi_index = HNpyIter_GetGetMultiIndex(ctx, self->iter, NULL);
     }
 
     /* If there is nesting, the nested iterators should be reset */
-    if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
-        return NULL;
+    if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
+        return HPy_NULL;
     }
 
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
 /*
  * Makes a copy of the iterator.  Note that the nesting is not
  * copied.
  */
-static PyObject *
-npyiter_copy(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_copy, "copy", npyiter_copy_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_copy_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
-    NewNpyArrayIterObject *iter;
+    HPy h_iter; // NewNpyArrayIterObject *
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Allocate the iterator */
-    iter = (NewNpyArrayIterObject *)npyiter_new(&NpyIter_Type, NULL, NULL);
-    if (iter == NULL) {
-        return NULL;
+    HPy h_NpyIter_Type = HPy_FromPyObject(ctx, (PyObject *)&NpyIter_Type);
+    h_iter = npyiter_new_impl(ctx, h_NpyIter_Type, NULL, 0, HPy_NULL);
+    HPy_Close(ctx, h_NpyIter_Type);
+    if (HPy_IsNull(h_iter)) {
+        return HPy_NULL;
     }
 
     /* Copy the C iterator */
+    NewNpyArrayIterObject *iter = NewNpyArrayIterObject_AsStruct(ctx, h_iter);
     iter->iter = NpyIter_Copy(self->iter);
     if (iter->iter == NULL) {
-        Py_DECREF(iter);
-        return NULL;
+        HPy_Close(ctx, h_iter);
+        return HPy_NULL;
     }
 
     /* Cache some values for the member functions to use */
-    if (npyiter_cache_values(iter) < 0) {
-        Py_DECREF(iter);
-        return NULL;
+    if (npyiter_cache_values(ctx, h_iter, iter) < 0) {
+        HPy_Close(ctx, h_iter);
+        return HPy_NULL;
     }
 
     iter->started = self->started;
     iter->finished = self->finished;
 
-    return (PyObject *)iter;
+    return h_iter;
 }
 
-static PyObject *
-npyiter_iternext(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter___copy__, "__copy__", npyiter___copy__impl, HPyFunc_NOARGS)
+static HPy
+npyiter___copy__impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
-    if (self->iter != NULL && self->iternext != NULL &&
-                        !self->finished && self->iternext(npy_get_context(), self->iter)) {
-        /* If there is nesting, the nested iterators should be reset */
-        if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
-            return NULL;
-        }
+    return npyiter_copy_impl(ctx, h_self);
+}
 
-        Py_RETURN_TRUE;
+HPyDef_METH(npyiter_iternext, "iternext", npyiter_iternext_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_iternext_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
+{
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
+    if (self->iter != NULL && self->iternext != NULL &&
+                        !self->finished && self->iternext(ctx, self->iter)) {
+        /* If there is nesting, the nested iterators should be reset */
+        if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
+            HPy_Close(ctx, h_self);
+            return HPy_NULL;
+        }
+        HPy_Close(ctx, h_self);
+
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else {
-        if (PyErr_Occurred()) {
+        if (HPyErr_Occurred(ctx)) {
             /* casting error, buffer cleanup will occur at reset or dealloc */
-            return NULL;
+            return HPy_NULL;
         }
         self->finished = 1;
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
 }
 
-static PyObject *
-npyiter_remove_axis(NewNpyArrayIterObject *self, PyObject *args)
+HPyDef_METH(npyiter_remove_axis, "remove_axis", npyiter_remove_axis_impl, HPyFunc_VARARGS)
+static HPy
+npyiter_remove_axis_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
+                    HPy *args, HPy_ssize_t len_args)
 {
     int axis = 0;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    if (!PyArg_ParseTuple(args, "i:remove_axis", &axis)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, len_args, "i:remove_axis", &axis)) {
+        return HPy_NULL;
     }
 
-    if (NpyIter_RemoveAxis(self->iter, axis) != NPY_SUCCEED) {
-        return NULL;
+    if (HNpyIter_RemoveAxis(ctx, self->iter, axis) != NPY_SUCCEED) {
+        return HPy_NULL;
     }
     /* RemoveAxis invalidates cached values */
-    if (npyiter_cache_values(self) < 0) {
-        return NULL;
+    if (npyiter_cache_values(ctx, h_self, self) < 0) {
+        return HPy_NULL;
     }
     /* RemoveAxis also resets the iterator */
     if (NpyIter_GetIterSize(self->iter) == 0) {
@@ -1320,22 +1426,24 @@ npyiter_remove_axis(NewNpyArrayIterObject *self, PyObject *args)
         self->finished = 0;
     }
 
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
-static PyObject *
-npyiter_remove_multi_index(
-    NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_remove_multi_index, "remove_multi_index", npyiter_remove_multi_index_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_remove_multi_index_impl(
+    HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    NpyIter_RemoveMultiIndex(self->iter);
+    HNpyIter_RemoveMultiIndex(ctx, self->iter);
     /* RemoveMultiIndex invalidates cached values */
-    npyiter_cache_values(self);
+    npyiter_cache_values(ctx, h_self, self);
     /* RemoveMultiIndex also resets the iterator */
     if (NpyIter_GetIterSize(self->iter) == 0) {
         self->started = 1;
@@ -1346,22 +1454,24 @@ npyiter_remove_multi_index(
         self->finished = 0;
     }
 
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
-static PyObject *
-npyiter_enable_external_loop(
-    NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_enable_external_loop, "enable_external_loop", npyiter_enable_external_loop_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_enable_external_loop_impl(
+    HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    NpyIter_EnableExternalLoop(self->iter);
+    HNpyIter_EnableExternalLoop(ctx, self->iter);
     /* EnableExternalLoop invalidates cached values */
-    npyiter_cache_values(self);
+    npyiter_cache_values(ctx, h_self, self);
     /* EnableExternalLoop also resets the iterator */
     if (NpyIter_GetIterSize(self->iter) == 0) {
         self->started = 1;
@@ -1372,129 +1482,138 @@ npyiter_enable_external_loop(
         self->finished = 0;
     }
 
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
-static PyObject *
-npyiter_debug_print(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_debug_print, "debug_print", npyiter_debug_print_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_debug_print_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter != NULL) {
-        NpyIter_DebugPrint(self->iter);
+        HNpyIter_DebugPrint(ctx, self->iter);
     }
     else {
         printf("Iterator: (nil)\n");
     }
 
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
-NPY_NO_EXPORT PyObject *
-npyiter_seq_item(NewNpyArrayIterObject *self, Py_ssize_t i);
+static HPy
+npyiter_seq_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i);
 
-static PyObject *
-npyiter_value_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_value_get, "value", npyiter_value_get_impl)
+static HPy
+npyiter_value_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
-    PyObject *ret;
+    HPy ret;
 
     npy_intp iop, nop;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     nop = NpyIter_GetNOp(self->iter);
 
     /* Return an array  or tuple of arrays with the values */
     if (nop == 1) {
-        ret = npyiter_seq_item(self, 0);
+        ret = npyiter_seq_item_impl(ctx, h_self, 0);
     }
     else {
-        ret = PyTuple_New(nop);
-        if (ret == NULL) {
-            return NULL;
+        HPyTupleBuilder tb_ret = HPyTupleBuilder_New(ctx, nop);
+        if (HPyTupleBuilder_IsNull(tb_ret)) {
+            return HPy_NULL;
         }
         for (iop = 0; iop < nop; ++iop) {
-            PyObject *a = npyiter_seq_item(self, iop);
-            if (a == NULL) {
-                Py_DECREF(ret);
-                return NULL;
+            HPy a = npyiter_seq_item_impl(ctx, h_self, iop);
+            if (HPy_IsNull(a)) {
+                HPyTupleBuilder_Cancel(ctx, tb_ret);
+                return HPy_NULL;
             }
-            PyTuple_SET_ITEM(ret, iop, a);
+            HPyTupleBuilder_Set(ctx, tb_ret, iop, a);
         }
+        ret = HPyTupleBuilder_Build(ctx, tb_ret);
     }
 
     return ret;
 }
 
-static PyObject *
-npyiter_operands_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_operands_get, "operands", npyiter_operands_get_impl)
+static HPy
+npyiter_operands_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
-    PyObject *ret;
-
-    npy_intp iop, nop;
-    PyArrayObject **operands;
-
-    if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                "Iterator is invalid");
-        return NULL;
-    }
-    nop = NpyIter_GetNOp(self->iter);
-    operands = self->operands;
-
-    ret = PyTuple_New(nop);
-    if (ret == NULL) {
-        return NULL;
-    }
-    for (iop = 0; iop < nop; ++iop) {
-        PyObject *operand = (PyObject *)operands[iop];
-
-        Py_INCREF(operand);
-        PyTuple_SET_ITEM(ret, iop, operand);
-    }
-
-    return ret;
-}
-
-static PyObject *
-npyiter_itviews_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
-{
-    PyObject *ret;
+    HPyTupleBuilder ret;
 
     npy_intp iop, nop;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
     nop = NpyIter_GetNOp(self->iter);
 
-    ret = PyTuple_New(nop);
-    if (ret == NULL) {
-        return NULL;
+    ret = HPyTupleBuilder_New(ctx, nop);
+    if (HPyTupleBuilder_IsNull(ret)) {
+        return HPy_NULL;
     }
     for (iop = 0; iop < nop; ++iop) {
-        PyArrayObject *view = NpyIter_GetIterView(self->iter, iop);
-
-        if (view == NULL) {
-            Py_DECREF(ret);
-            return NULL;
-        }
-        PyTuple_SET_ITEM(ret, iop, (PyObject *)view);
+        HPy operand = HPyField_Load(ctx, h_self, self->operands[iop]);
+        HPyTupleBuilder_Set(ctx, ret, iop, operand);
+        HPy_Close(ctx, operand);
     }
 
-    return ret;
+    return HPyTupleBuilder_Build(ctx, ret);
 }
 
-static PyObject *
-npyiter_next(NewNpyArrayIterObject *self)
+HPyDef_GET(npyiter_itviews_get, "itviews", npyiter_itviews_get_impl)
+static HPy
+npyiter_itviews_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    HPyTupleBuilder ret;
+
+    npy_intp iop, nop;
+
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
+    if (self->iter == NULL) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Iterator is invalid");
+        return HPy_NULL;
+    }
+    nop = NpyIter_GetNOp(self->iter);
+
+    ret = HPyTupleBuilder_New(ctx, nop);
+    if (HPyTupleBuilder_IsNull(ret)) {
+        return HPy_NULL;
+    }
+    for (iop = 0; iop < nop; ++iop) {
+        HPy view = HNpyIter_GetIterView(ctx, self->iter, iop);
+
+        if (HPy_IsNull(view)) {
+            HPyTupleBuilder_Cancel(ctx, ret);
+            return HPy_NULL;
+        }
+        HPyTupleBuilder_Set(ctx, ret, iop, view);
+    }
+
+    return HPyTupleBuilder_Build(ctx, ret);
+}
+
+// Not supported by HPy
+// HPyDef_SLOT(npyiter_next, hpy_npyiter_next, HPy_tp_iternext)
+static HPy
+hpy_npyiter_next(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
+{
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->iternext == NULL ||
                 self->finished) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /*
@@ -1502,113 +1621,129 @@ npyiter_next(NewNpyArrayIterObject *self)
      * when buffering is enabled.
      */
     if (self->started) {
-        if (!self->iternext(npy_get_context(), self->iter)) {
+        if (!self->iternext(ctx, self->iter)) {
             /*
              * A casting error may be set here (or no error causing a
              * StopIteration). Buffers may only be cleaned up later.
              */
             self->finished = 1;
-            return NULL;
+            return HPy_NULL;
         }
 
         /* If there is nesting, the nested iterators should be reset */
-        if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
-            return NULL;
+        if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
+            return HPy_NULL;
         }
     }
     self->started = 1;
 
-    return npyiter_value_get(self, NULL);
+    return npyiter_value_get_impl(ctx, h_self, NULL);
 };
 
 static PyObject *
-npyiter_shape_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+npyiter_next(NewNpyArrayIterObject *self)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_ret = hpy_npyiter_next(ctx, h_self);
+    PyObject *ret = HPy_AsPyObject(ctx, h_ret);
+    HPy_Close(ctx, h_ret);
+    return ret;
+}
+
+HPyDef_GET(npyiter_shape_get, "shape", npyiter_shape_get_impl)
+static HPy
+npyiter_shape_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp ndim, shape[NPY_MAXDIMS];
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_GetShape(self->iter, shape) == NPY_SUCCEED) {
         ndim = NpyIter_GetNDim(self->iter);
-        return PyArray_IntTupleFromIntp(ndim, shape);
+        return HPyArray_IntTupleFromIntp(ctx, ndim, shape);
     }
 
-    return NULL;
+    return HPy_NULL;
 }
 
-static PyObject *
-npyiter_multi_index_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+static HPy
+npyiter_multi_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp ndim, multi_index[NPY_MAXDIMS];
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (self->get_multi_index != NULL) {
         ndim = NpyIter_GetNDim(self->iter);
         self->get_multi_index(self->iter, multi_index);
-        return PyArray_IntTupleFromIntp(ndim, multi_index);
+        return HPyArray_IntTupleFromIntp(ctx, ndim, multi_index);
     }
     else {
         if (!NpyIter_HasMultiIndex(self->iter)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator is not tracking a multi-index");
-            return NULL;
+            return HPy_NULL;
         }
         else if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator construction used delayed buffer allocation, "
                     "and no reset has been done yet");
-            return NULL;
+            return HPy_NULL;
         }
         else {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator is in an invalid state");
-            return NULL;
+            return HPy_NULL;
         }
     }
 }
 
+HPyDef_GETSET(npyiter_multi_index_getset, "multi_index", npyiter_multi_index_get_impl, npyiter_multi_index_set_impl)
 static int
-npyiter_multi_index_set(
-        NewNpyArrayIterObject *self, PyObject *value, void *NPY_UNUSED(ignored))
+npyiter_multi_index_set_impl(
+        HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp idim, ndim, multi_index[NPY_MAXDIMS];
 
-    if (value == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(value)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete nditer multi_index");
         return -1;
     }
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
         return -1;
     }
 
     if (NpyIter_HasMultiIndex(self->iter)) {
         ndim = NpyIter_GetNDim(self->iter);
-        if (!PySequence_Check(value)) {
-            PyErr_SetString(PyExc_ValueError,
+        if (!HPySequence_Check(ctx, value)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "multi_index must be set with a sequence");
             return -1;
         }
-        if (PySequence_Size(value) != ndim) {
-            PyErr_SetString(PyExc_ValueError,
+        if (HPy_Length(ctx, value) != ndim) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Wrong number of indices");
             return -1;
         }
         for (idim = 0; idim < ndim; ++idim) {
-            PyObject *v = PySequence_GetItem(value, idim);
-            multi_index[idim] = PyLong_AsLong(v);
-            Py_DECREF(v);
+            HPy v = HPy_GetItem_i(ctx, value, idim);
+            multi_index[idim] = HPyLong_AsLong(ctx, v);
+            HPy_Close(ctx, v);
             if (error_converting(multi_index[idim])) {
                 return -1;
             }
@@ -1620,57 +1755,60 @@ npyiter_multi_index_set(
         self->finished = 0;
 
         /* If there is nesting, the nested iterators should be reset */
-        if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
+        if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
             return -1;
         }
 
         return 0;
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is not tracking a multi-index");
         return -1;
     }
 }
 
-static PyObject *
-npyiter_index_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+static HPy
+npyiter_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasIndex(self->iter)) {
         npy_intp ind = *NpyIter_GetIndexPtr(self->iter);
-        return PyLong_FromLong(ind);
+        return HPyLong_FromLong(ctx, ind);
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator does not have an index");
-        return NULL;
+        return HPy_NULL;
     }
 }
 
+HPyDef_GETSET(npyiter_index_getset, "index", npyiter_index_get_impl, npyiter_index_set_impl)
 static int
-npyiter_index_set(
-        NewNpyArrayIterObject *self, PyObject *value, void *NPY_UNUSED(ignored))
+npyiter_index_set_impl(
+        HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
-    if (value == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(value)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete nditer index");
         return -1;
     }
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
         return -1;
     }
 
     if (NpyIter_HasIndex(self->iter)) {
         npy_intp ind;
-        ind = PyLong_AsLong(value);
+        ind = HPyLong_AsLong(ctx, value);
         if (error_converting(ind)) {
             return -1;
         }
@@ -1681,111 +1819,121 @@ npyiter_index_set(
         self->finished = 0;
 
         /* If there is nesting, the nested iterators should be reset */
-        if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
+        if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
             return -1;
         }
 
         return 0;
     }
     else {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator does not have an index");
         return -1;
     }
 }
 
-static PyObject *
-npyiter_iterindex_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+static HPy
+npyiter_iterindex_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return PyLong_FromLong(NpyIter_GetIterIndex(self->iter));
+    return HPyLong_FromLong(ctx, NpyIter_GetIterIndex(self->iter));
 }
 
+HPyDef_GETSET(npyiter_iterindex_getset, "iterindex", npyiter_iterindex_get_impl, npyiter_iterindex_set_impl)
 static int
-npyiter_iterindex_set(
-        NewNpyArrayIterObject *self, PyObject *value, void *NPY_UNUSED(ignored))
+npyiter_iterindex_set_impl(
+        HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp iterindex;
 
-    if (value == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(value)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete nditer iterindex");
         return -1;
     }
+
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
         return -1;
     }
 
-    iterindex = PyLong_AsLong(value);
+    iterindex = HPyLong_AsLong(ctx, value);
     if (error_converting(iterindex)) {
         return -1;
     }
-    if (NpyIter_GotoIterIndex(self->iter, iterindex) != NPY_SUCCEED) {
+    if (HNpyIter_GotoIterIndex(ctx, self->iter, iterindex) != NPY_SUCCEED) {
         return -1;
     }
     self->started = 0;
     self->finished = 0;
 
     /* If there is nesting, the nested iterators should be reset */
-    if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
+    if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
         return -1;
     }
 
     return 0;
 }
 
-static PyObject *
-npyiter_iterrange_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+static HPy
+npyiter_iterrange_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp istart = 0, iend = 0;
-    PyObject *ret;
+    HPy ret;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     NpyIter_GetIterIndexRange(self->iter, &istart, &iend);
 
-    ret = PyTuple_New(2);
-    if (ret == NULL) {
-        return NULL;
-    }
-
-    PyTuple_SET_ITEM(ret, 0, PyLong_FromLong(istart));
-    PyTuple_SET_ITEM(ret, 1, PyLong_FromLong(iend));
-
+    HPy s = HPyLong_FromLong(ctx, istart);
+    HPy e = HPyLong_FromLong(ctx, iend);
+    ret = HPyTuple_Pack(ctx, 2, s, e);
+    HPy_Close(ctx, s);
+    HPy_Close(ctx, e);
     return ret;
 }
 
+HPyDef_GETSET(npyiter_iterrange_getset, "iterrange", npyiter_iterrange_get_impl, npyiter_iterrange_set_impl)
 static int
-npyiter_iterrange_set(
-        NewNpyArrayIterObject *self, PyObject *value, void *NPY_UNUSED(ignored))
+npyiter_iterrange_set_impl(
+        HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp istart = 0, iend = 0;
 
-    if (value == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+    if (HPy_IsNull(value)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete nditer iterrange");
         return -1;
     }
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
         return -1;
     }
-
-    if (!PyArg_ParseTuple(value, "nn", &istart, &iend)) {
+    HPy_ssize_t args_len = HPy_Length(ctx, value);
+    HPy *args = malloc(args_len * sizeof(HPy));
+    for (HPy_ssize_t i = 0; i < args_len; i++) {
+        args[i] = HPy_GetItem_i(ctx, value, i);
+    }
+    if (!HPyArg_Parse(ctx, NULL, args, args_len, "nn", &istart, &iend)) {
+        HPy_CloseAndFreeArray(ctx, args, args_len);
         return -1;
     }
+    HPy_CloseAndFreeArray(ctx, args, args_len);
 
     if (NpyIter_ResetToIterIndexRange(self->iter, istart, iend, NULL)
                                                     != NPY_SUCCEED) {
@@ -1803,164 +1951,182 @@ npyiter_iterrange_set(
     }
 
     /* If there is nesting, the nested iterators should be reset */
-    if (npyiter_resetbasepointers(self) != NPY_SUCCEED) {
+    if (npyiter_resetbasepointers(ctx, h_self, self) != NPY_SUCCEED) {
         return -1;
     }
 
     return 0;
 }
 
-static PyObject *
-npyiter_has_delayed_bufalloc_get(
-        NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_has_delayed_bufalloc_get, "has_delayed_bufalloc", npyiter_has_delayed_bufalloc_get_impl)
+static HPy
+npyiter_has_delayed_bufalloc_get_impl(
+        HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
 }
 
-static PyObject *
-npyiter_iterationneedsapi_get(
-        NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_iterationneedsapi_get, "iterationneedsapi", npyiter_iterationneedsapi_get_impl)
+static HPy
+npyiter_iterationneedsapi_get_impl(
+        HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_IterationNeedsAPI(self->iter)) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
 }
 
-static PyObject *
-npyiter_has_multi_index_get(
-        NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_has_multi_index_get, "has_multi_index", npyiter_has_multi_index_get_impl)
+static HPy
+npyiter_has_multi_index_get_impl(
+        HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasMultiIndex(self->iter)) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
 }
 
-static PyObject *
-npyiter_has_index_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_has_index_get, "has_index", npyiter_has_index_get_impl)
+static HPy
+npyiter_has_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasIndex(self->iter)) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
 }
 
-static PyObject *
-npyiter_dtypes_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_dtypes_get, "dtypes", npyiter_dtypes_get_impl)
+static HPy
+npyiter_dtypes_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
-    PyObject *ret;
+    HPyTupleBuilder ret;
 
     npy_intp iop, nop;
-    PyArray_Descr **dtypes;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
     nop = NpyIter_GetNOp(self->iter);
 
-    ret = PyTuple_New(nop);
-    if (ret == NULL) {
-        return NULL;
+    ret = HPyTupleBuilder_New(ctx, nop);
+    if (HPyTupleBuilder_IsNull(ret)) {
+        return HPy_NULL;
     }
-    dtypes = self->dtypes;
+
     for (iop = 0; iop < nop; ++iop) {
-        PyArray_Descr *dtype = dtypes[iop];
-
-        Py_INCREF(dtype);
-        PyTuple_SET_ITEM(ret, iop, (PyObject *)dtype);
+        HPy dtype = HPyField_Load(ctx, h_self, self->dtypes[iop]);
+        HPyTupleBuilder_Set(ctx, ret, iop, dtype);
+        HPy_Close(ctx, dtype);
     }
 
-    return ret;
+    return HPyTupleBuilder_Build(ctx, ret);
 }
 
-static PyObject *
-npyiter_ndim_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_ndim_get, "ndim", npyiter_ndim_get_impl)
+static HPy
+npyiter_ndim_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return PyLong_FromLong(NpyIter_GetNDim(self->iter));
+    return HPyLong_FromLong(ctx, NpyIter_GetNDim(self->iter));
 }
 
-static PyObject *
-npyiter_nop_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_nop_get, "nop", npyiter_nop_get_impl)
+static HPy
+npyiter_nop_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return PyLong_FromLong(NpyIter_GetNOp(self->iter));
+    return HPyLong_FromLong(ctx, NpyIter_GetNOp(self->iter));
 }
 
-static PyObject *
-npyiter_itersize_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_itersize_get, "itersize", npyiter_itersize_get_impl)
+static HPy
+npyiter_itersize_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is invalid");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return PyLong_FromLong(NpyIter_GetIterSize(self->iter));
+    return HPyLong_FromLong(ctx, NpyIter_GetIterSize(self->iter));
 }
 
-static PyObject *
-npyiter_finished_get(NewNpyArrayIterObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(npyiter_finished_get, "finished", npyiter_finished_get_impl)
+static HPy
+npyiter_finished_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || !self->finished) {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
     else {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
 }
 
-NPY_NO_EXPORT Py_ssize_t
-npyiter_seq_length(NewNpyArrayIterObject *self)
+HPyDef_SLOT(npyiter_seq_length_sq, npyiter_seq_length_sq_impl, HPy_sq_length)
+static HPy_ssize_t
+npyiter_seq_length_sq_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
         return 0;
     }
@@ -1969,27 +2135,36 @@ npyiter_seq_length(NewNpyArrayIterObject *self)
     }
 }
 
-NPY_NO_EXPORT PyObject *
-npyiter_seq_item(NewNpyArrayIterObject *self, Py_ssize_t i)
+HPyDef_SLOT(npyiter_seq_length_mp, npyiter_seq_length_mp_impl, HPy_mp_length)
+static HPy_ssize_t
+npyiter_seq_length_mp_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
+{
+    return npyiter_seq_length_sq_impl(ctx, h_self);
+}
+
+HPyDef_SLOT(npyiter_seq_item, npyiter_seq_item_impl, HPy_sq_item)
+static HPy
+npyiter_seq_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i)
 {
     npy_intp ret_ndim;
     npy_intp nop, innerloopsize, innerstride;
     char *dataptr;
-    PyArray_Descr *dtype;
+    HPy dtype; // PyArray_Descr *
     int has_external_loop;
-    Py_ssize_t i_orig = i;
+    HPy_ssize_t i_orig = i;
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
-        return NULL;
+        return HPy_NULL;
     }
     nop = NpyIter_GetNOp(self->iter);
 
@@ -1999,9 +2174,9 @@ npyiter_seq_item(NewNpyArrayIterObject *self, Py_ssize_t i)
     }
 
     if (i < 0 || i >= nop) {
-        PyErr_Format(PyExc_IndexError,
+        HPyErr_Format_p(ctx, ctx->h_IndexError,
                 "Iterator operand index %zd is out of bounds", i_orig);
-        return NULL;
+        return HPy_NULL;
     }
 
 #if 0
@@ -2015,12 +2190,12 @@ npyiter_seq_item(NewNpyArrayIterObject *self, Py_ssize_t i)
     if (!self->readflags[i]) {
         PyErr_Format(PyExc_RuntimeError,
                 "Iterator operand %zd is write-only", i);
-        return NULL;
+        return HPy_NULL;
     }
 #endif
 
     dataptr = self->dataptrs[i];
-    dtype = self->dtypes[i];
+    dtype = HPyField_Load(ctx, h_self, self->dtypes[i]);
     has_external_loop = NpyIter_HasExternalLoop(self->iter);
 
     if (has_external_loop) {
@@ -2035,33 +2210,37 @@ npyiter_seq_item(NewNpyArrayIterObject *self, Py_ssize_t i)
         ret_ndim = 0;
     }
 
-    Py_INCREF(dtype);
-    return PyArray_NewFromDescrAndBase(
-            &PyArray_Type, dtype,
+    // Py_INCREF(dtype);
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy ret = HPyArray_NewFromDescrAndBase(ctx,
+            array_type, dtype,
             ret_ndim, &innerloopsize, &innerstride, dataptr,
             self->writeflags[i] ? NPY_ARRAY_WRITEABLE : 0,
-            NULL, (PyObject *)self);
+            HPy_NULL, h_self);
+    HPy_Close(ctx, dtype);
+    HPy_Close(ctx, array_type);
+    return ret;
 }
 
-NPY_NO_EXPORT PyObject *
-npyiter_seq_slice(NewNpyArrayIterObject *self,
-                    Py_ssize_t ilow, Py_ssize_t ihigh)
+NPY_NO_EXPORT HPy
+npyiter_seq_slice(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self,
+                    HPy_ssize_t ilow, HPy_ssize_t ihigh)
 {
-    PyObject *ret;
+    HPy ret;
     npy_intp nop;
-    Py_ssize_t i;
-
+    HPy_ssize_t i;
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
-        return NULL;
+        return HPy_NULL;
     }
     nop = NpyIter_GetNOp(self->iter);
     if (ilow < 0) {
@@ -2077,47 +2256,49 @@ npyiter_seq_slice(NewNpyArrayIterObject *self,
         ihigh = nop;
     }
 
-    ret = PyTuple_New(ihigh-ilow);
-    if (ret == NULL) {
-        return NULL;
+    HPyTupleBuilder tb_ret = HPyTupleBuilder_New(ctx, ihigh-ilow);
+    if (HPyTupleBuilder_IsNull(tb_ret)) {
+        return HPy_NULL;
     }
     for (i = ilow; i < ihigh ; ++i) {
-        PyObject *item = npyiter_seq_item(self, i);
-        if (item == NULL) {
-            Py_DECREF(ret);
-            return NULL;
+        HPy item = npyiter_seq_item_impl(ctx, h_self, i);
+        if (HPy_IsNull(item)) {
+            HPyTupleBuilder_Cancel(ctx, tb_ret);
+            return HPy_NULL;
         }
-        PyTuple_SET_ITEM(ret, i-ilow, item);
+        HPyTupleBuilder_Set(ctx, tb_ret, i-ilow, item);
     }
-    return ret;
+
+    return HPyTupleBuilder_Build(ctx, tb_ret);
 }
 
+HPyDef_SLOT(npyiter_seq_ass_item, npyiter_seq_ass_item_impl, HPy_sq_ass_item)
 NPY_NO_EXPORT int
-npyiter_seq_ass_item(NewNpyArrayIterObject *self, Py_ssize_t i, PyObject *v)
+npyiter_seq_ass_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i, HPy v)
 {
 
     npy_intp nop, innerloopsize, innerstride;
     char *dataptr;
-    PyArray_Descr *dtype;
-    PyArrayObject *tmp;
+    HPy dtype; // PyArray_Descr *
+    HPy tmp; // PyArrayObject *
     int ret, has_external_loop;
     Py_ssize_t i_orig = i;
 
-
-    if (v == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
+    if (HPy_IsNull(v)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Cannot delete iterator elements");
         return -1;
     }
 
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
         return -1;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
         return -1;
@@ -2130,18 +2311,18 @@ npyiter_seq_ass_item(NewNpyArrayIterObject *self, Py_ssize_t i, PyObject *v)
     }
 
     if (i < 0 || i >= nop) {
-        PyErr_Format(PyExc_IndexError,
+        HPyErr_Format_p(ctx, ctx->h_IndexError,
                 "Iterator operand index %zd is out of bounds", i_orig);
         return -1;
     }
     if (!self->writeflags[i]) {
-        PyErr_Format(PyExc_RuntimeError,
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError,
                 "Iterator operand %zd is not writeable", i_orig);
         return -1;
     }
 
     dataptr = self->dataptrs[i];
-    dtype = self->dtypes[i];
+    dtype = HPyField_Load(ctx, h_self, self->dtypes[i]);
     has_external_loop = NpyIter_HasExternalLoop(self->iter);
 
     if (has_external_loop) {
@@ -2154,41 +2335,44 @@ npyiter_seq_ass_item(NewNpyArrayIterObject *self, Py_ssize_t i, PyObject *v)
     }
 
     /* TODO - there should be a better way than this... */
-    Py_INCREF(dtype);
-    tmp = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type, dtype,
+    // Py_INCREF(dtype);
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    tmp = HPyArray_NewFromDescr(ctx, array_type, dtype,
                                 1, &innerloopsize,
                                 &innerstride, dataptr,
-                                NPY_ARRAY_WRITEABLE, NULL);
-    if (tmp == NULL) {
+                                NPY_ARRAY_WRITEABLE, HPy_NULL);
+    if (HPy_IsNull(tmp)) {
         return -1;
     }
 
-    ret = PyArray_CopyObject(tmp, v);
-    Py_DECREF(tmp);
+    PyArrayObject *tmp_data = PyArrayObject_AsStruct(ctx, tmp);
+    ret = HPyArray_CopyObject(ctx, tmp, tmp_data, v);
+    HPy_Close(ctx, tmp);
     return ret;
 }
 
 static int
-npyiter_seq_ass_slice(NewNpyArrayIterObject *self, Py_ssize_t ilow,
-                Py_ssize_t ihigh, PyObject *v)
+npyiter_seq_ass_slice(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t ilow,
+                HPy_ssize_t ihigh, HPy v)
 {
     npy_intp nop;
     Py_ssize_t i;
 
-    if (v == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    if (HPy_IsNull(v)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Cannot delete iterator elements");
         return -1;
     }
 
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
         return -1;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
         return -1;
@@ -2207,275 +2391,236 @@ npyiter_seq_ass_slice(NewNpyArrayIterObject *self, Py_ssize_t ilow,
         ihigh = nop;
     }
 
-    if (!PySequence_Check(v) || PySequence_Size(v) != ihigh-ilow) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!HPySequence_Check(ctx, v) || HPy_Length(ctx, v) != ihigh-ilow) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Wrong size to assign to iterator slice");
         return -1;
     }
 
     for (i = ilow; i < ihigh ; ++i) {
-        PyObject *item = PySequence_GetItem(v, i-ilow);
-        if (item == NULL) {
+        HPy item = HPy_GetItem_i(ctx, v, i-ilow);
+        if (HPy_IsNull(item)) {
             return -1;
         }
-        if (npyiter_seq_ass_item(self, i, item) < 0) {
-            Py_DECREF(item);
+        if (npyiter_seq_ass_item_impl(ctx, h_self, i, item) < 0) {
+            HPy_Close(ctx, item);
             return -1;
         }
-        Py_DECREF(item);
+        HPy_Close(ctx, item);
     }
 
     return 0;
 }
 
-static PyObject *
-npyiter_subscript(NewNpyArrayIterObject *self, PyObject *op)
+HPyDef_SLOT(npyiter_subscript, npyiter_subscript_impl, HPy_mp_subscript)
+static HPy
+npyiter_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy op)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
-        return NULL;
+        return HPy_NULL;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
-        return NULL;
+        return HPy_NULL;
     }
-
-    if (PyLong_Check(op) ||
-                    (PyIndex_Check(op) && !PySequence_Check(op))) {
-        npy_intp i = PyArray_PyIntAsIntp(op);
-        if (error_converting(i)) {
-            return NULL;
+    CAPI_WARN("missing PyIndex_Check, PySlice_Check, PySlice_GetIndicesEx");
+    PyObject *py_op = HPy_AsPyObject(ctx, op);
+    if (HPyLong_Check(ctx, op) ||
+                    (PyIndex_Check(py_op) && !HPySequence_Check(ctx, op))) {
+        Py_DECREF(py_op);
+        npy_intp i = HPyArray_PyIntAsIntp(ctx, op);
+        if (hpy_error_converting(ctx, i)) {
+            return HPy_NULL;
         }
-        return npyiter_seq_item(self, i);
+        return npyiter_seq_item_impl(ctx, h_self, i);
     }
-    else if (PySlice_Check(op)) {
+    else if (PySlice_Check(py_op)) {
         Py_ssize_t istart = 0, iend = 0, istep = 0, islicelength;
-        if (PySlice_GetIndicesEx(op, NpyIter_GetNOp(self->iter),
+        if (PySlice_GetIndicesEx(py_op, NpyIter_GetNOp(self->iter),
                                  &istart, &iend, &istep, &islicelength) < 0) {
-            return NULL;
+            Py_DECREF(py_op);
+            return HPy_NULL;
         }
+        Py_DECREF(py_op);
         if (istep != 1) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator slicing only supports a step of 1");
-            return NULL;
+            return HPy_NULL;
         }
-        return npyiter_seq_slice(self, istart, iend);
+        return npyiter_seq_slice(ctx, h_self, istart, iend);
     }
+    Py_DECREF(py_op);
 
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "invalid index type for iterator indexing");
-    return NULL;
+    return HPy_NULL;
 }
 
+HPyDef_SLOT(npyiter_ass_subscript, npyiter_ass_subscript_impl, HPy_mp_ass_subscript)
 static int
-npyiter_ass_subscript(NewNpyArrayIterObject *self, PyObject *op,
-                        PyObject *value)
+npyiter_ass_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy op,
+                        HPy value)
 {
-    if (value == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    if (HPy_IsNull(value)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Cannot delete iterator elements");
         return -1;
     }
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator is past the end");
         return -1;
     }
 
     if (NpyIter_HasDelayedBufAlloc(self->iter)) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Iterator construction used delayed buffer allocation, "
                 "and no reset has been done yet");
         return -1;
     }
 
-    if (PyLong_Check(op) ||
-                    (PyIndex_Check(op) && !PySequence_Check(op))) {
-        npy_intp i = PyArray_PyIntAsIntp(op);
-        if (error_converting(i)) {
+    CAPI_WARN("missing PyIndex_Check, PySlice_Check, PySlice_GetIndicesEx");
+    PyObject *py_op = HPy_AsPyObject(ctx, op);
+    if (HPyLong_Check(ctx, op) ||
+                    (PyIndex_Check(py_op) && !HPySequence_Check(ctx, op))) {
+        Py_DECREF(py_op);
+        npy_intp i = HPyArray_PyIntAsIntp(ctx, op);
+        if (hpy_error_converting(ctx, i)) {
             return -1;
         }
-        return npyiter_seq_ass_item(self, i, value);
+        return npyiter_seq_ass_item_impl(ctx, h_self, i, value);
     }
-    else if (PySlice_Check(op)) {
+    else if (PySlice_Check(py_op)) {
         Py_ssize_t istart = 0, iend = 0, istep = 0, islicelength = 0;
-        if (PySlice_GetIndicesEx(op, NpyIter_GetNOp(self->iter),
+        if (PySlice_GetIndicesEx(py_op, NpyIter_GetNOp(self->iter),
                                  &istart, &iend, &istep, &islicelength) < 0) {
+            Py_DECREF(py_op);
             return -1;
         }
+        Py_DECREF(py_op);
         if (istep != 1) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Iterator slice assignment only supports a step of 1");
             return -1;
         }
-        return npyiter_seq_ass_slice(self, istart, iend, value);
+        return npyiter_seq_ass_slice(ctx, h_self, istart, iend, value);
     }
+    Py_DECREF(py_op);
 
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "invalid index type for iterator indexing");
     return -1;
 }
 
-static PyObject *
-npyiter_enter(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_enter, "__enter__", npyiter_enter_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_enter_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "operation on non-initialized iterator");
-        return NULL;
+        HPyErr_SetString(ctx, ctx->h_RuntimeError, "operation on non-initialized iterator");
+        return HPy_NULL;
     }
-    Py_INCREF(self);
-    return (PyObject *)self;
+
+    return HPy_Dup(ctx, h_self);
 }
 
-static PyObject *
-npyiter_close(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_close, "close", npyiter_close_impl, HPyFunc_NOARGS)
+static HPy
+npyiter_close_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
+    NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     NpyIter *iter = self->iter;
     int ret;
     if (self->iter == NULL) {
-        Py_RETURN_NONE;
+        HPy_Dup(ctx, ctx->h_None);
     }
     ret = NpyIter_Deallocate(iter);
     self->iter = NULL;
-    Py_XDECREF(self->nested_child);
-    self->nested_child = NULL;
+    // Py_XDECREF(self->nested_child);
+    HPyField_Store(ctx, h_self, &self->nested_child, HPy_NULL);
+    self->nested_child = HPyField_NULL;
     if (ret != NPY_SUCCEED) {
-        return NULL;
+        HPy_Dup(ctx, ctx->h_None);
     }
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
-static PyObject *
-npyiter_exit(NewNpyArrayIterObject *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(npyiter_exit, "__exit__", npyiter_exit_impl, HPyFunc_VARARGS)
+static HPy
+npyiter_exit_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
+                    HPy *args, HPy_ssize_t len_args)
 {
     /* even if called via exception handling, writeback any data */
-    return npyiter_close(self, NULL);
+    return npyiter_close_impl(ctx, h_self);
 }
-
-static PyMethodDef npyiter_methods[] = {
-    {"reset",
-        (PyCFunction)npyiter_reset,
-        METH_NOARGS, NULL},
-    {"copy",
-        (PyCFunction)npyiter_copy,
-        METH_NOARGS, NULL},
-    {"__copy__",
-        (PyCFunction)npyiter_copy,
-        METH_NOARGS, NULL},
-    {"iternext",
-        (PyCFunction)npyiter_iternext,
-        METH_NOARGS, NULL},
-    {"remove_axis",
-        (PyCFunction)npyiter_remove_axis,
-        METH_VARARGS, NULL},
-    {"remove_multi_index",
-        (PyCFunction)npyiter_remove_multi_index,
-        METH_NOARGS, NULL},
-    {"enable_external_loop",
-        (PyCFunction)npyiter_enable_external_loop,
-        METH_NOARGS, NULL},
-    {"debug_print",
-        (PyCFunction)npyiter_debug_print,
-        METH_NOARGS, NULL},
-    {"__enter__", (PyCFunction)npyiter_enter,
-         METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)npyiter_exit,
-         METH_VARARGS, NULL},
-    {"close",  (PyCFunction)npyiter_close,
-         METH_NOARGS, NULL},
-    {NULL, NULL, 0, NULL},
-};
-
-static PyMemberDef npyiter_members[] = {
-    {NULL, 0, 0, 0, NULL},
-};
-
-static PyGetSetDef npyiter_getsets[] = {
-    {"value",
-        (getter)npyiter_value_get,
-        NULL, NULL, NULL},
-    {"shape",
-        (getter)npyiter_shape_get,
-        NULL, NULL, NULL},
-    {"multi_index",
-        (getter)npyiter_multi_index_get,
-        (setter)npyiter_multi_index_set,
-        NULL, NULL},
-    {"index",
-        (getter)npyiter_index_get,
-        (setter)npyiter_index_set,
-        NULL, NULL},
-    {"iterindex",
-        (getter)npyiter_iterindex_get,
-        (setter)npyiter_iterindex_set,
-        NULL, NULL},
-    {"iterrange",
-        (getter)npyiter_iterrange_get,
-        (setter)npyiter_iterrange_set,
-        NULL, NULL},
-    {"operands",
-        (getter)npyiter_operands_get,
-        NULL, NULL, NULL},
-    {"itviews",
-        (getter)npyiter_itviews_get,
-        NULL, NULL, NULL},
-    {"has_delayed_bufalloc",
-        (getter)npyiter_has_delayed_bufalloc_get,
-        NULL, NULL, NULL},
-    {"iterationneedsapi",
-        (getter)npyiter_iterationneedsapi_get,
-        NULL, NULL, NULL},
-    {"has_multi_index",
-        (getter)npyiter_has_multi_index_get,
-        NULL, NULL, NULL},
-    {"has_index",
-        (getter)npyiter_has_index_get,
-        NULL, NULL, NULL},
-    {"dtypes",
-        (getter)npyiter_dtypes_get,
-        NULL, NULL, NULL},
-    {"ndim",
-        (getter)npyiter_ndim_get,
-        NULL, NULL, NULL},
-    {"nop",
-        (getter)npyiter_nop_get,
-        NULL, NULL, NULL},
-    {"itersize",
-        (getter)npyiter_itersize_get,
-        NULL, NULL, NULL},
-    {"finished",
-        (getter)npyiter_finished_get,
-        NULL, NULL, NULL},
-
-    {NULL, NULL, NULL, NULL, NULL}
-};
 
 NPY_NO_EXPORT PyType_Slot npyiter_slots[] = {
         {Py_tp_dealloc, npyiter_dealloc},
-        {Py_sq_length, npyiter_seq_length},
-        {Py_sq_item, npyiter_seq_item},
-        {Py_sq_ass_item, npyiter_seq_ass_item},
-        {Py_mp_length, npyiter_seq_length},
-        {Py_mp_subscript, npyiter_subscript},
-        {Py_mp_ass_subscript, npyiter_ass_subscript},
         {Py_tp_iter, PyObject_SelfIter},
         {Py_tp_iternext, npyiter_next},
-        {Py_tp_methods, npyiter_methods},
-        {Py_tp_getset, npyiter_getsets},
-        {Py_tp_init, npyiter_init},
-        {Py_tp_new, npyiter_new},
         {0, NULL}
 };
+
+static HPyDef *npyiter_defines[] = {
+    // slots
+    &npyiter_new,
+    &npyiter_init,
+    &npyiter_seq_length_sq,
+    &npyiter_seq_length_mp,
+    &npyiter_seq_item,
+    &npyiter_seq_ass_item,
+    &npyiter_ass_subscript,
+    &npyiter_subscript,
+
+    // getset
+    &npyiter_value_get,
+    &npyiter_shape_get,
+    &npyiter_multi_index_getset,
+    &npyiter_index_getset,
+    &npyiter_iterindex_getset,
+    &npyiter_iterrange_getset,
+    &npyiter_operands_get,
+    &npyiter_itviews_get,
+    &npyiter_has_delayed_bufalloc_get,
+    &npyiter_iterationneedsapi_get,
+    &npyiter_has_multi_index_get,
+    &npyiter_has_index_get,
+    &npyiter_dtypes_get,
+    &npyiter_ndim_get,
+    &npyiter_nop_get,
+    &npyiter_itersize_get,
+    &npyiter_finished_get,
+
+    // methods
+    &npyiter_reset,
+    &npyiter_copy,
+    &npyiter___copy__,
+    &npyiter_iternext,
+    &npyiter_remove_axis,
+    &npyiter_remove_multi_index,
+    &npyiter_debug_print,
+    &npyiter_enable_external_loop,
+    &npyiter_enter,
+    &npyiter_exit,
+    &npyiter_close,
+    NULL,
+};
+
 NPY_NO_EXPORT HPyType_Spec NpyIter_Type_Spec = {
     .name = "numpy.nditer",
     .basicsize = sizeof(NewNpyArrayIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .legacy = 1,
-    .legacy_slots = npyiter_slots
+    .legacy_slots = npyiter_slots,
+    .defines = npyiter_defines,
 };
 
 NPY_NO_EXPORT PyTypeObject *_NpyIter_Type_p;

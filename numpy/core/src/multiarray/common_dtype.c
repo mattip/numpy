@@ -233,7 +233,7 @@ HPyArray_PromoteDTypeSequence(HPyContext *ctx,
     HPy result = HPy_NULL;
 
     /* Copy dtypes so that we can reorder them (only allocate when many) */
-    HPy *_scratch_stack[NPY_MAXARGS];
+    HPy _scratch_stack[NPY_MAXARGS];
     HPy*_scratch_heap = NULL;
     HPy *dtypes = _scratch_stack;
 
@@ -335,7 +335,9 @@ HPyArray_PromoteDTypeSequence(HPyContext *ctx,
          * in the typical cases we expect this step to be a no-op.
          */
         CAPI_WARN("HPyArray_PromoteDTypeSequence: call to PyArray_CommonDType");
-        PyArray_DTypeMeta *py_common = PyArray_CommonDType(HPy_AsPyObject(ctx, result), promotion);
+        PyArray_DTypeMeta *Py_result = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, result);
+        PyArray_DTypeMeta *py_common = PyArray_CommonDType(Py_result, promotion);
+        Py_DECREF(Py_result);
         HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, (PyObject *)py_common));
         Py_DECREF(promotion);
         HPy_Close(ctx, h_promotion);

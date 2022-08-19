@@ -153,9 +153,11 @@ typedef int translate_given_descrs_func(int nin, int nout,
  *
  * @returns 0 on success, -1 on failure.
  */
-typedef int translate_loop_descrs_func(int nin, int nout,
-        PyArray_DTypeMeta *new_dtypes[], PyArray_Descr *given_descrs[],
-        PyArray_Descr *original_descrs[], PyArray_Descr *loop_descrs[]);
+typedef int hpy_translate_loop_descrs_func(HPyContext *ctx, int nin, int nout,
+        HPy /* PyArray_DTypeMeta * */ new_dtypes[], 
+        HPy /* PyArray_Descr * */ given_descrs[],
+        HPy /* PyArray_Descr * */ original_descrs[], 
+        HPy /* PyArray_Descr * */ loop_descrs[]);
 
 
 /*
@@ -204,7 +206,7 @@ typedef struct PyArrayMethodObject_tag {
     HPyField wrapped_meth;
     HPyField *wrapped_dtypes; /* PyArray_DTypeMeta **wrapped_dtypes */
     translate_given_descrs_func *translate_given_descrs;
-    translate_loop_descrs_func *translate_loop_descrs;
+    hpy_translate_loop_descrs_func *translate_loop_descrs;
 } PyArrayMethodObject;
 
 HPyType_LEGACY_HELPERS(PyArrayMethodObject)

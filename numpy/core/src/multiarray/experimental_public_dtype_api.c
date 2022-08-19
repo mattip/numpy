@@ -369,7 +369,7 @@ NPY_NO_EXPORT int
 PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         PyArray_DTypeMeta *new_dtypes[], PyArray_DTypeMeta *wrapped_dtypes[],
         translate_given_descrs_func *translate_given_descrs,
-        translate_loop_descrs_func *translate_loop_descrs);
+        hpy_translate_loop_descrs_func *translate_loop_descrs);
 
 
 static int

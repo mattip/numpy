@@ -24,7 +24,7 @@ npyiter_checkreducesize(NpyIter *iter, npy_intp count,
                                 npy_intp *reduce_innersize,
                                 npy_intp *reduce_outerdim);
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * Removes an axis from iteration. This requires that NPY_ITER_MULTI_INDEX
  * was set for iterator creation, and does not work if buffering is
  * enabled. This function also resets the iterator to its initial state.
@@ -32,7 +32,7 @@ npyiter_checkreducesize(NpyIter *iter, npy_intp count,
  * Returns NPY_SUCCEED or NPY_FAIL.
  */
 NPY_NO_EXPORT int
-NpyIter_RemoveAxis(NpyIter *iter, int axis)
+HNpyIter_RemoveAxis(HPyContext *ctx, NpyIter *iter, int axis)
 {
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int idim, ndim = NIT_NDIM(iter);
@@ -47,25 +47,25 @@ NpyIter_RemoveAxis(NpyIter *iter, int axis)
     char **resetdataptr = NIT_RESETDATAPTR(iter);
 
     if (!(itflags&NPY_ITFLAG_HASMULTIINDEX)) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Iterator RemoveAxis may only be called "
                 "if a multi-index is being tracked");
         return NPY_FAIL;
     }
     else if (itflags&NPY_ITFLAG_HASINDEX) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Iterator RemoveAxis may not be called on "
                 "an index is being tracked");
         return NPY_FAIL;
     }
     else if (itflags&NPY_ITFLAG_BUFFER) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Iterator RemoveAxis may not be called on "
                 "a buffered iterator");
         return NPY_FAIL;
     }
     else if (axis < 0 || axis >= ndim) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "axis out of bounds in iterator RemoveAxis");
         return NPY_FAIL;
     }
@@ -103,7 +103,7 @@ NpyIter_RemoveAxis(NpyIter *iter, int axis)
     }
 
     if (idim == ndim) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "internal error in iterator perm");
         return NPY_FAIL;
     }
@@ -153,7 +153,48 @@ NpyIter_RemoveAxis(NpyIter *iter, int axis)
         NIT_ITFLAGS(iter) |= NPY_ITFLAG_ONEITERATION;
     }
 
-    return NpyIter_Reset(iter, NULL);
+    return HNpyIter_Reset(ctx, iter, NULL);
+}
+
+/*NUMPY_API
+ * Removes an axis from iteration. This requires that NPY_ITER_MULTI_INDEX
+ * was set for iterator creation, and does not work if buffering is
+ * enabled. This function also resets the iterator to its initial state.
+ *
+ * Returns NPY_SUCCEED or NPY_FAIL.
+ */
+NPY_NO_EXPORT int
+NpyIter_RemoveAxis(NpyIter *iter, int axis)
+{
+    return HNpyIter_RemoveAxis(npy_get_context(), iter, axis);
+}
+/*HPY_NUMPY_API
+ * Removes multi-index support from an iterator.
+ *
+ * Returns NPY_SUCCEED or NPY_FAIL.
+ */
+NPY_NO_EXPORT int
+HNpyIter_RemoveMultiIndex(HPyContext *ctx, NpyIter *iter)
+{
+    npy_uint32 itflags;
+
+    /* Make sure the iterator is reset */
+    if (HNpyIter_Reset(ctx, iter, NULL) != NPY_SUCCEED) {
+        return NPY_FAIL;
+    }
+
+    itflags = NIT_ITFLAGS(iter);
+    if (itflags&NPY_ITFLAG_HASMULTIINDEX) {
+        if (NIT_ITERSIZE(iter) < 0) {
+            HPyErr_SetString(ctx, ctx->h_ValueError, "iterator is too large");
+            return NPY_FAIL;
+        }
+
+        NIT_ITFLAGS(iter) = itflags & ~NPY_ITFLAG_HASMULTIINDEX;
+        npyiter_coalesce_axes(iter);
+    }
+
+    return NPY_SUCCEED;
 }
 
 /*NUMPY_API
@@ -164,25 +205,7 @@ NpyIter_RemoveAxis(NpyIter *iter, int axis)
 NPY_NO_EXPORT int
 NpyIter_RemoveMultiIndex(NpyIter *iter)
 {
-    npy_uint32 itflags;
-
-    /* Make sure the iterator is reset */
-    if (NpyIter_Reset(iter, NULL) != NPY_SUCCEED) {
-        return NPY_FAIL;
-    }
-
-    itflags = NIT_ITFLAGS(iter);
-    if (itflags&NPY_ITFLAG_HASMULTIINDEX) {
-        if (NIT_ITERSIZE(iter) < 0) {
-            PyErr_SetString(PyExc_ValueError, "iterator is too large");
-            return NPY_FAIL;
-        }
-
-        NIT_ITFLAGS(iter) = itflags & ~NPY_ITFLAG_HASMULTIINDEX;
-        npyiter_coalesce_axes(iter);
-    }
-
-    return NPY_SUCCEED;
+    return HNpyIter_RemoveMultiIndex(npy_get_context(), iter);
 }
 
 /*NUMPY_API
@@ -652,21 +675,22 @@ NpyIter_GotoIndex(NpyIter *iter, npy_intp flat_index)
     return NPY_SUCCEED;
 }
 
-/*NUMPY_API
+
+/*HPY_NUMPY_API
  * Sets the iterator position to the specified iterindex,
  * which matches the iteration order of the iterator.
  *
  * Returns NPY_SUCCEED on success, NPY_FAIL on failure.
  */
 NPY_NO_EXPORT int
-NpyIter_GotoIterIndex(NpyIter *iter, npy_intp iterindex)
+HNpyIter_GotoIterIndex(HPyContext *ctx, NpyIter *iter, npy_intp iterindex)
 {
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     /*int ndim = NIT_NDIM(iter);*/
     int iop, nop = NIT_NOP(iter);
 
     if (itflags&NPY_ITFLAG_EXLOOP) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Cannot call GotoIterIndex on an iterator which "
                 "has the flag EXTERNAL_LOOP");
         return NPY_FAIL;
@@ -674,10 +698,10 @@ NpyIter_GotoIterIndex(NpyIter *iter, npy_intp iterindex)
 
     if (iterindex < NIT_ITERSTART(iter) || iterindex >= NIT_ITEREND(iter)) {
         if (NIT_ITERSIZE(iter) < 0) {
-            PyErr_SetString(PyExc_ValueError, "iterator is too large");
+            HPyErr_SetString(ctx, ctx->h_ValueError, "iterator is too large");
             return NPY_FAIL;
         }
-        PyErr_SetString(PyExc_IndexError,
+        HPyErr_SetString(ctx, ctx->h_IndexError,
                 "Iterator GotoIterIndex called with an iterindex outside the "
                 "iteration range.");
         return NPY_FAIL;
@@ -725,6 +749,18 @@ NpyIter_GotoIterIndex(NpyIter *iter, npy_intp iterindex)
     }
 
     return NPY_SUCCEED;
+}
+
+/*NUMPY_API
+ * Sets the iterator position to the specified iterindex,
+ * which matches the iteration order of the iterator.
+ *
+ * Returns NPY_SUCCEED on success, NPY_FAIL on failure.
+ */
+NPY_NO_EXPORT int
+NpyIter_GotoIterIndex(NpyIter *iter, npy_intp iterindex)
+{
+    return HNpyIter_GotoIterIndex(npy_get_context(), iter, iterindex);
 }
 
 /*NUMPY_API
@@ -1311,6 +1347,64 @@ NpyIter_GetIterView(NpyIter *iter, npy_intp i)
     return view;
 }
 
+/*HPY_NUMPY_API
+ * Returns a view to the i-th object with the iterator's internal axes
+ */
+NPY_NO_EXPORT HPy /* PyArrayObject * */
+HNpyIter_GetIterView(HPyContext *ctx, NpyIter *iter, npy_intp i)
+{
+    npy_uint32 itflags = NIT_ITFLAGS(iter);
+    int idim, ndim = NIT_NDIM(iter);
+    int nop = NIT_NOP(iter);
+
+    npy_intp shape[NPY_MAXDIMS], strides[NPY_MAXDIMS];
+    HPy obj, view; // PyArrayObject *
+    HPy dtype; // PyArray_Descr *
+    char *dataptr;
+    NpyIter_AxisData *axisdata;
+    npy_intp sizeof_axisdata;
+    int writeable;
+
+    if (i < 0) {
+        HPyErr_SetString(ctx, ctx->h_IndexError,
+                "index provided for an iterator view was out of bounds");
+        return HPy_NULL;
+    }
+
+    /* Don't provide views if buffering is enabled */
+    if (itflags&NPY_ITFLAG_BUFFER) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "cannot provide an iterator view when buffering is enabled");
+        return HPy_NULL;
+    }
+    
+
+    obj = HNpyIter_GetOperandArray(iter)[i];
+    dtype = HPyArray_DESCR(ctx, obj, PyArrayObject_AsStruct(ctx, obj));
+    writeable = NIT_OPITFLAGS(iter)[i]&NPY_OP_ITFLAG_WRITE;
+    dataptr = NIT_RESETDATAPTR(iter)[i];
+    axisdata = NIT_AXISDATA(iter);
+    sizeof_axisdata = NIT_AXISDATA_SIZEOF(itflags, ndim, nop);
+
+    /* Retrieve the shape and strides from the axisdata */
+    for (idim = 0; idim < ndim; ++idim) {
+        shape[ndim-idim-1] = NAD_SHAPE(axisdata);
+        strides[ndim-idim-1] = NAD_STRIDES(axisdata)[i];
+
+        NIT_ADVANCE_AXISDATA(axisdata, 1);
+    }
+
+    // Py_INCREF(dtype);
+    HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    view = HPyArray_NewFromDescrAndBase(ctx,
+            h_array_type, dtype,
+            ndim, shape, strides, dataptr,
+            writeable ? NPY_ARRAY_WRITEABLE : 0, HPy_NULL, obj);
+    HPy_Close(ctx, h_array_type);
+
+    return view;
+}
+
 /*NUMPY_API
  * Get a pointer to the index, if it is being tracked
  */
@@ -1558,11 +1652,11 @@ NpyIter_GetInnerLoopSizePtr(NpyIter *iter)
 }
 
 
-/*NUMPY_API
+/*HPY_NUMPY_API
  * For debugging
  */
 NPY_NO_EXPORT void
-NpyIter_DebugPrint(NpyIter *iter)
+HNpyIter_DebugPrint(HPyContext *ctx, NpyIter *iter)
 {
     npy_uint32 itflags = NIT_ITFLAGS(iter);
     int idim, ndim = NIT_NDIM(iter);
@@ -1571,6 +1665,7 @@ NpyIter_DebugPrint(NpyIter *iter)
     NpyIter_AxisData *axisdata;
     npy_intp sizeof_axisdata;
 
+    CAPI_WARN("missing PyGILState_XXX");
     NPY_ALLOW_C_API_DEF
     NPY_ALLOW_C_API
 
@@ -1635,7 +1730,6 @@ NpyIter_DebugPrint(NpyIter *iter)
     }
     printf("\n");
     printf("| DTypes: ");
-    HPyContext *ctx = npy_get_context();
     for (iop = 0; iop < nop; ++iop) {
         if (!HPy_IsNull(NIT_DTYPES(iter)[iop]))
         {
@@ -1807,6 +1901,15 @@ NpyIter_DebugPrint(NpyIter *iter)
     fflush(stdout);
 
     NPY_DISABLE_C_API
+}
+
+/*NUMPY_API
+ * For debugging
+ */
+NPY_NO_EXPORT void
+NpyIter_DebugPrint(NpyIter *iter)
+{
+    HNpyIter_DebugPrint(npy_get_context(), iter);
 }
 
 NPY_NO_EXPORT void
