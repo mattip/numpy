@@ -2671,7 +2671,7 @@ array_ravel_impl(HPyContext *ctx, HPy self,
     HPyTracker ht;
     static const char *kwlist[] = {{ "order", NULL }};
     HPy h_order = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &order)) {
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &h_order)) {
         return HPy_NULL;
     }
     if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
