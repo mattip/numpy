@@ -77,6 +77,21 @@ PyArray_Size(PyObject *op)
     }
 }
 
+/*HPY_NUMPY_API
+  Compute the size of an array (in number of items)
+*/
+NPY_NO_EXPORT npy_intp
+HPyArray_Size(HPyContext *ctx, HPy op)
+{
+    if (HPyArray_Check(ctx, op)) {
+        PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op);
+        return HPyArray_SIZE(op_data);
+    }
+    else {
+        return 0;
+    }
+}
+
 /*NUMPY_API */
 NPY_NO_EXPORT int
 PyArray_SetUpdateIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
@@ -1668,10 +1683,9 @@ hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy
      */
     if (HPyArray_ISSTRING(ctx, self)) {
         hpy_abort_not_implemented("string arrays in rich compare");
-        // array_other = (PyArrayObject *)PyArray_FromObject(other,
-        //                                                   NPY_NOTYPE, 0, 0);
-        // if (array_other == NULL) {
-        //     PyErr_Clear();
+        // HPy array_other = HPyArray_FromObject(ctx, other, NPY_NOTYPE, 0, 0);
+        // if (HPy_IsNull(array_other)) {
+        //     HPyErr_Clear(ctx);
         //     /* Never mind, carry on, see what happens */
         // }
         // else if (!PyArray_ISSTRING(array_other)) {

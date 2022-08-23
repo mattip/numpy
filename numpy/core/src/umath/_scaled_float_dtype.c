@@ -458,7 +458,13 @@ sfloat_to_bool_resolve_descriptors(
 static int
 init_casts(void)
 {
-    PyArray_DTypeMeta *dtypes[2] = {&PyArray_SFloatDType, &PyArray_SFloatDType};
+    // PyArray_DTypeMeta *dtypes[2] = {&PyArray_SFloatDType, &PyArray_SFloatDType};
+    HPyContext *ctx = npy_get_context();
+    HPy h_PyArray_SFloatDType = HPy_FromPyObject(ctx, (PyObject *)&PyArray_SFloatDType);
+    HPy dtypes[2] = {
+            h_PyArray_SFloatDType, 
+            h_PyArray_SFloatDType, 
+    };
     PyType_Slot slots[4] = {{0, NULL}};
     PyArrayMethod_Spec spec = {
         .name = "sfloat_to_sfloat_cast",
@@ -481,14 +487,15 @@ init_casts(void)
     slots[2].pfunc = &cast_sfloat_to_sfloat_unaligned;
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
+        HPy_Close(ctx, dtypes[0]);  /* immortal anyway */
         return -1;
     }
 
     spec.name = "float_to_sfloat_cast";
     /* Technically, it is just a copy currently so this is fine: */
     spec.flags = NPY_METH_NO_FLOATINGPOINT_ERRORS;
-    PyArray_DTypeMeta *double_DType = PyArray_DTypeFromTypeNum(NPY_DOUBLE);
-    Py_DECREF(double_DType);  /* immortal anyway */
+    HPy double_DType = HPyArray_DTypeFromTypeNum(ctx, NPY_DOUBLE); // PyArray_DTypeMeta *
+    // HPy_Close(ctx, double_DType);  /* immortal anyway */
     dtypes[0] = double_DType;
 
     slots[0].slot = NPY_METH_resolve_descriptors;
@@ -499,16 +506,21 @@ init_casts(void)
     slots[2].pfunc = NULL;
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
 
     spec.name = "sfloat_to_float_cast";
-    dtypes[0] = &PyArray_SFloatDType;
+    dtypes[0] = h_PyArray_SFloatDType;
     dtypes[1] = double_DType;
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
+    HPy_Close(ctx, dtypes[1]);
 
     slots[0].slot = NPY_METH_resolve_descriptors;
     slots[0].pfunc = &sfloat_to_bool_resolve_descriptors;
@@ -518,13 +530,16 @@ init_casts(void)
     slots[2].pfunc = NULL;
 
     spec.name = "sfloat_to_bool_cast";
-    dtypes[0] = &PyArray_SFloatDType;
-    dtypes[1] = PyArray_DTypeFromTypeNum(NPY_BOOL);
-    Py_DECREF(dtypes[1]);  /* immortal anyway */
+    dtypes[0] = h_PyArray_SFloatDType;
+    dtypes[1] = HPyArray_DTypeFromTypeNum(ctx, NPY_BOOL);
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
+    HPy_Close(ctx, dtypes[0]);
+    HPy_Close(ctx, dtypes[1]);
 
     return 0;
 }
@@ -762,8 +777,14 @@ promote_to_sfloat(PyUFuncObject *NPY_UNUSED(ufunc),
  */
 static int
 init_ufuncs(HPyContext *ctx) {
-    PyArray_DTypeMeta *dtypes[3] = {
-            &PyArray_SFloatDType, &PyArray_SFloatDType, &PyArray_SFloatDType};
+    // PyArray_DTypeMeta *dtypes[3] = {
+    //         &PyArray_SFloatDType, &PyArray_SFloatDType, &PyArray_SFloatDType};
+    HPy h_PyArray_SFloatDType = HPy_FromPyObject(ctx, (PyObject *)&PyArray_SFloatDType);
+    HPy dtypes[3] = {
+            h_PyArray_SFloatDType, 
+            h_PyArray_SFloatDType, 
+            h_PyArray_SFloatDType
+    };
     PyType_Slot slots[3] = {{0, NULL}};
     PyArrayMethod_Spec spec = {
         .nin = 2,

@@ -736,7 +736,7 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
         NPY_CASTING cast = casting;
         if (self_method->casting !=
                 PyArray_MinCastSafety(cast, self_method->casting)) {
-            HPyErr_Format(ctx, ctx->h_RuntimeError,
+            HPyErr_Format_p(ctx, ctx->h_RuntimeError,
                     "resolve_descriptors cast level did not match stored one. "
                     "(set level is %d, got %d for method %s)",
                     self_method->casting, cast, self_method->name);
@@ -834,7 +834,6 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
 
         /* Check that the input is compatible with a simple method call. */
         dtypes_arr[i] = HPyField_Load(ctx, h_self, self_data->dtypes[i]);
-        PyObject *dtype_i = HPy_AsPyObject(ctx, dtypes_arr[i]);
         HPy descrs_i_type = HPy_Type(ctx, descrs[i]);
         if (HPy_Is(ctx, descrs_i_type, dtypes_arr[i])) {
             HPy_Close(ctx, descrs_i_type);
@@ -1037,7 +1036,7 @@ generic_masked_strided_loop(HPyContext *hctx,
  */
 NPY_NO_EXPORT int
 PyArrayMethod_GetMaskedStridedLoop(
-        PyArrayMethod_Context *context,
+        HPyArrayMethod_Context *context,
         int aligned, npy_intp *fixed_strides,
         HPyArrayMethod_StridedLoop **out_loop,
         NpyAuxData **out_transferdata,

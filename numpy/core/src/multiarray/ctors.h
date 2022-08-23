@@ -146,25 +146,6 @@ HPyArray_NewLikeArray(HPyContext *ctx, HPy prototype, NPY_ORDER order,
 NPY_NO_EXPORT int
 HPyArray_AssignFromCache(HPyContext *ctx, HPy self, coercion_cache_obj *cache);
 
-/*
- * This function was originally a macro in 'ndarrayobject.h' but it needs the
- * declaration for 'HPyArray_FromAny'.
- */
-static NPY_INLINE HPy
-HPyArray_FromObject(
-        HPyContext *ctx, HPy op, int type, int min_depth, int max_depth)
-{
-    HPy descr = HPyArray_DescrFromType(ctx, type);
-    HPy res = HPyArray_FromAny(ctx, op, descr, min_depth, max_depth,
-            NPY_ARRAY_BEHAVED | NPY_ARRAY_ENSUREARRAY, HPy_NULL);
-    /*
-     * HPyArray_FromAny does not steal reference to 'descr' like
-     * PyArray_FromAny.
-     */
-    HPy_Close(ctx, descr);
-    return res;
-}
-
 NPY_NO_EXPORT int
 HPyArray_CopyInto(HPyContext *ctx, HPy dst, HPy src);
 
