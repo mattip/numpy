@@ -1401,6 +1401,8 @@ HNpyIter_GetIterView(HPyContext *ctx, NpyIter *iter, npy_intp i)
             ndim, shape, strides, dataptr,
             writeable ? NPY_ARRAY_WRITEABLE : 0, HPy_NULL, obj);
     HPy_Close(ctx, h_array_type);
+    HPy_Close(ctx, obj);
+    HPy_Close(ctx, dtype);
 
     return view;
 }
