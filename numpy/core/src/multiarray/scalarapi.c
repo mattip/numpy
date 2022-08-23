@@ -1315,63 +1315,64 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         return HPy_NULL;
     }
     if (PyTypeNum_ISDATETIME(type_num)) {
-        hpy_abort_not_implemented("datetime");
-        // /*
-        //  * We need to copy the resolution information over to the scalar
-        //  * Get the void * from the metadata dictionary
-        //  */
-        // PyArray_DatetimeMetaData *dt_data;
+        /*
+         * We need to copy the resolution information over to the scalar
+         * Get the void * from the metadata dictionary
+         */
+        PyArray_DatetimeMetaData *dt_data;
 
-        // dt_data = &(((PyArray_DatetimeDTypeMetaData *)descr->c_metadata)->meta);
-        // memcpy(&(((PyDatetimeScalarObject *)obj)->obmeta), dt_data,
-        //        sizeof(PyArray_DatetimeMetaData));
+        dt_data = &(((PyArray_DatetimeDTypeMetaData *)descr->c_metadata)->meta);
+        memcpy(&(PyDatetimeScalarObject_AsStruct(ctx, obj)->obmeta), dt_data,
+               sizeof(PyArray_DatetimeMetaData));
     }
     if (PyTypeNum_ISFLEXIBLE(type_num)) {
-        hpy_abort_not_implemented("flexible");
-        // if (type_num == NPY_STRING) {
-        //     destptr = PyBytes_AS_STRING(obj);
-        //     ((PyBytesObject *)obj)->ob_shash = -1;
-        //     memcpy(destptr, data, itemsize);
-        //     return obj;
-        // }
-        // else {
-        //     PyVoidScalarObject *vobj = (PyVoidScalarObject *)obj;
-        //     vobj->base = NULL;
-        //     vobj->descr = descr;
-        //     Py_INCREF(descr);
-        //     vobj->obval = NULL;
-        //     Py_SET_SIZE(vobj, itemsize);
-        //     vobj->flags = NPY_ARRAY_CARRAY | NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_OWNDATA;
-        //     swap = 0;
-        //     if (PyDataType_HASFIELDS(descr)) {
-        //         if (base) {
-        //             Py_INCREF(base);
-        //             vobj->base = base;
-        //             vobj->flags = PyArray_FLAGS((PyArrayObject *)base);
-        //             vobj->flags &= ~NPY_ARRAY_OWNDATA;
-        //             vobj->obval = data;
-        //             return obj;
-        //         }
-        //     }
-        //     if (itemsize == 0) {
-        //         return obj;
-        //     }
-        //     destptr = PyDataMem_NEW(itemsize);
-        //     if (destptr == NULL) {
-        //         Py_DECREF(obj);
-        //         return PyErr_NoMemory();
-        //     }
-        //     vobj->obval = destptr;
+        if (type_num == NPY_STRING) {
+            destptr = HPyBytes_AS_STRING(ctx, obj);
+            PyBytesObject *py_obj = (PyBytesObject *)HPy_AsPyObject(ctx, obj);
+            py_obj->ob_shash = -1;
+            Py_DECREF(py_obj);
+            memcpy(destptr, data, itemsize);
+            return obj;
+        }
+        else {
+            PyVoidScalarObject *vobj = (PyVoidScalarObject *)HPy_AsPyObject(ctx, obj);
+            vobj->base = NULL;
+            vobj->descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
+            // Py_INCREF(descr);
+            vobj->obval = NULL;
+            CAPI_WARN("setting ob_size using Py_SET_SIZE");
+            Py_SET_SIZE(vobj, itemsize);
+            vobj->flags = NPY_ARRAY_CARRAY | NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_OWNDATA;
+            swap = 0;
+            if (PyDataType_HASFIELDS(descr)) {
+                if (!HPy_IsNull(base)) {
+                    // Py_INCREF(base);
+                    vobj->base = HPy_AsPyObject(ctx, base);
+                    vobj->flags = PyArray_FLAGS(PyArrayObject_AsStruct(ctx, base));
+                    vobj->flags &= ~NPY_ARRAY_OWNDATA;
+                    vobj->obval = data;
+                    return obj;
+                }
+            }
+            if (itemsize == 0) {
+                return obj;
+            }
+            destptr = PyDataMem_NEW(itemsize);
+            if (destptr == NULL) {
+                HPy_Close(ctx, obj);
+                return HPyErr_NoMemory(ctx);
+            }
+            vobj->obval = destptr;
 
-        //     /*
-        //      * No base available for copyswp and no swap required.
-        //      * Copy data directly into dest.
-        //      */
-        //     if (base == NULL) {
-        //         memcpy(destptr, data, itemsize);
-        //         return obj;
-        //     }
-        // }
+            /*
+             * No base available for copyswp and no swap required.
+             * Copy data directly into dest.
+             */
+            if (HPy_IsNull(base)) {
+                memcpy(destptr, data, itemsize);
+                return obj;
+            }
+        }
     }
     else {
         destptr = hpy_scalar_value(ctx, obj, descr);
