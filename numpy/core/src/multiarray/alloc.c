@@ -271,6 +271,7 @@ PyDataMem_NEW(size_t size)
         }
         NPY_DISABLE_C_API
     }
+    CAPI_WARN("calling PyTraceMalloc_Track");
     PyTraceMalloc_Track(NPY_TRACE_DOMAIN, (npy_uintp)result, size);
     return result;
 }
