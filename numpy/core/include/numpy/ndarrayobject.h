@@ -282,6 +282,10 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
                               max_depth, NPY_ARRAY_BEHAVED | \
                                          NPY_ARRAY_ENSUREARRAY, NULL)
 
+/*
+ * Macro HPyArray_FromObject was turned into an inline function and was in
+ * 'ctors.h'.
+ */
 static NPY_INLINE HPy
 HPyArray_FromObject(
         HPyContext *ctx, HPy op, int type, int min_depth, int max_depth)

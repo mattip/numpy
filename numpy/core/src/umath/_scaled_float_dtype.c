@@ -506,8 +506,8 @@ init_casts(void)
     slots[2].pfunc = NULL;
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
-        HPy_Close(ctx, dtypes[0]);  /* immortal anyway */
-        HPy_Close(ctx, dtypes[1]);  /* immortal anyway */
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
 
@@ -516,10 +516,11 @@ init_casts(void)
     dtypes[1] = double_DType;
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
-        HPy_Close(ctx, dtypes[0]);  /* immortal anyway */
-        HPy_Close(ctx, dtypes[1]);  /* immortal anyway */
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
+    HPy_Close(ctx, dtypes[1]);
 
     slots[0].slot = NPY_METH_resolve_descriptors;
     slots[0].pfunc = &sfloat_to_bool_resolve_descriptors;
@@ -533,12 +534,12 @@ init_casts(void)
     dtypes[1] = HPyArray_DTypeFromTypeNum(ctx, NPY_BOOL);
 
     if (PyArray_AddCastingImplementation_FromSpec(&spec, 0)) {
-        HPy_Close(ctx, dtypes[0]);  /* immortal anyway */
-        HPy_Close(ctx, dtypes[1]);  /* immortal anyway */
+        HPy_Close(ctx, dtypes[0]);
+        HPy_Close(ctx, dtypes[1]);
         return -1;
     }
-    HPy_Close(ctx, dtypes[0]);  /* immortal anyway */
-    HPy_Close(ctx, dtypes[1]);  /* immortal anyway */
+    HPy_Close(ctx, dtypes[0]);
+    HPy_Close(ctx, dtypes[1]);
 
     return 0;
 }
