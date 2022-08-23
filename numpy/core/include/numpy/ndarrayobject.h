@@ -135,6 +135,8 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 
 #define PyArray_FROM_OF(m,flags) PyArray_CheckFromAny(m, NULL, 0, 0, flags,   \
                                                       NULL)
+#define HPyArray_FROM_OF(ctx, m,flags) HPyArray_CheckFromAny(ctx, m, HPy_NULL, 0, 0, flags,   \
+                                                      HPy_NULL)
 
 #define PyArray_FROM_OT(m,type) PyArray_FromAny(m,                            \
                                 PyArray_DescrFromType(type), 0, 0, 0, NULL)

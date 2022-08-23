@@ -69,7 +69,7 @@ wrapping_method_resolve_descriptors(
     if (casting < 0) {
         return -1;
     }
-    int res = self_data->translate_loop_descrs(
+    int res = self_data->translate_loop_descrs(ctx,
             nin, nout, dtypes, given_descrs, orig_loop_descrs, loop_descrs);
     for (int i = 0; i < nargs; i++) {
         HPy_Close(ctx, orig_given_descrs[i]);
@@ -205,7 +205,7 @@ NPY_NO_EXPORT int
 PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         PyArray_DTypeMeta *new_dtypes[], PyArray_DTypeMeta *wrapped_dtypes[],
         translate_given_descrs_func *translate_given_descrs,
-        translate_loop_descrs_func *translate_loop_descrs)
+        hpy_translate_loop_descrs_func *translate_loop_descrs)
 {
     int res = -1;
     PyUFuncObject *ufunc = (PyUFuncObject *)ufunc_obj;

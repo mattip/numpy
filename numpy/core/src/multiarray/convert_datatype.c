@@ -2250,7 +2250,7 @@ HPyArray_ResultType(HPyContext *ctx,
     int at_least_one_scalar = 0;
     int all_pyscalar = ndtypes == 0;
     for (npy_intp i=0, i_all=ndtypes; i < narrs; i++, i_all++) {
-        PyArray_Descr *arrs_i_data = PyArray_Descr_AsStruct(ctx, arrs[i]);
+        PyArrayObject *arrs_i_data = PyArrayObject_AsStruct(ctx, arrs[i]);
         /* Array descr is also the correct "default" for scalars: */
         if (PyArray_NDIM(arrs_i_data) == 0) {
             at_least_one_scalar = 1;

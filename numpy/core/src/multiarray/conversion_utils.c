@@ -433,7 +433,40 @@ HPyArray_BufferConverter(HPyContext *ctx, HPy obj, HPyArray_Chunk *buf)
         return NPY_SUCCEED;
     }
 
-    hpy_abort_not_implemented("HPyArray_BufferConverter: for not None");
+    CAPI_WARN("missing PyObject_GetBuffer, PyBuffer_Release, PyMemoryView_GET_BASE");
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    if (PyObject_GetBuffer(py_obj, &view,
+                PyBUF_ANY_CONTIGUOUS|PyBUF_WRITABLE|PyBUF_SIMPLE) != 0) {
+        HPyErr_Clear(ctx);
+        buf->flags &= ~NPY_ARRAY_WRITEABLE;
+        if (PyObject_GetBuffer(py_obj, &view,
+                PyBUF_ANY_CONTIGUOUS|PyBUF_SIMPLE) != 0) {
+            Py_DECREF(py_obj);
+            return NPY_FAIL;
+        }
+    }
+
+    buf->ptr = view.buf;
+    buf->len = (npy_intp) view.len;
+
+    /*
+     * In Python 3 both of the deprecated functions PyObject_AsWriteBuffer and
+     * PyObject_AsReadBuffer that this code replaces release the buffer. It is
+     * up to the object that supplies the buffer to guarantee that the buffer
+     * sticks around after the release.
+     */
+    PyBuffer_Release(&view);
+
+    /* Point to the base of the buffer object if present */
+    HPy obj_type = HPy_Type(ctx, obj);
+    if (HPy_Is(ctx, obj_type, ctx->h_MemoryViewType)) {
+        buf->base = HPy_FromPyObject(ctx, (PyObject *)PyMemoryView_GET_BASE(py_obj));
+    }
+    Py_DECREF(py_obj);
+    if (HPy_IsNull(buf->base)) {
+        buf->base = obj;
+    }
+    return NPY_SUCCEED;
 }
 
 /*NUMPY_API
@@ -650,7 +683,10 @@ string_converter_helper(
     char const *message)
 {
     HPyContext *ctx = npy_get_context();
-    return hpy_string_converter_helper(ctx, HPy_FromPyObject(ctx, object), out, str_func, name, message);
+    HPy h_object = HPy_FromPyObject(ctx, object);
+    int ret = hpy_string_converter_helper(ctx, h_object, out, str_func, name, message);
+    HPy_Close(ctx, h_object);
+    return ret;
 }
 
 static int byteorder_parser(char const *str, Py_ssize_t length, void *data)
@@ -1182,7 +1218,18 @@ HPyArray_PyIntAsInt_ErrMsg(HPyContext *ctx, HPy o, const char * msg)
 NPY_NO_EXPORT int
 PyArray_PyIntAsInt(PyObject *o)
 {
-    return PyArray_PyIntAsInt_ErrMsg(o, "an integer is required");
+    HPyContext *ctx = npy_get_context();
+    HPy h_o = HPy_FromPyObject(ctx, o);
+    int ret = HPyArray_PyIntAsInt_ErrMsg(ctx, h_o, "an integer is required");
+    HPy_Close(ctx, h_o);
+    return ret;
+}
+
+/*HPY_NUMPY_API*/
+NPY_NO_EXPORT int
+HPyArray_PyIntAsInt(HPyContext *ctx, HPy o)
+{
+    return HPyArray_PyIntAsInt_ErrMsg(ctx, o, "an integer is required");
 }
 
 static npy_intp

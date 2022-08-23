@@ -55,6 +55,18 @@ HPy_CloseAndFreeArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
     PyMem_RawFree(h_arr);
 }
 
+static NPY_INLINE void
+HPy_CloseAndFreeFieldArray(HPyContext *ctx, HPy obj, HPyField *h_arr, HPy_ssize_t n)
+{
+    if (!h_arr)
+        return;
+    HPy_ssize_t i;
+    for (i = 0; i < n; i++) {
+        HPyField_Store(ctx, obj, &h_arr[i], HPy_NULL);
+    }
+    PyMem_RawFree(h_arr);
+}
+
 static NPY_INLINE PyObject **
 HPy_AsPyObjectArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
 {

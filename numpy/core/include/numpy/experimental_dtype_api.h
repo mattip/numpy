@@ -230,14 +230,16 @@ typedef PyObject *_ufunc_addloop_fromspec_func(
 typedef int translate_given_descrs_func(int nin, int nout,
         PyArray_DTypeMeta *wrapped_dtypes[],
         PyArray_Descr *given_descrs[], PyArray_Descr *new_descrs[]);
-typedef int translate_loop_descrs_func(int nin, int nout,
-        PyArray_DTypeMeta *new_dtypes[], PyArray_Descr *given_descrs[],
-        PyArray_Descr *original_descrs[], PyArray_Descr *loop_descrs[]);
+typedef int hpy_translate_loop_descrs_func(HPyContext *ctx, int nin, int nout,
+        HPy /* PyArray_DTypeMeta * */ new_dtypes[], 
+        HPy /* PyArray_Descr * */ given_descrs[],
+        HPy /* PyArray_Descr * */ original_descrs[], 
+        HPy /* PyArray_Descr * */ loop_descrs[]);
 
 typedef int _ufunc_wrapping_loop_func(PyObject *ufunc_obj,
         PyArray_DTypeMeta *new_dtypes[], PyArray_DTypeMeta *wrapped_dtypes[],
         translate_given_descrs_func *translate_given_descrs,
-        translate_loop_descrs_func *translate_loop_descrs);
+        hpy_translate_loop_descrs_func *translate_loop_descrs);
 #define PyUFunc_AddWrappingLoop \
     (*(_ufunc_wrapping_loop_func *)(__experimental_dtype_api_table[7]))
 

@@ -4629,9 +4629,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"copyto",
         (PyCFunction)array_copyto,
         METH_VARARGS|METH_KEYWORDS, NULL},
-    {"nested_iters",
-        (PyCFunction)NpyIter_NestedIters,
-        METH_VARARGS|METH_KEYWORDS, NULL},
     {"arange",
         (PyCFunction)array_arange,
         METH_FASTCALL | METH_KEYWORDS, NULL},
@@ -4767,8 +4764,6 @@ static struct PyMethodDef array_module_methods[] = {
         METH_VARARGS, NULL},
     {"_discover_array_parameters", (PyCFunction)_discover_array_parameters,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    // {"_get_castingimpl",  (PyCFunction)_get_castingimpl,
-    //     METH_VARARGS | METH_KEYWORDS, NULL},
     {"_get_experimental_dtype_api", (PyCFunction)_get_experimental_dtype_api,
         METH_O, NULL},
     {"_load_from_filelike", (PyCFunction)_load_from_filelike,
@@ -5065,6 +5060,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &array_promote_types,
     &array_min_scalar_type,
     &_get_castingimpl,
+    &NpyIter_NestedIters,
     NULL
 };
 
