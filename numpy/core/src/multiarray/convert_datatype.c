@@ -242,8 +242,8 @@ NPY_NO_EXPORT HPy
 _get_castingimpl_impl(HPyContext *ctx, HPy NPY_UNUSED(module), HPy *args, HPy_ssize_t nargs)
 {
     HPy from, to; // PyArray_DTypeMeta *
-    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O!O!:_get_castingimpl",
-            PyArrayDTypeMeta_Type, &from, PyArrayDTypeMeta_Type, &to)) {
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OO:_get_castingimpl",
+            &from, &to)) {
         return HPy_NULL;
     }
     HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
