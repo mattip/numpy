@@ -468,7 +468,7 @@ HPyArrayMethod_FromSpec_int(HPyContext *ctx, PyArrayMethod_Spec *spec, int priva
     data->method = HPyField_NULL;
     data->nargs = nargs;
     // TODO: HPY LABS PORT: PyMem_Malloc
-    data->dtypes = calloc(nargs, sizeof(HPyField));
+    data->dtypes = (HPyField *)calloc(nargs, sizeof(HPyField));
     if (data->dtypes == NULL) {
         HPy_Close(ctx, res);
         HPyErr_NoMemory(ctx);

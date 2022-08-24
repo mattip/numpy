@@ -223,7 +223,7 @@ HPyArray_GetBoundCastingImpl(HPyContext *ctx,
     }
     HPyField_Store(ctx, h_res, &res->method, method);
     HPy_Close(ctx, method);
-    res->dtypes = malloc(2 * sizeof(HPyField /* PyArray_DTypeMeta * */)); // PyMem_Malloc
+    res->dtypes = (HPyField *)calloc(2, sizeof(HPyField /* PyArray_DTypeMeta * */)); // PyMem_Malloc
     if (res->dtypes == NULL) {
         HPy_Close(ctx, h_res);
         return HPy_NULL;
