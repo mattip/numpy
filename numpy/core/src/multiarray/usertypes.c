@@ -295,16 +295,16 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
  * mattered).  See https://github.com/numpy/numpy/issues/20009
  */
 static int _hpy_warn_if_cast_exists_already(HPyContext *ctx, HPy h_descr,
-        PyArray_Descr *descr, int totype, char *funcname)
+        int totype, char *funcname)
 {
     HPy to_DType = HPyArray_DTypeFromTypeNum(ctx, totype); // PyArray_DTypeMeta *
     if (HPy_IsNull(to_DType)) {
         return -1;
     }
-    HPy descr_type = HPy_Type(ctx, h_descr);
+    HPy descr_type = HNPY_DTYPE(ctx, h_descr);
     PyArray_DTypeMeta *descr_type_data = PyArray_DTypeMeta_AsStruct(ctx, descr_type);
     HPy castingimpl = HPY_DTYPE_SLOTS_CASTINGIMPL(ctx, descr_type, descr_type_data);
-    HPy cast_impl = HPy_GetItem(ctx, castingimpl, to_DType);
+    HPy cast_impl = HPyDict_GetItemWithError(ctx, castingimpl, to_DType);
     HPy_Close(ctx, to_DType);
     HPy_Close(ctx, descr_type);
     HPy_Close(ctx, castingimpl);
@@ -418,12 +418,12 @@ HPyArray_RegisterCastFunc(HPyContext *ctx, HPy /* PyArray_Descr * */ h_descr, in
         HPyErr_SetString(ctx, ctx->h_TypeError, "invalid type number.");
         return -1;
     }
-    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     if (_hpy_warn_if_cast_exists_already(ctx,
-            h_descr, descr, totype, "PyArray_RegisterCastFunc") < 0) {
+            h_descr, totype, "PyArray_RegisterCastFunc") < 0) {
         return -1;
     }
 
+    PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
     if (totype < NPY_NTYPES_ABI_COMPATIBLE) {
         descr->f->cast[totype] = castfunc;
         return 0;

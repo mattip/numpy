@@ -3834,8 +3834,8 @@ HPyArray_GetGenericToVoidCastingImpl(HPyContext *ctx)
     static HPyGlobal method;
     static int hg_method_is_set = 0;
 
-    HPy h_method = HPyGlobal_Load(ctx, method);
-    if (hg_method_is_set && !HPy_IsNull(h_method)) {
+    HPy h_method = hg_method_is_set ? HPyGlobal_Load(ctx, method) : HPy_NULL;
+    if (!HPy_IsNull(h_method)) {
         // Py_INCREF(method);
         return h_method;
     }
@@ -4021,8 +4021,8 @@ HPyArray_GetVoidToGenericCastingImpl(HPyContext *ctx)
     static HPyGlobal method;
     static int hg_method_is_set = 0;
 
-    HPy h_method = HPyGlobal_Load(ctx, method);
-    if (hg_method_is_set && !HPy_IsNull(h_method)) {
+    HPy h_method = hg_method_is_set ? HPyGlobal_Load(ctx, method) : HPy_NULL;
+    if (!HPy_IsNull(h_method)) {
         // Py_INCREF(method);
         return h_method;
     }
@@ -4467,8 +4467,8 @@ HPyArray_GetObjectToGenericCastingImpl(HPyContext *ctx)
     static HPyGlobal method;
     static int hg_method_is_set = 0;
 
-    HPy h_method = HPyGlobal_Load(ctx, method);
-    if (hg_method_is_set && !HPy_IsNull(h_method)) {
+    HPy h_method = hg_method_is_set ? HPyGlobal_Load(ctx, method) : HPy_NULL;
+    if (!HPy_IsNull(h_method)) {
         // Py_INCREF(method);
         return h_method;
     }
@@ -4529,8 +4529,8 @@ HPyArray_GetGenericToObjectCastingImpl(HPyContext *ctx)
     static HPyGlobal method;
     static int hg_method_is_set = 0;
 
-    HPy h_method = HPyGlobal_Load(ctx, method);
-    if (hg_method_is_set && !HPy_IsNull(h_method)) {
+    HPy h_method = hg_method_is_set ? HPyGlobal_Load(ctx, method) : HPy_NULL;
+    if (!HPy_IsNull(h_method)) {
         // Py_INCREF(method);
         return h_method;
     }

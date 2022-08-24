@@ -6052,6 +6052,8 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
     if (HPyField_IsNull(ufunc->userloops)) {
         userloops = PyDict_New();
         HPyField_StorePyObj((PyObject *)ufunc, &ufunc->userloops, userloops);
+    } else {
+        userloops = HPyField_LoadPyObj((PyObject *)ufunc, ufunc->userloops);
     }
     key = PyLong_FromLong((long) usertype);
     if (key == NULL) {
