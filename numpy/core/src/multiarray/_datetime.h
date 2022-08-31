@@ -164,7 +164,7 @@ can_cast_timedelta64_metadata(PyArray_DatetimeMetaData *src_meta,
  * no error is set.
  */
 NPY_NO_EXPORT void
-get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
+get_datetime_conversion_factor(HPyContext *ctx, PyArray_DatetimeMetaData *src_meta,
                                 PyArray_DatetimeMetaData *dst_meta,
                                 npy_int64 *out_num, npy_int64 *out_denom);
 

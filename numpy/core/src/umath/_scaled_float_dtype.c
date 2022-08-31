@@ -338,31 +338,32 @@ cast_sfloat_to_sfloat_aligned(PyArrayMethod_Context *context,
 
 static NPY_CASTING
 sfloat_to_sfloat_resolve_descriptors(
-            PyArrayMethodObject *NPY_UNUSED(self),
-            PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-            PyArray_Descr *given_descrs[2],
-            PyArray_Descr *loop_descrs[2],
+            HPyContext *ctx,
+            HPy NPY_UNUSED(self), // PyArrayMethodObject *
+            HPy NPY_UNUSED(dtypes[2]), // PyArray_DTypeMeta *
+            HPy given_descrs[2], // PyArray_Descr *
+            HPy loop_descrs[2], // PyArray_Descr *
             npy_intp *view_offset)
 {
-    loop_descrs[0] = given_descrs[0];
-    Py_INCREF(loop_descrs[0]);
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
 
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = given_descrs[0];
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[0]);
     }
     else {
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
-    Py_INCREF(loop_descrs[1]);
 
-    if (((PyArray_SFloatDescr *)loop_descrs[0])->scaling
-            == ((PyArray_SFloatDescr *)loop_descrs[1])->scaling) {
+    PyArray_Descr *loop_descrs_0 = PyArray_Descr_AsStruct(ctx, loop_descrs[0]);
+    PyArray_Descr *loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
+    if (((PyArray_SFloatDescr *)loop_descrs_0)->scaling
+            == ((PyArray_SFloatDescr *)loop_descrs_1)->scaling) {
         /* same scaling is just a view */
         *view_offset = 0;
         return NPY_NO_CASTING;
     }
-    else if (-((PyArray_SFloatDescr *)loop_descrs[0])->scaling
-             == ((PyArray_SFloatDescr *)loop_descrs[1])->scaling) {
+    else if (-((PyArray_SFloatDescr *)loop_descrs_0)->scaling
+             == ((PyArray_SFloatDescr *)loop_descrs_1)->scaling) {
         /* changing the sign does not lose precision */
         return NPY_EQUIV_CASTING;
     }
@@ -399,18 +400,21 @@ cast_float_to_from_sfloat(PyArrayMethod_Context *NPY_UNUSED(context),
 
 static NPY_CASTING
 float_to_from_sfloat_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *NPY_UNUSED(given_descrs[2]),
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy dtypes[2], // PyArray_DTypeMeta *
+        HPy NPY_UNUSED(given_descrs[2]), // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *view_offset)
 {
-    loop_descrs[0] = NPY_DT_CALL_default_descr(dtypes[0]);
-    if (loop_descrs[0] == NULL) {
+    PyArray_DTypeMeta *dtypes_0 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[0]);
+    loop_descrs[0] = HNPY_DT_CALL_default_descr(ctx, dtypes[0], dtypes_0);
+    if (HPy_IsNull(loop_descrs[0])) {
         return -1;
     }
-    loop_descrs[1] = NPY_DT_CALL_default_descr(dtypes[1]);
-    if (loop_descrs[1] == NULL) {
+    PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
+    loop_descrs[1] = HNPY_DT_CALL_default_descr(ctx, dtypes[1], dtypes_1);
+    if (HPy_IsNull(loop_descrs[1])) {
         return -1;
     }
     *view_offset = 0;
@@ -439,18 +443,18 @@ cast_sfloat_to_bool(PyArrayMethod_Context *NPY_UNUSED(context),
 
 static NPY_CASTING
 sfloat_to_bool_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[2]), // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
-    if (loop_descrs[0] == NULL) {
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
+    if (HPy_IsNull(loop_descrs[0])) {
         return -1;
     }
-    loop_descrs[1] = PyArray_DescrFromType(NPY_BOOL);  /* cannot fail */
+    loop_descrs[1] = HPyArray_DescrFromType(ctx, NPY_BOOL);  /* cannot fail */
     return NPY_UNSAFE_CASTING;
 }
 

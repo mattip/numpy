@@ -4794,60 +4794,62 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
     assert(!HPy_IsNull(signature_obj));
     /* Fill in specified_types from the tuple or string (signature_obj) */
     if (HPyTuple_Check(ctx, signature_obj)) {
-        hpy_abort_not_implemented("_get_fixed_signature: case signature_obj is a tuple");
-        return -1;
-//        Py_ssize_t n = PyTuple_GET_SIZE(signature_obj);
-//        if (n == 1 && nop != 1) {
-//            /*
-//             * Special handling, because we deprecate this path.  The path
-//             * probably mainly existed since the `dtype=obj` was passed through
-//             * as `(obj,)` and parsed later.
-//             */
-//            if (PyTuple_GET_ITEM(signature_obj, 0) == Py_None) {
-//                PyErr_SetString(PyExc_TypeError,
-//                        "a single item type tuple cannot contain None.");
-//                return -1;
-//            }
-//            if (DEPRECATE("The use of a length 1 tuple for the ufunc "
-//                          "`signature` is deprecated. Use `dtype` or  fill the"
-//                          "tuple with `None`s.") < 0) {
-//                return -1;
-//            }
-//            /* Use the same logic as for `dtype=` */
-//            return _get_fixed_signature(ufunc,
-//                    PyTuple_GET_ITEM(signature_obj, 0), NULL, signature);
-//        }
-//        if (n != nop) {
-//            PyErr_Format(PyExc_ValueError,
-//                    "a type-tuple must be specified of length %d for ufunc '%s'",
-//                    nop, ufunc_get_name_cstr(ufunc));
-//            return -1;
-//        }
-//        for (int i = 0; i < nop; ++i) {
-//            PyObject *item = PyTuple_GET_ITEM(signature_obj, i);
-//            if (item == Py_None) {
-//                continue;
-//            }
-//            else {
-//                signature[i] = _get_dtype(item);
-//                if (signature[i] == NULL) {
-//                    return -1;
-//                }
-//                else if (i < nin && NPY_DT_is_abstract(signature[i])) {
-//                    /*
-//                     * We reject abstract input signatures for now.  These
-//                     * can probably be defined by finding the common DType with
-//                     * the actual input and using the result of this for the
-//                     * promotion.
-//                     */
-//                    PyErr_SetString(PyExc_TypeError,
-//                            "Input DTypes to the signature must not be "
-//                            "abstract.  The behaviour may be defined in the "
-//                            "future.");
-//                    return -1;
-//                }
-//            }
-//        }
+        HPy_ssize_t n = HPy_Length(ctx, signature_obj);
+        if (n == 1 && nop != 1) {
+            /*
+             * Special handling, because we deprecate this path.  The path
+             * probably mainly existed since the `dtype=obj` was passed through
+             * as `(obj,)` and parsed later.
+             */
+            HPy signature_obj_0 = HPy_GetItem_i(ctx, signature_obj, 0);
+            if (HPy_Is(ctx, signature_obj_0, ctx->h_None)) {
+                HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "a single item type tuple cannot contain None.");
+                return -1;
+            }
+            if (HPY_DEPRECATE(ctx, "The use of a length 1 tuple for the ufunc "
+                            "`signature` is deprecated. Use `dtype` or  fill the"
+                            "tuple with `None`s.") < 0) {
+                return -1;
+            }
+            /* Use the same logic as for `dtype=` */
+            int ret = _get_fixed_signature(ctx, h_ufunc,
+                    signature_obj_0, HPy_NULL, signature);
+            HPy_Close(ctx, signature_obj_0);
+            return ret;
+        }
+        if (n != nop) {
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
+                    "a type-tuple must be specified of length %d for ufunc '%s'",
+                    nop, ufunc_get_name_cstr(ufunc));
+            return -1;
+        }
+        for (int i = 0; i < nop; ++i) {
+            HPy item = HPy_GetItem_i(ctx, signature_obj, i);
+            if (HPy_Is(ctx, item, ctx->h_None)) {
+                continue;
+            }
+            else {
+                signature[i] = _hpy_get_dtype(ctx, item);
+                HPy_Close(ctx, item);
+                if (HPy_IsNull(signature[i])) {
+                    return -1;
+                }
+                else if (i < nin && HNPY_DT_is_abstract(ctx, signature[i])) {
+                    /*
+                        * We reject abstract input signatures for now.  These
+                        * can probably be defined by finding the common DType with
+                        * the actual input and using the result of this for the
+                        * promotion.
+                        */
+                    HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "Input DTypes to the signature must not be "
+                            "abstract.  The behaviour may be defined in the "
+                            "future.");
+                    return -1;
+                }
+            }
+        }
     }
     else if (HPyBytes_Check(ctx, signature_obj) || HPyUnicode_Check(ctx, signature_obj)) {
         HPy str_object = HPy_NULL;
@@ -5021,9 +5023,7 @@ hresolve_descriptors(HPyContext *ctx, int nop,
          * Fall-back to legacy resolver using `operands`, used exclusively
          * for datetime64/timedelta64 and custom ufuncs (in pyerfa/astropy).
          */
-        // TODO HPY LABS PORT: migrate function type PyUFunc_TypeResolutionFunc
-        // retval = ufunc->type_resolver(ufunc, casting, operands, NULL, dtypes);
-        hpy_abort_not_implemented("hresolve_descriptors");
+        retval = ufunc->hpy_type_resolver(ctx, h_ufunc, casting, operands, HPy_NULL, dtypes);
     }
 
   finish:

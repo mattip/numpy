@@ -1120,7 +1120,7 @@ PyMODINIT_FUNC PyInit__rational_tests(void) {
     npyrational_descr_data->f = &npyrational_arrfuncs;
 
 
-    PyArray_Descr *npyrational_descr = HPy_AsPyObject(ctx, h_npyrational_descr);
+    PyArray_Descr *npyrational_descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_npyrational_descr);
 
     // Py_SET_TYPE(&npyrational_descr, &PyArrayDescr_Type);
     npy_rational = HPyArray_RegisterDataType(ctx, h_npyrational_descr);
