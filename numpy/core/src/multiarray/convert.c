@@ -654,7 +654,7 @@ HPyArray_View(HPyContext *ctx,
     int flags;
     int should_close_subtype = 0;
 
-    if (HPy_IsNull(pytype)) {
+    if (!HPy_IsNull(pytype)) {
         subtype = pytype;
     }
     else {

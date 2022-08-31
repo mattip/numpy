@@ -73,9 +73,9 @@ static int npyiter_cache_values(HPyContext *ctx, HPy h_self, NewNpyArrayIterObje
     HPy_CloseAndFreeFieldArray(ctx, h_self, self->dtypes, nop);
     HPy_CloseAndFreeFieldArray(ctx, h_self, self->operands, nop);
     HPy *h_dtypes = HNpyIter_GetDescrArray(iter);
-    self->dtypes = (HPyField *)malloc(nop * sizeof(HPyField));
+    self->dtypes = (HPyField *)calloc(nop, sizeof(HPyField));
     HPy *h_operands = HNpyIter_GetOperandArray(iter);
-    self->operands = (HPyField *)malloc(nop * sizeof(HPyField));
+    self->operands = (HPyField *)calloc(nop, sizeof(HPyField));
     for (npy_int i = 0; i < nop; i++) {
         HPyField_Store(ctx, h_self, &self->dtypes[i], h_dtypes[i]);
         HPyField_Store(ctx, h_self, &self->operands[i], h_operands[i]);

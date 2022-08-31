@@ -124,7 +124,7 @@ HPyArrayIdentityHash_New(HPyContext *ctx, int key_len)
     res->nelem = 0;
 
     // TODO HPY LABS PORT: PyMem_Calloc
-    res->buckets = calloc(4 * (key_len + 1), sizeof(HPyField));
+    res->buckets = (HPyField *)calloc(4 * (key_len + 1), sizeof(HPyField));
     if (res->buckets == NULL) {
         HPyErr_NoMemory(ctx);
         // TODO HPY LABS PORT: PyMem_Free
@@ -191,7 +191,7 @@ _resize_if_necessary(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb)
     }
     // TODO HPY LABS PORT: PyMem_Calloc
     // tb->buckets = PyMem_Calloc(alloc_size, sizeof(PyObject *));
-    tb->buckets = calloc(alloc_size, sizeof(HPyField));
+    tb->buckets = (HPyField *)calloc(alloc_size, sizeof(HPyField));
     if (tb->buckets == NULL) {
         tb->buckets = old_table;
         HPyErr_NoMemory(ctx);

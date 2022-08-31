@@ -1633,7 +1633,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
      * But this is not strictly correct for old-style ufuncs (e.g. `power`
      * released the GIL but manually set an Exception).
      */
-    if (PyErr_Occurred()) {
+    if (HPyErr_Occurred(hctx)) {
         res = -1;
     }
 

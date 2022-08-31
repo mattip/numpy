@@ -4620,9 +4620,14 @@ _hpy_typenum_fromtypeobj(HPyContext *ctx, HPy type, int user)
     }
     /* Search any registered types */
     i = 0;
+    PyObject *py_type = HPy_AsPyObject(ctx, type);
+    CAPI_WARN("calling PyArray_Descr_typeobj(userdescrs[i]))");
     while (i < NPY_NUMUSERTYPES) {
-        // HPY TODO
-        printf("ERROR: user types unimplemented in HPy port...\n");
+        if (py_type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
+            typenum = i + NPY_USERDEF;
+            break;
+        }
+        i++;
     }
     return typenum;
 }
