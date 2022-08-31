@@ -1446,6 +1446,57 @@ static PyNumberMethods @name@_as_number = {
 };
 /**end repeat**/
 
+/**begin repeat
+ *  #name = byte, ubyte, short, ushort, int, uint,
+ *          long, ulong, longlong, ulonglong,
+ *          half, float, double, longdouble,
+ *          cfloat, cdouble, clongdouble#
+ *  #NAME = Byte, UByte, Short, UShort, Int, UInt,
+ *          Long, ULong, LongLong, ULongLong,
+ *          Half, Float, Double, LongDouble,
+ *          CFloat, CDouble, CLongDouble#
+ **/
+NPY_NO_EXPORT void
+hpy_update_scalarmath_Py@NAME@ArrType_Type(void)
+{
+    // @name@_as_number.nb_index = Py@NAME@ArrType_Type.tp_as_number->nb_index;
+    // Py@NAME@ArrType_Type.tp_as_number = &(@name@_as_number);
+    PyType_Slot *slots = Py@NAME@ArrType_Type_spec.legacy_slots;
+    if (slots) { 
+        int i = 0;
+        while(slots[i].slot) {
+            switch (slots[i].slot) {
+                case Py_nb_add: slots[i].pfunc = (binaryfunc)@name@_add; break;
+                case Py_nb_subtract: slots[i].pfunc = (binaryfunc)@name@_subtract; break;
+                case Py_nb_multiply: slots[i].pfunc = (binaryfunc)@name@_multiply; break;
+                case Py_nb_remainder: slots[i].pfunc = (binaryfunc)@name@_remainder; break;
+                case Py_nb_divmod: slots[i].pfunc = (binaryfunc)@name@_divmod; break;
+                case Py_nb_power: slots[i].pfunc = (ternaryfunc)@name@_power; break;
+                case Py_nb_negative: slots[i].pfunc = (unaryfunc)@name@_negative; break;
+                case Py_nb_positive: slots[i].pfunc = (unaryfunc)@name@_positive; break;
+                case Py_nb_absolute: slots[i].pfunc = (unaryfunc)@name@_absolute; break;
+                case Py_nb_bool: slots[i].pfunc = (inquiry)@name@_bool; break;
+                case Py_nb_invert: slots[i].pfunc = (unaryfunc)@name@_invert; break;
+                case Py_nb_lshift: slots[i].pfunc = (binaryfunc)@name@_lshift; break;
+                case Py_nb_rshift: slots[i].pfunc = (binaryfunc)@name@_rshift; break;
+                case Py_nb_and: slots[i].pfunc = (binaryfunc)@name@_and; break;
+                case Py_nb_xor: slots[i].pfunc = (binaryfunc)@name@_xor; break;
+                case Py_nb_or: slots[i].pfunc = (binaryfunc)@name@_or; break;
+                case Py_nb_int: slots[i].pfunc = (unaryfunc)@name@_int; break;
+                case Py_nb_float: slots[i].pfunc = (unaryfunc)@name@_float; break;
+                case Py_nb_floor_divide: slots[i].pfunc = (binaryfunc)@name@_floor_divide; break;
+                case Py_nb_true_divide: slots[i].pfunc = (binaryfunc)@name@_true_divide; break;
+                
+                // Py@NAME@ArrType_Type.tp_richcompare = @name@_richcompare;
+                case Py_tp_richcompare: slots[i].pfunc = (binaryfunc)@name@_richcompare; break;
+            }
+            i++;
+        }
+    }
+}
+
+/**end repeat**/
+
 NPY_NO_EXPORT void
 add_scalarmath(void)
 {
@@ -1459,9 +1510,10 @@ add_scalarmath(void)
      *          Half, Float, Double, LongDouble,
      *          CFloat, CDouble, CLongDouble#
      **/
-    @name@_as_number.nb_index = Py@NAME@ArrType_Type.tp_as_number->nb_index;
-    Py@NAME@ArrType_Type.tp_as_number = &(@name@_as_number);
-    Py@NAME@ArrType_Type.tp_richcompare = @name@_richcompare;
+    // @name@_as_number.nb_index = Py@NAME@ArrType_Type.tp_as_number->nb_index;
+    // Py@NAME@ArrType_Type.tp_as_number = &(@name@_as_number);
+    // Py@NAME@ArrType_Type.tp_richcompare = @name@_richcompare;
+    hpy_update_scalarmath_Py@NAME@ArrType_Type();
     /**end repeat**/
 }
 
