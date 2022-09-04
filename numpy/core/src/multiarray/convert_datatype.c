@@ -2446,7 +2446,7 @@ HPyArray_LegacyResultType(HPyContext *ctx,
             return HPy_NULL;
         }
         for (i = 0; i < narrs; ++i) {
-            all_dtypes[i] = HPyArray_DESCR(ctx, arr[i], PyArrayObject_AsStruct(ctx, arr[0]));
+            all_dtypes[i] = HPyArray_DESCR(ctx, arr[i], PyArrayObject_AsStruct(ctx, arr[i]));
         }
         for (i = 0; i < ndtypes; ++i) {
             all_dtypes[narrs + i] = dtypes[i];
