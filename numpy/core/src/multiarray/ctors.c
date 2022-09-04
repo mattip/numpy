@@ -1954,6 +1954,7 @@ _hpy_array_from_array_like(HPyContext *ctx, HPy h_op,
         if (HPy_IsNull(tmp)) {
             return HPy_NULL;
         }
+        tmp_is_notimpl = HPy_Is(ctx, tmp, ctx->h_NotImplemented);
     }
 
     /*
