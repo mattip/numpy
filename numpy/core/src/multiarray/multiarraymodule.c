@@ -4786,8 +4786,6 @@ static struct PyMethodDef array_module_methods[] = {
         METH_VARARGS, NULL},
     {"_add_newdoc_ufunc", (PyCFunction)add_newdoc_ufunc,
         METH_VARARGS, NULL},
-    {"_get_sfloat_dtype",
-        get_sfloat_dtype, METH_NOARGS, NULL},
     {"_set_madvise_hugepage", (PyCFunction)_set_madvise_hugepage,
         METH_O, NULL},
     {"_reload_guard", (PyCFunction)_reload_guard,
@@ -5061,6 +5059,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &array_min_scalar_type,
     &_get_castingimpl,
     &NpyIter_NestedIters,
+    &get_sfloat_dtype,
     NULL
 };
 

@@ -31,15 +31,19 @@ typedef struct {
     double scaling;
 } PyArray_SFloatDescr;
 
-static PyArray_DTypeMeta PyArray_SFloatDType;
-static PyArray_SFloatDescr SFloatSingleton;
+HPyType_LEGACY_HELPERS(PyArray_SFloatDescr)
+
+static HPyGlobal HPyArray_SFloatDType;
+static HPyGlobal SFloatSingleton;
+static PyArray_DTypeMeta *PyArray_SFloatDType;
 
 
 static int
-sfloat_is_known_scalar_type(PyArray_DTypeMeta *NPY_UNUSED(cls), PyTypeObject *type)
+sfloat_is_known_scalar_type(HPyContext *ctx,
+        HPy /* PyArray_DTypeMeta * */ NPY_UNUSED(cls), HPy type)
 {
     /* Accept only floats (some others may work due to normal casting) */
-    if (type == &PyFloat_Type) {
+    if (HPy_Is(ctx, type, ctx->h_FloatType)) {
         return 1;
     }
     return 0;
@@ -49,7 +53,7 @@ sfloat_is_known_scalar_type(PyArray_DTypeMeta *NPY_UNUSED(cls), PyTypeObject *ty
 static HPy
 sfloat_default_descr(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
-    return HPy_FromPyObject(ctx, (PyObject *)&SFloatSingleton);
+    return HPyGlobal_Load(ctx, SFloatSingleton);
 }
 
 
@@ -90,6 +94,19 @@ sfloat_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
     }
     Py_INCREF(descr2);
     return descr2;
+}
+
+static HPy
+hpy_sfloat_common_instance(HPyContext *ctx, HPy descr1, HPy descr2)
+{
+
+    PyArray_SFloatDescr *sf1 = PyArray_SFloatDescr_AsStruct(ctx, descr1);
+    PyArray_SFloatDescr *sf2 = PyArray_SFloatDescr_AsStruct(ctx, descr2);
+    /* We make the choice of using the larger scaling */
+    if (sf1->scaling >= sf2->scaling) {
+        return HPy_Dup(ctx, descr1);
+    }
+    return HPy_Dup(ctx, descr2);
 }
 
 
@@ -152,116 +169,103 @@ NPY_DType_Slots sfloat_slots = {
     }
 };
 
-
-static PyArray_SFloatDescr SFloatSingleton = {{
-        .elsize = sizeof(double),
-        .alignment = _ALIGN(double),
-        .flags = NPY_USE_GETITEM|NPY_USE_SETITEM,
-        .type_num = -1,
-        .f = &sfloat_slots.f,
-        .byteorder = '|',  /* do not bother with byte-swapping... */
-    },
-    .scaling = 1,
-};
-
-
-static PyArray_Descr *
-sfloat_scaled_copy(PyArray_SFloatDescr *self, double factor) {
-    PyArray_SFloatDescr *new = PyObject_New(
-            PyArray_SFloatDescr, (PyTypeObject *)&PyArray_SFloatDType);
-    if (new == NULL) {
-        return NULL;
+static HPy // PyArray_Descr *
+sfloat_scaled_copy(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self, double factor) {
+    PyArray_SFloatDescr *new;
+    HPy h_PyArray_SFloatDType = HPyGlobal_Load(ctx, HPyArray_SFloatDType);
+    HPy h_new = HPy_New(ctx, h_PyArray_SFloatDType, &new);
+    if (HPy_IsNull(h_new)) {
+        return HPy_NULL;
     }
+    PyArray_SFloatDescr *self = PyArray_SFloatDescr_AsStruct(ctx, h_self);
     /* Don't copy PyObject_HEAD part */
     memcpy((char *)new + sizeof(PyObject),
             (char *)self + sizeof(PyObject),
             sizeof(PyArray_SFloatDescr) - sizeof(PyObject));
 
     new->scaling = new->scaling * factor;
-    return (PyArray_Descr *)new;
+    return h_new;
 }
 
 
-PyObject *
-python_sfloat_scaled_copy(PyArray_SFloatDescr *self, PyObject *arg)
+HPyDef_METH(python_sfloat_scaled_copy, "scaled_by", python_sfloat_scaled_copy_impl, HPyFunc_O)
+HPy
+python_sfloat_scaled_copy_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self, HPy arg)
 {
-    if (!PyFloat_Check(arg)) {
-        PyErr_SetString(PyExc_TypeError,
+    HPy arg_type = HPy_Type(ctx, arg);
+    if (!HPy_Is(ctx, arg_type, ctx->h_FloatType)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "Scaling factor must be a python float.");
-        return NULL;
+        return HPy_NULL;
     }
-    double factor = PyFloat_AsDouble(arg);
+    double factor = HPyFloat_AsDouble(ctx, arg);
 
-    return (PyObject *)sfloat_scaled_copy(self, factor);
+    return sfloat_scaled_copy(ctx, h_self, factor);
 }
 
 
-static PyObject *
-sfloat_get_scaling(PyArray_SFloatDescr *self, PyObject *NPY_UNUSED(args))
+HPyDef_METH(sfloat_get_scaling, "get_scaling", sfloat_get_scaling_impl, HPyFunc_NOARGS)
+static HPy
+sfloat_get_scaling_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
 {
-    return PyFloat_FromDouble(self->scaling);
+    PyArray_SFloatDescr *self = PyArray_SFloatDescr_AsStruct(ctx, h_self);
+    return HPyFloat_FromDouble(ctx, self->scaling);
 }
 
-
-PyMethodDef sfloat_methods[] = {
-    {"scaled_by",
-         (PyCFunction)python_sfloat_scaled_copy, METH_O,
-        "Method to get a dtype copy with different scaling, mainly to "
-        "avoid having to implement many ways to create new instances."},
-    {"get_scaling",
-        (PyCFunction)sfloat_get_scaling, METH_NOARGS, NULL},
-    {NULL, NULL, 0, NULL}
-};
-
-
-static PyObject *
-sfloat_new(PyTypeObject *NPY_UNUSED(cls), PyObject *args, PyObject *kwds)
+HPyDef_SLOT(sfloat_new, sfloat_new_impl, HPy_tp_new)
+static HPy
+sfloat_new_impl(HPyContext *ctx, HPy NPY_UNUSED(cls), HPy *args_h,
+                          HPy_ssize_t nargs, HPy kwds)
 {
     double scaling = 1.;
-    static char *kwargs_strs[] = {"scaling", NULL};
+    static const char *kwargs_strs[] = {"scaling", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|d:_ScaledFloatTestDType", kwargs_strs, &scaling)) {
-        return NULL;
+
+    if (!HPyArg_ParseKeywords(ctx, NULL,
+            args_h, nargs, kwds, "|d:_ScaledFloatTestDType", kwargs_strs, &scaling)) {
+        return HPy_NULL;
     }
+    HPy h_SFloatSingleton = HPyGlobal_Load(ctx, SFloatSingleton);
     if (scaling == 1.) {
-        Py_INCREF(&SFloatSingleton);
-        return (PyObject *)&SFloatSingleton;
+        return h_SFloatSingleton;
     }
-    return (PyObject *)sfloat_scaled_copy(&SFloatSingleton, scaling);
+    HPy ret = sfloat_scaled_copy(ctx, h_SFloatSingleton, scaling);
+    HPy_Close(ctx, h_SFloatSingleton);
+    return ret;
 }
 
+
+HPyDef_SLOT(sfloat_repr, sfloat_repr_impl, HPy_tp_repr)
+static HPy
+sfloat_repr_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
+{
+    PyArray_SFloatDescr *self = PyArray_SFloatDescr_AsStruct(ctx, h_self);
+    HPy scaling = HPyFloat_FromDouble(ctx, self->scaling);
+    if (HPy_IsNull(scaling)) {
+        return HPy_NULL;
+    }
+    CAPI_WARN("missing PyUnicode_FromFormat");
+    PyObject *py_scaling = HPy_AsPyObject(ctx, scaling);
+    HPy_Close(ctx, scaling);
+    PyObject *res = PyUnicode_FromFormat(
+            "_ScaledFloatTestDType(scaling=%R)", py_scaling);
+    HPy h_res = HPy_FromPyObject(ctx, res);
+    Py_DECREF(py_scaling);
+    Py_DECREF(res);
+    return h_res;
+}
 
 static PyObject *
-sfloat_repr(PyArray_SFloatDescr *self)
+sfloat_str(PyArray_SFloatDescr *self)
 {
-    PyObject *scaling = PyFloat_FromDouble(self->scaling);
-    if (scaling == NULL) {
-        return NULL;
-    }
-    PyObject *res = PyUnicode_FromFormat(
-            "_ScaledFloatTestDType(scaling=%R)", scaling);
-    Py_DECREF(scaling);
-    return res;
+    HPyContext *ctx = npy_get_context(); 
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_ret = sfloat_repr_impl(ctx, h_self);
+    PyObject *ret = HPy_AsPyObject(ctx, h_ret);
+    HPy_Close(ctx, h_self);
+    HPy_Close(ctx, h_ret);
+    return ret;
 }
-
-
-static PyArray_DTypeMeta PyArray_SFloatDType = {{{
-        PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "numpy._ScaledFloatTestDType",
-        .tp_methods = sfloat_methods,
-        .tp_new = sfloat_new,
-        .tp_repr = (reprfunc)sfloat_repr,
-        .tp_str = (reprfunc)sfloat_repr,
-        .tp_basicsize = sizeof(PyArray_SFloatDescr),
-    }},
-    .type_num = -1,
-    .scalar_type = HPyField_NULL,
-    .flags = NPY_DT_PARAMETRIC,
-    .dt_slots = &sfloat_slots,
-};
-
-
 /*
  * Implement some casts.
  */
@@ -271,13 +275,13 @@ static PyArray_DTypeMeta PyArray_SFloatDType = {{{
  * error returns.
  */
 static int
-check_factor(double factor) {
+check_factor(HPyContext *ctx, double factor) {
     if (npy_isfinite(factor) && factor != 0.) {
         return 0;
     }
     NPY_ALLOW_C_API_DEF;
     NPY_ALLOW_C_API;
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "error raised inside the core-loop: non-finite factor!");
     NPY_DISABLE_C_API;
     return -1;
@@ -292,7 +296,7 @@ cast_sfloat_to_sfloat_unaligned(PyArrayMethod_Context *context,
     /* could also be moved into auxdata: */
     double factor = ((PyArray_SFloatDescr *)context->descriptors[0])->scaling;
     factor /= ((PyArray_SFloatDescr *)context->descriptors[1])->scaling;
-    if (check_factor(factor) < 0) {
+    if (check_factor(npy_get_context(), factor) < 0) {
         return -1;
     }
 
@@ -320,7 +324,7 @@ cast_sfloat_to_sfloat_aligned(PyArrayMethod_Context *context,
     /* could also be moved into auxdata: */
     double factor = ((PyArray_SFloatDescr *)context->descriptors[0])->scaling;
     factor /= ((PyArray_SFloatDescr *)context->descriptors[1])->scaling;
-    if (check_factor(factor) < 0) {
+    if (check_factor(npy_get_context(), factor) < 0) {
         return -1;
     }
 
@@ -460,11 +464,10 @@ sfloat_to_bool_resolve_descriptors(
 
 
 static int
-init_casts(void)
+init_casts(HPyContext *ctx, HPy PyArray_SFloatDType_arg)
 {
     // PyArray_DTypeMeta *dtypes[2] = {&PyArray_SFloatDType, &PyArray_SFloatDType};
-    HPyContext *ctx = npy_get_context();
-    HPy h_PyArray_SFloatDType = HPy_FromPyObject(ctx, (PyObject *)&PyArray_SFloatDType);
+    HPy h_PyArray_SFloatDType = HPy_Dup(ctx, PyArray_SFloatDType_arg);
     HPy dtypes[2] = {
             h_PyArray_SFloatDType, 
             h_PyArray_SFloatDType, 
@@ -578,26 +581,25 @@ multiply_sfloats(PyArrayMethod_Context *NPY_UNUSED(context),
 
 static NPY_CASTING
 multiply_sfloats_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[3]),
-        PyArray_Descr *given_descrs[3],
-        PyArray_Descr *loop_descrs[3],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[3]), // PyArray_DTypeMeta *
+        HPy given_descrs[3], // PyArray_Descr *
+        HPy loop_descrs[3], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
     /*
      * Multiply the scaling for the result.  If the result was passed in we
      * simply ignore it and let the casting machinery fix it up here.
      */
-    double factor = ((PyArray_SFloatDescr *)given_descrs[1])->scaling;
-    loop_descrs[2] = sfloat_scaled_copy(
-            (PyArray_SFloatDescr *)given_descrs[0], factor);
-    if (loop_descrs[2] == 0) {
+    PyArray_SFloatDescr *given_descrs_1 = PyArray_SFloatDescr_AsStruct(ctx, given_descrs[1]);
+    double factor = given_descrs_1->scaling;
+    loop_descrs[2] = sfloat_scaled_copy(ctx, given_descrs[0], factor);
+    if (HPy_IsNull(loop_descrs[2])) {
         return -1;
     }
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
-    Py_INCREF(given_descrs[1]);
-    loop_descrs[1] = given_descrs[1];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
+    loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     return NPY_NO_CASTING;
 }
 
@@ -607,7 +609,8 @@ multiply_sfloats_resolve_descriptors(
  * scaling (casting) internally.  This allows to test some different paths.
  */
 static int
-add_sfloats(PyArrayMethod_Context *context,
+add_sfloats(
+    PyArrayMethod_Context *context,
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -617,10 +620,10 @@ add_sfloats(PyArrayMethod_Context *context,
 
     double fact1 = fin1 / fout;
     double fact2 = fin2 / fout;
-    if (check_factor(fact1) < 0) {
+    if (check_factor(npy_get_context(), fact1) < 0) {
         return -1;
     }
-    if (check_factor(fact2) < 0) {
+    if (check_factor(npy_get_context(), fact2) < 0) {
         return -1;
     }
 
@@ -640,36 +643,34 @@ add_sfloats(PyArrayMethod_Context *context,
 
 static NPY_CASTING
 add_sfloats_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[3]),
-        PyArray_Descr *given_descrs[3],
-        PyArray_Descr *loop_descrs[3],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[3]), // PyArray_DTypeMeta *
+        HPy given_descrs[3], // PyArray_Descr *
+        HPy loop_descrs[3], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
     /*
      * Here we accept an output descriptor (the inner loop can deal with it),
      * if none is given, we use the "common instance":
      */
-    if (given_descrs[2] == NULL) {
-        loop_descrs[2] = sfloat_common_instance(
+    if (HPy_IsNull(given_descrs[2])) {
+        loop_descrs[2] = hpy_sfloat_common_instance(ctx,
                 given_descrs[0], given_descrs[1]);
-        if (loop_descrs[2] == 0) {
+        if (HPy_IsNull(loop_descrs[2])) {
             return -1;
         }
     }
     else {
-        Py_INCREF(given_descrs[2]);
-        loop_descrs[2] = given_descrs[2];
+        loop_descrs[2] = HPy_Dup(ctx, given_descrs[2]);
     }
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
-    Py_INCREF(given_descrs[1]);
-    loop_descrs[1] = given_descrs[1];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
+    loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
 
     /* If the factors mismatch, we do implicit casting inside the ufunc! */
-    double fin1 = ((PyArray_SFloatDescr *)loop_descrs[0])->scaling;
-    double fin2 = ((PyArray_SFloatDescr *)loop_descrs[1])->scaling;
-    double fout = ((PyArray_SFloatDescr *)loop_descrs[2])->scaling;
+    double fin1 = PyArray_SFloatDescr_AsStruct(ctx, loop_descrs[0])->scaling;
+    double fin2 = PyArray_SFloatDescr_AsStruct(ctx, loop_descrs[1])->scaling;
+    double fout = PyArray_SFloatDescr_AsStruct(ctx, loop_descrs[2])->scaling;
 
     if (fin1 == fout && fin2 == fout) {
         return NPY_NO_CASTING;
@@ -764,7 +765,7 @@ promote_to_sfloat(PyUFuncObject *NPY_UNUSED(ufunc),
         PyArray_DTypeMeta *new_dtypes[3])
 {
     for (int i = 0; i < 3; i++) {
-        PyArray_DTypeMeta *new = &PyArray_SFloatDType;
+        PyArray_DTypeMeta *new = PyArray_SFloatDType;
         if (signature[i] != NULL) {
             new = signature[i];
         }
@@ -783,7 +784,7 @@ static int
 init_ufuncs(HPyContext *ctx) {
     // PyArray_DTypeMeta *dtypes[3] = {
     //         &PyArray_SFloatDType, &PyArray_SFloatDType, &PyArray_SFloatDType};
-    HPy h_PyArray_SFloatDType = HPy_FromPyObject(ctx, (PyObject *)&PyArray_SFloatDType);
+    HPy h_PyArray_SFloatDType = HPyGlobal_Load(ctx, HPyArray_SFloatDType);
     HPy dtypes[3] = {
             h_PyArray_SFloatDType, 
             h_PyArray_SFloatDType, 
@@ -815,8 +816,7 @@ init_ufuncs(HPyContext *ctx) {
         HPyField_Load(ctx, h_bmeth, bmeth->dtypes[2]),
     };
     HPy h_bmeth_method = HPyField_Load(ctx, h_bmeth, bmeth->method);
-    res = hpy_add_loop(ctx, "multiply",
-            h_bmeth_dtypes, h_bmeth_method);
+    res = hpy_add_loop(ctx, "multiply", h_bmeth_dtypes, h_bmeth_method);
     HPy_Close(ctx, h_bmeth_dtypes[0]);
     HPy_Close(ctx, h_bmeth_dtypes[1]);
     HPy_Close(ctx, h_bmeth_dtypes[2]);
@@ -853,30 +853,33 @@ init_ufuncs(HPyContext *ctx) {
         return -1;
     }
 
-    CAPI_WARN("using promote_to_sfloat");
     /*
      * Add a promoter for both directions of multiply with double.
      */
-    PyArray_DTypeMeta *double_DType = PyArray_DTypeFromTypeNum(NPY_DOUBLE);
-    Py_DECREF(double_DType);  /* immortal anyway */
+    HPy double_DType = HPyArray_DTypeFromTypeNum(ctx, NPY_DOUBLE);
+    // Py_DECREF(double_DType);  /* immortal anyway */
 
-    PyArray_DTypeMeta *promoter_dtypes[3] = {
-            &PyArray_SFloatDType, double_DType, NULL};
+    HPy promoter_dtypes[3] = { // PyArray_DTypeMeta *
+            h_PyArray_SFloatDType, double_DType, HPy_NULL};
 
-    PyObject *promoter = PyCapsule_New(
+    HPy promoter = HPyCapsule_New(ctx,
             &promote_to_sfloat, "numpy._ufunc_promoter", NULL);
-    if (promoter == NULL) {
+    if (HPy_IsNull(promoter)) {
         return -1;
     }
-    res = add_loop("multiply", promoter_dtypes, promoter);
+    res = hpy_add_loop(ctx, "multiply", promoter_dtypes, promoter);
     if (res < 0) {
-        Py_DECREF(promoter);
+        HPy_Close(ctx, promoter);
+        HPy_Close(ctx, double_DType);
+        HPy_Close(ctx, h_PyArray_SFloatDType);
         return -1;
     }
     promoter_dtypes[0] = double_DType;
-    promoter_dtypes[1] = &PyArray_SFloatDType;
-    res = add_loop("multiply", promoter_dtypes, promoter);
-    Py_DECREF(promoter);
+    promoter_dtypes[1] = h_PyArray_SFloatDType;
+    res = hpy_add_loop(ctx, "multiply", promoter_dtypes, promoter);
+    HPy_Close(ctx, promoter);
+    HPy_Close(ctx, double_DType);
+    HPy_Close(ctx, h_PyArray_SFloatDType);
     if (res < 0) {
         return -1;
     }
@@ -885,51 +888,104 @@ init_ufuncs(HPyContext *ctx) {
 }
 
 
+static HPyDef *sfloat_defines[] = {
+    &sfloat_new,
+    &sfloat_repr,
+
+    // methods:
+    &python_sfloat_scaled_copy,
+    &sfloat_get_scaling,
+    NULL,
+};
+
+static PyType_Slot sfloat_slots_legacy[] = {
+    // HPy TODO: add HPy_tp_str
+    {Py_tp_str, sfloat_str},
+    {0},
+};
+
 /*
  * Python entry point, exported via `umathmodule.h` and `multiarraymodule.c`.
  * TODO: Should be moved when the necessary API is not internal anymore.
  */
-NPY_NO_EXPORT PyObject *
-get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
+HPyDef_METH(get_sfloat_dtype, "_get_sfloat_dtype", get_sfloat_dtype_impl, HPyFunc_NOARGS)
+NPY_NO_EXPORT HPy
+get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod))
 {
     /* Allow calling the function multiple times. */
     static npy_bool initialized = NPY_FALSE;
 
     if (initialized) {
-        Py_INCREF(&PyArray_SFloatDType);
-        return (PyObject *)&PyArray_SFloatDType;
+        return HPyGlobal_Load(ctx, HPyArray_SFloatDType);
     }
 
-    PyArray_SFloatDType.super.ht_type.tp_base = &PyArrayDescr_Type;
+    // PyArray_SFloatDType.super.ht_type.tp_base = &PyArrayDescr_Type;
+    HPy h_PyArrayDescr_Type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
 
-    if (PyType_Ready((PyTypeObject *)&PyArray_SFloatDType) < 0) {
-        return NULL;
+    static HPyType_Spec PyArray_SFloatDType_spec = {
+        .name = "numpy._ScaledFloatTestDType",
+        .basicsize = sizeof(PyArray_SFloatDescr),
+        .flags = HPy_TPFLAGS_DEFAULT,
+        .defines = sfloat_defines,
+        .legacy_slots = sfloat_slots_legacy,
+        .legacy = true,
+    };
+
+    HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
+    HPyType_SpecParam dtypemeta_params[] = {
+        { HPyType_SpecParam_Base, h_PyArrayDescr_Type },
+        { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },
+        { 0 }
+    };
+
+    HPy h_PyArray_SFloatDType = HPyType_FromSpec(ctx, 
+                            &PyArray_SFloatDType_spec, dtypemeta_params);
+    HPy_Close(ctx, h_PyArrayDescr_Type);
+    HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
+    if (HPy_IsNull(h_PyArray_SFloatDType)) {
+        return HPy_NULL;
     }
-    HPyContext *ctx = npy_get_context();
-    HPy h_dtype = HPy_FromPyObject(ctx, (PyObject*)&PyArray_SFloatDType);
+    PyArray_DTypeMeta *h_PyArray_SFloatDType_data = 
+                            PyArray_DTypeMeta_AsStruct(ctx, h_PyArray_SFloatDType);
+    h_PyArray_SFloatDType_data->type_num = -1;
+    h_PyArray_SFloatDType_data->scalar_type = HPyField_NULL;
+    h_PyArray_SFloatDType_data->flags = NPY_DT_PARAMETRIC;
+    h_PyArray_SFloatDType_data->dt_slots = &sfloat_slots;
     HPy h_castingimpls = HPyDict_New(ctx);
     if (HPy_IsNull(h_castingimpls)) {
-        HPy_Close(ctx, h_dtype);
-        return NULL;
+        HPy_Close(ctx, h_PyArray_SFloatDType);
+        return HPy_NULL;
     }
-    HPyField_Store(ctx, h_dtype, &NPY_DT_SLOTS(&PyArray_SFloatDType)->castingimpls, h_castingimpls);
-    HPy_Close(ctx, h_dtype);
+    HPyField_Store(ctx, h_PyArray_SFloatDType, 
+                        &NPY_DT_SLOTS(h_PyArray_SFloatDType_data)->castingimpls, h_castingimpls);
     HPy_Close(ctx, h_castingimpls);
-
+    HPyGlobal_Store(ctx, &HPyArray_SFloatDType, h_PyArray_SFloatDType);
+    PyArray_SFloatDType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_PyArray_SFloatDType);
+    PyArray_SFloatDescr *h_SFloatSingleton_data;
+    HPy h_SFloatSingleton = HPy_New(ctx, h_PyArray_SFloatDType, &h_SFloatSingleton_data);
+    h_SFloatSingleton_data->base.elsize = sizeof(double);
+    h_SFloatSingleton_data->base.alignment = _ALIGN(double);
+    h_SFloatSingleton_data->base.flags = NPY_USE_GETITEM|NPY_USE_SETITEM;
+    h_SFloatSingleton_data->base.type_num = -1;
+    h_SFloatSingleton_data->base.f = &sfloat_slots.f;
+    h_SFloatSingleton_data->base.byteorder = '|';  /* do not bother with byte-swapping... */
+    h_SFloatSingleton_data->scaling = 1;
+    HPyGlobal_Store(ctx, &SFloatSingleton, h_SFloatSingleton);
+    PyObject *py_SFloatSingleton = HPy_AsPyObject(ctx, h_SFloatSingleton);
     PyObject *o = PyObject_Init(
-            (PyObject *)&SFloatSingleton, (PyTypeObject *)&PyArray_SFloatDType);
+            (PyObject *)py_SFloatSingleton, (PyTypeObject *)py_SFloatSingleton);
     if (o == NULL) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    if (init_casts() < 0) {
-        return NULL;
+    if (init_casts(ctx, h_PyArray_SFloatDType) < 0) {
+        return HPy_NULL;
     }
 
     if (init_ufuncs(ctx) < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 
     initialized = NPY_TRUE;
-    return (PyObject *)&PyArray_SFloatDType;
+    return h_PyArray_SFloatDType;
 }
