@@ -4805,11 +4805,13 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
             if (HPy_Is(ctx, signature_obj_0, ctx->h_None)) {
                 HPyErr_SetString(ctx, ctx->h_TypeError,
                         "a single item type tuple cannot contain None.");
+                HPy_Close(ctx, signature_obj_0);
                 return -1;
             }
             if (HPY_DEPRECATE(ctx, "The use of a length 1 tuple for the ufunc "
                             "`signature` is deprecated. Use `dtype` or  fill the"
                             "tuple with `None`s.") < 0) {
+                HPy_Close(ctx, signature_obj_0);
                 return -1;
             }
             /* Use the same logic as for `dtype=` */
@@ -4827,12 +4829,14 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
         for (int i = 0; i < nop; ++i) {
             HPy item = HPy_GetItem_i(ctx, signature_obj, i);
             if (HPy_Is(ctx, item, ctx->h_None)) {
+                HPy_Close(ctx, item);
                 continue;
             }
             else {
                 signature[i] = _hpy_get_dtype(ctx, item);
                 HPy_Close(ctx, item);
                 if (HPy_IsNull(signature[i])) {
+                    HPy_CloseArray(ctx, signature, i);
                     return -1;
                 }
                 else if (i < nin && HNPY_DT_is_abstract(ctx, signature[i])) {
@@ -4846,6 +4850,7 @@ _get_fixed_signature(HPyContext *ctx, HPy h_ufunc,
                             "Input DTypes to the signature must not be "
                             "abstract.  The behaviour may be defined in the "
                             "future.");
+                    HPy_CloseArray(ctx, signature, i + 1);
                     return -1;
                 }
             }
