@@ -122,7 +122,7 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
     }
     static HPyGlobal hg_out_str;
     static int is_out_str_set = 0;
-    HPy out_str = HPyGlobal_Load(ctx, hg_out_str);
+    HPy out_str = is_out_str_set ? HPyGlobal_Load(ctx, hg_out_str) : HPy_NULL;
     if (!is_out_str_set || HPy_IsNull(out_str)) {
         out_str = HPyUnicode_InternFromString(ctx, "out");
         if (HPy_IsNull(out_str)) {
