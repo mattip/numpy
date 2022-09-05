@@ -3421,7 +3421,7 @@ HPyArray_FromArrayAttr_int(HPyContext *ctx,
     PyObject *ret = PyArray_FromArrayAttr_int(op, descr, never_copy);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(op);
-    Py_DECREF(descr);
+    Py_XDECREF(descr);
     Py_DECREF(ret);
     return h_ret;
 }

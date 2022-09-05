@@ -911,11 +911,10 @@ boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
         return HPy_NULL;
     }
 
-    HPy *h_descrs = HPy_FromPyObjectArray(ctx, descrs, NPY_MAXARGS);
     HPyArrayMethod_Context context = {
             .caller = HPy_NULL,
             .method = h_method,
-            .descriptors = h_descrs,
+            .descriptors = descrs,
     };
     HPyArrayMethod_StridedLoop *strided_loop = NULL;
     NpyAuxData *loop_data = NULL;
