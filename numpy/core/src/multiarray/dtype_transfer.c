@@ -341,8 +341,6 @@ strided_to_strided_object_to_any(
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
-    // TODO HPY LABS PORT: migrate strided_to_strided_object_to_any
-    hpy_abort_not_implemented("stop and inspect caller with NpyAuxData *auxdata");
     npy_intp N = dimensions[0];
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
