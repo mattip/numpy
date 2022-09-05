@@ -5315,9 +5315,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     initialize_casting_tables();
     // initialize_numeric_types();
 
-    // if (initscalarmath(m) < 0) {
-    //     goto err;
-    // }
+    if (initscalarmath(NULL) < 0) {
+        goto err;
+    }
 
     h_array_type = HPyType_FromSpec(ctx, &PyArray_Type_spec, NULL);
     if (HPy_IsNull(h_array_type)) {

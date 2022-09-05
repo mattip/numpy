@@ -194,35 +194,40 @@ hwrap_aligned_transferfunction(
         NpyAuxData **out_transferdata, int *out_needs_api);
 
 NPY_NO_EXPORT int
-get_nbo_cast_datetime_transfer_function(int aligned,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_cast_datetime_transfer_function(HPyContext *ctx, int aligned,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
-get_nbo_datetime_to_string_transfer_function(
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_datetime_to_string_transfer_function(HPyContext *ctx,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
-get_nbo_string_to_datetime_transfer_function(
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_string_to_datetime_transfer_function(HPyContext *ctx,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata);
 
 NPY_NO_EXPORT int
-get_datetime_to_unicode_transfer_function(int aligned,
+get_datetime_to_unicode_transfer_function(HPyContext *ctx, int aligned,
         npy_intp src_stride, npy_intp dst_stride,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 
 NPY_NO_EXPORT int
-get_unicode_to_datetime_transfer_function(int aligned,
+get_unicode_to_datetime_transfer_function(HPyContext *ctx, int aligned,
         npy_intp src_stride, npy_intp dst_stride,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);

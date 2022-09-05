@@ -1044,8 +1044,9 @@ _strided_to_strided_string_to_datetime(HPyContext *ctx,
  * Assumes src_dtype and dst_dtype are both datetimes or both timedeltas
  */
 NPY_NO_EXPORT int
-get_nbo_cast_datetime_transfer_function(int aligned,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_cast_datetime_transfer_function(HPyContext *ctx, int aligned,
+                            HPy src_dtype, PyArray_Descr *src_dtype_data, 
+                            HPy dst_dtype, PyArray_Descr *dst_dtype_data,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata)
 {
@@ -1053,16 +1054,16 @@ get_nbo_cast_datetime_transfer_function(int aligned,
     npy_int64 num = 0, denom = 0;
     _strided_datetime_cast_data *data;
 
-    src_meta = get_datetime_metadata_from_dtype(src_dtype);
+    src_meta = h_get_datetime_metadata_from_dtype(ctx, src_dtype_data);
     if (src_meta == NULL) {
         return NPY_FAIL;
     }
-    dst_meta = get_datetime_metadata_from_dtype(dst_dtype);
+    dst_meta = h_get_datetime_metadata_from_dtype(ctx, dst_dtype_data);
     if (dst_meta == NULL) {
         return NPY_FAIL;
     }
 
-    get_datetime_conversion_factor(src_meta, dst_meta, &num, &denom);
+    get_datetime_conversion_factor(ctx, src_meta, dst_meta, &num, &denom);
 
     if (num == 0) {
         return NPY_FAIL;
@@ -1072,7 +1073,7 @@ get_nbo_cast_datetime_transfer_function(int aligned,
     data = (_strided_datetime_cast_data *)PyMem_Malloc(
                                     sizeof(_strided_datetime_cast_data));
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         *out_stransfer = NULL;
         *out_transferdata = NULL;
         return NPY_FAIL;
@@ -1088,7 +1089,7 @@ get_nbo_cast_datetime_transfer_function(int aligned,
      * units (years and months). For timedelta, an average
      * years and months value is used.
      */
-    if (src_dtype->type_num == NPY_DATETIME &&
+    if (src_dtype_data->type_num == NPY_DATETIME &&
             (src_meta->base == NPY_FR_Y ||
              src_meta->base == NPY_FR_M ||
              dst_meta->base == NPY_FR_Y ||
@@ -1106,6 +1107,7 @@ get_nbo_cast_datetime_transfer_function(int aligned,
     *out_transferdata = (NpyAuxData *)data;
 
 #if NPY_DT_DBG_TRACING
+    hpy_abort_not_implemented("_safe_print");
     printf("Dtype transfer from ");
     _safe_print((PyObject *)src_dtype);
     printf(" to ");
@@ -1119,14 +1121,15 @@ get_nbo_cast_datetime_transfer_function(int aligned,
 }
 
 NPY_NO_EXPORT int
-get_nbo_datetime_to_string_transfer_function(
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_datetime_to_string_transfer_function(HPyContext *ctx,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
 {
     PyArray_DatetimeMetaData *src_meta;
     _strided_datetime_cast_data *data;
 
-    src_meta = get_datetime_metadata_from_dtype(src_dtype);
+    src_meta = h_get_datetime_metadata_from_dtype(ctx, src_dtype_data);
     if (src_meta == NULL) {
         return NPY_FAIL;
     }
@@ -1142,7 +1145,7 @@ get_nbo_datetime_to_string_transfer_function(
     }
     data->base.free = &_strided_datetime_cast_data_free;
     data->base.clone = &_strided_datetime_cast_data_clone;
-    data->dst_itemsize = dst_dtype->elsize;
+    data->dst_itemsize = dst_dtype_data->elsize;
     data->tmp_buffer = NULL;
 
     memcpy(&data->src_meta, src_meta, sizeof(data->src_meta));
@@ -1163,40 +1166,42 @@ get_nbo_datetime_to_string_transfer_function(
 
 
 NPY_NO_EXPORT int
-get_datetime_to_unicode_transfer_function(int aligned,
+get_datetime_to_unicode_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy src_dtype, PyArray_Descr *src_dtype_data, 
+                            HPy dst_dtype, PyArray_Descr *dst_dtype_data,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
-    PyArray_Descr *str_dtype;
+    HPy str_dtype; // PyArray_Descr *
 
     /* Get an ASCII string data type, adapted to match the UNICODE one */
-    str_dtype = PyArray_DescrNewFromType(NPY_STRING);
-    if (str_dtype == NULL) {
+    str_dtype = HPyArray_DescrNewFromType(ctx, NPY_STRING);
+    if (HPy_IsNull(str_dtype)) {
         return NPY_FAIL;
     }
-    str_dtype->elsize = dst_dtype->elsize / 4;
+    PyArray_Descr *str_dtype_data = PyArray_Descr_AsStruct(ctx, str_dtype);
+    str_dtype_data->elsize = dst_dtype_data->elsize / 4;
 
     /* ensured in resolve_descriptors for simplicity */
-    assert(PyDataType_ISNOTSWAPPED(src_dtype));
+    assert(PyDataType_ISNOTSWAPPED(src_dtype_data));
 
     /* Get the NBO datetime to string aligned contig function */
-    if (get_nbo_datetime_to_string_transfer_function(
-            src_dtype, str_dtype,
+    if (get_nbo_datetime_to_string_transfer_function(ctx,
+            src_dtype, src_dtype_data, str_dtype, str_dtype_data,
             out_stransfer, out_transferdata) != NPY_SUCCEED) {
-        Py_DECREF(str_dtype);
+        HPy_Close(ctx, str_dtype);
         return NPY_FAIL;
     }
 
-    int res = wrap_aligned_transferfunction(
+    int res = hwrap_aligned_transferfunction(ctx,
             aligned, 0,  /* no need to ensure contiguous */
             src_stride, dst_stride,
             src_dtype, dst_dtype,
             src_dtype, str_dtype,
             out_stransfer, out_transferdata, out_needs_api);
-    Py_DECREF(str_dtype);
+    HPy_Close(ctx, str_dtype);
     if (res < 0) {
         return NPY_FAIL;
     }
@@ -1205,14 +1210,15 @@ get_datetime_to_unicode_transfer_function(int aligned,
 }
 
 NPY_NO_EXPORT int
-get_nbo_string_to_datetime_transfer_function(
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+get_nbo_string_to_datetime_transfer_function(HPyContext *ctx,
+        HPy src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy dst_dtype, PyArray_Descr *dst_dtype_data,
         HPyArrayMethod_StridedLoop **out_stransfer, NpyAuxData **out_transferdata)
 {
     PyArray_DatetimeMetaData *dst_meta;
     _strided_datetime_cast_data *data;
 
-    dst_meta = get_datetime_metadata_from_dtype(dst_dtype);
+    dst_meta = h_get_datetime_metadata_from_dtype(ctx, dst_dtype_data);
     if (dst_meta == NULL) {
         return NPY_FAIL;
     }
@@ -1221,17 +1227,18 @@ get_nbo_string_to_datetime_transfer_function(
     data = (_strided_datetime_cast_data *)PyMem_Malloc(
                                     sizeof(_strided_datetime_cast_data));
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         *out_stransfer = NULL;
         *out_transferdata = NULL;
         return NPY_FAIL;
     }
     data->base.free = &_strided_datetime_cast_data_free;
     data->base.clone = &_strided_datetime_cast_data_clone;
-    data->src_itemsize = src_dtype->elsize;
+    data->src_itemsize = src_dtype_data->elsize;
     data->tmp_buffer = PyMem_Malloc(data->src_itemsize + 1);
     if (data->tmp_buffer == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
+        CAPI_WARN("calling PyMem_Free");
         PyMem_Free(data);
         *out_stransfer = NULL;
         *out_transferdata = NULL;
@@ -1244,6 +1251,7 @@ get_nbo_string_to_datetime_transfer_function(
     *out_transferdata = (NpyAuxData *)data;
 
 #if NPY_DT_DBG_TRACING
+    hpy_abort_not_implemented("_safe_print");
     printf("Dtype transfer from ");
     _safe_print((PyObject *)src_dtype);
     printf(" to ");
@@ -1255,38 +1263,40 @@ get_nbo_string_to_datetime_transfer_function(
 }
 
 NPY_NO_EXPORT int
-get_unicode_to_datetime_transfer_function(int aligned,
+get_unicode_to_datetime_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy src_dtype, PyArray_Descr *src_dtype_data, 
+                            HPy dst_dtype, PyArray_Descr *dst_dtype_data,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
-    PyArray_Descr *str_dtype;
+    HPy str_dtype; // PyArray_Descr *
 
     /* Get an ASCII string data type, adapted to match the UNICODE one */
-    str_dtype = PyArray_DescrNewFromType(NPY_STRING);
-    if (str_dtype == NULL) {
+    str_dtype = HPyArray_DescrNewFromType(ctx, NPY_STRING);
+    if (HPy_IsNull(str_dtype)) {
         return NPY_FAIL;
     }
-    assert(src_dtype->type_num == NPY_UNICODE);
-    str_dtype->elsize = src_dtype->elsize / 4;
+    assert(src_dtype_data->type_num == NPY_UNICODE);
+    PyArray_Descr *str_dtype_data = PyArray_Descr_AsStruct(ctx, str_dtype);
+    str_dtype_data->elsize = str_dtype_data->elsize / 4;
 
     /* Get the string to NBO datetime aligned function */
-    if (get_nbo_string_to_datetime_transfer_function(
-            str_dtype, dst_dtype,
+    if (get_nbo_string_to_datetime_transfer_function(ctx,
+            str_dtype, str_dtype_data, dst_dtype, dst_dtype_data,
             out_stransfer, out_transferdata) != NPY_SUCCEED) {
-        Py_DECREF(str_dtype);
+        HPy_Close(ctx, str_dtype);
         return NPY_FAIL;
     }
 
-    int res = wrap_aligned_transferfunction(
+    int res = hwrap_aligned_transferfunction(ctx,
             aligned, 0,  /* no need to ensure contiguous */
             src_stride, dst_stride,
             src_dtype, dst_dtype,
             str_dtype, dst_dtype,
             out_stransfer, out_transferdata, out_needs_api);
-    Py_DECREF(str_dtype);
+    HPy_Close(ctx, str_dtype);
 
     if (res < 0) {
         return NPY_FAIL;

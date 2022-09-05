@@ -643,6 +643,35 @@ PyArray_TimedeltaToTimedeltaStruct(
 /*
  * Creates a datetime or timedelta dtype using a copy of the provided metadata.
  */
+NPY_NO_EXPORT HPy // PyArray_Descr *
+h_create_datetime_dtype(HPyContext *ctx, int type_num, PyArray_DatetimeMetaData *meta)
+{
+    HPy dtype = HPy_NULL; // PyArray_Descr *
+    PyArray_DatetimeMetaData *dt_data;
+
+    /* Create a default datetime or timedelta */
+    if (type_num == NPY_DATETIME || type_num == NPY_TIMEDELTA) {
+        dtype = HPyArray_DescrNewFromType(ctx, type_num);
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                "Asked to create a datetime type with a non-datetime "
+                "type number");
+        return HPy_NULL;
+    }
+
+    if (HPy_IsNull(dtype)) {
+        return HPy_NULL;
+    }
+    PyArray_Descr *dtype_data = PyArray_Descr_AsStruct(ctx, dtype);
+    dt_data = &(((PyArray_DatetimeDTypeMetaData *)dtype_data->c_metadata)->meta);
+
+    /* Copy the metadata */
+    *dt_data = *meta;
+
+    return dtype;
+}
+
 NPY_NO_EXPORT PyArray_Descr *
 create_datetime_dtype(int type_num, PyArray_DatetimeMetaData *meta)
 {
@@ -1108,7 +1137,7 @@ _uint64_euclidean_gcd(npy_uint64 x, npy_uint64 y)
  * no error is set.
  */
 NPY_NO_EXPORT void
-get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
+get_datetime_conversion_factor(HPyContext *ctx, PyArray_DatetimeMetaData *src_meta,
                                 PyArray_DatetimeMetaData *dst_meta,
                                 npy_int64 *out_num, npy_int64 *out_denom)
 {
@@ -1126,7 +1155,7 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
      * unit is an error.
      */
     else if (dst_meta->base == NPY_FR_GENERIC) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Cannot convert from specific units to generic "
                     "units in NumPy datetimes or timedeltas");
         *out_num = 0;
@@ -1186,7 +1215,7 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
 
     /* If something overflowed, make both num and denom 0 */
     if (num == 0) {
-        PyErr_Format(PyExc_OverflowError,
+        HPyErr_Format_p(ctx, ctx->h_OverflowError,
                     "Integer overflow while computing the conversion "
                     "factor between NumPy datetime units %s and %s",
                     _datetime_strings[src_base],
@@ -3104,7 +3133,7 @@ cast_timedelta_to_timedelta(PyArray_DatetimeMetaData *src_meta,
     }
 
     /* Get the conversion factor */
-    get_datetime_conversion_factor(src_meta, dst_meta, &num, &denom);
+    get_datetime_conversion_factor(npy_get_context(), src_meta, dst_meta, &num, &denom);
 
     if (num == 0) {
         return -1;
@@ -3802,39 +3831,41 @@ find_object_datetime_type(PyObject *obj, int type_num)
  */
 static NPY_CASTING
 time_to_time_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy NPY_UNUSED(dtypes[2]), // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *view_offset)
 {
     // TODO HPY LABS PORT: time_to_time_resolve_descriptors
     /* This is a within-dtype cast, which currently must handle byteswapping */
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = ensure_dtype_nbo(given_descrs[0]);
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[0]);
     }
     else {
-        Py_INCREF(given_descrs[1]);
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
 
-    int is_timedelta = given_descrs[0]->type_num == NPY_TIMEDELTA;
+    PyArray_Descr *given_descrs_0 = PyArray_Descr_AsStruct(ctx, given_descrs[0]);
+    int is_timedelta = given_descrs_0->type_num == NPY_TIMEDELTA;
 
-    if (given_descrs[0] == given_descrs[1]) {
+    if (HPy_Is(ctx, given_descrs[0], given_descrs[1])) {
         *view_offset = 0;
         return NPY_NO_CASTING;
     }
 
+    PyArray_Descr *loop_descrs_0 = PyArray_Descr_AsStruct(ctx, loop_descrs[0]);
+    PyArray_Descr *loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
     npy_bool byteorder_may_allow_view = (
-            PyDataType_ISNOTSWAPPED(loop_descrs[0])
-            == PyDataType_ISNOTSWAPPED(loop_descrs[1]));
+            PyDataType_ISNOTSWAPPED(loop_descrs_0)
+            == PyDataType_ISNOTSWAPPED(loop_descrs_1));
 
     PyArray_DatetimeMetaData *meta1, *meta2;
-    meta1 = get_datetime_metadata_from_dtype(loop_descrs[0]);
+    meta1 = h_get_datetime_metadata_from_dtype(ctx, loop_descrs_0);
     assert(meta1 != NULL);
-    meta2 = get_datetime_metadata_from_dtype(loop_descrs[1]);
+    meta2 = h_get_datetime_metadata_from_dtype(ctx, loop_descrs_1);
     assert(meta2 != NULL);
 
     if ((meta1->base == meta2->base && meta1->num == meta2->num) ||
@@ -3886,19 +3917,22 @@ time_to_time_resolve_descriptors(
 
 static int
 time_to_time_get_loop(
-        PyArrayMethod_Context *context,
-        int aligned, int NPY_UNUSED(move_references), npy_intp *strides,
-        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyContext *ctx,
+        HPyArrayMethod_Context *context,
+        int aligned, int NPY_UNUSED(move_references),
+        const npy_intp *strides,
+        HPyArrayMethod_StridedLoop **out_loop,
+        NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    // TODO HPY LABS PORT: migrate time_to_time_get_loop
     int requires_wrap = 0;
     int inner_aligned = aligned;
-    PyArray_Descr **descrs = context->descriptors;
+    HPy *descrs = context->descriptors; // PyArray_Descr **
     *flags = NPY_METH_NO_FLOATINGPOINT_ERRORS;
-
-    PyArray_DatetimeMetaData *meta1 = get_datetime_metadata_from_dtype(descrs[0]);
-    PyArray_DatetimeMetaData *meta2 = get_datetime_metadata_from_dtype(descrs[1]);
+    PyArray_Descr *descrs_0 = PyArray_Descr_AsStruct(ctx, descrs[0]);
+    PyArray_Descr *descrs_1 = PyArray_Descr_AsStruct(ctx, descrs[1]);
+    PyArray_DatetimeMetaData *meta1 = h_get_datetime_metadata_from_dtype(ctx, descrs_0);
+    PyArray_DatetimeMetaData *meta2 = h_get_datetime_metadata_from_dtype(ctx, descrs_1);
 
     if (meta1->base == meta2->base && meta1->num == meta2->num) {
         /*
@@ -3906,8 +3940,8 @@ time_to_time_get_loop(
             * functions. (If they do not match, but swapping is necessary this
             * path is hit recursively.)
             */
-        if (PyDataType_ISNOTSWAPPED(descrs[0]) ==
-                    PyDataType_ISNOTSWAPPED(descrs[1])) {
+        if (PyDataType_ISNOTSWAPPED(descrs_0) ==
+                    PyDataType_ISNOTSWAPPED(descrs_1)) {
             *out_loop = PyArray_GetStridedCopyFn(
                     aligned, strides[0], strides[1], NPY_SIZEOF_DATETIME);
         }
@@ -3918,13 +3952,13 @@ time_to_time_get_loop(
         return 0;
     }
 
-    if (!PyDataType_ISNOTSWAPPED(descrs[0]) ||
-            !PyDataType_ISNOTSWAPPED(descrs[1])) {
+    if (!PyDataType_ISNOTSWAPPED(descrs_0) ||
+            !PyDataType_ISNOTSWAPPED(descrs_1)) {
         inner_aligned = 1;
         requires_wrap = 1;
     }
-    if (get_nbo_cast_datetime_transfer_function(
-            inner_aligned, descrs[0], descrs[1],
+    if (get_nbo_cast_datetime_transfer_function(ctx,
+            inner_aligned, descrs[0], descrs_0, descrs[1], descrs_1,
             out_loop, out_transferdata) == NPY_FAIL) {
         return -1;
     }
@@ -3933,18 +3967,18 @@ time_to_time_get_loop(
         return 0;
     }
 
-    PyArray_Descr *src_wrapped_dtype = ensure_dtype_nbo(descrs[0]);
-    PyArray_Descr *dst_wrapped_dtype = ensure_dtype_nbo(descrs[1]);
+    HPy src_wrapped_dtype = hensure_dtype_nbo(ctx, descrs[0]); // PyArray_Descr *
+    HPy dst_wrapped_dtype = hensure_dtype_nbo(ctx, descrs[1]); // PyArray_Descr *
 
     int needs_api = 0;
-    int res = wrap_aligned_transferfunction(
+    int res = hwrap_aligned_transferfunction(ctx,
             aligned, 0,
             strides[0], strides[1],
             descrs[0], descrs[1],
             src_wrapped_dtype, dst_wrapped_dtype,
             out_loop, out_transferdata, &needs_api);
-    Py_DECREF(src_wrapped_dtype);
-    Py_DECREF(dst_wrapped_dtype);
+    HPy_Close(ctx, src_wrapped_dtype);
+    HPy_Close(ctx, dst_wrapped_dtype);
 
     assert(needs_api == 0);
     return res;
@@ -3954,26 +3988,30 @@ time_to_time_get_loop(
 /* Handles datetime<->timedelta type resolution (both directions) */
 static NPY_CASTING
 datetime_to_timedelta_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2])
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy dtypes[2], // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
+        npy_intp *NPY_UNUSED(view_offset))
 {
     // TODO HPY LABS PORT: datetime_to_timedelta_resolve_descriptors
-    loop_descrs[0] = ensure_dtype_nbo(given_descrs[0]);
-    if (loop_descrs[0] == NULL) {
+    loop_descrs[0] = hensure_dtype_nbo(ctx, given_descrs[0]);
+    if (HPy_IsNull(loop_descrs[0])) {
         return -1;
     }
-    if (given_descrs[1] == NULL) {
-        PyArray_DatetimeMetaData *meta = get_datetime_metadata_from_dtype(given_descrs[0]);
+    if (HPy_IsNull(given_descrs[1])) {
+        PyArray_Descr *given_descrs_0 = PyArray_Descr_AsStruct(ctx, given_descrs[0]);
+        PyArray_DatetimeMetaData *meta = h_get_datetime_metadata_from_dtype(ctx, given_descrs_0);
         assert(meta != NULL);
-        loop_descrs[1] = create_datetime_dtype(dtypes[1]->type_num, meta);
+        PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
+        loop_descrs[1] = h_create_datetime_dtype(ctx, dtypes_1->type_num, meta);
     }
     else {
-        loop_descrs[1] = ensure_dtype_nbo(given_descrs[1]);
+        loop_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[1]);
     }
-    if (loop_descrs[1] == NULL) {
-        Py_DECREF(loop_descrs[0]);
+    if (HPy_IsNull(loop_descrs[1])) {
+        // Py_DECREF(loop_descrs[0]); // We don't close 
         return -1;
     }
     /*
@@ -3988,26 +4026,27 @@ datetime_to_timedelta_resolve_descriptors(
 /* In the current setup both strings and unicode casts support all outputs */
 static NPY_CASTING
 time_to_string_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr **given_descrs,
-        PyArray_Descr **loop_descrs,
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy dtypes[2], // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
-    // TODO HPY LABS PORT: time_to_string_resolve_descriptors
-    if (given_descrs[1] != NULL && dtypes[0]->type_num == NPY_DATETIME) {
+    PyArray_DTypeMeta *dtypes_0 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[0]);
+    if (!HPy_IsNull(given_descrs[1]) && dtypes_0->type_num == NPY_DATETIME) {
         /*
             * At the time of writing, NumPy does not check the length here,
             * but will error if filling fails.
             */
-        Py_INCREF(given_descrs[1]);
-        loop_descrs[1] = given_descrs[1];
+        loop_descrs[1] = HPy_Dup(ctx, given_descrs[1]);
     }
     else {
         /* Find the correct string length, possibly based on the unit */
         int size;
-        if (given_descrs[0]->type_num == NPY_DATETIME) {
-            PyArray_DatetimeMetaData *meta = get_datetime_metadata_from_dtype(given_descrs[0]);
+        PyArray_Descr *given_descrs_0 = PyArray_Descr_AsStruct(ctx, given_descrs[0]);
+        if (given_descrs_0->type_num == NPY_DATETIME) {
+            PyArray_DatetimeMetaData *meta = h_get_datetime_metadata_from_dtype(ctx, given_descrs_0);
             assert(meta != NULL);
             size = get_datetime_iso_8601_strlen(0, meta->base);
         }
@@ -4018,19 +4057,20 @@ time_to_string_resolve_descriptors(
                 */
             size = 21;
         }
-        if (dtypes[1]->type_num == NPY_UNICODE) {
+        PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
+        if (dtypes_1->type_num == NPY_UNICODE) {
             size *= 4;
         }
-        loop_descrs[1] = PyArray_DescrNewFromType(dtypes[1]->type_num);
-        if (loop_descrs[1] == NULL) {
+        loop_descrs[1] = HPyArray_DescrNewFromType(ctx, dtypes_1->type_num);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
-        loop_descrs[1]->elsize = size;
+        PyArray_Descr_AsStruct(ctx, loop_descrs[1])->elsize = size;
     }
 
-    loop_descrs[0] = ensure_dtype_nbo(given_descrs[0]);
-    if (loop_descrs[0] == NULL) {
-        Py_DECREF(loop_descrs[1]);
+    loop_descrs[0] = hensure_dtype_nbo(ctx, given_descrs[0]);
+    if (HPy_IsNull(loop_descrs[0])) {
+        HPy_Close(ctx, loop_descrs[1]);
         return -1;
     }
 
@@ -4039,27 +4079,32 @@ time_to_string_resolve_descriptors(
 
 static int
 datetime_to_string_get_loop(
-        PyArrayMethod_Context *context,
-        int aligned, int NPY_UNUSED(move_references), npy_intp *strides,
-        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyContext *ctx,
+        HPyArrayMethod_Context *context,
+        int aligned, int NPY_UNUSED(move_references),
+        const npy_intp *strides,
+        HPyArrayMethod_StridedLoop **out_loop,
+        NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate datetime_to_string_get_loop
-    PyArray_Descr **descrs = context->descriptors;
-    *flags = context->method->flags & NPY_METH_RUNTIME_FLAGS;
+    HPy *descrs = context->descriptors; // PyArray_Descr **
+    PyArray_Descr *descrs_0 = PyArray_Descr_AsStruct(ctx, descrs[0]);
+    PyArray_Descr *descrs_1 = PyArray_Descr_AsStruct(ctx, descrs[1]);
+    *flags = PyArrayMethodObject_AsStruct(ctx, context->method)->flags & NPY_METH_RUNTIME_FLAGS;
 
-    if (descrs[1]->type_num == NPY_STRING) {
-        if (get_nbo_datetime_to_string_transfer_function(
-                descrs[0], descrs[1],
+    if (descrs_1->type_num == NPY_STRING) {
+        if (get_nbo_datetime_to_string_transfer_function(ctx,
+                descrs[0], descrs_0, descrs[1], descrs_1,
                 out_loop, out_transferdata) == NPY_FAIL) {
             return -1;
         }
     }
     else {
-        assert(descrs[1]->type_num == NPY_UNICODE);
+        assert(descrs_1->type_num == NPY_UNICODE);
         int out_needs_api;
-        if (get_datetime_to_unicode_transfer_function(
-                aligned, strides[0], strides[1], descrs[0], descrs[1],
+        if (get_datetime_to_unicode_transfer_function(ctx,
+                aligned, strides[0], strides[1], descrs[0], descrs_0, descrs[1], descrs_1,
                 out_loop, out_transferdata, &out_needs_api) == NPY_FAIL) {
             return -1;
         }
@@ -4070,30 +4115,31 @@ datetime_to_string_get_loop(
 
 static NPY_CASTING
 string_to_datetime_cast_resolve_descriptors(
-        PyArrayMethodObject *NPY_UNUSED(self),
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy NPY_UNUSED(self), // PyArrayMethodObject *
+        HPy dtypes[2], // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
     // TODO HPY LABS PORT: string_to_datetime_cast_resolve_descriptors
-    if (given_descrs[1] == NULL) {
+    if (HPy_IsNull(given_descrs[1])) {
         /* NOTE: This doesn't actually work, and will error during the cast */
-        loop_descrs[1] = NPY_DT_CALL_default_descr(dtypes[1]);
-        if (loop_descrs[1] == NULL) {
+        PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
+        loop_descrs[1] = HNPY_DT_CALL_default_descr(ctx, dtypes[1], dtypes_1);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
     }
     else {
-        loop_descrs[1] = ensure_dtype_nbo(given_descrs[1]);
-        if (loop_descrs[1] == NULL) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[1]);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
     }
 
     /* We currently support byte-swapping, so any (unicode) string is OK */
-    Py_INCREF(given_descrs[0]);
-    loop_descrs[0] = given_descrs[0];
+    loop_descrs[0] = HPy_Dup(ctx, given_descrs[0]);
 
     return NPY_UNSAFE_CASTING;
 }
@@ -4101,26 +4147,32 @@ string_to_datetime_cast_resolve_descriptors(
 
 static int
 string_to_datetime_cast_get_loop(
-        PyArrayMethod_Context *context,
-        int aligned, int NPY_UNUSED(move_references), npy_intp *strides,
-        HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
+        HPyContext *ctx,
+        HPyArrayMethod_Context *context,
+        int aligned, int NPY_UNUSED(move_references),
+        const npy_intp *strides,
+        HPyArrayMethod_StridedLoop **out_loop,
+        NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     // TODO HPY LABS PORT: migrate string_to_datetime_cast_get_loop
-    PyArray_Descr **descrs = context->descriptors;
-    *flags = context->method->flags & NPY_METH_RUNTIME_FLAGS;
+    HPy *descrs = context->descriptors; // PyArray_Descr **
+    *flags = PyArrayMethodObject_AsStruct(ctx, context->method)->flags & NPY_METH_RUNTIME_FLAGS;
 
-    if (descrs[0]->type_num == NPY_STRING) {
-        if (get_nbo_string_to_datetime_transfer_function(
-                descrs[0], descrs[1], out_loop, out_transferdata) == NPY_FAIL) {
+    PyArray_Descr *descrs_0 = PyArray_Descr_AsStruct(ctx, descrs[0]);
+    PyArray_Descr *descrs_1 = PyArray_Descr_AsStruct(ctx, descrs[1]);
+    if (descrs_0->type_num == NPY_STRING) {
+        if (get_nbo_string_to_datetime_transfer_function(ctx,
+                descrs[0], descrs_0, descrs[1], descrs_1, 
+                out_loop, out_transferdata) == NPY_FAIL) {
             return -1;
         }
     }
     else {
-        assert(descrs[0]->type_num == NPY_UNICODE);
+        assert(descrs_0->type_num == NPY_UNICODE);
         int out_needs_api;
-        if (get_unicode_to_datetime_transfer_function(
-                aligned, strides[0], strides[1], descrs[0], descrs[1],
+        if (get_unicode_to_datetime_transfer_function(ctx,
+                aligned, strides[0], strides[1], descrs[0], descrs_0, descrs[1], descrs_1,
                 out_loop, out_transferdata, &out_needs_api) == NPY_FAIL) {
             return -1;
         }

@@ -1373,14 +1373,7 @@ hensure_dtype_nbo(HPyContext *ctx, HPy type)
         return HPy_Dup(ctx, type);
     }
     else {
-        // TODO HPY LABS PORT: migrate PyArray_DescrNewByteorder
-        CAPI_WARN("hensure_dtype_nbo: calling PyArray_DescrNewByteorder");
-        PyArray_Descr *py_type = (PyArray_Descr *)HPy_AsPyObject(ctx, type);
-        PyArray_Descr *ret = PyArray_DescrNewByteorder(py_type, NPY_NATIVE);
-        HPy h_ret = HPy_FromPyObject(ctx, (PyObject*)ret);
-        Py_DECREF(py_type);
-        Py_DECREF(ret);
-        return h_ret;
+        return HPyArray_DescrNewByteorder(ctx, type, NPY_NATIVE);
     }
 }
 
@@ -3051,8 +3044,9 @@ simple_cast_resolve_descriptors(
         PyArray_Descr *given_descrs[2],
         PyArray_Descr *loop_descrs[2],
      */
+    PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
     assert(NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, dtypes[0]))
-            && NPY_DT_is_legacy(PyArray_DTypeMeta_AsStruct(ctx, dtypes[1])));
+            && NPY_DT_is_legacy(dtypes_1));
 
     loop_descrs[0] = hensure_dtype_nbo(ctx, given_descrs[0]);
     if (HPy_IsNull(loop_descrs[0])) {
@@ -3066,9 +3060,7 @@ simple_cast_resolve_descriptors(
         }
     }
     else {
-        hpy_abort_not_implemented("simple_cast_resolve_descriptors");
-        // loop_descrs[1] = NPY_DT_CALL_default_descr(dtypes[1]);
-        loop_descrs[1] = HPy_NULL;
+        loop_descrs[1] = HNPY_DT_CALL_default_descr(ctx, dtypes[1], dtypes_1);
     }
 
     PyArrayMethodObject *data = PyArrayMethodObject_AsStruct(ctx, self);
@@ -3291,10 +3283,11 @@ PyArray_InitializeNumericCasts(HPyContext *ctx)
 
 static int
 cast_to_string_resolve_descriptors(
-        PyArrayMethodObject *self,
-        PyArray_DTypeMeta *dtypes[2],
-        PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2],
+        HPyContext *ctx,
+        HPy self, // PyArrayMethodObject *
+        HPy dtypes[2], // PyArray_DTypeMeta *
+        HPy given_descrs[2], // PyArray_Descr *
+        HPy loop_descrs[2], // PyArray_Descr *
         npy_intp *NPY_UNUSED(view_offset))
 {
     /*
@@ -3305,7 +3298,9 @@ cast_to_string_resolve_descriptors(
      * a multiple of eight.
      */
     npy_intp size = -1;
-    switch (given_descrs[0]->type_num) {
+    PyArray_Descr *given_descrs_0 = PyArray_Descr_AsStruct(ctx, given_descrs[0]);
+    PyArray_Descr *given_descrs_1 = PyArray_Descr_AsStruct(ctx, given_descrs[1]);
+    switch (given_descrs_0->type_num) {
         case NPY_BOOL:
         case NPY_UBYTE:
         case NPY_BYTE:
@@ -3317,18 +3312,18 @@ cast_to_string_resolve_descriptors(
         case NPY_LONG:
         case NPY_ULONGLONG:
         case NPY_LONGLONG:
-            assert(given_descrs[0]->elsize <= 8);
-            assert(given_descrs[0]->elsize > 0);
-            if (given_descrs[0]->kind == 'b') {
+            assert(given_descrs_0->elsize <= 8);
+            assert(given_descrs_0->elsize > 0);
+            if (given_descrs_0->kind == 'b') {
                 /* 5 chars needed for cast to 'True' or 'False' */
                 size = 5;
             }
-            else if (given_descrs[0]->kind == 'u') {
-                size = REQUIRED_STR_LEN[given_descrs[0]->elsize];
+            else if (given_descrs_0->kind == 'u') {
+                size = REQUIRED_STR_LEN[given_descrs_0->elsize];
             }
-            else if (given_descrs[0]->kind == 'i') {
+            else if (given_descrs_0->kind == 'i') {
                 /* Add character for sign symbol */
-                size = REQUIRED_STR_LEN[given_descrs[0]->elsize] + 1;
+                size = REQUIRED_STR_LEN[given_descrs_0->elsize] + 1;
             }
             break;
         case NPY_HALF:
@@ -3348,48 +3343,53 @@ cast_to_string_resolve_descriptors(
             break;
         case NPY_STRING:
         case NPY_VOID:
-            size = given_descrs[0]->elsize;
+            size = given_descrs_0->elsize;
             break;
         case NPY_UNICODE:
-            size = given_descrs[0]->elsize / 4;
+            size = given_descrs_0->elsize / 4;
             break;
         default:
             PyErr_SetString(PyExc_SystemError,
                     "Impossible cast to string path requested.");
             return -1;
     }
-    if (dtypes[1]->type_num == NPY_UNICODE) {
+    PyArray_DTypeMeta *dtypes_1 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[1]);
+    if (dtypes_1->type_num == NPY_UNICODE) {
         size *= 4;
     }
 
-    if (given_descrs[1] == NULL) {
-        loop_descrs[1] = PyArray_DescrNewFromType(dtypes[1]->type_num);
-        if (loop_descrs[1] == NULL) {
+    PyArray_Descr *loop_descrs_1;
+    if (HPy_IsNull(given_descrs[1])) {
+        loop_descrs[1] = HPyArray_DescrNewFromType(ctx, dtypes_1->type_num);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
-        loop_descrs[1]->elsize = size;
+        loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
+        loop_descrs_1->elsize = size;
     }
     else {
         /* The legacy loop can handle mismatching itemsizes */
-        loop_descrs[1] = ensure_dtype_nbo(given_descrs[1]);
-        if (loop_descrs[1] == NULL) {
+        loop_descrs[1] = hensure_dtype_nbo(ctx, given_descrs[1]);
+        if (HPy_IsNull(loop_descrs[1])) {
             return -1;
         }
+        loop_descrs_1 = PyArray_Descr_AsStruct(ctx, loop_descrs[1]);
     }
 
     /* Set the input one as well (late for easier error management) */
-    loop_descrs[0] = ensure_dtype_nbo(given_descrs[0]);
-    if (loop_descrs[0] == NULL) {
+    loop_descrs[0] = hensure_dtype_nbo(ctx, given_descrs[0]);
+    if (HPy_IsNull(loop_descrs[0])) {
         return -1;
     }
 
-    if (self->casting == NPY_UNSAFE_CASTING) {
-        assert(dtypes[0]->type_num == NPY_UNICODE &&
-               dtypes[1]->type_num == NPY_STRING);
+    PyArray_DTypeMeta *dtypes_0 = PyArray_DTypeMeta_AsStruct(ctx, dtypes[0]);
+    if (PyArrayMethodObject_AsStruct(ctx, self)->casting == NPY_UNSAFE_CASTING) {
+        assert(dtypes_0->type_num == NPY_UNICODE &&
+               dtypes_1->type_num == NPY_STRING);
         return NPY_UNSAFE_CASTING;
     }
 
-    if (loop_descrs[1]->elsize >= size) {
+    if (loop_descrs_1->elsize >= size) {
         return NPY_SAFE_CASTING;
     }
     return NPY_SAME_KIND_CASTING;

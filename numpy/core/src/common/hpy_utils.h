@@ -44,7 +44,7 @@ HPy_FromPyObjectArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
 }
 
 static NPY_INLINE void
-HPy_CloseAndFreeArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
+HPy_CloseArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
 {
     if (!h_arr)
         return;
@@ -52,6 +52,14 @@ HPy_CloseAndFreeArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
     for (i = 0; i < n; i++) {
         HPy_Close(ctx, h_arr[i]);
     }
+}
+
+static NPY_INLINE void
+HPy_CloseAndFreeArray(HPyContext *ctx, HPy *h_arr, HPy_ssize_t n)
+{
+    if (!h_arr)
+        return;
+    HPy_CloseArray(ctx, h_arr, n);
     PyMem_RawFree(h_arr);
 }
 
