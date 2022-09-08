@@ -840,7 +840,12 @@ PyUFunc_SimpleUniformOperationTypeResolver(
                     out_dtypes[iop] = PyArray_DESCR(operands[iop]);
                     Py_INCREF(out_dtypes[iop]);
                 }
-                raise_no_loop_found_error(ufunc, (PyObject **)out_dtypes);
+                HPyContext *ctx = npy_get_context();
+                HPy *h_out_types = HPy_FromPyObjectArray(ctx, out_dtypes, ufunc->nargs);
+                HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *) ufunc);
+                hpy_raise_no_loop_found_error(ctx, h_ufunc, (PyObject **)out_dtypes);
+                HPy_CloseAndFreeArray(ctx, h_out_types, ufunc->nargs);
+                HPy_Close(ctx, h_ufunc);
                 for (iop = 0; iop < ufunc->nin; iop++) {
                     Py_DECREF(out_dtypes[iop]);
                     out_dtypes[iop] = NULL;

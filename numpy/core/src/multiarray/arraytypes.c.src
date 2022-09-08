@@ -915,8 +915,9 @@ UNICODE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
 
     /* truncate if needed */
     PyArrayObject *ap_data = PyArrayObject_AsStruct(ctx, ap);
-    HPy descr = HPyArray_DESCR(ctx, ap, ap_data);
-    HPy_ssize_t max_len = PyArray_Descr_AsStruct(ctx, descr)->elsize >> 2;
+    HPy ap_descr = HPyArray_DESCR(ctx, ap, ap_data);
+    PyArray_Descr *ap_descr_data = PyArray_Descr_AsStruct(ctx, ap_descr);
+    HPy_ssize_t max_len = ap_descr_data->elsize >> 2;
     HPy_ssize_t actual_len = HPy_Length(ctx, temp);
     if (actual_len < 0) {
         HPy_Close(ctx, temp);
@@ -960,8 +961,8 @@ UNICODE_hpy_setitem(HPyContext *ctx, HPy op, void *ov, HPy ap)
     }
 
     /* Fill in the rest of the space with 0 */
-    if (PyArray_DESCR(ap_data)->elsize > num_bytes) {
-        memset((char*)ov + num_bytes, 0, (PyArray_DESCR(ap_data)->elsize - num_bytes));
+    if (ap_descr_data->elsize > num_bytes) {
+        memset((char*)ov + num_bytes, 0, (ap_descr_data->elsize - num_bytes));
     }
     if (PyArray_ISBYTESWAPPED(ap_data)) {
         byte_swap_vector(ov, actual_len, 4);
