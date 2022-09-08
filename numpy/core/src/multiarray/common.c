@@ -50,7 +50,7 @@ _array_find_python_scalar_type(HPyContext *ctx, HPy op)
     else if (HPy_TypeCheck(ctx, op, ctx->h_LongType)) {
         // TODO HPY LABS PORT
         CAPI_WARN("_array_find_python_scalar_type: loading type from legacy global");
-        HPy int_abstract_dtype = HPy_FromPyObject(ctx, (PyObject *)PyArray_PyIntAbstractDType);
+        HPy int_abstract_dtype = HPyGlobal_Load(ctx, HPyArray_PyIntAbstractDType);
         HPy res = HNPY_DT_CALL_discover_descr_from_pyobject(
                 ctx, int_abstract_dtype, op);
         HPy_Close(ctx, int_abstract_dtype);
