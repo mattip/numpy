@@ -174,6 +174,7 @@ sfloat_scaled_copy(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self, doub
     PyArray_SFloatDescr *new;
     HPy h_PyArray_SFloatDType = HPyGlobal_Load(ctx, HPyArray_SFloatDType);
     HPy h_new = HPy_New(ctx, h_PyArray_SFloatDType, &new);
+    HPy_Close(ctx, h_PyArray_SFloatDType);
     if (HPy_IsNull(h_new)) {
         return HPy_NULL;
     }

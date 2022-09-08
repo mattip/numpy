@@ -4,9 +4,6 @@
 #include "__umath_generated.c"
 #include "__ufunc_api.c"
 
-NPY_NO_EXPORT HPy
-get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod));
-
 extern NPY_NO_EXPORT HPyDef get_sfloat_dtype;
 
 PyObject * add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args);
