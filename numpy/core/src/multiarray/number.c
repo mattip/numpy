@@ -214,6 +214,27 @@ _get_keywords(int rtype, PyArrayObject *out)
     return kwds;
 }
 
+static HPy
+_hpy_get_keywords(HPyContext *ctx, int rtype, HPy /* PyArrayObject * */ out)
+{
+    HPy kwds = HPy_NULL;
+    if (rtype != NPY_NOTYPE || !HPy_IsNull(out)) {
+        kwds = HPyDict_New(ctx);
+        if (rtype != NPY_NOTYPE) {
+            HPy descr; // PyArray_Descr *
+            descr = HPyArray_DescrFromType(ctx, rtype);
+            if (!HPy_IsNull(descr)) {
+                HPy_SetItem_s(ctx, kwds, "dtype", descr);
+                HPy_Close(ctx, descr);
+            }
+        }
+        if (!HPy_IsNull(out)) {
+            HPy_SetItem_s(ctx, kwds, "out", out);
+        }
+    }
+    return kwds;
+}
+
 NPY_NO_EXPORT PyObject *
 PyArray_GenericReduceFunction(PyArrayObject *m1, PyObject *op, int axis,
                               int rtype, PyArrayObject *out)
@@ -230,6 +251,27 @@ PyArray_GenericReduceFunction(PyArrayObject *m1, PyObject *op, int axis,
     Py_DECREF(args);
     Py_DECREF(meth);
     Py_XDECREF(kwds);
+    return ret;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_GenericReduceFunction(HPyContext *ctx, 
+                                HPy /* PyArrayObject * */ m1, 
+                                HPy op, int axis, int rtype, 
+                                HPy /* PyArrayObject * */ out)
+{
+    HPy args, ret = HPy_NULL, meth;
+    HPy kwds;
+
+    args = HPy_BuildValue(ctx, "(Oi)", m1, axis);
+    kwds = _hpy_get_keywords(ctx, rtype, out);
+    meth = HPy_GetAttr_s(ctx, op, "reduce");
+    if (!HPy_IsNull(meth) && HPyCallable_Check(ctx, meth)) {
+        ret = HPy_CallTupleDict(ctx, meth, args, kwds);
+    }
+    HPy_Close(ctx, args);
+    HPy_Close(ctx, meth);
+    HPy_Close(ctx, kwds);
     return ret;
 }
 
