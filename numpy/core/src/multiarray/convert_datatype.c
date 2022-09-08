@@ -391,23 +391,25 @@ HPyArray_GetCastFunc(HPyContext *ctx, HPy /* PyArray_Descr * */ h_descr, int typ
         castfunc = descr->f->cast[type_num];
     }
     else {
-        HPy obj = HPyField_Load(ctx, h_descr, descr->f->castdict);
-        if (!HPy_IsNull(obj) && HPyDict_Check(ctx, obj)) {
-            HPy key;
-            HPy cobj;
+        if (!HPyField_IsNull(descr->f->castdict)) { 
+            HPy obj = HPyField_Load(ctx, h_descr, descr->f->castdict);
+            if (HPyDict_Check(ctx, obj)) {
+                HPy key;
+                HPy cobj;
 
-            key = HPyLong_FromLong(ctx, type_num);
-            cobj = HPy_GetItem(ctx, obj, key);
-            HPy_Close(ctx, key);
-            HPy cobj_type = HPy_Type(ctx, cobj);
-            if (!HPy_IsNull(cobj) && HPy_Is(ctx, cobj_type, ctx->h_CapsuleType)) {
-                HPy_Close(ctx, cobj_type);
-                castfunc = HPyCapsule_GetPointer(ctx, cobj, NULL);
-                if (castfunc == NULL) {
-                    return NULL;
+                key = HPyLong_FromLong(ctx, type_num);
+                cobj = HPy_GetItem(ctx, obj, key);
+                HPy_Close(ctx, key);
+                HPy cobj_type = HPy_Type(ctx, cobj);
+                if (!HPy_IsNull(cobj) && HPy_Is(ctx, cobj_type, ctx->h_CapsuleType)) {
+                    HPy_Close(ctx, cobj_type);
+                    castfunc = HPyCapsule_GetPointer(ctx, cobj, NULL);
+                    if (castfunc == NULL) {
+                        return NULL;
+                    }
+                } else {
+                    HPy_Close(ctx, cobj_type);
                 }
-            } else {
-                HPy_Close(ctx, cobj_type);
             }
         }
     }
