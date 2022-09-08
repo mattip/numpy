@@ -307,12 +307,12 @@ raw_array_wheremasked_assign_array(int ndim, npy_intp const *shape,
     npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
-        PyArray_MaskedStridedUnaryOp *stransfer;
-        stransfer = (PyArray_MaskedStridedUnaryOp *)cast_info.func;
+        HPyArray_MaskedStridedUnaryOp *stransfer;
+        stransfer = (HPyArray_MaskedStridedUnaryOp *)cast_info.func;
 
         /* Process the innermost dimension */
         char *args[2] = {src_data, dst_data};
-        if (stransfer(&cast_info.context,
+        if (stransfer(npy_get_context(), &cast_info.context,
                 args, &shape_it[0], strides,
                 (npy_bool *)wheremask_data, wheremask_strides_it[0],
                 cast_info.auxdata) < 0) {

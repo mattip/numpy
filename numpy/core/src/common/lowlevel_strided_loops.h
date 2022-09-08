@@ -47,7 +47,7 @@
  * In particular, the 'i'-th element is operated on if and only if
  * mask[i*mask_stride] is true.
  */
-typedef int (PyArray_MaskedStridedUnaryOp)(
+typedef int (HPyArray_MaskedStridedUnaryOp)(HPyContext *ctx,
         HPyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
