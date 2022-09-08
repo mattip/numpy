@@ -598,7 +598,7 @@ HPyUFunc_SimpleBinaryComparisonTypeResolver(HPyContext *ctx,
                 py_type_tup, py_out_dtypes);
         HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
         Py_DECREF(py_ufunc);
-        Py_DECREF(py_type_tup);
+        Py_XDECREF(py_type_tup);
         for (int i=0; i < ufunc_data->nargs; i++) {
             out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
             Py_XDECREF(py_out_dtypes[i]);
