@@ -49,8 +49,8 @@ array_item_asscalar(PyArrayObject *self, npy_intp i);
 
 NPY_NO_EXPORT HPyDef array_item;
 
-NPY_NO_EXPORT PyObject *
-array_subscript_asarray(PyArrayObject *self, PyObject *op);
+NPY_NO_EXPORT HPy
+array_subscript_asarray(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy op);
 
 NPY_NO_EXPORT extern HPyDef array_subscript;
 

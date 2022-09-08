@@ -2265,13 +2265,6 @@ array_item_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, Py_ssize_t i)
 }
 
 
-/* make sure subscript always returns an array object */
-NPY_NO_EXPORT PyObject *
-array_subscript_asarray(PyArrayObject *self, PyObject *op)
-{
-    return PyArray_EnsureAnyArray(array_subscript_cpy(self, op));
-}
-
 /*
  * Attempts to subscript an array using a field name or list of field names.
  *
@@ -2627,6 +2620,13 @@ array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 
 PyObject *array_subscript_cpy(PyArrayObject *a, PyObject *b) {
     return array_subscript_trampoline((PyObject*) a, b);
+}
+
+/* make sure subscript always returns an array object */
+NPY_NO_EXPORT HPy
+array_subscript_asarray(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy op)
+{
+    return HPyArray_EnsureAnyArray(ctx, array_subscript_impl(ctx, self, op));
 }
 
 
