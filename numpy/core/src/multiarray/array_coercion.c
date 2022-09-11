@@ -1664,20 +1664,17 @@ HPyArray_DiscoverDTypeAndShape(
                 }
                 //PyArrayObject *arr = (PyArrayObject *)HPy_AsPyObject(npy_get_context(), current->arr_or_sequence);
                 HPy arr = current->arr_or_sequence;
-                PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, current->arr_or_sequence);
+                PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
                 assert(PyArray_NDIM(arr_data) + current->depth >= ndim);
                 if (PyArray_NDIM(arr_data) != ndim - current->depth) {
                     /* This array is not compatible with the final shape */
                     if (HPyArray_SIZE(arr_data) != 1) {
-                        HPy_Close(ctx, arr);
                         deprecate_single_element_ragged = 0;
                         break;
                     } else {
-                        HPy_Close(ctx, arr);
                     }
                     deprecate_single_element_ragged = 1;
                 }
-                HPy_Close(ctx, arr);
                 current = current->next;
             }
 
