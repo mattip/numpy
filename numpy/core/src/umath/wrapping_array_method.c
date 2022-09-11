@@ -135,7 +135,7 @@ get_wrapping_auxdata(void)
 
 
 static int
-wrapping_method_strided_loop(PyArrayMethod_Context *NPY_UNUSED(context),
+wrapping_method_strided_loop(HPyContext *ctx, HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], wrapping_auxdata *auxdata)
 {
@@ -143,7 +143,7 @@ wrapping_method_strided_loop(PyArrayMethod_Context *NPY_UNUSED(context),
      * If more things get stored on the context, it could be possible that
      * we would have to copy it here.  But currently, we do not.
      */
-    return auxdata->orig_loop(npy_get_context(),
+    return auxdata->orig_loop(ctx,
             &auxdata->orig_context, data, dimensions, strides,
             auxdata->orig_auxdata);
 }
@@ -151,41 +151,42 @@ wrapping_method_strided_loop(PyArrayMethod_Context *NPY_UNUSED(context),
 
 static int
 wrapping_method_get_loop(
-        PyArrayMethod_Context *context,
+        HPyContext *ctx, HPyArrayMethod_Context *context,
         int aligned, int move_references, const npy_intp *strides,
         HPyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    hpy_abort_not_implemented("wrapping_method_get_loop");
-    return -1;
-//    assert(move_references == 0);  /* only used internally for "decref" funcs */
-//    int nin = context->method->nin, nout = context->method->nout;
-//
-//    wrapping_auxdata *auxdata = get_wrapping_auxdata();
-//    if (auxdata == NULL) {
-//        return -1;
-//    }
-//
-//    auxdata->orig_context.method = context->method->wrapped_meth;
-//    auxdata->orig_context.caller = context->caller;
-//
-//    if (context->method->translate_given_descrs(
-//            nin, nout, context->method->wrapped_dtypes,
-//            context->descriptors, auxdata->orig_context.descriptors) < 0) {
-//        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
-//        return -1;
-//    }
-//    if (context->method->wrapped_meth->get_strided_loop(
-//            &auxdata->orig_context, aligned, 0, strides,
-//            &auxdata->orig_loop, &auxdata->orig_auxdata,
-//            flags) < 0) {
-//        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
-//        return -1;
-//    }
-//
-//    *out_loop = (PyArrayMethod_StridedLoop *)&wrapping_method_strided_loop;
-//    *out_transferdata = (NpyAuxData *)auxdata;
-//    return 0;
+    assert(move_references == 0);  /* only used internally for "decref" funcs */
+    PyArrayMethodObject *method = PyArrayMethodObject_AsStruct(ctx, context->method);
+    int nin = method->nin, nout = method->nout;
+
+    wrapping_auxdata *auxdata = get_wrapping_auxdata();
+    if (auxdata == NULL) {
+        return -1;
+    }
+    HPy wrapped_meth = HPyField_Load(ctx, context->method, method->wrapped_meth);
+    auxdata->orig_context.method = wrapped_meth;
+    auxdata->orig_context.caller = context->caller;
+
+    hpy_abort_not_implemented("where is translate_given_descrs going to?");
+    if (method->translate_given_descrs(
+            nin, nout, method->wrapped_dtypes,
+            context->descriptors, auxdata->orig_context.descriptors) < 0) {
+        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
+        return -1;
+    }
+    PyArrayMethodObject *wrapped_meth_data = PyArrayMethodObject_AsStruct(ctx, wrapped_meth);
+    if (wrapped_meth_data->get_strided_loop(ctx,
+            &auxdata->orig_context, aligned, 0, strides,
+            &auxdata->orig_loop, &auxdata->orig_auxdata,
+            flags) < 0) {
+        NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
+        return -1;
+    }
+
+    *out_loop = (HPyArrayMethod_StridedLoop *)&wrapping_method_strided_loop;
+    *out_transferdata = (NpyAuxData *)auxdata;
+    return 0;
 }
 
 

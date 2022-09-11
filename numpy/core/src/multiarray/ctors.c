@@ -965,7 +965,7 @@ HPyArray_NewFromDescr_int(
             newstrides = newdims + NPY_MAXDIMS;
             memcpy(newstrides, strides, nd*sizeof(npy_intp));
         }
-        nd =_update_descr_and_dimensions(&descr, newdims,
+        nd =_hpy_update_descr_and_dimensions(ctx, &h_descr, newdims,
                                          newstrides, nd);
         ret = HPyArray_NewFromDescr_int(
                 ctx, h_subtype, h_descr,

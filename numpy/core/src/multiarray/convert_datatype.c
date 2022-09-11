@@ -2121,9 +2121,8 @@ hpy_get_descr_from_cast_or_value(HPyContext *ctx,
         HPy common_dtype) /* PyArray_DTypeMeta * */
 {
     HPy curr;
-    PyArrayObject *arr_i = PyArrayObject_AsStruct(ctx, arrs[i-ndtypes]); // i-ndtypes < 0 ?
     if (NPY_LIKELY(i < ndtypes ||
-            !(PyArray_FLAGS(arr_i) & _NPY_ARRAY_WAS_PYSCALAR))) {
+            !(PyArray_FLAGS(PyArrayObject_AsStruct(ctx, arrs[i-ndtypes])) & _NPY_ARRAY_WAS_PYSCALAR))) {
         curr = HPyArray_CastDescrToDType(ctx, descriptor, common_dtype);
     }
     else {
@@ -2133,7 +2132,7 @@ hpy_get_descr_from_cast_or_value(HPyContext *ctx,
          * value the long route, but it should almost never happen...
          */
         HPy h_tmp = HPyArray_GETITEM(ctx, arrs[i-ndtypes],
-                                        PyArray_BYTES(arr_i));
+                                        PyArray_BYTES(PyArrayObject_AsStruct(ctx, arrs[i-ndtypes])));
         if (HPy_IsNull(h_tmp)) {
             return HPy_NULL;
         }
@@ -3016,7 +3015,9 @@ legacy_cast_get_strided_loop(
     *flags = method_data->flags & NPY_METH_RUNTIME_FLAGS;
 
     if (get_wrapped_legacy_cast_function(hctx,
-            aligned, strides[0], strides[1], descrs[0], descrs[1],
+            aligned, strides[0], strides[1], 
+            descrs[0], PyArray_Descr_AsStruct(hctx, descrs[0]),
+            descrs[1], PyArray_Descr_AsStruct(hctx, descrs[1]),
             move_references, out_loop, out_transferdata, &out_needs_api, 0) < 0) {
         return -1;
     }
@@ -3788,22 +3789,26 @@ nonstructured_to_structured_get_loop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    if (!HPyField_IsNull(PyArray_Descr_AsStruct(ctx, context->descriptors[1])->names)) {
+    PyArray_Descr *descr_0 = PyArray_Descr_AsStruct(ctx, context->descriptors[0]);
+    PyArray_Descr *descr_1 = PyArray_Descr_AsStruct(ctx, context->descriptors[1]);
+    if (!HPyField_IsNull(descr_1->names)) {
         int needs_api = 0;
-        if (get_fields_transfer_function(
+        if (get_fields_transfer_function(ctx,
                 aligned, strides[0], strides[1],
-                (PyArray_Descr*)HPy_AsPyObject(ctx, context->descriptors[0]), (PyArray_Descr*)HPy_AsPyObject(ctx, context->descriptors[1]),
+                context->descriptors[0], descr_0,
+                context->descriptors[1], descr_1,
                 move_references, out_loop, out_transferdata,
                 &needs_api) == NPY_FAIL) {
             return -1;
         }
         *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
     }
-    else if (PyArray_Descr_AsStruct(ctx, context->descriptors[1])->subarray != NULL) {
+    else if (descr_1->subarray != NULL) {
         int needs_api = 0;
-        if (get_subarray_transfer_function(
+        if (get_subarray_transfer_function(ctx,
                 aligned, strides[0], strides[1],
-                (PyArray_Descr*)HPy_AsPyObject(ctx, context->descriptors[0]), (PyArray_Descr*)HPy_AsPyObject(ctx, context->descriptors[1]),
+                context->descriptors[0], descr_0,
+                context->descriptors[1], descr_1,
                 move_references, out_loop, out_transferdata,
                 &needs_api) == NPY_FAIL) {
             return -1;
@@ -3819,7 +3824,8 @@ nonstructured_to_structured_get_loop(
         int needs_api = 0;
         if (get_wrapped_legacy_cast_function(ctx,
                 1, strides[0], strides[1],
-                context->descriptors[0], context->descriptors[1],
+                context->descriptors[0], descr_0,
+                context->descriptors[1], descr_1,
                 move_references, out_loop, out_transferdata,
                 &needs_api, 1) < 0) {
             return -1;
@@ -3973,47 +3979,49 @@ structured_to_nonstructured_get_loop(
         NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-    // TODO HPY LABS PORT: migrate structured_to_nonstructured_get_loop
-    hpy_abort_not_implemented("structured_to_nonstructured_get_loop");
-    return -1;
-//    if (context->descriptors[0]->names != NULL) {
-//        int needs_api = 0;
-//        if (get_fields_transfer_function(
-//                aligned, strides[0], strides[1],
-//                context->descriptors[0], context->descriptors[1],
-//                move_references, out_loop, out_transferdata,
-//                &needs_api) == NPY_FAIL) {
-//            return -1;
-//        }
-//        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
-//    }
-//    else if (context->descriptors[0]->subarray != NULL) {
-//        int needs_api = 0;
-//        if (get_subarray_transfer_function(
-//                aligned, strides[0], strides[1],
-//                context->descriptors[0], context->descriptors[1],
-//                move_references, out_loop, out_transferdata,
-//                &needs_api) == NPY_FAIL) {
-//            return -1;
-//        }
-//        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
-//    }
-//    else {
-//        /*
-//         * In general this is currently defined through legacy behaviour via
-//         * scalars, and should likely just not be allowed.
-//         */
-//        int needs_api = 0;
-//        if (get_wrapped_legacy_cast_function(ctx,
-//                aligned, strides[0], strides[1],
-//                HPy_FromPyObject(ctx, context->descriptors[0]), HPy_FromPyObject(ctx, context->descriptors[1]),
-//                move_references, out_loop, out_transferdata,
-//                &needs_api, 1) < 0) {
-//            return -1;
-//        }
-//        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
-//    }
-//    return 0;
+    PyArray_Descr *descr_0 = PyArray_Descr_AsStruct(ctx, context->descriptors[0]);
+    PyArray_Descr *descr_1 = PyArray_Descr_AsStruct(ctx, context->descriptors[1]);
+    if (!HPyField_IsNull(descr_0->names)) {
+        int needs_api = 0;
+        if (get_fields_transfer_function(ctx,
+                aligned, strides[0], strides[1],
+                context->descriptors[0], descr_0,
+                context->descriptors[1], descr_1,
+                move_references, out_loop, out_transferdata,
+                &needs_api) == NPY_FAIL) {
+            return -1;
+        }
+        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
+    }
+    else if (descr_0->subarray != NULL) {
+        int needs_api = 0;
+        if (get_subarray_transfer_function(ctx,
+                aligned, strides[0], strides[1],
+                context->descriptors[0], descr_0,
+                context->descriptors[1], descr_1,
+                move_references, out_loop, out_transferdata,
+                &needs_api) == NPY_FAIL) {
+            return -1;
+        }
+        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
+    }
+    else {
+        /*
+            * In general this is currently defined through legacy behaviour via
+            * scalars, and should likely just not be allowed.
+            */
+        int needs_api = 0;
+        if (get_wrapped_legacy_cast_function(ctx,
+                aligned, strides[0], strides[1],
+                context->descriptors[0], descr_0, 
+                context->descriptors[1], descr_1,
+                move_references, out_loop, out_transferdata,
+                &needs_api, 1) < 0) {
+            return -1;
+        }
+        *flags = needs_api ? NPY_METH_REQUIRES_PYAPI : 0;
+    }
+    return 0;
 }
 
 
@@ -4323,7 +4331,7 @@ void_to_void_resolve_descriptors(
 
 NPY_NO_EXPORT int
 void_to_void_get_loop(
-        HPyContext *hctx,
+        HPyContext *ctx,
         HPyArrayMethod_Context *context,
         int aligned, int move_references,
         const npy_intp *strides,
@@ -4332,17 +4340,18 @@ void_to_void_get_loop(
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
     HPy *h_descrs = context->descriptors; /* (PyArray_Descr **) */
+    PyArray_Descr *descr_0 = PyArray_Descr_AsStruct(ctx, h_descrs[0]);
+    PyArray_Descr *descr_1 = PyArray_Descr_AsStruct(ctx, h_descrs[1]);
     PyArray_Descr *descrs[2] = {
-            PyArray_Descr_AsStruct(hctx, h_descrs[0]),
-            PyArray_Descr_AsStruct(hctx, h_descrs[1])
+            descr_0,
+            descr_1,
     };
-    if (!HPyField_IsNull(descrs[0]->names) ||
+    if (!HPyField_IsNull(descr_0->names) ||
             !HPyField_IsNull(descrs[1]->names)) {
         int needs_api = 0;
-        CAPI_WARN("void_to_void_get_loop: call to get_fields_transfer_function");
-        if (get_fields_transfer_function(
+        if (get_fields_transfer_function(ctx,
                 aligned, strides[0], strides[1],
-                descrs[0], descrs[1],
+                h_descrs[0], descr_0, h_descrs[1], descr_1,
                 move_references, out_loop, out_transferdata,
                 &needs_api) == NPY_FAIL) {
             return -1;
@@ -4352,10 +4361,9 @@ void_to_void_get_loop(
     else if (descrs[0]->subarray != NULL ||
              descrs[1]->subarray != NULL) {
         int needs_api = 0;
-        CAPI_WARN("void_to_void_get_loop: call to get_subarray_transfer_function");
-        if (get_subarray_transfer_function(
+        if (get_subarray_transfer_function(ctx,
                 aligned, strides[0], strides[1],
-                descrs[0], descrs[1],
+                h_descrs[0], descr_0, h_descrs[1], descr_1,
                 move_references, out_loop, out_transferdata,
                 &needs_api) == NPY_FAIL) {
             return -1;
@@ -4367,7 +4375,6 @@ void_to_void_get_loop(
          * This is a string-like copy of the two bytes (zero padding if
          * necessary)
          */
-        CAPI_WARN("void_to_void_get_loop: call to PyArray_GetStridedZeroPadCopyFn");
         if (PyArray_GetStridedZeroPadCopyFn(
                 0, 0, strides[0], strides[1],
                 descrs[0]->elsize, descrs[1]->elsize,

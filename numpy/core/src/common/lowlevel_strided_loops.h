@@ -206,18 +206,20 @@ HPyArray_GetDTypeTransferFunction(HPyContext *ctx, int aligned,
                             HNPY_cast_info *cast_info,
                             int *out_needs_api);
 NPY_NO_EXPORT int
-get_fields_transfer_function(int aligned,
+get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
         npy_intp src_stride, npy_intp dst_stride,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        HPy h_src_dtype, PyArray_Descr *src_dtype_data, 
+        HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
         int move_references,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
         int *out_needs_api);
 
 NPY_NO_EXPORT int
-get_subarray_transfer_function(int aligned,
+get_subarray_transfer_function(HPyContext *ctx, int aligned,
         npy_intp src_stride, npy_intp dst_stride,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        HPy h_src_dtype, PyArray_Descr *src_dtype_data,
+        HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
         int move_references,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,

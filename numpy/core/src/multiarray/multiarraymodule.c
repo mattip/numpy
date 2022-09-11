@@ -1822,7 +1822,7 @@ _hpy_array_fromobject_generic(
 {
     HPy array_type = HPy_NULL;
     HPy ret = HPy_NULL;
-    PyArrayObject *oparr;
+    PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
     HPy oldtype = HPy_NULL;
     PyArray_Descr *oldtype_data;
     PyArray_Descr *type_data = PyArray_Descr_AsStruct(ctx, type);
@@ -1844,7 +1844,6 @@ _hpy_array_fromobject_generic(
     HPy_Close(ctx, op_type);
     if (is_op_HPyArray_Type ||
         (subok && HPy_TypeCheck(ctx, op, array_type))) {
-        oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);

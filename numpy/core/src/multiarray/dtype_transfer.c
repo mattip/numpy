@@ -75,16 +75,10 @@ _safe_print(PyObject *obj)
  * Returns NPY_SUCCEED or NPY_FAIL.
  */
 static int
-get_decref_transfer_function(int aligned,
-                            npy_intp src_stride,
-                            PyArray_Descr *src_dtype,
-                            NPY_cast_info *cast_info,
-                            int *out_needs_api);
-
-static int
 hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride,
-                            HPy src_dtype,
+                            HPy /* PyArray_Descr * */ h_src_dtype, 
+                            PyArray_Descr *src_dtype_data,
                             NPY_cast_info *cast_info,
                             int *out_needs_api);
 
@@ -285,14 +279,15 @@ any_to_object_get_loop(
     data->arr = (PyArrayObject *)HPy_AsPyObject(ctx, arr);
     HPy_Close(ctx, arr);
 
-    PyArray_Descr *dtype = PyArray_Descr_AsStruct(ctx, context->descriptors[0]);
-    data->getitem = dtype->f->getitem;
+    PyArray_Descr *descr_0 = PyArray_Descr_AsStruct(ctx, context->descriptors[0]);
+    data->getitem = descr_0->f->getitem;
     HNPY_cast_info_init(ctx, &data->decref_src);
 
-    if (move_references && PyDataType_REFCHK(dtype)) {
+    if (move_references && PyDataType_REFCHK(descr_0)) {
         int needs_api;
         if (hpy_get_decref_transfer_function(ctx,
-                aligned, strides[0], context->descriptors[0],
+                aligned, strides[0], 
+                context->descriptors[0], descr_0,
                 &data->decref_src,
                 &needs_api) == NPY_FAIL)  {
             NPY_AUXDATA_FREE(*out_transferdata);
@@ -1584,9 +1579,10 @@ _strided_to_strided_one_to_n_with_finish(HPyContext *ctx,
 
 
 static int
-get_one_to_n_transfer_function(int aligned,
+get_one_to_n_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data, 
+                            HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
                             int move_references,
                             npy_intp N,
                             HPyArrayMethod_StridedLoop **out_stransfer,
@@ -1602,7 +1598,7 @@ get_one_to_n_transfer_function(int aligned,
     data->base.free = &_one_to_n_data_free;
     data->base.clone = &_one_to_n_data_clone;
     data->N = N;
-    NPY_cast_info_init(&data->decref_src);  /* In case of error */
+    HNPY_cast_info_init(ctx, &data->decref_src);  /* In case of error */
 
     /*
      * move_references is set to 0, handled in the wrapping transfer fn,
@@ -1610,9 +1606,9 @@ get_one_to_n_transfer_function(int aligned,
      * and dst_stride is set to contiguous, because subarrays are always
      * contiguous.
      */
-    if (PyArray_GetDTypeTransferFunction(aligned,
-                    0, dst_dtype->elsize,
-                    src_dtype, dst_dtype,
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                    0, dst_dtype_data->elsize,
+                    h_src_dtype, h_dst_dtype,
                     0,
                     &data->wrapped,
                     out_needs_api) != NPY_SUCCEED) {
@@ -1621,10 +1617,10 @@ get_one_to_n_transfer_function(int aligned,
     }
 
     /* If the src object will need a DECREF, set src_dtype */
-    if (move_references && PyDataType_REFCHK(src_dtype)) {
-        if (get_decref_transfer_function(aligned,
+    if (move_references && PyDataType_REFCHK(src_dtype_data)) {
+        if (hpy_get_decref_transfer_function(ctx, aligned,
                             src_stride,
-                            src_dtype,
+                            h_src_dtype, src_dtype_data,
                             &data->decref_src,
                             out_needs_api) != NPY_SUCCEED) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
@@ -1745,9 +1741,10 @@ _contig_to_contig_n_to_n(HPyContext *ctx,
  * casting as well as a decref function (with `dst_dtype == NULL`)
  */
 static int
-get_n_to_n_transfer_function(int aligned,
+get_n_to_n_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data,
+                            HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
                             int move_references,
                             npy_intp N,
                             HPyArrayMethod_StridedLoop **out_stransfer,
@@ -1768,8 +1765,8 @@ get_n_to_n_transfer_function(int aligned,
          * If N == 1, we can use the original strides,
          * otherwise fields are contiguous
          */
-        src_stride = src_dtype->elsize;
-        dst_stride = dst_dtype != NULL ? dst_dtype->elsize : 0;
+        src_stride = src_dtype_data->elsize;
+        dst_stride = dst_dtype_data != NULL ? dst_dtype_data->elsize : 0;
         /* Store the wrapped strides for easier access */
         data->strides[0] = src_stride;
         data->strides[1] = dst_stride;
@@ -1779,9 +1776,9 @@ get_n_to_n_transfer_function(int aligned,
      * src_stride and dst_stride are set to contiguous, because
      * subarrays are always contiguous.
      */
-    if (PyArray_GetDTypeTransferFunction(aligned,
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
                     src_stride, dst_stride,
-                    src_dtype, dst_dtype,
+                    h_src_dtype, h_dst_dtype,
                     move_references,
                     &data->wrapped,
                     out_needs_api) != NPY_SUCCEED) {
@@ -1995,9 +1992,10 @@ _strided_to_strided_subarray_broadcast_withrefs(HPyContext *ctx,
 
 
 static int
-get_subarray_broadcast_transfer_function(int aligned,
+get_subarray_broadcast_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data,
+                            HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
                             npy_intp src_size, npy_intp dst_size,
                             PyArray_Dims src_shape, PyArray_Dims dst_shape,
                             int move_references,
@@ -2015,7 +2013,7 @@ get_subarray_broadcast_transfer_function(int aligned,
     /* Allocate the data and populate it */
     data = (_subarray_broadcast_data *)PyMem_Malloc(structsize);
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         return NPY_FAIL;
     }
     data->base.free = &_subarray_broadcast_data_free;
@@ -2023,17 +2021,17 @@ get_subarray_broadcast_transfer_function(int aligned,
     data->src_N = src_size;
     data->dst_N = dst_size;
 
-    NPY_cast_info_init(&data->decref_src);
-    NPY_cast_info_init(&data->decref_dst);
+    HNPY_cast_info_init(ctx, &data->decref_src);
+    HNPY_cast_info_init(ctx, &data->decref_dst);
 
     /*
      * move_references is set to 0, handled in the wrapping transfer fn,
      * src_stride and dst_stride are set to contiguous, as N will always
      * be 1 when it's called.
      */
-    if (PyArray_GetDTypeTransferFunction(aligned,
-                    src_dtype->elsize, dst_dtype->elsize,
-                    src_dtype, dst_dtype,
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                    src_dtype_data->elsize, dst_dtype_data->elsize,
+                    h_src_dtype, h_dst_dtype,
                     0,
                     &data->wrapped,
                     out_needs_api) != NPY_SUCCEED) {
@@ -2042,10 +2040,10 @@ get_subarray_broadcast_transfer_function(int aligned,
     }
 
     /* If the src object will need a DECREF */
-    if (move_references && PyDataType_REFCHK(src_dtype)) {
-        if (PyArray_GetDTypeTransferFunction(aligned,
-                        src_dtype->elsize, 0,
-                        src_dtype, NULL,
+    if (move_references && PyDataType_REFCHK(src_dtype_data)) {
+        if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                        src_dtype_data->elsize, 0,
+                        h_src_dtype, HPy_NULL,
                         1,
                         &data->decref_src,
                         out_needs_api) != NPY_SUCCEED) {
@@ -2055,10 +2053,10 @@ get_subarray_broadcast_transfer_function(int aligned,
     }
 
     /* If the dst object needs a DECREF to set it to NULL */
-    if (PyDataType_REFCHK(dst_dtype)) {
-        if (PyArray_GetDTypeTransferFunction(aligned,
-                        dst_dtype->elsize, 0,
-                        dst_dtype, NULL,
+    if (PyDataType_REFCHK(dst_dtype_data)) {
+        if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                        dst_dtype_data->elsize, 0,
+                        h_dst_dtype, HPy_NULL,
                         1,
                         &data->decref_dst,
                         out_needs_api) != NPY_SUCCEED) {
@@ -2150,7 +2148,7 @@ get_subarray_broadcast_transfer_function(int aligned,
     /* Multiply all the offsets by the src item size */
     while (run--) {
         if (offsetruns[run].offset != -1) {
-            offsetruns[run].offset *= src_dtype->elsize;
+            offsetruns[run].offset *= src_dtype_data->elsize;
         }
     }
 
@@ -2171,9 +2169,10 @@ get_subarray_broadcast_transfer_function(int aligned,
  * subarrays must be non-NULL
  */
 NPY_NO_EXPORT int
-get_subarray_transfer_function(int aligned,
+get_subarray_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data,
+                            HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
                             int move_references,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
@@ -2183,27 +2182,31 @@ get_subarray_transfer_function(int aligned,
     npy_intp src_size = 1, dst_size = 1;
 
     /* Get the subarray shapes and sizes */
-    if (PyDataType_HASSUBARRAY(src_dtype)) {
-        if (!(PyArray_IntpConverter(src_dtype->subarray->shape,
+    if (PyDataType_HASSUBARRAY(src_dtype_data)) {
+        CAPI_WARN("subarray->shape is PyObject");
+        if (!(PyArray_IntpConverter(src_dtype_data->subarray->shape,
                                             &src_shape))) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "invalid subarray shape");
             return NPY_FAIL;
         }
         src_size = PyArray_MultiplyList(src_shape.ptr, src_shape.len);
-        src_dtype = src_dtype->subarray->base;
+        h_src_dtype = HPy_FromPyObject(ctx, (PyObject *)src_dtype_data->subarray->base);
+        src_dtype_data = PyArray_Descr_AsStruct(ctx, h_src_dtype);
     }
-    if (PyDataType_HASSUBARRAY(dst_dtype)) {
-        if (!(PyArray_IntpConverter(dst_dtype->subarray->shape,
+    if (PyDataType_HASSUBARRAY(dst_dtype_data)) {
+        CAPI_WARN("subarray->shape is PyObject");
+        if (!(PyArray_IntpConverter(dst_dtype_data->subarray->shape,
                                             &dst_shape))) {
             npy_free_cache_dim_obj(src_shape);
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "invalid subarray shape");
             return NPY_FAIL;
         }
         dst_size = PyArray_MultiplyList(dst_shape.ptr, dst_shape.len);
-        dst_dtype = dst_dtype->subarray->base;
-    }
+        h_dst_dtype = HPy_FromPyObject(ctx, (PyObject *)dst_dtype_data->subarray->base);
+        dst_dtype_data = PyArray_Descr_AsStruct(ctx, h_dst_dtype);
+}
 
     /*
      * Copy the src value to all the dst values, the size one can be
@@ -2216,9 +2219,10 @@ get_subarray_transfer_function(int aligned,
         npy_free_cache_dim_obj(src_shape);
         npy_free_cache_dim_obj(dst_shape);
 
-        return get_n_to_n_transfer_function(aligned,
+        return get_n_to_n_transfer_function(ctx, aligned,
                         src_stride, dst_stride,
-                        src_dtype, dst_dtype,
+                        h_src_dtype, src_dtype_data,
+                        h_dst_dtype, dst_dtype_data,
                         move_references,
                         src_size,
                         out_stransfer, out_transferdata,
@@ -2229,9 +2233,10 @@ get_subarray_transfer_function(int aligned,
         npy_free_cache_dim_obj(src_shape);
         npy_free_cache_dim_obj(dst_shape);
 
-        return get_one_to_n_transfer_function(aligned,
+        return get_one_to_n_transfer_function(ctx, aligned,
                 src_stride, dst_stride,
-                src_dtype, dst_dtype,
+                h_src_dtype, src_dtype_data,
+                h_dst_dtype, dst_dtype_data,
                 move_references,
                 dst_size,
                 out_stransfer, out_transferdata,
@@ -2242,9 +2247,10 @@ get_subarray_transfer_function(int aligned,
      * as necessary.
      */
     else {
-        int ret = get_subarray_broadcast_transfer_function(aligned,
+        int ret = get_subarray_broadcast_transfer_function(ctx, aligned,
                         src_stride, dst_stride,
-                        src_dtype, dst_dtype,
+                        h_src_dtype, src_dtype_data,
+                        h_dst_dtype, dst_dtype_data,
                         src_size, dst_size,
                         src_shape, dst_shape,
                         move_references,
@@ -2278,7 +2284,7 @@ static void _field_transfer_data_free(NpyAuxData *data)
     for (npy_intp i = 0; i < d->field_count; ++i) {
         NPY_cast_info_xfree(&d->fields[i].info);
     }
-    PyMem_Free(d);
+    free(d); // PyMem_Free
 }
 
 /* transfer data copy function */
@@ -2362,23 +2368,29 @@ _strided_to_strided_field_transfer(
  * must have fields. Does not take care of object<->structure conversion
  */
 NPY_NO_EXPORT int
-get_fields_transfer_function(int NPY_UNUSED(aligned),
+get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
                             npy_intp src_stride, npy_intp dst_stride,
-                            PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data, 
+                            HPy h_dst_dtype, PyArray_Descr *dst_dtype_data,
                             int move_references,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
-    PyObject *src_names = NULL, *dst_names = NULL;
-    PyObject *key, *tup, *title;
-    PyArray_Descr *src_fld_dtype, *dst_fld_dtype;
+    HPy src_names = HPy_NULL, dst_names = HPy_NULL;
+    HPy key, tup, title;
+    HPy src_fld_dtype, dst_fld_dtype; // PyArray_Descr *
     npy_int i;
     size_t structsize;
-    Py_ssize_t field_count;
+    HPy_ssize_t field_count;
     int src_offset, dst_offset;
     _field_transfer_data *data;
     int res;
+
+    HPy_ssize_t tup_len = 0;
+    HPy *tup_arr = NULL;
+    HPy fields_src = HPy_FromPyObject(ctx, src_dtype_data->fields);
+    HPy fields_dst = HPy_FromPyObject(ctx, dst_dtype_data->fields);
 
     /*
      * There are three cases to take care of: 1. src is non-structured,
@@ -2386,35 +2398,37 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
      */
 
     /* 1. src is non-structured. Copy the src value to all the fields of dst */
-    if (!PyDataType_HASFIELDS(src_dtype)) {
-        dst_names = HPyField_LoadPyObj((PyObject *)dst_dtype, dst_dtype->names);
-        field_count = PyTuple_GET_SIZE(dst_names);
+    if (!PyDataType_HASFIELDS(src_dtype_data)) {
+        dst_names = HPyField_Load(ctx, h_dst_dtype, dst_dtype_data->names);
+        field_count = HPy_Length(ctx, dst_names);
 
         /* Allocate the field-data structure and populate it */
         structsize = sizeof(_field_transfer_data) +
                         (field_count + 1) * sizeof(_single_field_transfer);
-        data = PyMem_Malloc(structsize);
+        data = malloc(structsize); // PyMem_Malloc
         if (data == NULL) {
-            PyErr_NoMemory();
+            HPyErr_NoMemory(ctx);
             res = NPY_FAIL;
             goto finish;
         }
         data->base.free = &_field_transfer_data_free;
         data->base.clone = &_field_transfer_data_clone;
         data->field_count = 0;
-
         for (i = 0; i < field_count; ++i) {
-            key = PyTuple_GET_ITEM(dst_names, i);
-            tup = PyDict_GetItem(dst_dtype->fields, key);
-            if (!PyArg_ParseTuple(tup, "Oi|O", &dst_fld_dtype,
+            key = HPy_GetItem_i(ctx, dst_names, i);
+            tup = HPy_GetItem(ctx, fields_dst, key);
+            tup_arr = HPy_TupleToArray(ctx, tup, &tup_len);
+            HPy_Close(ctx, key);
+            HPy_Close(ctx, tup);
+            if (!HPyArg_Parse(ctx, NULL, tup_arr, tup_len, "Oi|O", &dst_fld_dtype,
                                                     &dst_offset, &title)) {
                 PyMem_Free(data);
                 res = NPY_FAIL;
                 goto finish;
             }
-            if (PyArray_GetDTypeTransferFunction(0,
+            if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                     src_stride, dst_stride,
-                                    src_dtype, dst_fld_dtype,
+                                    h_src_dtype, dst_fld_dtype,
                                     0,
                                     &data->fields[i].info,
                                     out_needs_api) != NPY_SUCCEED) {
@@ -2425,6 +2439,8 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
             data->fields[i].src_offset = 0;
             data->fields[i].dst_offset = dst_offset;
             data->field_count++;
+            HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+            tup_len = 0;
         }
 
         /*
@@ -2432,10 +2448,10 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
          * function to do that. Since a decref function only uses a single
          * input, the second one (normally output) just does not matter here.
          */
-        if (move_references && PyDataType_REFCHK(src_dtype)) {
-            if (get_decref_transfer_function(0,
+        if (move_references && PyDataType_REFCHK(src_dtype_data)) {
+            if (hpy_get_decref_transfer_function(ctx, 0,
                                     src_stride,
-                                    src_dtype,
+                                    h_src_dtype, src_dtype_data,
                                     &data->fields[field_count].info,
                                     out_needs_api) != NPY_SUCCEED) {
                 NPY_AUXDATA_FREE((NpyAuxData *)data);
@@ -2455,10 +2471,10 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     }
 
     /* 2. dst is non-structured. Allow transfer from single-field src to dst */
-    if (!PyDataType_HASFIELDS(dst_dtype)) {
-        src_names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
-        if (PyTuple_GET_SIZE(src_names) != 1) {
-            PyErr_SetString(PyExc_ValueError,
+    if (!PyDataType_HASFIELDS(dst_dtype_data)) {
+        src_names = HPyField_Load(ctx, h_src_dtype, src_dtype_data->names);
+        if (HPy_Length(ctx, src_names) != 1) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Can't cast from structure to non-structure, except if the "
                     "structure only has a single field.");
             res = NPY_FAIL;
@@ -2468,27 +2484,30 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
         /* Allocate the field-data structure and populate it */
         structsize = sizeof(_field_transfer_data) +
                         1 * sizeof(_single_field_transfer);
-        data = PyMem_Malloc(structsize);
+        data = malloc(structsize); // PyMem_Malloc
         if (data == NULL) {
-            PyErr_NoMemory();
+            HPyErr_NoMemory(ctx);
             res = NPY_FAIL;
             goto finish;
         }
         data->base.free = &_field_transfer_data_free;
         data->base.clone = &_field_transfer_data_clone;
 
-        key = PyTuple_GET_ITEM(src_names, 0);
-        tup = PyDict_GetItem(src_dtype->fields, key);
-        if (!PyArg_ParseTuple(tup, "Oi|O",
+        key = HPy_GetItem_i(ctx, src_names, 0);
+        tup = HPy_GetItem(ctx, fields_src, key);
+        tup_arr = HPy_TupleToArray(ctx, tup, &tup_len);
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, tup);
+        if (!HPyArg_Parse(ctx, NULL, tup_arr, tup_len, "Oi|O",
                               &src_fld_dtype, &src_offset, &title)) {
             PyMem_Free(data);
             res = NPY_FAIL;
             goto finish;
         }
 
-        if (PyArray_GetDTypeTransferFunction(0,
+        if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                              src_stride, dst_stride,
-                                             src_fld_dtype, dst_dtype,
+                                             src_fld_dtype, h_dst_dtype,
                                              move_references,
                                              &data->fields[0].info,
                                              out_needs_api) != NPY_SUCCEED) {
@@ -2508,13 +2527,13 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     }
 
     /* 3. Otherwise both src and dst are structured arrays */
-    dst_names = HPyField_LoadPyObj((PyObject *)dst_dtype, dst_dtype->names);
-    field_count = PyTuple_GET_SIZE(dst_names);
+    dst_names = HPyField_Load(ctx, h_dst_dtype, dst_dtype_data->names);
+    field_count = HPy_Length(ctx, dst_names);
 
     /* Match up the fields to copy (field-by-field transfer) */
-    src_names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
-    if (PyTuple_GET_SIZE(src_names) != field_count) {
-        PyErr_SetString(PyExc_ValueError, "structures must have the same size");
+    src_names = HPyField_Load(ctx, h_src_dtype, src_dtype_data->names);
+    if (HPy_Length(ctx, src_names) != field_count) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "structures must have the same size");
         res = NPY_FAIL;
         goto finish;
     }
@@ -2522,9 +2541,9 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     /* Allocate the field-data structure and populate it */
     structsize = sizeof(_field_transfer_data) +
                     field_count * sizeof(_single_field_transfer);
-    data = PyMem_Malloc(structsize);
+    data = malloc(structsize); // PyMem_Malloc
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         res = NPY_FAIL;
         goto finish;
     }
@@ -2534,36 +2553,48 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
 
     /* set up the transfer function for each field */
     for (i = 0; i < field_count; ++i) {
-        key = PyTuple_GET_ITEM(dst_names, i);
-        tup = PyDict_GetItem(dst_dtype->fields, key);
-        if (!PyArg_ParseTuple(tup, "Oi|O", &dst_fld_dtype,
+        key = HPy_GetItem_i(ctx, dst_names, i);
+        tup = HPy_GetItem(ctx, fields_dst, key);
+        tup_arr = HPy_TupleToArray(ctx, tup, &tup_len);
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, tup);
+        if (!HPyArg_Parse(ctx, NULL, tup_arr, tup_len, "Oi|O", &dst_fld_dtype,
                                                 &dst_offset, &title)) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
-        key = PyTuple_GET_ITEM(src_names, i);
-        tup = PyDict_GetItem(src_dtype->fields, key);
-        if (!PyArg_ParseTuple(tup, "Oi|O", &src_fld_dtype,
+        dst_fld_dtype = HPy_Dup(ctx, dst_fld_dtype); // we are going to close and reuse tup_arr
+        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+        key = HPy_GetItem_i(ctx, src_names, i);
+        tup = HPy_GetItem(ctx, fields_src, key);
+        tup_arr = HPy_TupleToArray(ctx, tup, &tup_len);
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, tup);
+        if (!HPyArg_Parse(ctx, NULL, tup_arr, tup_len, "Oi|O", &src_fld_dtype,
                                                 &src_offset, &title)) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
 
-        if (PyArray_GetDTypeTransferFunction(0,
+        if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                              src_stride, dst_stride,
                                              src_fld_dtype, dst_fld_dtype,
                                              move_references,
                                              &data->fields[i].info,
                                              out_needs_api) != NPY_SUCCEED) {
+            HPy_Close(ctx, dst_fld_dtype);
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
+        HPy_Close(ctx, dst_fld_dtype);
         data->fields[i].src_offset = src_offset;
         data->fields[i].dst_offset = dst_offset;
         data->field_count++;
+        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+        tup_len = 0;
     }
 
     *out_stransfer = &_strided_to_strided_field_transfer;
@@ -2573,28 +2604,36 @@ get_fields_transfer_function(int NPY_UNUSED(aligned),
     // fall through
 
 finish:
-    Py_XDECREF(dst_names);
-    Py_XDECREF(src_names);
+    if (tup_len) {
+        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+    }
+    HPy_Close(ctx, fields_src);
+    HPy_Close(ctx, fields_dst);
+    HPy_Close(ctx, dst_names);
+    HPy_Close(ctx, src_names);
     return res;
 }
 
 static int
-get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
+get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
                             npy_intp src_stride,
-                            PyArray_Descr *src_dtype,
+                            HPy h_src_dtype, PyArray_Descr *src_dtype_data,
                             HPyArrayMethod_StridedLoop **out_stransfer,
                             NpyAuxData **out_transferdata,
                             int *out_needs_api)
 {
-    PyObject *names, *key, *tup, *title;
-    PyArray_Descr *src_fld_dtype;
+    HPy names, key, tup, title;
+    HPy src_fld_dtype; // PyArray_Descr *
     npy_int i, structsize;
     Py_ssize_t field_count;
     int src_offset;
     int res;
 
-    names = HPyField_LoadPyObj((PyObject *)src_dtype, src_dtype->names);
-    field_count = PyTuple_GET_SIZE(names);
+    HPy_ssize_t tup_len = 0;
+    HPy *tup_arr = NULL;
+
+    names = HPyField_Load(ctx, h_src_dtype, src_dtype_data->names);
+    field_count = HPy_Length(ctx, names);
 
     /* Over-allocating here: less fields may be used */
     structsize = sizeof(_field_transfer_data) +
@@ -2602,7 +2641,7 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     /* Allocate the data and populate it */
     _field_transfer_data *data = PyMem_Malloc(structsize);
     if (data == NULL) {
-        PyErr_NoMemory();
+        HPyErr_NoMemory(ctx);
         res = NPY_FAIL;
         goto finish;
     }
@@ -2611,24 +2650,31 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     data->field_count = 0;
 
     _single_field_transfer *field = data->fields;
+    HPy fields = HPy_FromPyObject(ctx, src_dtype_data->fields);
     for (i = 0; i < field_count; ++i) {
-        key = PyTuple_GET_ITEM(names, i);
-        tup = PyDict_GetItem(src_dtype->fields, key);
-        if (!PyArg_ParseTuple(tup, "Oi|O", &src_fld_dtype,
+        key = HPy_GetItem_i(ctx, names, i);
+        tup = HPy_GetItem(ctx, fields, key);
+        tup_arr = HPy_TupleToArray(ctx, tup, &tup_len);
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, tup);
+        if (!HPyArg_Parse(ctx, NULL, tup_arr, tup_len, "Oi|O", &src_fld_dtype,
                                                 &src_offset, &title)) {
+            HPy_Close(ctx, fields);
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
-        if (PyDataType_REFCHK(src_fld_dtype)) {
+        PyArray_Descr *src_fld_dtype_data = PyArray_Descr_AsStruct(ctx, src_fld_dtype);
+        if (PyDataType_REFCHK(src_fld_dtype_data)) {
             if (out_needs_api) {
                 *out_needs_api = 1;
             }
-            if (get_decref_transfer_function(0,
+            if (hpy_get_decref_transfer_function(ctx, 0,
                                     src_stride,
-                                    src_fld_dtype,
+                                    src_fld_dtype, src_fld_dtype_data,
                                     &field->info,
                                     out_needs_api) != NPY_SUCCEED) {
+                HPy_Close(ctx, fields);
                 NPY_AUXDATA_FREE((NpyAuxData *)data);
                 res = NPY_FAIL;
                 goto finish;
@@ -2637,7 +2683,10 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
             data->field_count++;
             field++;
         }
+        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+        tup_len = 0;
     }
+    HPy_Close(ctx, fields);
 
     *out_stransfer = &_strided_to_strided_field_transfer;
     *out_transferdata = (NpyAuxData *)data;
@@ -2645,7 +2694,10 @@ get_decref_fields_transfer_function(int NPY_UNUSED(aligned),
     res = NPY_SUCCEED;
     // fall through
 finish:
-    Py_DECREF(names);
+    if (tup_len) {
+        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
+    }
+    HPy_Close(ctx, names);
     return res;
 }
 
@@ -2833,23 +2885,23 @@ _strided_to_null_dec_src_ref_reference(HPyContext *hctx,
  *       memory or Python objects.
  */
 static int
-get_decref_transfer_function(int aligned,
+hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
                             npy_intp src_stride,
-                            PyArray_Descr *src_dtype,
+                            HPy /* PyArray_Descr * */ h_src_dtype, 
+                            PyArray_Descr *src_dtype_data,
                             NPY_cast_info *cast_info,
                             int *out_needs_api)
 {
-    // TODO HPY LABS PORT: migrate get_decref_transfer_function
-    NPY_cast_info_init(cast_info);
+    HNPY_cast_info_init(ctx, cast_info);
 
     /* If there are no references, it's a nop */
-    if (!PyDataType_REFCHK(src_dtype)) {
+    if (!PyDataType_REFCHK(src_dtype_data)) {
         cast_info->func = &_hpy_dec_src_ref_nop;
         cast_info->auxdata = NULL;
         goto finalize;
     }
     /* If it's a single reference, it's one decref */
-    else if (src_dtype->type_num == NPY_OBJECT) {
+    else if (src_dtype_data->type_num == NPY_OBJECT) {
         if (out_needs_api) {
             *out_needs_api = 1;
         }
@@ -2859,7 +2911,7 @@ get_decref_transfer_function(int aligned,
         goto finalize;
     }
     /* If there are subarrays, need to wrap it */
-    else if (PyDataType_HASSUBARRAY(src_dtype)) {
+    else if (PyDataType_HASSUBARRAY(src_dtype_data)) {
         PyArray_Dims src_shape = {NULL, -1};
         npy_intp src_size;
 
@@ -2867,18 +2919,21 @@ get_decref_transfer_function(int aligned,
             *out_needs_api = 1;
         }
 
-        if (!(PyArray_IntpConverter(src_dtype->subarray->shape,
+        if (!(PyArray_IntpConverter(src_dtype_data->subarray->shape,
                                             &src_shape))) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "invalid subarray shape");
             return NPY_FAIL;
         }
         src_size = PyArray_MultiplyList(src_shape.ptr, src_shape.len);
         npy_free_cache_dim_obj(src_shape);
-
-        if (get_n_to_n_transfer_function(aligned,
+        HPy h_base = HPy_FromPyObject(ctx, src_dtype_data->subarray->base);
+        PyArray_Descr *base_data = src_dtype_data->subarray->base;
+        if (get_n_to_n_transfer_function(ctx, aligned,
                 src_stride, 0,
-                src_dtype->subarray->base, NULL, 1, src_size,
+                h_base, base_data, 
+                HPy_NULL, NULL, 
+                1, src_size,
                 &cast_info->func, &cast_info->auxdata,
                 out_needs_api) != NPY_SUCCEED) {
             return NPY_FAIL;
@@ -2887,13 +2942,13 @@ get_decref_transfer_function(int aligned,
         goto finalize;
     }
     /* If there are fields, need to do each field */
-    else if (PyDataType_HASFIELDS(src_dtype)) {
+    else if (PyDataType_HASFIELDS(src_dtype_data)) {
         if (out_needs_api) {
             *out_needs_api = 1;
         }
 
-        if (get_decref_fields_transfer_function(aligned,
-                            src_stride, src_dtype,
+        if (get_decref_fields_transfer_function(ctx, aligned,
+                            src_stride, h_src_dtype, src_dtype_data,
                             &cast_info->func, &cast_info->auxdata,
                             out_needs_api) < 0) {
             return NPY_FAIL;
@@ -2901,36 +2956,23 @@ get_decref_transfer_function(int aligned,
         goto finalize;
     }
     else {
-        PyErr_Format(PyExc_RuntimeError,
+        // PyErr_Format(PyExc_RuntimeError,
+        //         "Internal error, tried to fetch decref function for the "
+        //         "unsupported DType '%S'.", h_src_dtype);
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Internal error, tried to fetch decref function for the "
-                "unsupported DType '%S'.", src_dtype);
+                "unsupported DType '%S'.");
         return NPY_FAIL;
     }
 
     finalize:
     /* Make sure all important fields are either set or cleared */
-    Py_INCREF(src_dtype);
-    cast_info->descriptors[0] = HPy_FromPyObject(npy_get_context(), (PyObject *)src_dtype);
+    cast_info->descriptors[0] = HPy_Dup(ctx, h_src_dtype);
     cast_info->descriptors[1] = HPy_NULL;
     cast_info->context.method = HPy_NULL;
     cast_info->context.caller = HPy_NULL;
     return NPY_SUCCEED;
 }
-
-static int
-hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
-                            npy_intp src_stride,
-                            HPy h_src_dtype,
-                            NPY_cast_info *cast_info,
-                            int *out_needs_api) {
-    /* TODO HPY LABS PORT: cut off */
-    CAPI_WARN("calling get_decref_transfer_function");
-    PyArray_Descr *src_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, h_src_dtype);
-    int ret = get_decref_transfer_function(aligned, src_stride, src_dtype, cast_info, out_needs_api);
-    Py_DECREF(src_dtype);
-    return ret;
-}
-
 
 /*
  * ********************* Generalized Multistep Cast ************************
@@ -3583,7 +3625,7 @@ HPyArray_GetDTypeTransferFunction(HPyContext *ctx, int aligned,
         assert(move_references);
         return hpy_get_decref_transfer_function(ctx, aligned,
                                 PyArray_Descr_AsStruct(ctx, src_dtype)->elsize,
-                                src_dtype,
+                                src_dtype, PyArray_Descr_AsStruct(ctx, src_dtype),
                                 cast_info,
                                 out_needs_api);
     }
@@ -3794,8 +3836,8 @@ fail:
 NPY_NO_EXPORT int
 get_wrapped_legacy_cast_function(HPyContext *ctx, int aligned,
         npy_intp src_stride, npy_intp dst_stride,
-        HPy /* (PyArray_Descr *) */ src_dtype,
-        HPy /* (PyArray_Descr *) */ dst_dtype,
+        HPy /* (PyArray_Descr *) */ src_dtype, PyArray_Descr * src_dtype_data,
+        HPy /* (PyArray_Descr *) */ dst_dtype, PyArray_Descr * dst_dtype_data,
         int move_references,
         HPyArrayMethod_StridedLoop **out_stransfer,
         NpyAuxData **out_transferdata,
@@ -3804,8 +3846,6 @@ get_wrapped_legacy_cast_function(HPyContext *ctx, int aligned,
     /* Note: We ignore `needs_wrap`; needs-wrap is handled by another cast */
     int needs_wrap = 0;
 
-    PyArray_Descr * src_dtype_data = PyArray_Descr_AsStruct(ctx, src_dtype);
-    PyArray_Descr * dst_dtype_data = PyArray_Descr_AsStruct(ctx, dst_dtype);
     if (src_dtype_data->type_num == dst_dtype_data->type_num) {
         /*
          * This is a cast within the same dtype. For legacy user-dtypes,
@@ -3958,7 +3998,7 @@ HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
     if (move_references && PyDataType_REFCHK(src_dtype_data)) {
         if (hpy_get_decref_transfer_function(ctx, aligned,
                             src_stride,
-                            src_dtype,
+                            src_dtype, src_dtype_data,
                             &data->decref_src,
                             out_needs_api) != NPY_SUCCEED) {
             NPY_AUXDATA_FREE((NpyAuxData *)data);

@@ -1378,9 +1378,10 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         destptr = hpy_scalar_value(ctx, obj, descr);
     }
     /* copyswap for OBJECT increments the reference count */
-    // HPY NOTE: we intentionally pass NULL as the last argument (of type PyObject*)
-    // to fail immediately if the function tries to use C API on it...
-    copyswap(destptr, data, swap, NULL);
+    CAPI_WARN("calling copyswap");
+    PyObject *py_base = HPy_AsPyObject(ctx, base);
+    copyswap(destptr, data, swap, py_base);
+    Py_DECREF(py_base);
     return obj;
 }
 

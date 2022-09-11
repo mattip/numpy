@@ -160,4 +160,19 @@ static inline HPy HPyDict_GetItemWithError(HPyContext *ctx, HPy d, HPy k)
     return res;
 }
 
+static NPY_INLINE HPy *
+HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
+{
+    *n = HPy_Length(ctx, tuple);
+    HPy *h_arr = PyMem_RawCalloc(*n, sizeof(HPy));
+    if (!h_arr)
+        return NULL;
+    HPy_ssize_t i;
+    for (i = 0; i < *n; i++) {
+        h_arr[i] = HPy_GetItem_i(ctx, tuple, i);
+    }
+    return h_arr;
+}
+
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
