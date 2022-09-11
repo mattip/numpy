@@ -409,7 +409,7 @@ _hpy_update_descr_and_dimensions(HPyContext *ctx, HPy *des, npy_intp *newdims,
     }
 
  finish:
-    HPy_Close(ctx, old);
+    // HPy_Close(ctx, old); // the caller of *des should close it (HPy way)
     return newnd;
 }
 
