@@ -858,7 +858,7 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
         PyObject *py_promoter = HPy_AsPyObject(ctx, promoter);
         PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
         PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
-        PyArrayObject **py_ops = (PyArrayObject **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
+        PyArrayObject **py_ops = (PyArrayObject **)HPy_AsPyObjectArray(ctx, ops, ufunc_data->nargs);
         PyObject *py_info = call_promoter_and_recurse(py_ufunc,
                 py_promoter, py_op_dtypes, py_signature, py_ops);
         HPy_SETREF(ctx, info, HPy_FromPyObject(ctx, py_info));
