@@ -122,7 +122,7 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
     }
     static HPyGlobal hg_out_str;
     static int is_out_str_set = 0;
-    HPy out_str = HPyGlobal_Load(ctx, hg_out_str);
+    HPy out_str = is_out_str_set ? HPyGlobal_Load(ctx, hg_out_str) : HPy_NULL;
     if (!is_out_str_set || HPy_IsNull(out_str)) {
         out_str = HPyUnicode_InternFromString(ctx, "out");
         if (HPy_IsNull(out_str)) {
@@ -135,6 +135,7 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
     if (!HPy_IsNull(out_args)) {
         /* Replace `out` argument with the normalized version */
         int res = HPy_SetItem(ctx, normal_kwds, out_str, out_args);
+        HPy_Close(ctx, out_str);
         if (res < 0) {
             return -1;
         }
@@ -143,17 +144,20 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
         /* Ensure that `out` is not present. */
         int res = HPy_Contains(ctx, normal_kwds, out_str);
         if (res < 0) {
+            HPy_Close(ctx, out_str);
             return -1;
         }
         if (res) {
             CAPI_WARN("missing PyDict_DelItem");
             PyObject *py_normal_kwds = HPy_AsPyObject(ctx, normal_kwds);
             PyObject *py_out_str = HPy_AsPyObject(ctx, out_str);
+            HPy_Close(ctx, out_str);
             int res = PyDict_DelItem(py_normal_kwds, py_out_str);
             Py_DECREF(py_normal_kwds);
             Py_DECREF(py_out_str);
             return res;
         }
+        HPy_Close(ctx, out_str);
     }
     return 0;
 }

@@ -356,7 +356,12 @@ HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_i
         /* Stop the collapse new base when the would not be of the same
          * type (i.e. different subclass).
          */
-        if (!HPy_Is(ctx, HPy_Type(ctx, tmp), HPy_Type(ctx, h_arr))) {
+        HPy tmp_type = HPy_Type(ctx, tmp);
+        HPy h_arr_type = HPy_Type(ctx, h_arr);
+        int is_types_equal = HPy_Is(ctx, tmp_type, h_arr_type);
+        HPy_Close(ctx, tmp_type);
+        HPy_Close(ctx, h_arr_type);
+        if (!is_types_equal) {
             HPy_Close(ctx, tmp);
             break;
         }
@@ -374,7 +379,7 @@ HPyArray_SetBaseObject(HPyContext *ctx, HPy h_arr, PyArrayObject *arr, HPy obj_i
     }
 
     HPyArray_SetBase(ctx, h_arr, obj);
-    HPy_Close(ctx, obj);
+    // HPy_Close(ctx, obj); // There is an extra DECREF somewhere in the C API
 
     return 0;
 }

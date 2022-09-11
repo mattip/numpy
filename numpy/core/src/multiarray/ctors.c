@@ -1954,6 +1954,7 @@ _hpy_array_from_array_like(HPyContext *ctx, HPy h_op,
         if (HPy_IsNull(tmp)) {
             return HPy_NULL;
         }
+        tmp_is_notimpl = HPy_Is(ctx, tmp, ctx->h_NotImplemented);
     }
 
     /*
@@ -3420,7 +3421,7 @@ HPyArray_FromArrayAttr_int(HPyContext *ctx,
     PyObject *ret = PyArray_FromArrayAttr_int(op, descr, never_copy);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
     Py_DECREF(op);
-    Py_DECREF(descr);
+    Py_XDECREF(descr);
     Py_DECREF(ret);
     return h_ret;
 }
