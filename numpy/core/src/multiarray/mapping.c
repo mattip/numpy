@@ -4024,7 +4024,7 @@ HPyArray_MapIterNew(HPyContext *ctx, hpy_npy_index_info *indices , int index_num
     }
 
     /* Get the full dimension information */
-    if (HPy_IsNull(subspace)) {
+    if (!HPy_IsNull(subspace)) {
         mit->baseoffset = PyArray_BYTES(subspace_data);
     }
     else {
