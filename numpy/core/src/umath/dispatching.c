@@ -945,8 +945,8 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
     HPy_Close(ctx, h_res);
 
     for (int i=0; i < nargs; i++) {
-        Py_SETREF(signature[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_signature[i]));
-        Py_SETREF(op_dtypes[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_op_dtypes[i]));
+        Py_XSETREF(signature[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_signature[i]));
+        Py_XSETREF(op_dtypes[i], (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_op_dtypes[i]));
     }
 
     HPy_CloseAndFreeArray(ctx, h_op_dtypes, nargs);
