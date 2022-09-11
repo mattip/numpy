@@ -664,7 +664,7 @@ boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
         }
         else if (HPyArray_DescrCheck(ctx, tmp)) {
             HPy tmp_type = HPy_Type(ctx, tmp);
-            if (!HPy_Is(ctx, tmp, self_dtypes[i])) {
+            if (!HPy_Is(ctx, tmp_type, self_dtypes[i])) {
                 // PyErr_Format(PyExc_TypeError,
                 //         "input dtype %S was not an exact instance of the bound "
                 //         "DType class %S.", tmp, self->dtypes[i]);
