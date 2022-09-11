@@ -239,6 +239,9 @@ extern NPY_NO_EXPORT PyTypeObject *PyBoundArrayMethod_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyBoundArrayMethod_Type_Spec;
 extern NPY_NO_EXPORT HPyGlobal HPyBoundArrayMethod_Type;
 
+static HPyGlobal HPyArray_SFloatDType;
+static HPyGlobal SFloatSingleton;
+
 /*
  * SLOTS IDs For the ArrayMethod creation, one public, the IDs are fixed.
  * TODO: Before making it public, consider adding a large constant to private

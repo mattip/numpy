@@ -33,8 +33,9 @@ typedef struct {
 
 HPyType_LEGACY_HELPERS(PyArray_SFloatDescr)
 
-static HPyGlobal HPyArray_SFloatDType;
-static HPyGlobal SFloatSingleton;
+// HPy: moved to "array_method.h" to be registered in multiarraymodule.c
+// static HPyGlobal HPyArray_SFloatDType;
+// static HPyGlobal SFloatSingleton;
 static PyArray_DTypeMeta *PyArray_SFloatDType;
 
 
@@ -56,6 +57,11 @@ sfloat_default_descr(HPyContext *ctx, HPy NPY_UNUSED(cls))
     return HPyGlobal_Load(ctx, SFloatSingleton);
 }
 
+static HPy
+sfloat_discover_from_hpy(HPyContext *ctx, HPy cls, HPy NPY_UNUSED(obj))
+{
+    return sfloat_default_descr(ctx, cls);
+}
 
 static PyArray_Descr *
 sfloat_discover_from_pyobject(PyArray_DTypeMeta *cls, PyObject *NPY_UNUSED(obj))
@@ -160,6 +166,7 @@ sfloat_setitem(HPyContext *ctx, HPy obj, char *data, HPy h_arr)
 NPY_DType_Slots sfloat_slots = {
     .default_descr = &sfloat_default_descr,
     .discover_descr_from_pyobject = &sfloat_discover_from_pyobject,
+    .hdiscover_descr_from_pyobject = &sfloat_discover_from_hpy,
     .is_known_scalar_type = &sfloat_is_known_scalar_type,
     .common_dtype = &sfloat_common_dtype,
     .common_instance = &sfloat_common_instance,
@@ -290,14 +297,14 @@ check_factor(HPyContext *ctx, double factor) {
 
 
 static int
-cast_sfloat_to_sfloat_unaligned(PyArrayMethod_Context *context,
+cast_sfloat_to_sfloat_unaligned(HPyContext *ctx, HPyArrayMethod_Context *context,
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
     /* could also be moved into auxdata: */
-    double factor = ((PyArray_SFloatDescr *)context->descriptors[0])->scaling;
-    factor /= ((PyArray_SFloatDescr *)context->descriptors[1])->scaling;
-    if (check_factor(npy_get_context(), factor) < 0) {
+    double factor = PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[0])->scaling;
+    factor /= PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[1])->scaling;
+    if (check_factor(ctx, factor) < 0) {
         return -1;
     }
 
@@ -318,14 +325,14 @@ cast_sfloat_to_sfloat_unaligned(PyArrayMethod_Context *context,
 
 
 static int
-cast_sfloat_to_sfloat_aligned(PyArrayMethod_Context *context,
+cast_sfloat_to_sfloat_aligned(HPyContext *ctx, HPyArrayMethod_Context *context,
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
     /* could also be moved into auxdata: */
-    double factor = ((PyArray_SFloatDescr *)context->descriptors[0])->scaling;
-    factor /= ((PyArray_SFloatDescr *)context->descriptors[1])->scaling;
-    if (check_factor(npy_get_context(), factor) < 0) {
+    double factor = PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[0])->scaling;
+    factor /= PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[1])->scaling;
+    if (check_factor(ctx, factor) < 0) {
         return -1;
     }
 
@@ -387,7 +394,7 @@ sfloat_to_sfloat_resolve_descriptors(
  * flag the this is a view.
  */
 static int
-cast_float_to_from_sfloat(PyArrayMethod_Context *NPY_UNUSED(context),
+cast_float_to_from_sfloat(HPyContext *ctx, HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -431,7 +438,7 @@ float_to_from_sfloat_resolve_descriptors(
  * Cast to boolean (for testing the logical functions a bit better).
  */
 static int
-cast_sfloat_to_bool(PyArrayMethod_Context *NPY_UNUSED(context),
+cast_sfloat_to_bool(HPyContext *ctx, HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -562,7 +569,7 @@ init_casts(HPyContext *ctx, HPy PyArray_SFloatDType_arg)
  *    cast.
  */
 static int
-multiply_sfloats(PyArrayMethod_Context *NPY_UNUSED(context),
+multiply_sfloats(HPyContext *ctx, HPyArrayMethod_Context *NPY_UNUSED(context),
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -611,20 +618,20 @@ multiply_sfloats_resolve_descriptors(
  */
 static int
 add_sfloats(
-    PyArrayMethod_Context *context,
+    HPyContext *ctx, HPyArrayMethod_Context *context,
         char *const data[], npy_intp const dimensions[],
         npy_intp const strides[], NpyAuxData *NPY_UNUSED(auxdata))
 {
-    double fin1 = ((PyArray_SFloatDescr *)context->descriptors[0])->scaling;
-    double fin2 = ((PyArray_SFloatDescr *)context->descriptors[1])->scaling;
-    double fout = ((PyArray_SFloatDescr *)context->descriptors[2])->scaling;
+    double fin1 = PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[0])->scaling;
+    double fin2 = PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[1])->scaling;
+    double fout = PyArray_SFloatDescr_AsStruct(ctx, context->descriptors[2])->scaling;
 
     double fact1 = fin1 / fout;
     double fact2 = fin2 / fout;
-    if (check_factor(npy_get_context(), fact1) < 0) {
+    if (check_factor(ctx, fact1) < 0) {
         return -1;
     }
-    if (check_factor(npy_get_context(), fact2) < 0) {
+    if (check_factor(ctx, fact2) < 0) {
         return -1;
     }
 
@@ -971,10 +978,15 @@ get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod))
     h_SFloatSingleton_data->base.f = &sfloat_slots.f;
     h_SFloatSingleton_data->base.byteorder = '|';  /* do not bother with byte-swapping... */
     h_SFloatSingleton_data->scaling = 1;
-    HPyGlobal_Store(ctx, &SFloatSingleton, h_SFloatSingleton);
     PyObject *py_SFloatSingleton = HPy_AsPyObject(ctx, h_SFloatSingleton);
+    PyObject *py_PyArray_SFloatDType = HPy_AsPyObject(ctx, h_PyArray_SFloatDType);
+    CAPI_WARN("missing PyObject_Init");
     PyObject *o = PyObject_Init(
-            (PyObject *)py_SFloatSingleton, (PyTypeObject *)py_SFloatSingleton);
+            (PyObject *)py_SFloatSingleton, (PyTypeObject *)py_PyArray_SFloatDType);
+    HPyGlobal_Store(ctx, &SFloatSingleton, h_SFloatSingleton);
+    Py_DECREF(py_SFloatSingleton);
+    Py_DECREF(py_PyArray_SFloatDType);
+    HPy_Close(ctx, h_SFloatSingleton);
     if (o == NULL) {
         return HPy_NULL;
     }
