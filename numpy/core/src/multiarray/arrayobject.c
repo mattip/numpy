@@ -1443,6 +1443,7 @@ _hpy_strings_richcompare(HPyContext *ctx,
         unicode->elsize = local_other_descr->elsize;
         HPy new = HPyArray_FromAny(ctx, h_other,
                 h_unicode, 0, 0, 0, HPy_NULL);
+        HPy_Close(ctx, h_unicode);
         if (HPy_IsNull(new)) {
             HPy_Close(ctx, h_self_descr);
             HPy_Close(ctx, h_local_other_descr);
@@ -1533,9 +1534,7 @@ _void_compare(HPyContext *ctx,
         HPy temp, temp2;
         npy_intp result_ndim = PyArray_NDIM(self) > PyArray_NDIM(other) ?
                             PyArray_NDIM(self) : PyArray_NDIM(other);
-        HPy h_logical_and = HPyGlobal_Load(ctx, hpy_n_ops.logical_and);
-        HPy h_logical_or = HPyGlobal_Load(ctx, hpy_n_ops.logical_or);
-        HPy op = (cmp_op == HPy_EQ ? h_logical_and : h_logical_or);
+        HPy op = HPyGlobal_Load(ctx, cmp_op == HPy_EQ ? hpy_n_ops.logical_and : hpy_n_ops.logical_or);
         HPy fields = HPy_FromPyObject(ctx, self_descr->fields);
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
