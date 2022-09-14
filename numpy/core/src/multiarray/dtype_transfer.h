@@ -66,8 +66,11 @@ HNPY_cast_info_xfree(HPyContext *ctx, HNPY_cast_info *cast_info)
     assert(cast_info->context.descriptors == cast_info->descriptors);
     NPY_AUXDATA_FREE(cast_info->auxdata);
     HPy_Close(ctx, cast_info->descriptors[0]);
+    cast_info->descriptors[0] = HPy_NULL;
     HPy_Close(ctx, cast_info->descriptors[1]);
+    cast_info->descriptors[1] = HPy_NULL;
     HPy_Close(ctx, cast_info->context.method);
+    cast_info->context.method = HPy_NULL;
     cast_info->func = NULL;
 }
 

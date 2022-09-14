@@ -2226,7 +2226,6 @@ NPY_NO_EXPORT HPy
 npyiter_seq_slice(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self,
                     HPy_ssize_t ilow, HPy_ssize_t ihigh)
 {
-    HPy ret;
     npy_intp nop;
     HPy_ssize_t i;
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);

@@ -866,7 +866,7 @@ HPyDef_SLOT(array_true_divide, array_true_divide_impl, HPy_nb_true_divide);
 NPY_NO_EXPORT HPy
 array_true_divide_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
-    PyObject *res;
+    // PyObject *res;
 
     HPY_BINOP_GIVE_UP_IF_NEEDED(ctx, m1, m2, &array_true_divide);
     // We cannot support this hack on HPy:

@@ -3300,7 +3300,6 @@ cast_to_string_resolve_descriptors(
      */
     npy_intp size = -1;
     PyArray_Descr *given_descrs_0 = PyArray_Descr_AsStruct(ctx, given_descrs[0]);
-    PyArray_Descr *given_descrs_1 = PyArray_Descr_AsStruct(ctx, given_descrs[1]);
     switch (given_descrs_0->type_num) {
         case NPY_BOOL:
         case NPY_UBYTE:
