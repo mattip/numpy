@@ -1250,7 +1250,7 @@ _uni_release(char *ptr, int nc)
     }
 
 static int
-_compare_strings(PyArrayObject *result, PyArrayMultiIterObject *multi,
+_compare_strings(HPyContext *ctx, PyArrayObject *result, PyArrayMultiIterObject *multi,
                  int cmp_op, void *func, int rstrip)
 {
     PyArrayIterObject *iself, *iother;
@@ -1323,7 +1323,7 @@ _compare_strings(PyArrayObject *result, PyArrayMultiIterObject *multi,
         }
         break;
     default:
-        PyErr_SetString(PyExc_RuntimeError, "bad comparison operator");
+        HPyErr_SetString(ctx, ctx->h_RuntimeError, "bad comparison operator");
         return -1;
     }
     return 0;
@@ -1385,10 +1385,10 @@ _strings_richcompare(PyArrayObject *self, PyArrayObject *other, int cmp_op,
     }
 
     if (PyArray_TYPE(self) == NPY_UNICODE) {
-        val = _compare_strings(result, mit, cmp_op, _myunincmp, rstrip);
+        val = _compare_strings(npy_get_context(), result, mit, cmp_op, _myunincmp, rstrip);
     }
     else {
-        val = _compare_strings(result, mit, cmp_op, _mystrncmp, rstrip);
+        val = _compare_strings(npy_get_context(), result, mit, cmp_op, _mystrncmp, rstrip);
     }
 
     if (val < 0) {
@@ -1401,6 +1401,105 @@ _strings_richcompare(PyArrayObject *self, PyArrayObject *other, int cmp_op,
     return (PyObject *)result;
 }
 
+NPY_NO_EXPORT HPy
+_hpy_strings_richcompare(HPyContext *ctx, 
+                            HPy /* PyArrayObject * */ h_self, 
+                            HPy /* PyArrayObject * */ h_other, int cmp_op,
+                     int rstrip)
+{
+    HPy result; // PyArrayObject *
+    HPy h_local_other = h_other;
+    PyArrayMultiIterObject *mit;
+    int val;
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+    PyArray_Descr *self_descr = PyArray_Descr_AsStruct(ctx, h_self_descr);
+    int h_self_type_num = self_descr->type_num;
+
+    PyArrayObject *other = PyArrayObject_AsStruct(ctx, h_local_other);
+    HPy h_local_other_descr = HPyArray_DESCR(ctx, h_local_other, other);
+    PyArray_Descr *local_other_descr = PyArray_Descr_AsStruct(ctx, h_local_other_descr);
+    int h_local_other_type_num = local_other_descr->type_num;
+
+    if (h_self_type_num != h_local_other_type_num) {
+        /*
+         * Comparison between Bytes and Unicode is not defined in Py3K;
+         * we follow.
+         */
+        // Py_INCREF(Py_NotImplemented);
+        HPy_Close(ctx, h_self_descr);
+        HPy_Close(ctx, h_local_other_descr);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    if (PyArray_ISNOTSWAPPED(self) != PyArray_ISNOTSWAPPED(other)) {
+        /* Cast `other` to the same byte order as `self` (both unicode here) */
+        HPy h_unicode = HPyArray_DescrNew(ctx, h_self_descr); // PyArray_Descr* 
+        if (HPy_IsNull(h_unicode)) {
+            HPy_Close(ctx, h_self_descr);
+            HPy_Close(ctx, h_local_other_descr);
+            return HPy_NULL;
+        }
+        PyArray_Descr *unicode = PyArray_Descr_AsStruct(ctx, h_unicode);
+        unicode->elsize = local_other_descr->elsize;
+        HPy new = HPyArray_FromAny(ctx, h_other,
+                h_unicode, 0, 0, 0, HPy_NULL);
+        HPy_Close(ctx, h_unicode);
+        if (HPy_IsNull(new)) {
+            HPy_Close(ctx, h_self_descr);
+            HPy_Close(ctx, h_local_other_descr);
+            return HPy_NULL;
+        }
+        h_local_other = new;
+    }
+    else {
+        h_local_other = HPy_Dup(ctx, h_other);
+    }
+
+    /* Broad-cast the arrays to a common shape */
+    PyObject *py_self = HPy_AsPyObject(ctx, h_self);
+    PyObject *py_local_other = HPy_AsPyObject(ctx, h_local_other);
+    HPy_Close(ctx, h_local_other);
+    mit = (PyArrayMultiIterObject *)PyArray_MultiIterNew(2, py_self, py_local_other);
+    Py_DECREF(py_local_other);
+    Py_DECREF(py_self);
+    if (mit == NULL) {
+        return HPy_NULL;
+    }
+    HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy bool_descr = HPyArray_DescrFromType(ctx, NPY_BOOL);
+    result = HPyArray_NewFromDescr(ctx, h_PyArray_Type,
+                                  bool_descr,
+                                  mit->nd,
+                                  mit->dimensions,
+                                  NULL, NULL, 0,
+                                  HPy_NULL);
+    HPy_Close(ctx, h_PyArray_Type);
+    HPy_Close(ctx, bool_descr);
+    if (HPy_IsNull(result)) {
+        goto finish;
+    }
+
+    PyArrayObject *result_data = PyArrayObject_AsStruct(ctx, result);
+    if (PyArray_TYPE(self) == NPY_UNICODE) {
+        val = _compare_strings(ctx, result_data, mit, cmp_op, _myunincmp, rstrip);
+    }
+    else {
+        val = _compare_strings(ctx, result_data, mit, cmp_op, _mystrncmp, rstrip);
+    }
+
+    if (val < 0) {
+        HPy_Close(ctx, result);
+        result = HPy_NULL;
+    }
+
+ finish:
+    Py_DECREF(mit);
+    return result;
+}
+
+static HPy
+hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/ HPy self, HPy other, HPy_RichCmpOp cmp_op);
+
 /*
  * VOID-type arrays can only be compared equal and not-equal
  * in which case the fields are all compared by extracting the fields
@@ -1411,44 +1510,62 @@ _strings_richcompare(PyArrayObject *self, PyArrayObject *other, int cmp_op,
  * VOID-type arrays without fields are compared for equality by comparing their
  * memory at each location directly (using string-code).
  */
-static PyObject *
-_void_compare(PyArrayObject *self, PyArrayObject *other, int cmp_op)
+static HPy
+_void_compare(HPyContext *ctx, 
+                HPy /* PyArrayObject * */ h_self, 
+                HPy /* PyArrayObject * */ h_other, int cmp_op)
 {
-    if (!(cmp_op == Py_EQ || cmp_op == Py_NE)) {
-        PyErr_SetString(PyExc_ValueError,
+    if (!(cmp_op == HPy_EQ || cmp_op == HPy_NE)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "Void-arrays can only be compared for equality.");
-        return NULL;
+        return HPy_NULL;
     }
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy h_self_descr = HPyArray_DESCR(ctx, h_self, self);
+    PyArray_Descr *self_descr = PyArray_Descr_AsStruct(ctx, h_self_descr);
+    int h_self_type_num = self_descr->type_num;
+
+    PyArrayObject *other = PyArrayObject_AsStruct(ctx, h_other);
+    HPy h_other_descr = HPyArray_DESCR(ctx, h_other, other);
+    PyArray_Descr *other_descr = PyArray_Descr_AsStruct(ctx, h_other_descr);
+    int h_local_other_type_num = other_descr->type_num;
     if (PyArray_HASFIELDS(self)) {
-        PyObject *res = NULL, *temp, *a, *b;
-        PyObject *key, *value, *temp2;
-        PyObject *op;
-        Py_ssize_t pos = 0;
+        HPy res = HPy_NULL;
+        HPy temp, temp2;
         npy_intp result_ndim = PyArray_NDIM(self) > PyArray_NDIM(other) ?
                             PyArray_NDIM(self) : PyArray_NDIM(other);
-
-        op = (cmp_op == Py_EQ ? N_OPS_GET(logical_and) : N_OPS_GET(logical_or));
-        while (PyDict_Next(PyArray_DESCR(self)->fields, &pos, &key, &value)) {
-            if (NPY_TITLE_KEY(key, value)) {
+        HPy op = HPyGlobal_Load(ctx, cmp_op == HPy_EQ ? hpy_n_ops.logical_and : hpy_n_ops.logical_or);
+        HPy fields = HPy_FromPyObject(ctx, self_descr->fields);
+        HPy keys = HPyDict_Keys(ctx, fields);
+        HPy_ssize_t keys_len = HPy_Length(ctx, keys);
+        for (HPy_ssize_t i = 0; i < keys_len; i++) {
+            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPy value = HPy_GetItem(ctx, fields, key);
+            if (HNPY_TITLE_KEY(ctx, key, value)) {
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, value);
                 continue;
             }
-            a = array_subscript_asarray(self, key);
-            if (a == NULL) {
-                Py_XDECREF(res);
-                return NULL;
+            HPy_Close(ctx, value);
+            HPy a = array_subscript_asarray(ctx, h_self, key);
+            if (HPy_IsNull(a)) {
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, res);
+                return HPy_NULL;
             }
-            b = array_subscript_asarray(other, key);
-            if (b == NULL) {
-                Py_XDECREF(res);
-                Py_DECREF(a);
-                return NULL;
+            HPy b = array_subscript_asarray(ctx, h_other, key);
+            HPy_Close(ctx, key);
+            if (HPy_IsNull(b)) {
+                HPy_Close(ctx, res);
+                HPy_Close(ctx, a);
+                return HPy_NULL;
             }
-            temp = array_richcompare((PyArrayObject *)a,b,cmp_op);
-            Py_DECREF(a);
-            Py_DECREF(b);
-            if (temp == NULL) {
-                Py_XDECREF(res);
-                return NULL;
+            temp = hpy_array_richcompare(ctx, a, b, cmp_op);
+            HPy_Close(ctx, a);
+            HPy_Close(ctx, b);
+            if (HPy_IsNull(temp)) {
+                HPy_Close(ctx, res);
+                return HPy_NULL;
             }
 
             /*
@@ -1456,81 +1573,88 @@ _void_compare(PyArrayObject *self, PyArrayObject *other, int cmp_op)
              * dimensions will have been appended to `a` and `b`.
              * In that case, reduce them using `op`.
              */
-            if (PyArray_Check(temp) &&
-                        PyArray_NDIM((PyArrayObject *)temp) > result_ndim) {
-                /* If the type was multidimensional, collapse that part to 1-D
-                 */
-                if (PyArray_NDIM((PyArrayObject *)temp) != result_ndim+1) {
-                    npy_intp dimensions[NPY_MAXDIMS];
-                    PyArray_Dims newdims;
+            if (HPyArray_Check(ctx, temp)) {
+                PyArrayObject *temp_data = PyArrayObject_AsStruct(ctx, temp);
+                if (PyArray_NDIM(temp_data) > result_ndim) {
+                    /* If the type was multidimensional, collapse that part to 1-D
+                     */
+                    if (PyArray_NDIM(temp_data) != result_ndim+1) {
+                        npy_intp dimensions[NPY_MAXDIMS];
+                        PyArray_Dims newdims;
 
-                    newdims.ptr = dimensions;
-                    newdims.len = result_ndim+1;
-                    if (result_ndim) {
-                        memcpy(dimensions, PyArray_DIMS((PyArrayObject *)temp),
-                               sizeof(npy_intp)*result_ndim);
+                        newdims.ptr = dimensions;
+                        newdims.len = result_ndim+1;
+                        if (result_ndim) {
+                            memcpy(dimensions, PyArray_DIMS(temp_data),
+                                sizeof(npy_intp)*result_ndim);
+                        }
+                        dimensions[result_ndim] = -1;
+                        temp2 = HPyArray_Newshape(ctx, temp, temp_data,
+                                                &newdims, NPY_ANYORDER);
+                        if (HPy_IsNull(temp2)) {
+                            HPy_Close(ctx, temp);
+                            HPy_Close(ctx, res);
+                            return HPy_NULL;
+                        }
+                        HPy_Close(ctx, temp);
+                        temp = temp2;
                     }
-                    dimensions[result_ndim] = -1;
-                    temp2 = PyArray_Newshape((PyArrayObject *)temp,
-                                             &newdims, NPY_ANYORDER);
-                    if (temp2 == NULL) {
-                        Py_DECREF(temp);
-                        Py_XDECREF(res);
-                        return NULL;
+                    /* Reduce the extra dimension of `temp` using `op` */
+                    temp2 = HPyArray_GenericReduceFunction(ctx, temp,
+                                                        op, result_ndim,
+                                                        NPY_BOOL, HPy_NULL);
+                    if (HPy_IsNull(temp2)) {
+                        HPy_Close(ctx, temp);
+                        HPy_Close(ctx, res);
+                        return HPy_NULL;
                     }
-                    Py_DECREF(temp);
+                    HPy_Close(ctx, temp);
                     temp = temp2;
-                }
-                /* Reduce the extra dimension of `temp` using `op` */
-                temp2 = PyArray_GenericReduceFunction((PyArrayObject *)temp,
-                                                      op, result_ndim,
-                                                      NPY_BOOL, NULL);
-                if (temp2 == NULL) {
-                    Py_DECREF(temp);
-                    Py_XDECREF(res);
-                    return NULL;
-                }
-                Py_DECREF(temp);
-                temp = temp2;
+                    }
             }
 
-            if (res == NULL) {
+            if (HPy_IsNull(res)) {
                 res = temp;
             }
             else {
-                temp2 = PyObject_CallFunction(op, "OO", res, temp);
-                Py_DECREF(temp);
-                Py_DECREF(res);
-                if (temp2 == NULL) {
-                    return NULL;
+                HPy args = HPyTuple_Pack(ctx, 2, res, temp);
+                temp2 = HPy_CallTupleDict(ctx, op, args, HPy_NULL);
+                HPy_Close(ctx, args);
+                HPy_Close(ctx, temp);
+                HPy_Close(ctx, res);
+                if (HPy_IsNull(temp2)) {
+                    return HPy_NULL;
                 }
                 res = temp2;
             }
         }
-        if (res == NULL && !PyErr_Occurred()) {
+        if (HPy_IsNull(res) && !HPyErr_Occurred(ctx)) {
             /* these dtypes had no fields. Use a MultiIter to broadcast them
              * to an output array, and fill with True (for EQ)*/
             PyArrayMultiIterObject *mit = (PyArrayMultiIterObject *)
                                           PyArray_MultiIterNew(2, self, other);
             if (mit == NULL) {
-                return NULL;
+                return HPy_NULL;
             }
-
-            res = PyArray_NewFromDescr(&PyArray_Type,
-                                       PyArray_DescrFromType(NPY_BOOL),
+            HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+            HPy h_bool = HPyArray_DescrFromType(ctx, NPY_BOOL);
+            res = HPyArray_NewFromDescr(ctx, h_PyArray_Type,
+                                       h_bool,
                                        mit->nd, mit->dimensions,
-                                       NULL, NULL, 0, NULL);
+                                       NULL, NULL, 0, HPy_NULL);
+            HPy_Close(ctx, h_PyArray_Type);
+            HPy_Close(ctx, h_bool);
             Py_DECREF(mit);
-            if (res) {
-                 PyArray_FILLWBYTE((PyArrayObject *)res,
-                                   cmp_op == Py_EQ ? 1 : 0);
+            if (!HPy_IsNull(res)) {
+                 PyArray_FILLWBYTE(PyArrayObject_AsStruct(ctx, res),
+                                   cmp_op == HPy_EQ ? 1 : 0);
             }
         }
         return res;
     }
     else {
         /* compare as a string. Assumes self and other have same descr->type */
-        return _strings_richcompare(self, other, cmp_op, 0);
+        return _hpy_strings_richcompare(ctx, h_self, h_other, cmp_op, 0);
     }
 }
 
@@ -1678,7 +1802,7 @@ PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
     return res;
 }
 
-NPY_NO_EXPORT HPy
+static HPy
 hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy_RichCmpOp cmp_op)
 {
     HPy result = HPy_NULL;
@@ -1687,21 +1811,20 @@ hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy
      * ufunc loops defined, so there's no point in trying).
      */
     if (HPyArray_ISSTRING(ctx, self)) {
-        hpy_abort_not_implemented("string arrays in rich compare");
-        // HPy array_other = HPyArray_FromObject(ctx, other, NPY_NOTYPE, 0, 0);
-        // if (HPy_IsNull(array_other)) {
-        //     HPyErr_Clear(ctx);
-        //     /* Never mind, carry on, see what happens */
-        // }
-        // else if (!PyArray_ISSTRING(array_other)) {
-        //     Py_DECREF(array_other);
-        //     /* Never mind, carry on, see what happens */
-        // }
-        // else {
-        //     result = _strings_richcompare(self, array_other, cmp_op, 0);
-        //     Py_DECREF(array_other);
-        //     return result;
-        // }
+        HPy array_other = HPyArray_FromObject(ctx, other, NPY_NOTYPE, 0, 0);
+        if (HPy_IsNull(array_other)) {
+            HPyErr_Clear(ctx);
+            /* Never mind, carry on, see what happens */
+        }
+        else if (!HPyArray_ISSTRING(ctx, array_other)) {
+            HPy_Close(ctx, array_other);
+            /* Never mind, carry on, see what happens */
+        }
+        else {
+            result = _hpy_strings_richcompare(ctx, self, array_other, cmp_op, 0);
+            HPy_Close(ctx, array_other);
+            return result;
+        }
         /* If we reach this point, it means that we are not comparing
          * string-to-string. It's possible that this will still work out,
          * e.g. if the other array is an object array, then both will be cast
@@ -1732,49 +1855,51 @@ hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy
          */
 
         if (HPyArray_GetType(ctx, self) == NPY_VOID) {
-            hpy_abort_not_implemented("void arrays in rich compare");
-            // int _res;
+            int _res;
 
-            // array_other = (PyArrayObject *)PyArray_FROM_O(other);
-            // /*
-            //  * If not successful, indicate that the items cannot be compared
-            //  * this way.
-            //  */
-            // if (array_other == NULL) {
-            //     /* 2015-05-07, 1.10 */
-            //     if (DEPRECATE_silence_error(
-            //             "elementwise == comparison failed and returning scalar "
-            //             "instead; this will raise an error in the future.") < 0) {
-            //         return NULL;
-            //     }
-            //     Py_INCREF(Py_NotImplemented);
-            //     return Py_NotImplemented;
-            // }
+            HPy array_other = HPyArray_FROM_O(ctx, other); // (PyArrayObject *)
+            /*
+             * If not successful, indicate that the items cannot be compared
+             * this way.
+             */
+            if (HPy_IsNull(array_other)) {
+                /* 2015-05-07, 1.10 */
+                CAPI_WARN("missing PyErr_Fetch");
+                if (DEPRECATE_silence_error(
+                        "elementwise == comparison failed and returning scalar "
+                        "instead; this will raise an error in the future.") < 0) {
+                    return HPy_NULL;
+                }
+                return HPy_Dup(ctx, ctx->h_NotImplemented);
+            }
 
-            // _res = PyArray_CheckCastSafety(
-            //         NPY_EQUIV_CASTING,
-            //         PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
-            // if (_res < 0) {
-            //     PyErr_Clear();
-            //     _res = 0;
-            // }
-            // if (_res == 0) {
-            //     /* 2015-05-07, 1.10 */
-            //     Py_DECREF(array_other);
-            //     if (DEPRECATE_FUTUREWARNING(
-            //             "elementwise == comparison failed and returning scalar "
-            //             "instead; this will raise an error or perform "
-            //             "elementwise comparison in the future.") < 0) {
-            //         return NULL;
-            //     }
-            //     Py_INCREF(Py_False);
-            //     return Py_False;
-            // }
-            // else {
-            //     result = _void_compare(self, array_other, cmp_op);
-            // }
-            // Py_DECREF(array_other);
-            // return result;
+            HPy self_descr = HPyArray_GetDescr(ctx, self);
+            HPy array_other_descr = HPyArray_GetDescr(ctx, array_other);
+            _res = HPyArray_CheckCastSafety(ctx,
+                    NPY_EQUIV_CASTING,
+                    self_descr, array_other_descr, HPy_NULL);
+            HPy_Close(ctx, self_descr);
+            HPy_Close(ctx, array_other_descr);
+            if (_res < 0) {
+                HPyErr_Clear(ctx);
+                _res = 0;
+            }
+            if (_res == 0) {
+                /* 2015-05-07, 1.10 */
+                HPy_Close(ctx, array_other);
+                if (HPY_DEPRECATE_FUTUREWARNING(ctx,
+                        "elementwise == comparison failed and returning scalar "
+                        "instead; this will raise an error or perform "
+                        "elementwise comparison in the future.") < 0) {
+                    return HPy_NULL;
+                }
+                return HPy_Dup(ctx, ctx->h_False);
+            }
+            else {
+                result = _void_compare(ctx, self, array_other, cmp_op);
+            }
+            HPy_Close(ctx, array_other);
+            return result;
         }
 
         result = HPyArray_GenericBinaryFunction(
@@ -1788,49 +1913,50 @@ hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy
          */
 
         if (HPyArray_GetType(ctx, self) == NPY_VOID) {
-            hpy_abort_not_implemented("void arrays in rich compare");
-            // int _res;
+            int _res;
 
-            // array_other = (PyArrayObject *)PyArray_FROM_O(other);
-            // /*
-            //  * If not successful, indicate that the items cannot be compared
-            //  * this way.
-            // */
-            // if (array_other == NULL) {
-            //     /* 2015-05-07, 1.10 */
-            //     if (DEPRECATE_silence_error(
-            //             "elementwise != comparison failed and returning scalar "
-            //             "instead; this will raise an error in the future.") < 0) {
-            //         return NULL;
-            //     }
-            //     Py_INCREF(Py_NotImplemented);
-            //     return Py_NotImplemented;
-            // }
-
-            // _res = PyArray_CheckCastSafety(
-            //         NPY_EQUIV_CASTING,
-            //         PyArray_DESCR(self), PyArray_DESCR(array_other), NULL);
-            // if (_res < 0) {
-            //     PyErr_Clear();
-            //     _res = 0;
-            // }
-            // if (_res == 0) {
-            //     /* 2015-05-07, 1.10 */
-            //     Py_DECREF(array_other);
-            //     if (DEPRECATE_FUTUREWARNING(
-            //             "elementwise != comparison failed and returning scalar "
-            //             "instead; this will raise an error or perform "
-            //             "elementwise comparison in the future.") < 0) {
-            //         return NULL;
-            //     }
-            //     Py_INCREF(Py_True);
-            //     return Py_True;
-            // }
-            // else {
-            //     result = _void_compare(self, array_other, cmp_op);
-            //     Py_DECREF(array_other);
-            // }
-            // return result;
+            HPy array_other = HPyArray_FROM_O(ctx, other); // (PyArrayObject *)
+            /*
+             * If not successful, indicate that the items cannot be compared
+             * this way.
+            */
+            if (HPy_IsNull(array_other)) {
+                /* 2015-05-07, 1.10 */
+                CAPI_WARN("missing PyErr_Fetch");
+                if (DEPRECATE_silence_error(
+                        "elementwise != comparison failed and returning scalar "
+                        "instead; this will raise an error in the future.") < 0) {
+                    return HPy_NULL;
+                }
+                return HPy_Dup(ctx, ctx->h_NotImplemented);
+            }
+            HPy self_descr = HPyArray_GetDescr(ctx, self);
+            HPy array_other_descr = HPyArray_GetDescr(ctx, array_other);
+            _res = HPyArray_CheckCastSafety(ctx,
+                    NPY_EQUIV_CASTING,
+                    self_descr, array_other_descr, HPy_NULL);
+            HPy_Close(ctx, self_descr);
+            HPy_Close(ctx, array_other_descr);
+            if (_res < 0) {
+                HPyErr_Clear(ctx);
+                _res = 0;
+            }
+            if (_res == 0) {
+                /* 2015-05-07, 1.10 */
+                HPy_Close(ctx, array_other);
+                if (HPY_DEPRECATE_FUTUREWARNING(ctx,
+                        "elementwise != comparison failed and returning scalar "
+                        "instead; this will raise an error or perform "
+                        "elementwise comparison in the future.") < 0) {
+                    return HPy_NULL;
+                }
+                return HPy_Dup(ctx, ctx->h_True);
+            }
+            else {
+                result = _void_compare(ctx, self, array_other, cmp_op);
+                HPy_Close(ctx, array_other);
+            }
+            return result;
         }
 
         result = HPyArray_GenericBinaryFunction(

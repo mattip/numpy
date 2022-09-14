@@ -137,6 +137,8 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     int_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyIntAbstractDType, &int_abstract_dtype_data->scalar_type, ctx->h_LongType);
     HPyGlobal_Store(ctx, &HPyArray_PyIntAbstractDType, h_PyArray_PyIntAbstractDType);
+    PyArray_PyIntAbstractDType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_PyArray_PyIntAbstractDType);
+
 
     h_PyArray_PyFloatAbstractDType = HPyType_FromSpec(ctx, &HPyArray_PyFloatAbstractDType_spec, abstract_dtype_params);
     if (HPy_IsNull(h_PyArray_PyFloatAbstractDType)) {
@@ -147,6 +149,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     float_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyFloatAbstractDType, &float_abstract_dtype_data->scalar_type, ctx->h_FloatType);
     HPyGlobal_Store(ctx, &HPyArray_PyFloatAbstractDType, h_PyArray_PyFloatAbstractDType);
+    PyArray_PyFloatAbstractDType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_PyArray_PyFloatAbstractDType);
 
     h_PyArray_PyComplexAbstractDType = HPyType_FromSpec(ctx, &HPyArray_PyComplexAbstractDType_spec, abstract_dtype_params);
     if (HPy_IsNull(h_PyArray_PyComplexAbstractDType)) {
@@ -157,6 +160,7 @@ initialize_and_map_pytypes_to_dtypes(HPyContext *ctx)
     complex_abstract_dtype_data->flags = NPY_DT_ABSTRACT;
     HPyField_Store(ctx, h_PyArray_PyComplexAbstractDType, &complex_abstract_dtype_data->scalar_type, ctx->h_ComplexType);
     HPyGlobal_Store(ctx, &HPyArray_PyComplexAbstractDType, h_PyArray_PyComplexAbstractDType);
+    PyArray_PyComplexAbstractDType = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_PyArray_PyComplexAbstractDType);
 
     /* Register the new DTypes for discovery */
     if (_PyArray_MapPyTypeToDType(

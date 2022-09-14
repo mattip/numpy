@@ -2667,7 +2667,7 @@ _masked_wrapper_transfer_data_free(NpyAuxData *data)
     _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)data;
     NPY_cast_info_xfree(&d->wrapped);
     NPY_cast_info_xfree(&d->decref_src);
-    PyMem_Free(data);
+    free(data); // was PyMem_Free
 }
 
 /* transfer data copy function */

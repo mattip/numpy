@@ -4799,6 +4799,157 @@ static struct PyMethodDef array_module_methods[] = {
 #include "__multiarray_api.c"
 #include "array_method.h"
 
+static PyNumberMethods dummy_as_number = {
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (ternaryfunc)1,
+    (unaryfunc)1,
+    (unaryfunc)1,
+    (unaryfunc)1,
+    (inquiry)1,
+    (unaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (unaryfunc)1,
+    (void *)1,
+    (unaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (ternaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+    (unaryfunc)1,
+    (binaryfunc)1,
+    (binaryfunc)1,
+};
+
+static PySequenceMethods dummy_as_sequence = {
+    (lenfunc)1,
+    (binaryfunc)1,
+    (ssizeargfunc)1,
+    (ssizeargfunc)1,
+    (void*)1,
+    (ssizeobjargproc)1,
+    (void*)1,
+    (objobjproc)1,
+    (binaryfunc)1,
+    (ssizeargfunc)1,
+};
+
+static PyMappingMethods dummy_as_mapping = {
+    (lenfunc)1,
+    (binaryfunc)1,
+    (objobjargproc)1,
+};
+
+static PyAsyncMethods dummy_as_async = {
+    (unaryfunc)1,
+    (unaryfunc)1,
+    (unaryfunc)1,
+};
+
+static PyBufferProcs dummy_as_buffer = {
+     (getbufferproc)1,
+     (releasebufferproc)1,
+};
+
+// HPY HACK: we don't have an alternative way to create a type that has 
+//           multiple bases and only inherit slots from one of them only.
+//           So, we replace slots of the bases that should not considered 
+//           with dummy slots, assign them back, and clean up the new type
+//           from those dummy slots.
+static void set_as_func(PyTypeObject *type) {
+    type->tp_as_async = &dummy_as_async;
+    type->tp_as_number = &dummy_as_number;
+    type->tp_as_mapping = &dummy_as_mapping;
+    type->tp_as_sequence = &dummy_as_sequence;
+    type->tp_as_buffer = &dummy_as_buffer;
+}
+
+static void cleanup(PyTypeObject *type) {
+
+    PyNumberMethods *n = type->tp_as_number; 
+    n->nb_absolute = (intptr_t)n->nb_absolute == (intptr_t)1 ? NULL : n->nb_absolute;
+    n->nb_add = (intptr_t)n->nb_add == (intptr_t)1 ? NULL : n->nb_add;
+    n->nb_subtract = (intptr_t)n->nb_subtract == (intptr_t)1 ? NULL : n->nb_subtract;
+    n->nb_multiply = (intptr_t)n->nb_multiply == (intptr_t)1 ? NULL : n->nb_multiply;
+    n->nb_remainder = (intptr_t)n->nb_remainder == (intptr_t)1 ? NULL : n->nb_remainder;
+    n->nb_divmod = (intptr_t)n->nb_divmod == (intptr_t)1 ? NULL : n->nb_divmod;
+    n->nb_power = (intptr_t)n->nb_power == (intptr_t)1 ? NULL : n->nb_power;
+    n->nb_negative = (intptr_t)n->nb_negative == (intptr_t)1 ? NULL : n->nb_negative;
+    n->nb_positive = (intptr_t)n->nb_positive == (intptr_t)1 ? NULL : n->nb_positive;
+    n->nb_absolute = (intptr_t)n->nb_absolute == (intptr_t)1 ? NULL : n->nb_absolute;
+    n->nb_bool = (intptr_t)n->nb_bool == (intptr_t)1 ? NULL : n->nb_bool;
+    n->nb_invert = (intptr_t)n->nb_invert == (intptr_t)1 ? NULL : n->nb_invert;
+    n->nb_lshift = (intptr_t)n->nb_lshift == (intptr_t)1 ? NULL : n->nb_lshift;
+    n->nb_rshift = (intptr_t)n->nb_rshift == (intptr_t)1 ? NULL : n->nb_rshift;
+    n->nb_and = (intptr_t)n->nb_and == (intptr_t)1 ? NULL : n->nb_and;
+    n->nb_xor = (intptr_t)n->nb_xor == (intptr_t)1 ? NULL : n->nb_xor;
+    n->nb_or = (intptr_t)n->nb_or == (intptr_t)1 ? NULL : n->nb_or;
+    n->nb_int = (intptr_t)n->nb_int == (intptr_t)1 ? NULL : n->nb_int;
+    n->nb_reserved = (intptr_t)n->nb_reserved == (intptr_t)1 ? NULL : n->nb_reserved;
+    n->nb_float = (intptr_t)n->nb_float == (intptr_t)1 ? NULL : n->nb_float;
+    n->nb_inplace_add = (intptr_t)n->nb_inplace_add == (intptr_t)1 ? NULL : n->nb_inplace_add;
+    n->nb_inplace_subtract = (intptr_t)n->nb_inplace_subtract == (intptr_t)1 ? NULL : n->nb_inplace_subtract;
+    n->nb_inplace_multiply = (intptr_t)n->nb_inplace_multiply == (intptr_t)1 ? NULL : n->nb_inplace_multiply;
+    n->nb_inplace_remainder = (intptr_t)n->nb_inplace_remainder == (intptr_t)1 ? NULL : n->nb_inplace_remainder;
+    n->nb_inplace_power = (intptr_t)n->nb_inplace_power == (intptr_t)1 ? NULL : n->nb_inplace_power;
+    n->nb_inplace_lshift = (intptr_t)n->nb_inplace_lshift == (intptr_t)1 ? NULL : n->nb_inplace_lshift;
+    n->nb_inplace_rshift = (intptr_t)n->nb_inplace_rshift == (intptr_t)1 ? NULL : n->nb_inplace_rshift;
+    n->nb_inplace_and = (intptr_t)n->nb_inplace_and == (intptr_t)1 ? NULL : n->nb_inplace_and;
+    n->nb_inplace_xor = (intptr_t)n->nb_inplace_xor == (intptr_t)1 ? NULL : n->nb_inplace_xor;
+    n->nb_inplace_or = (intptr_t)n->nb_inplace_or == (intptr_t)1 ? NULL : n->nb_inplace_or;
+    n->nb_floor_divide = (intptr_t)n->nb_floor_divide == (intptr_t)1 ? NULL : n->nb_floor_divide;
+    n->nb_true_divide = (intptr_t)n->nb_true_divide == (intptr_t)1 ? NULL : n->nb_true_divide;
+    n->nb_inplace_floor_divide = (intptr_t)n->nb_inplace_floor_divide == (intptr_t)1 ? NULL : n->nb_inplace_floor_divide;
+    n->nb_inplace_true_divide = (intptr_t)n->nb_inplace_true_divide == (intptr_t)1 ? NULL : n->nb_inplace_true_divide;
+    n->nb_index = (intptr_t)n->nb_index == (intptr_t)1 ? NULL : n->nb_index;
+    n->nb_matrix_multiply = (intptr_t)n->nb_matrix_multiply == (intptr_t)1 ? NULL : n->nb_matrix_multiply;
+    n->nb_inplace_matrix_multiply = (intptr_t)n->nb_inplace_matrix_multiply == (intptr_t)1 ? NULL : n->nb_inplace_matrix_multiply;
+
+    PySequenceMethods *sq = type->tp_as_sequence;
+    sq->sq_length = (intptr_t)sq->sq_length == (intptr_t)1 ? NULL : sq->sq_length;
+    sq->sq_concat = (intptr_t)sq->sq_concat == (intptr_t)1 ? NULL : sq->sq_concat;
+    sq->sq_repeat = (intptr_t)sq->sq_repeat == (intptr_t)1 ? NULL : sq->sq_repeat;
+    sq->sq_item = (intptr_t)sq->sq_item == (intptr_t)1 ? NULL : sq->sq_item;
+    sq->was_sq_slice = (intptr_t)sq->was_sq_slice == (intptr_t)1 ? NULL : sq->was_sq_slice;
+    sq->sq_ass_item = (intptr_t)sq->sq_ass_item == (intptr_t)1 ? NULL : sq->sq_ass_item;
+    sq->was_sq_ass_slice = (intptr_t)sq->was_sq_ass_slice == (intptr_t)1 ? NULL : sq->was_sq_ass_slice;
+    sq->sq_contains = (intptr_t)sq->sq_contains == (intptr_t)1 ? NULL : sq->sq_contains;
+    sq->sq_inplace_concat = (intptr_t)sq->sq_inplace_concat == (intptr_t)1 ? NULL : sq->sq_inplace_concat;
+    sq->sq_inplace_repeat = (intptr_t)sq->sq_inplace_repeat == (intptr_t)1 ? NULL : sq->sq_inplace_repeat;
+
+    PyMappingMethods *map = type->tp_as_mapping;
+    map->mp_length = (intptr_t)map->mp_length == (intptr_t)1 ? NULL : map->mp_length;
+    map->mp_subscript = (intptr_t)map->mp_subscript == (intptr_t)1 ? NULL : map->mp_subscript;
+    map->mp_ass_subscript = (intptr_t)map->mp_ass_subscript == (intptr_t)1 ? NULL : map->mp_ass_subscript;
+
+    PyAsyncMethods *as = type->tp_as_async;
+    as->am_await = (intptr_t)as->am_await == (intptr_t)1 ? NULL : as->am_await;
+    as->am_aiter = (intptr_t)as->am_aiter == (intptr_t)1 ? NULL : as->am_aiter;
+    as->am_anext = (intptr_t)as->am_anext == (intptr_t)1 ? NULL : as->am_anext;
+
+    PyBufferProcs *buf = type->tp_as_buffer;
+    buf->bf_getbuffer = (intptr_t)buf->bf_getbuffer == (intptr_t)1 ? NULL : buf->bf_getbuffer;
+    buf->bf_releasebuffer = (intptr_t)buf->bf_releasebuffer == (intptr_t)1 ? NULL : buf->bf_releasebuffer;
+
+}
+
 /* Establish scalar-type hierarchy
  *
  *  For dual inheritance we need to make sure that the objects being
@@ -4908,7 +5059,18 @@ setup_scalartypes(HPyContext *ctx)
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
+    PyAsyncMethods *tmp_PyAsyncMethods = NULL;
+    PyNumberMethods *tmp_PyNumberMethods = NULL;
+    PyMappingMethods *tmp_PyMappingMethods = NULL;
+    PySequenceMethods *tmp_PySequenceMethods = NULL;
+    PyBufferProcs *tmp_PyBufferProcs = NULL;
 #define DUAL_INHERIT2(child, parent1, parent2)                          \
+    tmp_PyAsyncMethods = _Py##parent2##ArrType_Type_p->tp_as_async;        \
+    tmp_PyNumberMethods = _Py##parent2##ArrType_Type_p->tp_as_number;      \
+    tmp_PyMappingMethods = _Py##parent2##ArrType_Type_p->tp_as_mapping;        \
+    tmp_PySequenceMethods = _Py##parent2##ArrType_Type_p->tp_as_sequence;      \
+    tmp_PyBufferProcs = _Py##parent2##ArrType_Type_p->tp_as_buffer;      \
+    set_as_func(_Py##parent2##ArrType_Type_p); \
     HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
         ctx->h_##parent1##Type,                                         \
         h_Py##parent2##ArrType_Type,                                    \
@@ -4922,6 +5084,11 @@ setup_scalartypes(HPyContext *ctx)
     /*Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;*/   \
     HPy h_Py##child##ArrType_Type =                                     \
         HPyType_FromSpec(ctx, &Py##child##ArrType_Type_spec, child##_params); \
+    _Py##parent2##ArrType_Type_p->tp_as_async = tmp_PyAsyncMethods;        \
+    _Py##parent2##ArrType_Type_p->tp_as_number = tmp_PyNumberMethods;      \
+    _Py##parent2##ArrType_Type_p->tp_as_mapping = tmp_PyMappingMethods;        \
+    _Py##parent2##ArrType_Type_p->tp_as_sequence = tmp_PySequenceMethods;      \
+    _Py##parent2##ArrType_Type_p->tp_as_buffer = tmp_PyBufferProcs;      \
     if (HPy_IsNull(h_Py##child##ArrType_Type)) {                        \
         /* HPY TODO: PyErr_Print();*/                                   \
         /* HPY TODO: PyErr_Format(PyExc_SystemError,*/                  \
@@ -4938,7 +5105,8 @@ setup_scalartypes(HPyContext *ctx)
     HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
         h_Py##child##ArrType_Type);                                     \
     _Py##child##ArrType_Type_p =                                        \
-        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type); \
+    cleanup(_Py##child##ArrType_Type_p);
 
     SINGLE_INHERIT(Bool, Generic);
     SINGLE_INHERIT(Byte, SignedInteger);

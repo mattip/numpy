@@ -1310,8 +1310,8 @@ PyArray_TransferMaskedStridedToNDim(npy_intp ndim,
                 NPY_cast_info *cast_info)
 {
     npy_intp i, M, N, coord0, shape0, dst_stride0, coord1, shape1, dst_stride1;
-    PyArray_MaskedStridedUnaryOp *stransfer =
-            (PyArray_MaskedStridedUnaryOp*)cast_info->func;
+    HPyArray_MaskedStridedUnaryOp *stransfer =
+            (HPyArray_MaskedStridedUnaryOp*)cast_info->func;
 
     /* Finish off dimension 0 */
     coord0 = coords[0];
@@ -1323,10 +1323,10 @@ PyArray_TransferMaskedStridedToNDim(npy_intp ndim,
 
     char *args[2] = {src, dst};
     if (N >= count) {
-        return stransfer(&cast_info->context,
+        return stransfer(npy_get_context(), &cast_info->context,
                 args, &count, strides, mask, mask_stride, cast_info->auxdata);
     }
-    int res = stransfer(&cast_info->context,
+    int res = stransfer(npy_get_context(), &cast_info->context,
             args, &N, strides, mask, mask_stride, cast_info->auxdata);
     if (res < 0) {
         return -1;
@@ -1352,12 +1352,12 @@ PyArray_TransferMaskedStridedToNDim(npy_intp ndim,
     for (i = 0; i < M; ++i) {
         args[0] = src; args[1] = dst;
         if (shape0 >= count) {
-            return stransfer(&cast_info->context,
+            return stransfer(npy_get_context(), &cast_info->context,
                     args, &count, strides,
                     mask, mask_stride, cast_info->auxdata);
         }
         else {
-            int res =  stransfer(&cast_info->context,
+            int res =  stransfer(npy_get_context(), &cast_info->context,
                     args, &shape0, strides,
                     mask, mask_stride, cast_info->auxdata);
             if (res < 0) {
@@ -1419,12 +1419,12 @@ PyArray_TransferMaskedStridedToNDim(npy_intp ndim,
             for (i = 0; i < shape1; ++i) {
                 args[0] = src; args[1] = dst;
                 if (shape0 >= count) {
-                    return stransfer(&cast_info->context,
+                    return stransfer(npy_get_context(), &cast_info->context,
                             args, &count, strides, mask,
                             mask_stride, cast_info->auxdata);
                 }
                 else {
-                    int res =  stransfer(&cast_info->context,
+                    int res =  stransfer(npy_get_context(), &cast_info->context,
                             args, &shape0, strides,
                             mask, mask_stride, cast_info->auxdata);
                     if (res < 0) {

@@ -3538,6 +3538,51 @@ PyArray_EnsureAnyArray(PyObject *op)
     return PyArray_EnsureArray(op);
 }
 
+/*HPY_NUMPY_API
+ * This is a quick wrapper around
+ * PyArray_FromAny(op, NULL, 0, 0, NPY_ARRAY_ENSUREARRAY, NULL)
+ * that special cases Arrays and PyArray_Scalars up front
+ * It *steals a reference* to the object
+ * It also guarantees that the result is PyArray_Type
+ * Because it decrefs op if any conversion needs to take place
+ * so it can be used like PyArray_EnsureArray(some_function(...))
+ */
+NPY_NO_EXPORT HPy
+HPyArray_EnsureArray(HPyContext *ctx, HPy op)
+{
+    HPy new;
+
+    if (HPy_IsNull(op) || HPyArray_CheckExact(ctx, op)) {
+        new = HPy_Dup(ctx, op);
+        // Py_XINCREF(new);
+    }
+    else if (HPyArray_Check(ctx, op)) {
+        HPy h_PyArray_Type = HPyGlobal_Load(ctx, HPyArray_Type);
+        PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op);
+        HPy op_descr = HPyArray_DESCR(ctx, op, op_data);
+        new = HPyArray_View(ctx, op, op_data, op_descr, HPy_NULL, h_PyArray_Type);
+        HPy_Close(ctx, h_PyArray_Type);
+    }
+    else if (HPyArray_IsScalar(ctx, op, Generic)) {
+        new = HPyArray_FromScalar(ctx, op, HPy_NULL);
+    }
+    else {
+        new = HPyArray_FROM_OF(ctx, op, NPY_ARRAY_ENSUREARRAY);
+    }
+    // HPy_Close(ctx, op); // stealing handles contradicts the HPy philosohpy
+    return new;
+}
+
+/*HPY_NUMPY_API*/
+NPY_NO_EXPORT HPy
+HPyArray_EnsureAnyArray(HPyContext *ctx, HPy op)
+{
+    if (!HPy_IsNull(op) && HPyArray_Check(ctx, op)) {
+        return op;
+    }
+    return HPyArray_EnsureArray(ctx, op);
+}
+
 /*
  * Private implementation of PyArray_CopyAnyInto with an additional order
  * parameter.

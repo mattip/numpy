@@ -169,11 +169,11 @@ raw_array_wheremasked_assign_scalar(int ndim, npy_intp const *shape,
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         /* Process the innermost dimension */
-        PyArray_MaskedStridedUnaryOp *stransfer;
-        stransfer = (PyArray_MaskedStridedUnaryOp *)cast_info.func;
+        HPyArray_MaskedStridedUnaryOp *stransfer;
+        stransfer = (HPyArray_MaskedStridedUnaryOp *)cast_info.func;
 
         char *args[2] = {src_data, dst_data};
-        if (stransfer(&cast_info.context,
+        if (stransfer(npy_get_context(), &cast_info.context,
                 args, &shape_it[0], strides,
                 (npy_bool *)wheremask_data, wheremask_strides_it[0],
                 cast_info.auxdata) < 0) {
