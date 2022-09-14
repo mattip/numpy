@@ -47,6 +47,7 @@ wrapping_method_resolve_descriptors(
     HPy orig_given_descrs[NPY_MAXARGS];
     HPy orig_loop_descrs[NPY_MAXARGS];
 
+    hpy_abort_not_implemented("where is translate_given_descrs going to?");
     if (self_data->translate_given_descrs(
             nin, nout, self_data->wrapped_dtypes,
             given_descrs, orig_given_descrs) < 0) {
