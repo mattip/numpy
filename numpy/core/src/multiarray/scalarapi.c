@@ -1209,6 +1209,7 @@ NPY_NO_EXPORT HPy
 HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy base, PyArrayObject *base_struct)
 {
     HPy type;
+    PyTypeObject *py_type;
     HPy obj;
     void *destptr;
     PyArray_CopySwapFunc *copyswap;
@@ -1227,6 +1228,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     itemsize = descr->elsize;
     copyswap = descr->f->copyswap;
     type = HPyField_Load(ctx, h_descr, descr->typeobj);
+    py_type = (PyTypeObject *)HPy_AsPyObject(ctx, type);
     swap = !PyArray_ISNBO(descr->byteorder);
     if (PyTypeNum_ISSTRING(type_num)) {
         /* Eliminate NULL bytes */
@@ -1291,7 +1293,6 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
             return HPy_NULL;
         }
         CAPI_WARN("calling tp_new with args");
-        PyTypeObject *py_type = (PyTypeObject *)HPy_AsPyObject(ctx, type);
         PyObject *py_args = HPy_AsPyObject(ctx, args);
         PyObject *py_obj = py_type->tp_new(py_type, py_args, NULL);
         obj = HPy_FromPyObject(ctx, py_obj);
@@ -1301,15 +1302,19 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         HPy_Close(ctx, args);
         return obj;
     }
-    // HPY: we should have failed earlier already for string types..
-    // if (type->tp_itemsize != 0) {
-    //     /* String type */
-    //     obj = type->tp_alloc(type, itemsize);
-    // }
-    // else {
+    PyObject *py_obj = NULL;
+    if (py_type->tp_itemsize != 0) {
+        /* String type */
+        py_obj = py_type->tp_alloc(py_type, itemsize);
+        obj = HPy_FromPyObject(ctx, py_obj);
+        Py_DECREF(py_type);
+    }
+    else {
+        Py_DECREF(py_type);
         void *dummy;
         obj = HPy_New(ctx, type, &dummy);
-    // }
+        py_obj = HPy_AsPyObject(ctx, obj);
+    }
     HPy_Close(ctx, type);
     if (HPy_IsNull(obj)) {
         return HPy_NULL;
@@ -1328,13 +1333,13 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     if (PyTypeNum_ISFLEXIBLE(type_num)) {
         if (type_num == NPY_STRING) {
             destptr = HPyBytes_AS_STRING(ctx, obj);
-            PyBytesObject *py_obj = (PyBytesObject *)HPy_AsPyObject(ctx, obj);
-            py_obj->ob_shash = -1;
+            ((PyBytesObject *)py_obj)->ob_shash = -1;
             Py_DECREF(py_obj);
             memcpy(destptr, data, itemsize);
             return obj;
         }
         else {
+            Py_DECREF(py_obj);
             PyVoidScalarObject *vobj = (PyVoidScalarObject *)HPy_AsPyObject(ctx, obj);
             vobj->base = NULL;
             vobj->descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
@@ -1375,6 +1380,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         }
     }
     else {
+        Py_DECREF(py_obj);
         destptr = hpy_scalar_value(ctx, obj, descr);
     }
     /* copyswap for OBJECT increments the reference count */
