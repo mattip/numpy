@@ -3562,8 +3562,8 @@ h_define_cast_for_descrs(HPyContext *ctx,
     }
     /* The full cast passed in is only the "main" step, copy cast_info there */
     HNPY_cast_info_move(ctx, &castdata.main, cast_info);
-    cast_info->descriptors[0] = src_dtype;
-    cast_info->descriptors[1] = dst_dtype;
+    cast_info->descriptors[0] = HPy_Dup(ctx, src_dtype);
+    cast_info->descriptors[1] = HPy_Dup(ctx, dst_dtype);
     cast_info->context.method = HPy_NULL;
 
     cast_info->func = &_strided_to_strided_multistep_cast;
