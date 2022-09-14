@@ -111,8 +111,7 @@ NPY_NO_EXPORT PyArrayIdentityHash *
 HPyArrayIdentityHash_New(HPyContext *ctx, int key_len)
 {
     // TODO HPY LABS PORT: PyMem_Malloc
-    // PyArrayIdentityHash *res = PyMem_Malloc(sizeof(PyArrayIdentityHash));
-    PyArrayIdentityHash *res = malloc(sizeof(PyArrayIdentityHash));
+    PyArrayIdentityHash *res = MEM_MALLOC(sizeof(PyArrayIdentityHash));
     if (res == NULL) {
         HPyErr_NoMemory(ctx);
         return NULL;
@@ -124,12 +123,11 @@ HPyArrayIdentityHash_New(HPyContext *ctx, int key_len)
     res->nelem = 0;
 
     // TODO HPY LABS PORT: PyMem_Calloc
-    res->buckets = (HPyField *)calloc(4 * (key_len + 1), sizeof(HPyField));
+    res->buckets = (HPyField *)MEM_CALLOC(4 * (key_len + 1), sizeof(HPyField));
     if (res->buckets == NULL) {
         HPyErr_NoMemory(ctx);
         // TODO HPY LABS PORT: PyMem_Free
-        // PyMem_Free(res);
-        free(res);
+        PyMem_Free(res);
         return NULL;
     }
     return res;
@@ -140,10 +138,8 @@ NPY_NO_EXPORT void
 PyArrayIdentityHash_Dealloc(PyArrayIdentityHash *tb)
 {
     // TODO HPY LABS PORT: PyMem_Free
-    // PyMem_Free(tb->buckets);
-    // PyMem_Free(tb);
-    free(tb->buckets);
-    free(tb);
+    MEM_FREE(tb->buckets);
+    MEM_FREE(tb);
 }
 
 NPY_NO_EXPORT int
@@ -190,8 +186,7 @@ _resize_if_necessary(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb)
         return -1;
     }
     // TODO HPY LABS PORT: PyMem_Calloc
-    // tb->buckets = PyMem_Calloc(alloc_size, sizeof(PyObject *));
-    tb->buckets = (HPyField *)calloc(alloc_size, sizeof(HPyField));
+    tb->buckets = (HPyField *)MEM_CALLOC(alloc_size, sizeof(HPyField));
     if (tb->buckets == NULL) {
         tb->buckets = old_table;
         HPyErr_NoMemory(ctx);
@@ -225,8 +220,7 @@ _resize_if_necessary(HPyContext *ctx, HPy cache_owner, PyArrayIdentityHash *tb)
     }
     free(tmp);
     // TODO HPY LABS PORT: PyMem_Calloc
-    // PyMem_Free(old_table);
-    free(old_table);
+    MEM_FREE(old_table);
     return 0;
 }
 

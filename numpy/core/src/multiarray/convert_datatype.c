@@ -2368,8 +2368,7 @@ HPyArray_ResultType(HPyContext *ctx,
 
     HPy_Close(ctx, common_dtype);
     // TODO HPY LABS PORT: PyMem_Free
-    // PyMem_Free(info_on_heap);
-    free(info_on_heap);
+    MEM_FREE(info_on_heap);
     return result;
 
   error:
@@ -2379,8 +2378,7 @@ HPyArray_ResultType(HPyContext *ctx,
     HPy_Close(ctx, result);
     HPy_Close(ctx, common_dtype);
     // TODO HPY LABS PORT: PyMem_Free
-    // PyMem_Free(info_on_heap);
-    free(info_on_heap);
+    MEM_FREE(info_on_heap);
     return HPy_NULL;
 }
 

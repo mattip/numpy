@@ -558,8 +558,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
 
     PyArray_Descr *tmp_descr_data = PyArray_Descr_AsStruct(ctx, tmp_descr);
     // TODO HPY LABS PORT: PyObject_Malloc
-    // char *data = PyObject_Malloc(tmp_descr_data->elsize);
-    char *data = malloc(tmp_descr_data->elsize);
+    char *data = OBJECT_MALLOC(tmp_descr_data->elsize);
     if (data == NULL) {
         HPyErr_NoMemory(ctx);
         HPy_Close(ctx, tmp_descr);
@@ -577,8 +576,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
     }
     if (descr_data->f->setitem(ctx, value, item, dummy_arr) < 0) {
         // TODO HPY LABS PORT: PyObject_Free
-        // PyObject_Free(data);
-        free(data);
+        OBJECT_FREE(data);
         _hpy_set_descr(ctx, dummy_arr, dummy_arr_data, HPy_NULL);
         HPy_Close(ctx, tmp_descr);
         return -1;
@@ -613,8 +611,7 @@ HPyArray_Pack(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, char *item, HP
         PyArray_Item_XDECREF(data, (PyArray_Descr *)HPy_AsPyObject(ctx, tmp_descr));
     }
     // TODO HPY LABS PORT: PyObject_Free
-    // PyObject_Free(data);
-    free(data);
+    OBJECT_FREE(data);
     HPy_Close(ctx, tmp_descr);
     return res;
 }

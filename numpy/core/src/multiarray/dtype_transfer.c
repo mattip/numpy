@@ -2284,7 +2284,7 @@ static void _field_transfer_data_free(NpyAuxData *data)
     for (npy_intp i = 0; i < d->field_count; ++i) {
         NPY_cast_info_xfree(&d->fields[i].info);
     }
-    free(d); // PyMem_Free
+    MEM_FREE(d); // PyMem_Free
 }
 
 /* transfer data copy function */
@@ -2297,7 +2297,7 @@ static NpyAuxData *_field_transfer_data_clone(NpyAuxData *data)
                     field_count * sizeof(_single_field_transfer);
 
     /* Allocate the data and populate it */
-    _field_transfer_data *newdata = PyMem_Malloc(structsize);
+    _field_transfer_data *newdata = MEM_MALLOC(structsize); // PyMem_Malloc
     if (newdata == NULL) {
         return NULL;
     }
@@ -2405,7 +2405,7 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
         /* Allocate the field-data structure and populate it */
         structsize = sizeof(_field_transfer_data) +
                         (field_count + 1) * sizeof(_single_field_transfer);
-        data = malloc(structsize); // PyMem_Malloc
+        data = MEM_MALLOC(structsize); // PyMem_Malloc
         if (data == NULL) {
             HPyErr_NoMemory(ctx);
             res = NPY_FAIL;
@@ -2484,7 +2484,7 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
         /* Allocate the field-data structure and populate it */
         structsize = sizeof(_field_transfer_data) +
                         1 * sizeof(_single_field_transfer);
-        data = malloc(structsize); // PyMem_Malloc
+        data = MEM_MALLOC(structsize); // PyMem_Malloc
         if (data == NULL) {
             HPyErr_NoMemory(ctx);
             res = NPY_FAIL;
@@ -2541,7 +2541,7 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
     /* Allocate the field-data structure and populate it */
     structsize = sizeof(_field_transfer_data) +
                     field_count * sizeof(_single_field_transfer);
-    data = malloc(structsize); // PyMem_Malloc
+    data = MEM_MALLOC(structsize); // PyMem_Malloc
     if (data == NULL) {
         HPyErr_NoMemory(ctx);
         res = NPY_FAIL;
@@ -2639,7 +2639,7 @@ get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
     structsize = sizeof(_field_transfer_data) +
                     field_count * sizeof(_single_field_transfer);
     /* Allocate the data and populate it */
-    _field_transfer_data *data = PyMem_Malloc(structsize);
+    _field_transfer_data *data = MEM_MALLOC(structsize); // PyMem_Malloc
     if (data == NULL) {
         HPyErr_NoMemory(ctx);
         res = NPY_FAIL;
@@ -2719,7 +2719,7 @@ _masked_wrapper_transfer_data_free(NpyAuxData *data)
     _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)data;
     NPY_cast_info_xfree(&d->wrapped);
     NPY_cast_info_xfree(&d->decref_src);
-    free(data); // was PyMem_Free
+    MEM_FREE(data); // was PyMem_Free
 }
 
 /* transfer data copy function */
@@ -3973,7 +3973,7 @@ HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
     /* Create the wrapper function's auxdata */
     _masked_wrapper_transfer_data *data;
     /* TODO HPY LABS PORT: PyMem_Malloc */
-    data = malloc(sizeof(_masked_wrapper_transfer_data));
+    data = MEM_MALLOC(sizeof(_masked_wrapper_transfer_data));
     if (data == NULL) {
         HPyErr_NoMemory(ctx);
         return NPY_FAIL;
@@ -3990,7 +3990,7 @@ HPyArray_GetMaskedDTypeTransferFunction(HPyContext *ctx, int aligned,
                                 &data->wrapped,
                                 out_needs_api) != NPY_SUCCEED) {
         /* TODO HPY LABS PORT: PyMem_Free */
-        free(data);
+        MEM_FREE(data);
         return NPY_FAIL;
     }
 

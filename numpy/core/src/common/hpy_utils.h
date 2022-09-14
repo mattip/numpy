@@ -13,6 +13,20 @@
 # endif
 #endif
 
+#ifdef CPYTHON_DEBUG
+    #define OBJECT_MALLOC PyObject_Malloc
+    #define OBJECT_FREE PyObject_Free
+    #define MEM_MALLOC PyMem_Malloc
+    #define MEM_CALLOC PyMem_Calloc
+    #define MEM_FREE PyMem_Free
+#else
+    #define OBJECT_MALLOC malloc
+    #define OBJECT_FREE free
+    #define MEM_MALLOC malloc
+    #define MEM_CALLOC calloc
+    #define MEM_FREE free
+#endif
+
 #define HPy_SETREF(ctx, op, op2) \
     do {                         \
         HPy _h_tmp = (op);       \
