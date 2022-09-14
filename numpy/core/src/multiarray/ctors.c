@@ -3561,6 +3561,7 @@ HPyArray_EnsureArray(HPyContext *ctx, HPy op)
         PyArrayObject *op_data = PyArrayObject_AsStruct(ctx, op);
         HPy op_descr = HPyArray_DESCR(ctx, op, op_data);
         new = HPyArray_View(ctx, op, op_data, op_descr, HPy_NULL, h_PyArray_Type);
+        HPy_Close(ctx, h_PyArray_Type);
     }
     else if (HPyArray_IsScalar(ctx, op, Generic)) {
         new = HPyArray_FromScalar(ctx, op, HPy_NULL);
@@ -3568,7 +3569,7 @@ HPyArray_EnsureArray(HPyContext *ctx, HPy op)
     else {
         new = HPyArray_FROM_OF(ctx, op, NPY_ARRAY_ENSUREARRAY);
     }
-    HPy_Close(ctx, op);
+    // HPy_Close(ctx, op); // stealing handles contradicts the HPy philosohpy
     return new;
 }
 
