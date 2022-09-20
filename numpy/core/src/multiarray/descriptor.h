@@ -51,7 +51,7 @@ HPyArray_DescrNewFromType(HPyContext *ctx, int type_num);
 NPY_NO_EXPORT HPy
 HPyArray_DescrNew(HPyContext *ctx, HPy h_base);
 
-NPY_NO_EXPORT PyArray_DTypeMeta PyArrayDescr_TypeFull;
-NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
+NPY_NO_EXPORT extern PyArray_DTypeMeta PyArrayDescr_TypeFull;
+NPY_NO_EXPORT extern PyTypeObject *_PyArrayDescr_Type_p;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_ */
