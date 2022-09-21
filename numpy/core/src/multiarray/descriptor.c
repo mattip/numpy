@@ -2132,9 +2132,10 @@ arraydescr_dealloc(PyArray_Descr *self)
  * data.  Currently no attributes of data-type objects can be set
  * directly except names.
  */
+HPyDef_MEMBER(arraydescr_type, "type", HPyMember_OBJECT, offsetof(PyArray_Descr, typeobj), .readonly=1)
 static PyMemberDef arraydescr_members[] = {
-    {"type",
-        T_OBJECT, offsetof(PyArray_Descr, typeobj), READONLY, NULL},
+    // {"type",
+    //     T_OBJECT, offsetof(PyArray_Descr, typeobj), READONLY, NULL},
     {"kind",
         T_CHAR, offsetof(PyArray_Descr, kind), READONLY, NULL},
     {"char",
@@ -4038,10 +4039,16 @@ static PyType_Slot PyArrayDescr_TypeFull_legacy_slots[] = {
     {0, 0},
 };
 
+static HPyDef *PyArrayDescr_TypeFull_defines[] = {
+    // members
+    &arraydescr_type,
+};
+
 NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec = {
     .name = "numpy.dtype",
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
+    .defines = PyArrayDescr_TypeFull_defines,
     .legacy_slots = PyArrayDescr_TypeFull_legacy_slots,
     .legacy = PyArray_Descr_IS_LEGACY
 };
