@@ -4740,9 +4740,6 @@ static struct PyMethodDef array_module_methods[] = {
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"_monotonicity", (PyCFunction)arr__monotonicity,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"implement_array_function",
-        (PyCFunction)array_implement_array_function,
-        METH_VARARGS, NULL},
     {"interp", (PyCFunction)arr_interp,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"interp_complex", (PyCFunction)arr_interp_complex,
@@ -4751,8 +4748,6 @@ static struct PyMethodDef array_module_methods[] = {
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"unravel_index", (PyCFunction)arr_unravel_index,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"add_docstring", (PyCFunction)arr_add_docstring,
-        METH_VARARGS, NULL},
     {"packbits", (PyCFunction)io_pack,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"unpackbits", (PyCFunction)io_unpack,
@@ -5227,6 +5222,8 @@ static HPyDef *array_module_hpy_methods[] = {
     &_get_castingimpl,
     &NpyIter_NestedIters,
     &get_sfloat_dtype,
+    &hpy_add_docstring,
+    &implement_array_function,
     NULL
 };
 

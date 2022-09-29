@@ -639,45 +639,56 @@ cleanup:
  * Implements the __array_function__ protocol for a Python function, as described in
  * in NEP-18. See numpy.core.overrides for a full docstring.
  */
-NPY_NO_EXPORT PyObject *
-array_implement_array_function(
-    PyObject *NPY_UNUSED(dummy), PyObject *positional_args)
+HPyDef_METH(implement_array_function, "implement_array_function", array_implement_array_function, HPyFunc_VARARGS)
+static HPy
+array_implement_array_function(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *implementation, *public_api, *relevant_args, *args, *kwargs;
-
-    if (!PyArg_UnpackTuple(
-            positional_args, "implement_array_function", 5, 5,
-            &implementation, &public_api, &relevant_args, &args, &kwargs)) {
-        return NULL;
+    // if (!PyArg_UnpackTuple(
+    //         positional_args, "implement_array_function", 5, 5,
+    //         &implementation, &public_api, &relevant_args, &args, &kwargs)) {
+    //     return NULL;
+    // }
+    if (nargs != 5) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "implement_array_function.. TODO");
     }
-
+    HPy implementation = args[0];
+    HPy public_api = args[1];
+    HPy relevant_args = args[2];
+    HPy h_args = args[3];
+    HPy kwargs = args[4];
     /*
      * Remove `like=` kwarg, which is NumPy-exclusive and thus not present
      * in downstream libraries. If `like=` is specified but doesn't
      * implement `__array_function__`, raise a `TypeError`.
      */
-    PyObject *tmp = HPyGlobal_LoadPyObj(npy_ma_str_axis1);
-    if (kwargs != NULL && PyDict_Contains(kwargs, tmp)) {
-        PyObject *like_arg = PyDict_GetItem(kwargs, tmp);
-        if (like_arg != NULL) {
-            PyObject *tmp_has_override = get_array_function(like_arg);
-            if (tmp_has_override == NULL) {
-                Py_XDECREF(tmp);
-                return PyErr_Format(PyExc_TypeError,
+    HPy tmp = HPyGlobal_Load(ctx, npy_ma_str_axis1);
+    if (!HPy_IsNull(kwargs) && HPy_Contains(ctx, kwargs, tmp)) {
+        HPy like_arg = HPy_GetItem(ctx, kwargs, tmp);
+        if (!HPy_IsNull(like_arg)) {
+            HPy tmp_has_override = hpy_get_array_function(ctx, like_arg);
+            if (HPy_IsNull(tmp_has_override)) {
+                HPy_Close(ctx, tmp);
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "The `like` argument must be an array-like that "
                         "implements the `__array_function__` protocol.");
+                return HPy_NULL;
             }
-            Py_DECREF(tmp_has_override);
-            PyDict_DelItem(kwargs, tmp);
+            HPy_Close(ctx, tmp_has_override);
+            CAPI_WARN("missing PyDict_DelItem");
+            PyObject *py_kwargs = HPy_AsPyObject(ctx, kwargs);
+            PyObject *py_tmp = HPy_AsPyObject(ctx, tmp);
+            PyDict_DelItem(py_kwargs, py_tmp);
+            Py_DECREF(py_kwargs);
+            Py_DECREF(py_tmp);
         }
     }
-    Py_XDECREF(tmp);
+    HPy_Close(ctx, tmp);
 
-    PyObject *res = array_implement_array_function_internal(
-        public_api, relevant_args, args, kwargs);
+    HPy res = hpy_array_implement_array_function_internal(ctx,
+        public_api, relevant_args, h_args, kwargs);
 
-    if (res == Py_NotImplemented) {
-        return PyObject_Call(implementation, args, kwargs);
+    if (HPy_Is(ctx, res, ctx->h_NotImplemented)) {
+        return HPy_CallTupleDict(ctx, implementation, h_args, kwargs);
     }
     return res;
 }

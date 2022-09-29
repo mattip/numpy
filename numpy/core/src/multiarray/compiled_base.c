@@ -1386,6 +1386,15 @@ fail:
     return NULL;
 }
 
+// TODO
+
+HPyDef_METH(hpy_add_docstring, "add_docstring", hpy_arr_add_docstring, HPyFunc_VARARGS)
+static HPy
+hpy_arr_add_docstring(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+{
+    // HPy PORT: we will ignore adding docs and behave as `Py_OptimizeFlag > 1` path
+    return HPy_Dup(ctx, ctx->h_None);
+}
 
 /* Can only be called if doc is currently NULL */
 NPY_NO_EXPORT PyObject *

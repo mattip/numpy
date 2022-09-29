@@ -24,4 +24,6 @@ io_pack(PyObject *, PyObject *, PyObject *);
 NPY_NO_EXPORT PyObject *
 io_unpack(PyObject *, PyObject *, PyObject *);
 
+extern NPY_NO_EXPORT HPyDef hpy_add_docstring;
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_COMPILED_BASE_H_ */
