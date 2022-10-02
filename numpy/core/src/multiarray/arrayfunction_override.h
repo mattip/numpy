@@ -27,4 +27,5 @@ array_function_method_impl(PyObject *func, PyObject *types, PyObject *args,
 
 
 extern NPY_NO_EXPORT HPyDef implement_array_function;
+extern NPY_NO_EXPORT HPyDef _get_implementing_args;
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ARRAYFUNCTION_OVERRIDE_H_ */

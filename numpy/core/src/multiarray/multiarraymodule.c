@@ -4592,9 +4592,6 @@ _reload_guard(PyObject *NPY_UNUSED(self), PyObject *NPY_UNUSED(args)) {
 }
 
 static struct PyMethodDef array_module_methods[] = {
-    {"_get_implementing_args",
-        (PyCFunction)array__get_implementing_args,
-        METH_VARARGS, NULL},
     {"_get_ndarray_c_version",
         (PyCFunction)array__get_ndarray_c_version,
         METH_VARARGS|METH_KEYWORDS, NULL},
@@ -5224,6 +5221,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &get_sfloat_dtype,
     &hpy_add_docstring,
     &implement_array_function,
+    &_get_implementing_args,
     NULL
 };
 

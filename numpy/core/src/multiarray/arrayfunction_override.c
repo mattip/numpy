@@ -909,49 +909,55 @@ hpy_array_implement_c_array_function_creation(HPyContext *ctx,
 /*
  * Python wrapper for get_implementing_args_and_methods, for testing purposes.
  */
-NPY_NO_EXPORT PyObject *
+HPyDef_METH(_get_implementing_args, "_get_implementing_args", array__get_implementing_args, HPyFunc_VARARGS)
+NPY_NO_EXPORT HPy
 array__get_implementing_args(
-    PyObject *NPY_UNUSED(dummy), PyObject *positional_args)
+    HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *relevant_args;
-    PyObject *implementing_args[NPY_MAXARGS];
-    PyObject *array_function_methods[NPY_MAXARGS];
-    PyObject *result = NULL;
+    HPy relevant_args;
+    HPy implementing_args[NPY_MAXARGS];
+    HPy array_function_methods[NPY_MAXARGS];
+    HPy result = HPy_NULL;
 
-    if (!PyArg_ParseTuple(positional_args, "O:array__get_implementing_args",
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O:array__get_implementing_args",
                           &relevant_args)) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    relevant_args = PySequence_Fast(
-        relevant_args,
-        "dispatcher for __array_function__ did not return an iterable");
-    if (relevant_args == NULL) {
-        return NULL;
+    if (!HPySequence_Check(ctx, relevant_args)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, 
+                "dispatcher for __array_function__ did not return an iterable");
+        return HPy_NULL;
     }
+    // relevant_args = PySequence_Fast(
+    //     relevant_args,
+    //     "dispatcher for __array_function__ did not return an iterable");
+    // if (relevant_args == NULL) {
+    //     return NULL;
+    // }
 
-    int num_implementing_args = get_implementing_args_and_methods(
+    int num_implementing_args = hpy_get_implementing_args_and_methods(ctx,
         relevant_args, implementing_args, array_function_methods);
     if (num_implementing_args == -1) {
         goto cleanup;
     }
 
     /* create a Python object for implementing_args */
-    result = PyList_New(num_implementing_args);
-    if (result == NULL) {
+    HPyListBuilder resultlist = HPyListBuilder_New(ctx, num_implementing_args);
+    if (HPyListBuilder_IsNull(resultlist)) {
         goto cleanup;
     }
     for (int j = 0; j < num_implementing_args; j++) {
-        PyObject *argument = implementing_args[j];
-        Py_INCREF(argument);
-        PyList_SET_ITEM(result, j, argument);
+        // Py_INCREF(implementing_args[j]); we are incrementing as we set.
+        HPyListBuilder_Set(ctx, resultlist, j, implementing_args[j]);
     }
+    result = HPyListBuilder_Build(ctx, resultlist);
 
 cleanup:
     for (int j = 0; j < num_implementing_args; j++) {
-        Py_DECREF(implementing_args[j]);
-        Py_DECREF(array_function_methods[j]);
+        HPy_Close(ctx, implementing_args[j]);
+        HPy_Close(ctx, array_function_methods[j]);
     }
-    Py_DECREF(relevant_args);
+    // HPy_Close(ctx, relevant_args); we don't support PySequence_Fast
     return result;
 }
