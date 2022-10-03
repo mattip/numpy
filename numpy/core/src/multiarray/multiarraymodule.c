@@ -3277,15 +3277,16 @@ finish:
     return ret;
 }
 
-static PyObject *
-array_fastCopyAndTranspose(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(_fastCopyAndTranspose, "_fastCopyAndTranspose", array_fastCopyAndTranspose, HPyFunc_VARARGS)
+static HPy
+array_fastCopyAndTranspose(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *a0;
+    HPy a0;
 
-    if (!PyArg_ParseTuple(args, "O:_fastCopyAndTranspose", &a0)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O:_fastCopyAndTranspose", &a0)) {
+        return HPy_NULL;
     }
-    return PyArray_Return((PyArrayObject *)PyArray_CopyAndTranspose(a0));
+    return HPyArray_Return(ctx, HPyArray_CopyAndTranspose(ctx, a0));
 }
 
 static PyObject *
@@ -3400,15 +3401,16 @@ PyArray_GetNDArrayCFeatureVersion(void)
     return (unsigned int)NPY_API_VERSION;
 }
 
-static PyObject *
-array__get_ndarray_c_version(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
+HPyDef_METH(_get_ndarray_c_version, "_get_ndarray_c_version", array__get_ndarray_c_version, HPyFunc_NOARGS)
+static HPy
+array__get_ndarray_c_version(HPyContext *ctx, HPy NPY_UNUSED(dummy))
 {
-    static char *kwlist[] = {NULL};
+    // static char *kwlist[] = {NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist )) {
-        return NULL;
-    }
-    return PyLong_FromLong( (long) PyArray_GetNDArrayCVersion() );
+    // if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist )) {
+    //     return NULL;
+    // }
+    return HPyLong_FromLong(ctx, (long) PyArray_GetNDArrayCVersion() );
 }
 
 /*NUMPY_API
@@ -4640,9 +4642,6 @@ _reload_guard(PyObject *NPY_UNUSED(self), PyObject *NPY_UNUSED(args)) {
 }
 
 static struct PyMethodDef array_module_methods[] = {
-    {"_get_ndarray_c_version",
-        (PyCFunction)array__get_ndarray_c_version,
-        METH_VARARGS|METH_KEYWORDS, NULL},
     {"_reconstruct",
         (PyCFunction)array__reconstruct,
         METH_VARARGS, NULL},
@@ -4718,9 +4717,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"c_einsum",
         (PyCFunction)array_einsum,
         METH_VARARGS|METH_KEYWORDS, NULL},
-    {"_fastCopyAndTranspose",
-        (PyCFunction)array_fastCopyAndTranspose,
-        METH_VARARGS, NULL},
     {"correlate",
         (PyCFunction)array_correlate,
         METH_FASTCALL | METH_KEYWORDS, NULL},
@@ -5270,6 +5266,8 @@ static HPyDef *array_module_hpy_methods[] = {
     &hpy_add_docstring,
     &implement_array_function,
     &_get_implementing_args,
+    &_get_ndarray_c_version,
+    &_fastCopyAndTranspose,
     NULL
 };
 
