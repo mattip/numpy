@@ -1210,6 +1210,54 @@ PyArray_CopyAndTranspose(PyObject *op)
     return (PyObject *)ret;
 }
 
+/*HPY_NUMPY_API
+ * Copy and Transpose
+ *
+ * Could deprecate this function, as there isn't a speed benefit over
+ * calling Transpose and then Copy.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_CopyAndTranspose(HPyContext *ctx, HPy op)
+{
+    HPy arr, tmp, ret; // PyArrayObject *
+    int i;
+    npy_intp new_axes_values[NPY_MAXDIMS];
+    PyArray_Dims new_axes;
+
+    /* Make sure we have an array */
+    arr = HPyArray_FROM_O(ctx, op);
+    if (HPy_IsNull(arr)) {
+        return HPy_NULL;
+    }
+    PyArrayObject *arr_struct = PyArrayObject_AsStruct(ctx, arr);
+    if (PyArray_NDIM(arr_struct) > 1) {
+        /* Set up the transpose operation */
+        new_axes.len = PyArray_NDIM(arr_struct);
+        for (i = 0; i < new_axes.len; ++i) {
+            new_axes_values[i] = new_axes.len - i - 1;
+        }
+        new_axes.ptr = new_axes_values;
+
+        /* Do the transpose (always returns a view) */
+        tmp = HPyArray_Transpose(ctx, arr, arr_struct, &new_axes);
+        if (HPy_IsNull(tmp)) {
+            HPy_Close(ctx, arr);
+            return HPy_NULL;
+        }
+    }
+    else {
+        tmp = arr;
+        arr = HPy_NULL;
+    }
+
+    /* TODO: Change this to NPY_KEEPORDER for NumPy 2.0 */
+    ret = HPyArray_NewCopy(ctx, tmp, NPY_CORDER);
+
+    HPy_Close(ctx, arr);
+    HPy_Close(ctx, tmp);
+    return ret;
+}
+
 /*
  * Implementation which is common between PyArray_Correlate
  * and PyArray_Correlate2.

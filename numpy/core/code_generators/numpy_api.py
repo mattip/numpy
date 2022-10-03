@@ -553,7 +553,7 @@ hpy_multiarray_funcs_api = {
     # 'HPyArray_Concatenate':                  (168,),
     # 'HPyArray_InnerProduct':                 (169,),
     # 'HPyArray_MatrixProduct':                (170,),
-    # 'HPyArray_CopyAndTranspose':             (171,),
+    'HPyArray_CopyAndTranspose':             (171,),
     # 'HPyArray_Correlate':                    (172,),
     # 'HPyArray_TypestrConvert':               (173,),
     'HPyArray_DescrConverter':               (174,),
