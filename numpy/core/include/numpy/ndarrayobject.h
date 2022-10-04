@@ -146,6 +146,18 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
                         (((flags) & NPY_ARRAY_ENSURECOPY) ? \
                          ((flags) | NPY_ARRAY_DEFAULT) : (flags)), NULL)
 
+// pass value of HPyArray_DescrFromType(ctx, type)
+#define HPyArray_FROM_OTF(ctx, m, type_descr, flags) \
+        HPyArray_FromAny(ctx, m, type_descr, 0, 0, \
+                        (((flags) & NPY_ARRAY_ENSURECOPY) ? \
+                         ((flags) | NPY_ARRAY_DEFAULT) : (flags)), HPy_NULL)
+
+// pass value of HPyArray_DescrFromType(ctx, type)
+#define HPyArray_FROMANY(ctx, m, type, min, max, flags) \
+        HPyArray_FromAny(ctx, m, type_descr, min, max, \
+                        (((flags) & NPY_ARRAY_ENSURECOPY) ? \
+                         (flags) | NPY_ARRAY_DEFAULT : (flags)), HPy_NULL)
+
 #define PyArray_FROMANY(m, type, min, max, flags) \
         PyArray_FromAny(m, PyArray_DescrFromType(type), min, max, \
                         (((flags) & NPY_ARRAY_ENSURECOPY) ? \
