@@ -22,7 +22,6 @@ PyObject *
 array_dlpack_device(PyArrayObject *self, PyObject *NPY_UNUSED(args));
 
 
-NPY_NO_EXPORT PyObject *
-_from_dlpack(PyObject *NPY_UNUSED(self), PyObject *obj);
+extern NPY_NO_EXPORT HPyDef _from_dlpack;
 
 #endif

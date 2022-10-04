@@ -52,16 +52,16 @@ done:
 }
 
 /* used internally, almost identical to dlpack_capsule_deleter() */
-static void array_dlpack_internal_capsule_deleter(PyObject *self)
+static void array_dlpack_internal_capsule_deleter(HPyContext *ctx, HPy self)
 {
     /* an exception may be in-flight, we must save it in case we create another one */
     PyObject *type, *value, *traceback;
     PyErr_Fetch(&type, &value, &traceback);
 
     DLManagedTensor *managed =
-        (DLManagedTensor *)PyCapsule_GetPointer(self, NPY_DLPACK_INTERNAL_CAPSULE_NAME);
+        (DLManagedTensor *)HPyCapsule_GetPointer(ctx, self, NPY_DLPACK_INTERNAL_CAPSULE_NAME);
     if (managed == NULL) {
-        PyErr_WriteUnraisable(self);
+        HPyErr_WriteUnraisable(ctx, self);
         goto done;
     }
     /*
@@ -71,27 +71,24 @@ static void array_dlpack_internal_capsule_deleter(PyObject *self)
     if (managed->deleter) {
         managed->deleter(managed);
         /* TODO: is the deleter allowed to set a python exception? */
-        assert(!PyErr_Occurred());
+        assert(!HPyErr_Occurred(ctx));
     }
 
 done:
     PyErr_Restore(type, value, traceback);
 }
 
-
-// This function cannot return NULL, but it can fail,
-// So call PyErr_Occurred to check if it failed after
-// calling it.
 static DLDevice
-array_get_dl_device(PyArrayObject *self) {
+hpy_array_get_dl_device(HPyContext *ctx, HPy /* PyArrayObject * */ self) {
     DLDevice ret;
     ret.device_type = kDLCPU;
     ret.device_id = 0;
-    PyObject *base = PyArray_BASE(self);
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
+    HPy base = HPyArray_BASE(ctx, self, self_struct);
     // The outer if is due to the fact that NumPy arrays are on the CPU
     // by default (if not created from DLPack).
-    if (PyCapsule_IsValid(base, NPY_DLPACK_INTERNAL_CAPSULE_NAME)) {
-        DLManagedTensor *managed = PyCapsule_GetPointer(
+    if (HPyCapsule_IsValid(ctx, base, NPY_DLPACK_INTERNAL_CAPSULE_NAME)) {
+        DLManagedTensor *managed = HPyCapsule_GetPointer(ctx,
                 base, NPY_DLPACK_INTERNAL_CAPSULE_NAME);
         if (managed == NULL) {
             return ret;
@@ -99,6 +96,33 @@ array_get_dl_device(PyArrayObject *self) {
         return managed->dl_tensor.device;
     }
     return ret;
+}
+
+// This function cannot return NULL, but it can fail,
+// So call PyErr_Occurred to check if it failed after
+// calling it.
+static DLDevice
+array_get_dl_device(PyArrayObject *self) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    DLDevice ret = hpy_array_get_dl_device(ctx, h_self);
+    HPy_Close(ctx, h_self);
+    return ret;
+    // DLDevice ret;
+    // ret.device_type = kDLCPU;
+    // ret.device_id = 0;
+    // PyObject *base = PyArray_BASE(self);
+    // // The outer if is due to the fact that NumPy arrays are on the CPU
+    // // by default (if not created from DLPack).
+    // if (PyCapsule_IsValid(base, NPY_DLPACK_INTERNAL_CAPSULE_NAME)) {
+    //     DLManagedTensor *managed = PyCapsule_GetPointer(
+    //             base, NPY_DLPACK_INTERNAL_CAPSULE_NAME);
+    //     if (managed == NULL) {
+    //         return ret;
+    //     }
+    //     return managed->dl_tensor.device;
+    // }
+    // return ret;
 }
 
 
@@ -263,30 +287,38 @@ array_dlpack_device(PyArrayObject *self, PyObject *NPY_UNUSED(args))
     return Py_BuildValue("ii", device.device_type, device.device_id);
 }
 
-NPY_NO_EXPORT PyObject *
-_from_dlpack(PyObject *NPY_UNUSED(self), PyObject *obj) {
-    PyObject *capsule = PyObject_CallMethod((PyObject *)obj->ob_type,
-            "__dlpack__", "O", obj);
-    if (capsule == NULL) {
-        return NULL;
+HPyDef_METH(_from_dlpack, "_from_dlpack", _from_dlpack_impl, HPyFunc_O)
+NPY_NO_EXPORT HPy
+_from_dlpack_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy obj) {
+    HPy obj_type = HPy_Type(ctx, obj);
+    HPy __dlpack__ = HPy_GetAttr_s(ctx, obj_type, "__dlpack__");
+    HPy args = HPyTuple_Pack(ctx, 1, obj);
+    HPy capsule = HPy_CallTupleDict(ctx, __dlpack__, args, HPy_NULL);
+    HPy_Close(ctx, obj_type);
+    HPy_Close(ctx, __dlpack__);
+    HPy_Close(ctx, args);
+    // HPy capsule = PyObject_CallMethod((PyObject *)obj->ob_type,
+    //         "__dlpack__", "O", obj);
+    if (HPy_IsNull(capsule)) {
+        return HPy_NULL;
     }
 
     DLManagedTensor *managed =
-        (DLManagedTensor *)PyCapsule_GetPointer(capsule,
+        (DLManagedTensor *)HPyCapsule_GetPointer(ctx, capsule,
         NPY_DLPACK_CAPSULE_NAME);
 
     if (managed == NULL) {
-        Py_DECREF(capsule);
-        return NULL;
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
     const int ndim = managed->dl_tensor.ndim;
     if (ndim > NPY_MAXDIMS) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "maxdims of DLPack tensor is higher than the supported "
                 "maxdims.");
-        Py_DECREF(capsule);
-        return NULL;
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
     DLDeviceType device_type = managed->dl_tensor.device.device_type;
@@ -294,17 +326,17 @@ _from_dlpack(PyObject *NPY_UNUSED(self), PyObject *obj) {
             device_type != kDLCUDAHost &&
             device_type != kDLROCMHost &&
             device_type != kDLCUDAManaged) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Unsupported device in DLTensor.");
-        Py_DECREF(capsule);
-        return NULL;
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
     if (managed->dl_tensor.dtype.lanes != 1) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Unsupported lanes in DLTensor dtype.");
-        Py_DECREF(capsule);
-        return NULL;
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
     int typenum = -1;
@@ -347,10 +379,10 @@ _from_dlpack(PyObject *NPY_UNUSED(self), PyObject *obj) {
     }
 
     if (typenum == -1) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "Unsupported dtype in DLTensor.");
-        Py_DECREF(capsule);
-        return NULL;
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
     npy_intp shape[NPY_MAXDIMS];
@@ -367,41 +399,44 @@ _from_dlpack(PyObject *NPY_UNUSED(self), PyObject *obj) {
     char *data = (char *)managed->dl_tensor.data +
             managed->dl_tensor.byte_offset;
 
-    PyArray_Descr *descr = PyArray_DescrFromType(typenum);
-    if (descr == NULL) {
-        Py_DECREF(capsule);
-        return NULL;
+    HPy descr = HPyArray_DescrFromType(ctx, typenum); // PyArray_Descr *
+    if (HPy_IsNull(descr)) {
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
-    PyObject *ret = PyArray_NewFromDescr(&PyArray_Type, descr, ndim, shape,
-            managed->dl_tensor.strides != NULL ? strides : NULL, data, 0, NULL);
-    if (ret == NULL) {
-        Py_DECREF(capsule);
-        return NULL;
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy ret = HPyArray_NewFromDescr(ctx, array_type, descr, ndim, shape,
+            managed->dl_tensor.strides != NULL ? strides : NULL, data, 0, HPy_NULL);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(ret)) {
+        HPy_Close(ctx, capsule);
+        return HPy_NULL;
     }
 
-    PyObject *new_capsule = PyCapsule_New(managed,
+    HPy new_capsule = HPyCapsule_New(ctx, managed,
             NPY_DLPACK_INTERNAL_CAPSULE_NAME,
             array_dlpack_internal_capsule_deleter);
-    if (new_capsule == NULL) {
-        Py_DECREF(capsule);
-        Py_DECREF(ret);
-        return NULL;
+    if (HPy_IsNull(new_capsule)) {
+        HPy_Close(ctx, capsule);
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
     }
 
-    if (PyArray_SetBaseObject((PyArrayObject *)ret, new_capsule) < 0) {
-        Py_DECREF(capsule);
-        Py_DECREF(ret);
-        return NULL;
+    PyArrayObject *ret_struct = PyArrayObject_AsStruct(ctx, ret);
+    if (HPyArray_SetBaseObject(ctx, ret, ret_struct, new_capsule) < 0) {
+        HPy_Close(ctx, capsule);
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
     }
 
-    if (PyCapsule_SetName(capsule, NPY_DLPACK_USED_CAPSULE_NAME) < 0) {
-        Py_DECREF(capsule);
-        Py_DECREF(ret);
-        return NULL;
+    if (HPyCapsule_SetName(ctx, capsule, NPY_DLPACK_USED_CAPSULE_NAME) < 0) {
+        HPy_Close(ctx, capsule);
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
     }
 
-    Py_DECREF(capsule);
+    HPy_Close(ctx, capsule);
     return ret;
 }
 

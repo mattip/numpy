@@ -264,60 +264,76 @@ arr__monotonicity(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
  * Returns input array with values inserted sequentially into places
  * indicated by the mask
  */
-NPY_NO_EXPORT PyObject *
-arr_insert(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
+HPyDef_METH(_insert, "_insert", arr_insert, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
     char *src, *dest;
     npy_bool *mask_data;
-    PyArray_Descr *dtype;
+    HPy dtype; // PyArray_Descr *
     PyArray_CopySwapFunc *copyswap;
-    PyObject *array0, *mask0, *values0;
-    PyArrayObject *array, *mask, *values;
+    HPy array0, mask0, values0;
+    HPy array, mask, values; // PyArrayObject *
     npy_intp i, j, chunk, nm, ni, nv;
 
     static char *kwlist[] = {"input", "mask", "vals", NULL};
-    NPY_BEGIN_THREADS_DEF;
-    values = mask = NULL;
+    HPY_NPY_BEGIN_THREADS_DEF;
+    values = mask = HPy_NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O!OO:place", kwlist,
-                &PyArray_Type, &array0, &mask0, &values0)) {
-        return NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwdict, "OOO:place", kwlist,
+                &array0, &mask0, &values0)) {
+        return HPy_NULL;
     }
 
-    array = (PyArrayObject *)PyArray_FromArray((PyArrayObject *)array0, NULL,
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy array0_type = HPy_Type(ctx, array0);
+    if (!HPy_Is(ctx, array0_type, array_type)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "..");
+        // TODO
+        return HPy_NULL;
+    }
+
+    array = HPyArray_FromArray(ctx, array0, PyArrayObject_AsStruct(ctx, array0), HPy_NULL, NULL,
                                     NPY_ARRAY_CARRAY | NPY_ARRAY_WRITEBACKIFCOPY);
-    if (array == NULL) {
+    if (HPy_IsNull(array)) {
         goto fail;
     }
+    PyArrayObject *array_struct = PyArrayObject_AsStruct(ctx, array);
 
-    ni = PyArray_SIZE(array);
-    dest = PyArray_DATA(array);
-    chunk = PyArray_DESCR(array)->elsize;
-    mask = (PyArrayObject *)PyArray_FROM_OTF(mask0, NPY_BOOL,
+    ni = PyArray_SIZE(array_struct);
+    dest = PyArray_DATA(array_struct);
+    HPy array_descr = HPyArray_DESCR(ctx, array, array_struct);
+    PyArray_Descr *array_descr_struct = PyArray_Descr_AsStruct(ctx, array_descr);
+    chunk = array_descr_struct->elsize;
+    HPy type_descr = HPyArray_DescrFromType(ctx, NPY_BOOL);
+    mask = HPyArray_FROM_OTF(ctx, mask0, type_descr,
                                 NPY_ARRAY_CARRAY | NPY_ARRAY_FORCECAST);
-    if (mask == NULL) {
+    if (HPy_IsNull(mask)) {
         goto fail;
     }
+    PyArrayObject *mask_struct = PyArrayObject_AsStruct(ctx, mask);
 
-    nm = PyArray_SIZE(mask);
+    nm = PyArray_SIZE(mask_struct);
     if (nm != ni) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "place: mask and data must be "
                         "the same size");
         goto fail;
     }
 
-    mask_data = PyArray_DATA(mask);
-    dtype = PyArray_DESCR(array);
-    Py_INCREF(dtype);
+    mask_data = PyArray_DATA(mask_struct);
+    dtype = array_descr;
+    // Py_INCREF(dtype);
 
-    values = (PyArrayObject *)PyArray_FromAny(values0, dtype,
-                                    0, 0, NPY_ARRAY_CARRAY, NULL);
-    if (values == NULL) {
+    values = HPyArray_FromAny(ctx, values0, dtype,
+                                    0, 0, NPY_ARRAY_CARRAY, HPy_NULL);
+    if (HPy_IsNull(values)) {
         goto fail;
     }
+    PyArrayObject *values_struct = PyArrayObject_AsStruct(ctx, values);
 
-    nv = PyArray_SIZE(values); /* zero if null array */
+    nv = PyArray_SIZE(values_struct); /* zero if null array */
     if (nv <= 0) {
         npy_bool allFalse = 1;
         i = 0;
@@ -330,47 +346,47 @@ arr_insert(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
             }
         }
         if (!allFalse) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Cannot insert from an empty array!");
             goto fail;
         } else {
-            Py_XDECREF(values);
-            Py_XDECREF(mask);
-            PyArray_ResolveWritebackIfCopy(array);
-            Py_XDECREF(array);
-            Py_RETURN_NONE;
+            HPy_Close(ctx, values);
+            HPy_Close(ctx, mask);
+            HPyArray_ResolveWritebackIfCopy(ctx, array);
+            HPy_Close(ctx, array);
+            return HPy_Dup(ctx, ctx->h_None);
         }
     }
 
-    src = PyArray_DATA(values);
+    src = PyArray_DATA(values_struct);
     j = 0;
 
-    copyswap = PyArray_DESCR(array)->f->copyswap;
-    NPY_BEGIN_THREADS_DESCR(PyArray_DESCR(array));
+    copyswap = array_descr_struct->f->copyswap;
+    HPY_NPY_BEGIN_THREADS_DESCR(ctx, array_descr_struct);
     for (i = 0; i < ni; i++) {
         if (mask_data[i]) {
             if (j >= nv) {
                 j = 0;
             }
 
-            copyswap(dest + i*chunk, src + j*chunk, 0, array);
+            copyswap(dest + i*chunk, src + j*chunk, 0, array_descr_struct);
             j++;
         }
     }
-    NPY_END_THREADS;
+    HPY_NPY_END_THREADS(ctx);
 
-    Py_XDECREF(values);
-    Py_XDECREF(mask);
-    PyArray_ResolveWritebackIfCopy(array);
-    Py_DECREF(array);
-    Py_RETURN_NONE;
+    HPy_Close(ctx, values);
+    HPy_Close(ctx, mask);
+    HPyArray_ResolveWritebackIfCopy(ctx, array);
+    HPy_Close(ctx, array);
+    return HPy_Dup(ctx, ctx->h_None);
 
  fail:
-    Py_XDECREF(mask);
-    PyArray_ResolveWritebackIfCopy(array);
-    Py_XDECREF(array);
-    Py_XDECREF(values);
-    return NULL;
+    HPy_Close(ctx, mask);
+    HPyArray_ResolveWritebackIfCopy(ctx, array);
+    HPy_Close(ctx, array);
+    HPy_Close(ctx, values);
+    return HPy_NULL;
 }
 
 #define LIKELY_IN_CACHE_SIZE 8

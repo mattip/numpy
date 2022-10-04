@@ -4773,10 +4773,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"_vec_string",
         (PyCFunction)_vec_string,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"_insert", (PyCFunction)arr_insert,
-        METH_VARARGS | METH_KEYWORDS,
-        "Insert vals sequentially into equivalent 1-d positions "
-        "indicated by mask."},
     {"bincount", (PyCFunction)arr_bincount,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"_monotonicity", (PyCFunction)arr__monotonicity,
@@ -4826,8 +4822,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"_reload_guard", (PyCFunction)_reload_guard,
         METH_NOARGS,
         "Give a warning on reload and big warning in sub-interpreters."},
-    {"_from_dlpack", (PyCFunction)_from_dlpack,
-        METH_O, NULL},
     {NULL, NULL, 0, NULL}                /* sentinel */
 };
 
@@ -5268,6 +5262,8 @@ static HPyDef *array_module_hpy_methods[] = {
     &_get_implementing_args,
     &_get_ndarray_c_version,
     &_fastCopyAndTranspose,
+    &_from_dlpack,
+    &_insert,
     NULL
 };
 
