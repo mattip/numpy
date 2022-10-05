@@ -6,8 +6,6 @@
 NPY_NO_EXPORT PyObject *
 arr_bincount(PyObject *, PyObject *, PyObject *);
 NPY_NO_EXPORT PyObject *
-arr__monotonicity(PyObject *, PyObject *, PyObject *kwds);
-NPY_NO_EXPORT PyObject *
 arr_interp(PyObject *, PyObject *, PyObject *);
 NPY_NO_EXPORT PyObject *
 arr_interp_complex(PyObject *, PyObject *, PyObject *);
@@ -24,5 +22,6 @@ io_unpack(PyObject *, PyObject *, PyObject *);
 
 extern NPY_NO_EXPORT HPyDef hpy_add_docstring;
 extern NPY_NO_EXPORT HPyDef _insert;
+extern NPY_NO_EXPORT HPyDef _monotonicity;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_COMPILED_BASE_H_ */

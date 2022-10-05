@@ -3434,30 +3434,49 @@ PyArray_GetEndianness(void)
     }
 }
 
-static PyObject *
-array__reconstruct(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(_reconstruct, "_reconstruct", array__reconstruct, HPyFunc_VARARGS)
+static HPy
+array__reconstruct(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
 
-    PyObject *ret;
-    PyTypeObject *subtype;
+    HPy ret;
+    HPy subtype; // PyTypeObject *
     PyArray_Dims shape = {NULL, 0};
-    PyArray_Descr *dtype = NULL;
+    HPy dtype = HPy_NULL; // PyArray_Descr *
 
     evil_global_disable_warn_O4O8_flag = 1;
-
-    if (!PyArg_ParseTuple(args, "O!O&O&:_reconstruct",
-                &PyType_Type, &subtype,
-                PyArray_IntpConverter, &shape,
-                PyArray_DescrConverter, &dtype)) {
+    HPy h_shape = HPy_NULL;
+    HPy h_dtype = HPy_NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OOO:_reconstruct",
+                &subtype, &shape, &dtype)) {
         goto fail;
     }
-    if (!PyType_IsSubtype(subtype, &PyArray_Type)) {
-        PyErr_SetString(PyExc_TypeError,
+
+    if (!HPy_TypeCheck(ctx, subtype, ctx->h_TypeType)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "");
+        return HPy_NULL;
+    }
+
+    if (!HPyArray_IntpConverter(ctx, h_shape, &shape)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "");
+        return HPy_NULL;
+    }
+
+    if (!HPyArray_DescrConverter(ctx, h_dtype, &dtype)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "");
+        return HPy_NULL;
+    }
+    
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    if (!HPyType_IsSubtype(ctx, subtype, array_type)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "_reconstruct: First argument must be a sub-type of ndarray");
         goto fail;
     }
-    ret = PyArray_NewFromDescr(subtype, dtype,
-            (int)shape.len, shape.ptr, NULL, NULL, 0, NULL);
+    HPy_Close(ctx, array_type);
+    ret = HPyArray_NewFromDescr(ctx, subtype, dtype,
+            (int)shape.len, shape.ptr, NULL, NULL, 0, HPy_NULL);
+    HPy_Close(ctx, dtype);
     npy_free_cache_dim_obj(shape);
 
     evil_global_disable_warn_O4O8_flag = 0;
@@ -3467,9 +3486,10 @@ array__reconstruct(PyObject *NPY_UNUSED(dummy), PyObject *args)
 fail:
     evil_global_disable_warn_O4O8_flag = 0;
 
-    Py_XDECREF(dtype);
+    HPy_Close(ctx, dtype);
+    HPy_Close(ctx, array_type);
     npy_free_cache_dim_obj(shape);
-    return NULL;
+    return HPy_NULL;
 }
 
 static PyObject *
@@ -4642,9 +4662,6 @@ _reload_guard(PyObject *NPY_UNUSED(self), PyObject *NPY_UNUSED(args)) {
 }
 
 static struct PyMethodDef array_module_methods[] = {
-    {"_reconstruct",
-        (PyCFunction)array__reconstruct,
-        METH_VARARGS, NULL},
     {"set_string_function",
         (PyCFunction)array_set_string_function,
         METH_VARARGS|METH_KEYWORDS, NULL},
@@ -4774,8 +4791,6 @@ static struct PyMethodDef array_module_methods[] = {
         (PyCFunction)_vec_string,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"bincount", (PyCFunction)arr_bincount,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-    {"_monotonicity", (PyCFunction)arr__monotonicity,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"interp", (PyCFunction)arr_interp,
         METH_VARARGS | METH_KEYWORDS, NULL},
@@ -5264,6 +5279,8 @@ static HPyDef *array_module_hpy_methods[] = {
     &_fastCopyAndTranspose,
     &_from_dlpack,
     &_insert,
+    &_reconstruct,
+    &_monotonicity,
     NULL
 };
 

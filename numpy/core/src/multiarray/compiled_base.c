@@ -224,19 +224,21 @@ fail:
 }
 
 /* Internal function to expose check_array_monotonic to python */
-NPY_NO_EXPORT PyObject *
-arr__monotonicity(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
+HPyDef_METH(_monotonicity, "_monotonicity", arr__monotonicity, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+arr__monotonicity(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     static char *kwlist[] = {"x", NULL};
-    PyObject *obj_x = NULL;
-    PyArrayObject *arr_x = NULL;
+    HPy obj_x = HPy_NULL;
+    HPy arr_x = HPy_NULL; // PyArrayObject *
     long monotonic;
     npy_intp len_x;
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF(ctx);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|_monotonicity", kwlist,
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|_monotonicity", kwlist,
                                      &obj_x)) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /*
@@ -244,20 +246,23 @@ arr__monotonicity(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
      *  `x` could be strided, needs change to check_array_monotonic
      *  `x` is forced to double for this check
      */
-    arr_x = (PyArrayObject *)PyArray_FROMANY(
-        obj_x, NPY_DOUBLE, 1, 1, NPY_ARRAY_CARRAY_RO);
-    if (arr_x == NULL) {
-        return NULL;
+    HPy type_descr = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+    arr_x = HPyArray_FROMANY(ctx,
+        obj_x, type_descr, 1, 1, NPY_ARRAY_CARRAY_RO);
+    HPy_Close(ctx, type_descr);
+    if (!HPy_IsNull(arr_x)) {
+        return HPy_NULL;
     }
+    PyArrayObject *arr_x_struct = PyArrayObject_AsStruct(ctx, arr_x);
 
-    len_x = PyArray_SIZE(arr_x);
-    NPY_BEGIN_THREADS_THRESHOLDED(len_x)
+    len_x = HPyArray_SIZE(arr_x_struct);
+    HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, len_x)
     monotonic = check_array_monotonic(
-        (const double *)PyArray_DATA(arr_x), len_x);
-    NPY_END_THREADS
-    Py_DECREF(arr_x);
+        (const double *)PyArray_DATA(arr_x_struct), len_x);
+    HPY_NPY_END_THREADS(ctx)
+    HPy_Close(ctx, arr_x);
 
-    return PyLong_FromLong(monotonic);
+    return HPyLong_FromLong(ctx, monotonic);
 }
 
 /*
