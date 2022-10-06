@@ -7,9 +7,6 @@
 
 #define NPY_TRACE_DOMAIN 389047
 
-NPY_NO_EXPORT PyObject *
-_set_madvise_hugepage(PyObject *NPY_UNUSED(self), PyObject *enabled_obj);
-
 NPY_NO_EXPORT void *
 PyDataMem_UserNEW(npy_uintp sz, PyObject *mem_handler);
 
@@ -62,4 +59,6 @@ HPyDataMem_GetHandler(HPyContext *ctx);
 NPY_NO_EXPORT void
 HPyDataMem_UserFREE(HPyContext *ctx, void *ptr, size_t size, HPy h_mem_handler);
 
+
+extern NPY_NO_EXPORT HPyDef _set_madvise_hugepage;
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_ALLOC_H_ */

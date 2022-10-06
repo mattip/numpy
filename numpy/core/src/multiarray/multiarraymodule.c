@@ -5281,6 +5281,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &_insert,
     &_reconstruct,
     &_monotonicity,
+    &_set_madvise_hugepage,
     NULL
 };
 

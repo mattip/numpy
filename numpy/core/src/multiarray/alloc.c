@@ -45,19 +45,20 @@ static int _madvise_hugepage = 1;
  *
  * It is exposed to Python as `np.core.multiarray._set_madvise_hugepage`.
  */
-NPY_NO_EXPORT PyObject *
-_set_madvise_hugepage(PyObject *NPY_UNUSED(self), PyObject *enabled_obj)
+HPyDef_METH(_set_madvise_hugepage, "_set_madvise_hugepage", _set_madvise_hugepage_impl, HPyFunc_O)
+NPY_NO_EXPORT HPy
+_set_madvise_hugepage_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy enabled_obj)
 {
     int was_enabled = _madvise_hugepage;
-    int enabled = PyObject_IsTrue(enabled_obj);
+    int enabled = HPy_IsTrue(ctx, enabled_obj);
     if (enabled < 0) {
-        return NULL;
+        return HPy_NULL;
     }
     _madvise_hugepage = enabled;
     if (was_enabled) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
-    Py_RETURN_FALSE;
+   return HPy_Dup(ctx, ctx->h_False);
 }
 
 
