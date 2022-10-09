@@ -2350,107 +2350,126 @@ fail:
  * This function is needed for supporting Pickles of
  * numpy scalar objects.
  */
-static PyObject *
-array_scalar(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_scalar, "scalar", array_scalar_impl, HPyFunc_KEYWORDS)
+static HPy
+array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
 
     static char *kwlist[] = {"dtype", "obj", NULL};
-    PyArray_Descr *typecode;
-    PyObject *obj = NULL, *tmpobj = NULL;
+    HPy typecode; // PyArray_Descr *
+    HPy obj = HPy_NULL, tmpobj = HPy_NULL;
     int alloc = 0;
     void *dptr;
-    PyObject *ret;
-    PyObject *base = NULL;
+    HPy ret;
+    HPy base = HPy_NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O:scalar", kwlist,
-                &PyArrayDescr_Type, &typecode, &obj)) {
-        return NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|O:scalar", kwlist,
+                &typecode, &obj)) {
+        return HPy_NULL;
     }
-    if (PyDataType_FLAGCHK(typecode, NPY_LIST_PICKLE)) {
-        if (typecode->type_num == NPY_OBJECT) {
+    HPy arraydescr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    if (!HPy_TypeCheck(ctx, typecode, arraydescr_type)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "..");
+        return HPy_NULL;
+    }
+
+    PyArray_Descr *typecode_struct = PyArray_Descr_AsStruct(ctx, typecode);
+    if (PyDataType_FLAGCHK(typecode_struct, NPY_LIST_PICKLE)) {
+        if (typecode_struct->type_num == NPY_OBJECT) {
             /* Deprecated 2020-11-24, NumPy 1.20 */
-            if (DEPRECATE(
+            if (HPY_DEPRECATE(ctx,
                     "Unpickling a scalar with object dtype is deprecated. "
                     "Object scalars should never be created. If this was a "
                     "properly created pickle, please open a NumPy issue. In "
                     "a best effort this returns the original object.") < 0) {
-                return NULL;
+                return HPy_NULL;
             }
-            Py_INCREF(obj);
+            if (!HPy_IsNull(obj)) {
+                obj = HPy_Dup(ctx, obj);
+            }
+            HPyTracker_Close(ctx, ht);
             return obj;
         }
         /* We store the full array to unpack it here: */
-        if (!PyArray_CheckExact(obj)) {
+        if (!HPyArray_CheckExact(ctx, obj)) {
             /* We pickle structured voids as arrays currently */
-            PyErr_SetString(PyExc_RuntimeError,
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Unpickling NPY_LIST_PICKLE (structured void) scalar "
                     "requires an array.  The pickle file may be corrupted?");
-            return NULL;
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
         }
-        if (!PyArray_EquivTypes(PyArray_DESCR((PyArrayObject *)obj), typecode)) {
-            PyErr_SetString(PyExc_RuntimeError,
+        PyArrayObject *obj_struct = PyArrayObject_AsStruct(ctx, obj);
+        HPy obj_descr = HPyArray_DESCR(ctx, obj, obj_struct);
+        if (!HPyArray_EquivTypes(ctx, obj, typecode)) {
+            HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Pickled array is not compatible with requested scalar "
                     "dtype.  The pickle file may be corrupted?");
-            return NULL;
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
         }
         base = obj;
-        dptr = PyArray_BYTES((PyArrayObject *)obj);
+        dptr = PyArray_BYTES(obj_struct);
     }
-
-    else if (PyDataType_FLAGCHK(typecode, NPY_ITEM_IS_POINTER)) {
-        if (obj == NULL) {
-            obj = Py_None;
+    else if (PyDataType_FLAGCHK(typecode_struct, NPY_ITEM_IS_POINTER)) {
+        if (HPy_IsNull(obj)) {
+            obj = ctx->h_None;
         }
         dptr = &obj;
     }
     else {
-        if (obj == NULL) {
-            if (typecode->elsize == 0) {
-                typecode->elsize = 1;
+        if (HPy_IsNull(obj)) {
+            if (typecode_struct->elsize == 0) {
+                typecode_struct->elsize = 1;
             }
-            dptr = PyArray_malloc(typecode->elsize);
+            dptr = PyArray_malloc(typecode_struct->elsize);
             if (dptr == NULL) {
-                return PyErr_NoMemory();
+                return HPyErr_NoMemory(ctx);
             }
-            memset(dptr, '\0', typecode->elsize);
+            memset(dptr, '\0', typecode_struct->elsize);
             alloc = 1;
         }
         else {
             /* Backward compatibility with Python 2 NumPy pickles */
-            if (PyUnicode_Check(obj)) {
-                tmpobj = PyUnicode_AsLatin1String(obj);
+            if (HPyUnicode_Check(ctx, obj)) {
+                tmpobj = HPyUnicode_AsLatin1String(ctx, obj);
                 obj = tmpobj;
-                if (tmpobj == NULL) {
+                if (HPy_IsNull(tmpobj)) {
                     /* More informative error message */
-                    PyErr_SetString(PyExc_ValueError,
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
                             "Failed to encode Numpy scalar data string to "
                             "latin1,\npickle.load(a, encoding='latin1') is "
                             "assumed if unpickling.");
-                    return NULL;
+                    HPyTracker_Close(ctx, ht);
+                    return HPy_NULL;
                 }
             }
-            if (!PyBytes_Check(obj)) {
-                PyErr_SetString(PyExc_TypeError,
+            if (!HPyBytes_Check(ctx, obj)) {
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "initializing object must be a bytes object");
-                Py_XDECREF(tmpobj);
-                return NULL;
+                HPy_Close(ctx, tmpobj);
+                HPyTracker_Close(ctx, ht);
+                return HPy_NULL;
             }
-            if (PyBytes_GET_SIZE(obj) < typecode->elsize) {
-                PyErr_SetString(PyExc_ValueError,
+            if (HPyBytes_GET_SIZE(ctx, obj) < typecode_struct->elsize) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "initialization string is too small");
-                Py_XDECREF(tmpobj);
-                return NULL;
+                HPy_Close(ctx, tmpobj);
+                HPyTracker_Close(ctx, ht);
+                return HPy_NULL;
             }
-            dptr = PyBytes_AS_STRING(obj);
+            dptr = HPyBytes_AS_STRING(ctx, obj);
         }
     }
-    ret = PyArray_Scalar(dptr, typecode, base);
+    ret = HPyArray_Scalar(ctx, dptr, typecode, base, PyArrayObject_AsStruct(ctx, base));
 
     /* free dptr which contains zeros */
     if (alloc) {
         PyArray_free(dptr);
     }
-    Py_XDECREF(tmpobj);
+    HPy_Close(ctx, tmpobj);
+    HPyTracker_Close(ctx, ht);
     return ret;
 }
 
@@ -4701,9 +4720,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"empty_like",
         (PyCFunction)array_empty_like,
         METH_VARARGS|METH_KEYWORDS, NULL},
-    {"scalar",
-        (PyCFunction)array_scalar,
-        METH_VARARGS|METH_KEYWORDS, NULL},
     {"where",
         (PyCFunction)array_where,
         METH_VARARGS, NULL},
@@ -5280,6 +5296,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &_reconstruct,
     &_monotonicity,
     &_set_madvise_hugepage,
+    &array_scalar,
     NULL
 };
 
