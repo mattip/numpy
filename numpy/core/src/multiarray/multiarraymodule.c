@@ -4440,6 +4440,14 @@ _vec_string(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *NPY_UNUSED(kw
     return 0;
 }
 
+HPyDef_METH(_hpy_vec_string, "_vec_string", _hpy_vec_string_impl, HPyFunc_VARARGS)
+static HPy
+_hpy_vec_string_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+{
+    HPyErr_SetString(ctx, ctx->h_SystemError, "not ported to HPy yet");
+    return HPy_NULL;
+}
+
 #ifndef __NPY_PRIVATE_NO_SIGNAL
 
 static NPY_TLS int sigint_buf_init = 0;
@@ -5297,6 +5305,9 @@ static HPyDef *array_module_hpy_methods[] = {
     &_monotonicity,
     &_set_madvise_hugepage,
     &array_scalar,
+
+    // HPy Port TODO: implement them.
+    &_hpy_vec_string,
     NULL
 };
 
