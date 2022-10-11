@@ -249,6 +249,7 @@ arr__monotonicity(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t 
     HPy type_descr = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
     arr_x = HPyArray_FROMANY(ctx,
         obj_x, type_descr, 1, 1, NPY_ARRAY_CARRAY_RO);
+    HPyTracker_Close(ctx, ht);
     HPy_Close(ctx, type_descr);
     if (!HPy_IsNull(arr_x)) {
         return HPy_NULL;
@@ -296,6 +297,7 @@ arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, 
     if (!HPy_Is(ctx, array0_type, array_type)) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "..");
         // TODO
+        HPyTracker_Close(ctx, ht);
         return HPy_NULL;
     }
 
@@ -359,6 +361,7 @@ arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, 
             HPy_Close(ctx, mask);
             HPyArray_ResolveWritebackIfCopy(ctx, array);
             HPy_Close(ctx, array);
+            HPyTracker_Close(ctx, ht);
             return HPy_Dup(ctx, ctx->h_None);
         }
     }
@@ -384,6 +387,7 @@ arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, 
     HPy_Close(ctx, mask);
     HPyArray_ResolveWritebackIfCopy(ctx, array);
     HPy_Close(ctx, array);
+    HPyTracker_Close(ctx, ht);
     return HPy_Dup(ctx, ctx->h_None);
 
  fail:
@@ -391,6 +395,7 @@ arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, 
     HPyArray_ResolveWritebackIfCopy(ctx, array);
     HPy_Close(ctx, array);
     HPy_Close(ctx, values);
+    HPyTracker_Close(ctx, ht);
     return HPy_NULL;
 }
 
