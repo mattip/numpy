@@ -650,6 +650,7 @@ array_implement_array_function(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args
     // }
     if (nargs != 5) {
         HPyErr_SetString(ctx, ctx->h_TypeError, "implement_array_function.. TODO");
+        return HPy_NULL;
     }
     HPy implementation = args[0];
     HPy public_api = args[1];

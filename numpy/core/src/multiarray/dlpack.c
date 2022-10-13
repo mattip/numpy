@@ -90,11 +90,13 @@ hpy_array_get_dl_device(HPyContext *ctx, HPy /* PyArrayObject * */ self) {
     if (HPyCapsule_IsValid(ctx, base, NPY_DLPACK_INTERNAL_CAPSULE_NAME)) {
         DLManagedTensor *managed = HPyCapsule_GetPointer(ctx,
                 base, NPY_DLPACK_INTERNAL_CAPSULE_NAME);
+        HPy_Close(ctx, base);
         if (managed == NULL) {
             return ret;
         }
         return managed->dl_tensor.device;
     }
+    HPy_Close(ctx, base);
     return ret;
 }
 
