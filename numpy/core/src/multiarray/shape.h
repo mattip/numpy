@@ -14,6 +14,11 @@ NPY_NO_EXPORT void
 PyArray_CreateMultiSortedStridePerm(int narrays, PyArrayObject **arrays,
                         int ndim, int *out_strideperm);
 
+NPY_NO_EXPORT void
+HPyArray_CreateMultiSortedStridePerm(HPyContext *ctx, int narrays, 
+                        HPy /* PyArrayObject ** */ *arrays,
+                        int ndim, int *out_strideperm);
+
 /*
  * Just like PyArray_Squeeze, but allows the caller to select
  * a subset of the size-one dimensions to squeeze out.

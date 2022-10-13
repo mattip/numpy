@@ -408,6 +408,27 @@ PyArray_GetSubType(int narrays, PyArrayObject **arrays) {
     return subtype;
 }
 
+NPY_NO_EXPORT HPy
+HPyArray_GetSubType(HPyContext *ctx, int narrays, HPy /* PyArrayObject ** */ *arrays) {
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    HPy subtype = array_type; // PyTypeObject *
+    double priority = NPY_PRIORITY;
+    int i;
+
+    /* Get the priority subtype for the array */
+    for (i = 0; i < narrays; ++i) {
+        if (!HPy_TypeCheck(ctx, arrays[i], subtype)) {
+            double pr = HPyArray_GetPriority(ctx, (arrays[i]), 0.0);
+            if (pr > priority) {
+                priority = pr;
+                HPy_Close(ctx, subtype);
+                subtype = HPy_Dup(ctx, arrays[i]);
+            }
+        }
+    }
+
+    return subtype;
+}
 
 /*
  * Concatenates a list of ndarrays.

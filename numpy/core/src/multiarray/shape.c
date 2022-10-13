@@ -1235,6 +1235,86 @@ PyArray_CreateMultiSortedStridePerm(int narrays, PyArrayObject **arrays,
     }
 }
 
+NPY_NO_EXPORT void
+HPyArray_CreateMultiSortedStridePerm(HPyContext *ctx, int narrays, 
+                        HPy /* PyArrayObject ** */ *arrays,
+                        int ndim, int *out_strideperm)
+{
+    int i0, i1, ipos, ax_j0, ax_j1, iarrays;
+
+    /* Initialize the strideperm values to the identity. */
+    for (i0 = 0; i0 < ndim; ++i0) {
+        out_strideperm[i0] = i0;
+    }
+
+    /*
+     * This is the same as the custom stable insertion sort in
+     * the NpyIter object, but sorting in the reverse order as
+     * in the iterator. The iterator sorts from smallest stride
+     * to biggest stride (Fortran order), whereas here we sort
+     * from biggest stride to smallest stride (C order).
+     */
+    for (i0 = 1; i0 < ndim; ++i0) {
+
+        ipos = i0;
+        ax_j0 = out_strideperm[i0];
+
+        for (i1 = i0 - 1; i1 >= 0; --i1) {
+            int ambig = 1, shouldswap = 0;
+
+            ax_j1 = out_strideperm[i1];
+
+            for (iarrays = 0; iarrays < narrays; ++iarrays) {
+                PyArrayObject *iarrays_struct = PyArrayObject_AsStruct(ctx, arrays[iarrays]);
+                if (PyArray_SHAPE(iarrays_struct)[ax_j0] != 1 &&
+                            PyArray_SHAPE(iarrays_struct)[ax_j1] != 1) {
+                    if (s_intp_abs(PyArray_STRIDES(iarrays_struct)[ax_j0]) <=
+                            s_intp_abs(PyArray_STRIDES(iarrays_struct)[ax_j1])) {
+                        /*
+                         * Set swap even if it's not ambiguous already,
+                         * because in the case of conflicts between
+                         * different operands, C-order wins.
+                         */
+                        shouldswap = 0;
+                    }
+                    else {
+                        /* Only set swap if it's still ambiguous */
+                        if (ambig) {
+                            shouldswap = 1;
+                        }
+                    }
+
+                    /*
+                     * A comparison has been done, so it's
+                     * no longer ambiguous
+                     */
+                    ambig = 0;
+                }
+            }
+            /*
+             * If the comparison was unambiguous, either shift
+             * 'ipos' to 'i1' or stop looking for an insertion point
+             */
+            if (!ambig) {
+                if (shouldswap) {
+                    ipos = i1;
+                }
+                else {
+                    break;
+                }
+            }
+        }
+
+        /* Insert out_strideperm[i0] into the right place */
+        if (ipos != i0) {
+            for (i1 = i0; i1 > ipos; --i1) {
+                out_strideperm[i1] = out_strideperm[i1-1];
+            }
+            out_strideperm[ipos] = ax_j0;
+        }
+    }
+}
+
 /*NUMPY_API
  * Ravel
  * Returns a contiguous array
