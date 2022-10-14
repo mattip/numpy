@@ -4216,6 +4216,52 @@ PyArray_Empty(int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
     return (PyObject *)ret;
 }
 
+/*HPY_NUMPY_API
+ * Empty
+ *
+ * accepts HPy_NULL type
+ * HPy: doesn't steals a reference to type
+ */
+NPY_NO_EXPORT HPy
+HPyArray_Empty(HPyContext *ctx, int nd, npy_intp const *dims, 
+                    HPy /* PyArray_Descr * */ type, int is_f_order)
+{
+    HPy ret; // PyArrayObject *
+    int own_type = 0;
+    if (HPy_IsNull(type)) {
+        type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
+        own_type = 1;
+    }
+
+    /*
+     * PyArray_NewFromDescr steals a ref,
+     * but we need to look at type later.
+     * */
+    // Py_INCREF(type);
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    ret = HPyArray_NewFromDescr(ctx, array_type,
+                                                type, nd, dims,
+                                                NULL, NULL,
+                                                is_f_order, HPy_NULL);
+    if (!HPy_IsNull(ret)) {
+        PyArray_Descr *type_struct = PyArray_Descr_AsStruct(ctx, type);
+        if (PyDataType_REFCHK(type_struct)) {
+            HPyArray_FillObjectArray(ctx, ret, ctx->h_None);
+            if (HPyErr_Occurred(ctx)) {
+                HPy_Close(ctx, ret);
+                if (own_type) {
+                    HPy_Close(ctx, type);
+                }
+                return HPy_NULL;
+            }
+        }
+    }
+    if (own_type) {
+        HPy_Close(ctx, type);
+    }
+    return ret;
+}
+
 /*
  * Like ceil(value), but check for overflow.
  *
@@ -4662,6 +4708,62 @@ array_fromfile_binary(FILE *fp, PyArray_Descr *dtype, npy_intp num, size_t *nrea
     return r;
 }
 
+static HPy // PyArrayObject *
+hpy_array_fromfile_binary(HPyContext *ctx, FILE *fp, 
+                HPy /* PyArray_Descr * */ dtype, PyArray_Descr *dtype_struct,
+                npy_intp num, size_t *nread)
+{
+    HPy r; // PyArrayObject *
+    npy_off_t start, numbytes;
+    int elsize;
+
+    if (num < 0) {
+        int fail = 0;
+        start = npy_ftell(fp);
+        if (start < 0) {
+            fail = 1;
+        }
+        if (npy_fseek(fp, 0, SEEK_END) < 0) {
+            fail = 1;
+        }
+        numbytes = npy_ftell(fp);
+        if (numbytes < 0) {
+            fail = 1;
+        }
+        numbytes -= start;
+        if (npy_fseek(fp, start, SEEK_SET) < 0) {
+            fail = 1;
+        }
+        if (fail) {
+            HPyErr_SetString(ctx, ctx->h_OSError,
+                            "could not seek in file");
+            return HPy_NULL;
+        }
+        num = numbytes / dtype_struct->elsize;
+    }
+
+    /*
+     * Array creation may move sub-array dimensions from the dtype to array
+     * dimensions, so we need to use the original element size when reading.
+     */
+    elsize = dtype_struct->elsize;
+
+    // Py_INCREF(dtype);  /* HPy do not steal the original dtype. */
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    r = HPyArray_NewFromDescr(ctx, array_type, dtype, 1, &num,
+                                              NULL, NULL, 0, HPy_NULL);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(r)) {
+        return HPy_NULL;
+    }
+    
+    PyArrayObject *r_struct = PyArrayObject_AsStruct(ctx, r);
+    HPY_NPY_BEGIN_ALLOW_THREADS(ctx);
+    *nread = fread(PyArray_DATA(r_struct), elsize, num, fp);
+    HPY_NPY_END_ALLOW_THREADS(ctx);
+    return r;
+}
+
 /*
  * Create an array by reading from the given stream, using the passed
  * next_element and skip_separator functions.
@@ -4780,6 +4882,20 @@ fail:
     }
     return r;
 }
+
+static HPy
+hpy_array_from_text(HPyContext *ctx, HPy /* PyArray_Descr * */ dtype, npy_intp num, char const *sep, size_t *nread,
+                void *stream, next_element next, skip_separator skip_sep,
+                void *stream_data)
+{
+    CAPI_WARN("calling array_from_text");
+    PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
+    PyArrayObject *ret = array_from_text(py_dtype, num, sep, nread, stream, next, skip_sep, stream_data);
+    HPy h_ret = HPy_FromPyObject(ctx, (PyObject *)ret);
+    Py_DECREF(py_dtype);
+    Py_DECREF(ret);
+    return h_ret;
+}
 #undef FROM_BUFFER_SIZE
 
 /*NUMPY_API
@@ -4863,6 +4979,100 @@ PyArray_FromFile(FILE *fp, PyArray_Descr *dtype, npy_intp num, char *sep)
     }
     Py_DECREF(dtype);
     return (PyObject *)ret;
+}
+
+/*HPY_NUMPY_API
+ *
+ * Given a ``FILE *`` pointer ``fp``, and a ``PyArray_Descr``, return an
+ * array corresponding to the data encoded in that file.
+ *
+ * The reference to `dtype` is stolen (it is possible that the passed in
+ * dtype is not held on to).
+ *
+ * The number of elements to read is given as ``num``; if it is < 0, then
+ * then as many as possible are read.
+ *
+ * If ``sep`` is NULL or empty, then binary data is assumed, else
+ * text data, with ``sep`` as the separator between elements. Whitespace in
+ * the separator matches any length of whitespace in the text, and a match
+ * for whitespace around the separator is added.
+ *
+ * For memory-mapped files, use the buffer interface. No more data than
+ * necessary is read by this routine.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_FromFile(HPyContext *ctx, FILE *fp, HPy /* PyArray_Descr * */ dtype, npy_intp num, char *sep)
+{
+    HPy ret; // PyArrayObject *
+    size_t nread = 0;
+
+    if (HPy_IsNull(dtype)) {
+        return HPy_NULL;
+    }
+
+    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    if (PyDataType_REFCHK(dtype_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Cannot read into object array");
+        // Py_DECREF(dtype);
+        return HPy_NULL;
+    }
+    if (dtype_struct->elsize == 0) {
+        HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        /* Nothing to read, just create an empty array of the requested type */
+        HPy ret = HPyArray_NewFromDescr_int(ctx,
+                array_type, dtype,
+                1, &num, NULL, NULL,
+                0, HPy_NULL, HPy_NULL,
+                0, 1);
+        HPy_Close(ctx, array_type);
+        return ret;
+    }
+    if ((sep == NULL) || (strlen(sep) == 0)) {
+        ret = hpy_array_fromfile_binary(ctx, fp, dtype, dtype_struct, num, &nread);
+    }
+    else {
+        if (dtype_struct->f->scanfunc == NULL) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "Unable to read character files of that array type");
+            // Py_DECREF(dtype);
+            return HPy_NULL;
+        }
+        ret = hpy_array_from_text(ctx, dtype, num, sep, &nread, fp,
+                (next_element) fromfile_next_element,
+                (skip_separator) fromfile_skip_separator, NULL);
+    }
+    if (HPy_IsNull(ret)) {
+        // Py_DECREF(dtype);
+        return HPy_NULL;
+    }
+    if (((npy_intp) nread) < num) {
+        /*
+         * Realloc memory for smaller number of elements, use original dtype
+         * which may have include a subarray (and is used for `nread`).
+         */
+        const size_t nsize = PyArray_MAX(nread,1) * dtype_struct->elsize;
+        char *tmp;
+
+        /* The handler is always valid */
+        PyArrayObject *ret_struct = PyArrayObject_AsStruct(ctx, ret);
+        HPy h_handler = HPyArray_GetHandler(ctx, ret);
+        PyObject *handler = HPy_AsPyObject(ctx, h_handler);
+        HPy_Close(ctx, h_handler);
+        CAPI_WARN("calling PyDataMem_UserRENEW");
+        if ((tmp = PyDataMem_UserRENEW(PyArray_DATA(ret_struct), nsize,
+                                     handler)) == NULL) {
+            // Py_DECREF(dtype);
+            Py_XDECREF(handler);
+            HPy_Close(ctx, ret);
+            return HPyErr_NoMemory(ctx);
+        }
+        Py_XDECREF(handler);
+        ((PyArrayObject_fields *)ret_struct)->data = tmp;
+        PyArray_DIMS(ret_struct)[0] = nread;
+    }
+    // Py_DECREF(dtype);
+    return ret;
 }
 
 /*NUMPY_API*/
@@ -4964,6 +5174,112 @@ PyArray_FromBuffer(PyObject *buf, PyArray_Descr *type,
         PyArray_CLEARFLAGS(ret, NPY_ARRAY_WRITEABLE);
     }
     return (PyObject *)ret;
+}
+
+/*HPY_NUMPY_API*/
+NPY_NO_EXPORT HPy
+HPyArray_FromBuffer(HPyContext *ctx, HPy buf, HPy /* PyArray_Descr * */ type,
+                   npy_intp count, npy_intp offset)
+{
+    HPy ret; // PyArrayObject *
+    char *data;
+    Py_buffer view;
+    Py_ssize_t ts;
+    npy_intp s, n;
+    int itemsize;
+    int writeable = 1;
+
+    if (HPy_IsNull(type)) {
+        return HPy_NULL;
+    }
+
+    PyArray_Descr *type_struct = PyArray_Descr_AsStruct(ctx, type);
+    if (PyDataType_REFCHK(type_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "cannot create an OBJECT array from memory"\
+                        " buffer");
+        // Py_DECREF(type);
+        return HPy_NULL;
+    }
+    if (PyDataType_ISUNSIZED(type_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "itemsize cannot be zero in type");
+        // Py_DECREF(type);
+        return HPy_NULL;
+    }
+
+    PyObject *py_buf = HPy_AsPyObject(ctx, buf);
+    CAPI_WARN("missing PyObject_GetBuffer & PyBuffer_Release");
+    if (PyObject_GetBuffer(py_buf, &view, PyBUF_WRITABLE|PyBUF_SIMPLE) < 0) {
+        writeable = 0;
+        HPyErr_Clear(ctx);
+        if (PyObject_GetBuffer(py_buf, &view, PyBUF_SIMPLE) < 0) {
+            // Py_DECREF(type);
+            return HPy_NULL;
+        }
+    }
+    data = (char *)view.buf;
+    ts = view.len;
+    /*
+     * In Python 3 both of the deprecated functions PyObject_AsWriteBuffer and
+     * PyObject_AsReadBuffer that this code replaces release the buffer. It is
+     * up to the object that supplies the buffer to guarantee that the buffer
+     * sticks around after the release.
+     */
+    PyBuffer_Release(&view);
+
+    if ((offset < 0) || (offset > ts)) {
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
+                     "offset must be non-negative and no greater than buffer "\
+                     "length (%" NPY_INTP_FMT ")", (npy_intp)ts);
+        // Py_DECREF(type);
+        return HPy_NULL;
+    }
+
+    data += offset;
+    s = (npy_intp)ts - offset;
+    n = (npy_intp)count;
+    itemsize = type_struct->elsize;
+    if (n < 0) {
+        if (itemsize == 0) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "cannot determine count if itemsize is 0");
+            // Py_DECREF(type);
+            return HPy_NULL;
+        }
+        if (s % itemsize != 0) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "buffer size must be a multiple"\
+                            " of element size");
+            // Py_DECREF(type);
+            return HPy_NULL;
+        }
+        n = s/itemsize;
+    }
+    else {
+        if (s < n*itemsize) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "buffer is smaller than requested"\
+                            " size");
+            // Py_DECREF(type);
+            return HPy_NULL;
+        }
+    }
+
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    ret = HPyArray_NewFromDescrAndBase(ctx,
+            array_type, type,
+            1, &n, NULL, data,
+            NPY_ARRAY_DEFAULT, HPy_NULL, buf);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(ret)) {
+        return HPy_NULL;
+    }
+
+    if (!writeable) {
+        PyArray_CLEARFLAGS(PyArrayObject_AsStruct(ctx, ret), NPY_ARRAY_WRITEABLE);
+    }
+    return ret;
 }
 
 /*NUMPY_API
@@ -5078,6 +5394,126 @@ PyArray_FromString(char *data, npy_intp slen, PyArray_Descr *dtype,
         Py_DECREF(dtype);
     }
     return (PyObject *)ret;
+}
+
+
+/*HPY_NUMPY_API
+ *
+ * Given a pointer to a string ``data``, a string length ``slen``, and
+ * a ``PyArray_Descr``, return an array corresponding to the data
+ * encoded in that string.
+ *
+ * If the dtype is NULL, the default array type is used (double).
+ * If non-null, the reference is stolen.
+ *
+ * If ``slen`` is < 0, then the end of string is used for text data.
+ * It is an error for ``slen`` to be < 0 for binary data (since embedded NULLs
+ * would be the norm).
+ *
+ * The number of elements to read is given as ``num``; if it is < 0, then
+ * then as many as possible are read.
+ *
+ * If ``sep`` is NULL or empty, then binary data is assumed, else
+ * text data, with ``sep`` as the separator between elements. Whitespace in
+ * the separator matches any length of whitespace in the text, and a match
+ * for whitespace around the separator is added.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_FromString(HPyContext *ctx, char *data, npy_intp slen, 
+                   HPy /* PyArray_Descr * */ dtype, npy_intp num, char *sep)
+{
+    int itemsize;
+    HPy ret; // PyArrayObject *
+    npy_bool binary;
+    if (HPy_IsNull(dtype)) {
+        dtype = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
+        if (HPy_IsNull(dtype)) {
+            return HPy_NULL;
+        }
+    } else {
+        // HPy simplify the process of closing dtype
+        dtype = HPy_Dup(ctx, dtype);
+    }
+    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    if (PyDataType_FLAGCHK(dtype_struct, NPY_ITEM_IS_POINTER) ||
+                    PyDataType_REFCHK(dtype_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "Cannot create an object array from"    \
+                        " a string");
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
+    }
+    itemsize = dtype_struct->elsize;
+    if (itemsize == 0) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "zero-valued itemsize");
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
+    }
+
+    binary = ((sep == NULL) || (strlen(sep) == 0));
+    if (binary) {
+        if (num < 0 ) {
+            if (slen % itemsize != 0) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                                "string size must be a "\
+                                "multiple of element size");
+                HPy_Close(ctx, dtype);
+                return HPy_NULL;
+            }
+            num = slen/itemsize;
+        }
+        else {
+            if (slen < num*itemsize) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                                "string is smaller than " \
+                                "requested size");
+                HPy_Close(ctx, dtype);
+                return HPy_NULL;
+            }
+        }
+        /*
+         * NewFromDescr may replace dtype to absorb subarray shape
+         * into the array, so get size beforehand.
+         */
+        npy_intp size_to_copy = num*dtype_struct->elsize;
+        PyArrayObject *ret_struct = PyArrayObject_AsStruct(ctx, ret);
+        HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        ret = HPyArray_NewFromDescr(ctx, array_type, dtype,
+                                 1, &num, NULL, NULL,
+                                 0, HPy_NULL);
+        HPy_Close(ctx, array_type);
+        if (HPy_IsNull(ret)) {
+            return HPy_NULL;
+        }
+        memcpy(PyArray_DATA(ret_struct), data, size_to_copy);
+    }
+    else {
+        /* read from character-based string */
+        size_t nread = 0;
+        char *end;
+
+        if (dtype_struct->f->fromstr == NULL) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "don't know how to read "       \
+                            "character strings with that "  \
+                            "array type");
+            HPy_Close(ctx, dtype);
+            return HPy_NULL;
+        }
+        if (slen < 0) {
+            end = NULL;
+        }
+        else {
+            end = data + slen;
+        }
+        ret = hpy_array_from_text(ctx, dtype, num, sep, &nread,
+                              data,
+                              (next_element) fromstr_next_element,
+                              (skip_separator) fromstr_skip_separator,
+                              end);
+        HPy_Close(ctx, dtype);
+    }
+    return ret;
 }
 
 /*NUMPY_API
@@ -5207,6 +5643,149 @@ PyArray_FromIter(PyObject *obj, PyArray_Descr *dtype, npy_intp count)
         return NULL;
     }
     return (PyObject *)ret;
+}
+
+/*HPY_NUMPY_API
+ *
+ * Does not steal a reference to dtype (which cannot be NULL)
+ */
+NPY_NO_EXPORT HPy
+HPyArray_FromIter(HPyContext *ctx, HPy obj, HPy /* PyArray_Descr * */ dtype, npy_intp count)
+{
+    PyObject *value;
+    PyObject *iter = NULL;
+    PyObject *handler = NULL;
+    HPy ret = HPy_NULL; // PyArrayObject *
+    npy_intp i, elsize, elcount;
+    char *item, *new_data;
+
+    if (HPy_IsNull(dtype)) {
+        return HPy_NULL;
+    }
+
+    CAPI_WARN("missing PyObject_GetIter");
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    iter = PyObject_GetIter(py_obj);
+    if (iter == NULL) {
+        goto done;
+    }
+
+    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    if (PyDataType_ISUNSIZED(dtype_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Must specify length when using variable-size data-type.");
+        goto done;
+    }
+    if (count < 0) {
+        elcount = PyObject_LengthHint(py_obj, 0);
+        if (elcount < 0) {
+            goto done;
+        }
+    }
+    else {
+        elcount = count;
+    }
+
+    elsize = dtype_struct->elsize;
+
+    /*
+     * We would need to alter the memory RENEW code to decrement any
+     * reference counts before throwing away any memory.
+     */
+    if (PyDataType_REFCHK(dtype_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "cannot create object arrays from iterator");
+        goto done;
+    }
+
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    ret = HPyArray_NewFromDescr(ctx, array_type, dtype, 1,
+                                                &elcount, NULL,NULL, 0, HPy_NULL);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(ret)) {
+        goto done;
+    }
+    PyArrayObject *ret_struct = PyArrayObject_AsStruct(ctx, ret);
+    HPy h_handler = HPyArray_GetHandler(ctx, ret);
+    handler = HPy_AsPyObject(ctx, h_handler);
+    HPy_Close(ctx, h_handler);
+    CAPI_WARN("may call PyDataMem_UserRENEW & PyIter_Next");
+    for (i = 0; (i < count || count == -1) &&
+             (value = PyIter_Next(iter)); i++) {
+        if (i >= elcount && elsize != 0) {
+            npy_intp nbytes;
+            /*
+              Grow PyArray_DATA(ret):
+              this is similar for the strategy for PyListObject, but we use
+              50% overallocation => 0, 4, 8, 14, 23, 36, 56, 86 ...
+            */
+            elcount = (i >> 1) + (i < 4 ? 4 : 2) + i;
+            if (!npy_mul_with_overflow_intp(&nbytes, elcount, elsize)) {
+                /* The handler is always valid */
+                new_data = PyDataMem_UserRENEW(PyArray_DATA(ret_struct), nbytes,
+                                  handler);
+            }
+            else {
+                new_data = NULL;
+            }
+            if (new_data == NULL) {
+                HPyErr_SetString(ctx, ctx->h_MemoryError,
+                        "cannot allocate array memory");
+                Py_DECREF(value);
+                goto done;
+            }
+            ((PyArrayObject_fields *)ret_struct)->data = new_data;
+        }
+        PyArray_DIMS(ret_struct)[0] = i + 1;
+        HPy h_value = HPy_FromPyObject(ctx, value);
+        if (((item = index2ptr(ret_struct, i)) == NULL) ||
+                HPyArray_SETITEM(ctx, ret, item, h_value) == -1) {
+            HPy_Close(ctx, h_value);
+            Py_DECREF(value);
+            goto done;
+        }
+        HPy_Close(ctx, h_value);
+        Py_DECREF(value);
+    }
+
+
+    if (HPyErr_Occurred(ctx)) {
+        goto done;
+    }
+    if (i < count) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "iterator too short");
+        goto done;
+    }
+
+    /*
+     * Realloc the data so that don't keep extra memory tied up
+     * (assuming realloc is reasonably good about reusing space...)
+     */
+    if (i == 0 || elsize == 0) {
+        /* The size cannot be zero for realloc. */
+        goto done;
+    }
+    /* The handler is always valid */
+    new_data = PyDataMem_UserRENEW(PyArray_DATA(ret_struct), i * elsize,
+                                   handler);
+    if (new_data == NULL) {
+        HPyErr_SetString(ctx, ctx->h_MemoryError,
+                "cannot allocate array memory");
+        goto done;
+    }
+    ((PyArrayObject_fields *)ret_struct)->data = new_data;
+
+ done:
+    Py_XDECREF(iter);
+    // Py_XDECREF(dtype);
+    Py_DECREF(py_obj);
+    Py_XDECREF(handler);
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, ret);
+        return HPy_NULL;
+    }
+    return ret;
 }
 
 /*

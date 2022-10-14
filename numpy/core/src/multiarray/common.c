@@ -133,6 +133,22 @@ PyArray_DTypeFromObject(PyObject *obj, int maxdims, PyArray_Descr **out_dtype)
     return 0;
 }
 
+NPY_NO_EXPORT int
+HPyArray_DTypeFromObject(HPyContext *ctx, HPy obj, int maxdims, 
+                            HPy /* PyArray_Descr ** */ *out_dtype) {
+    coercion_cache_obj *cache = NULL;
+    npy_intp shape[NPY_MAXDIMS];
+    int ndim;
+
+    ndim = HPyArray_DiscoverDTypeAndShape(ctx,
+            obj, maxdims, shape, &cache, HPy_NULL, HPy_NULL, out_dtype, 0);
+    if (ndim < 0) {
+        return -1;
+    }
+    hnpy_free_coercion_cache(ctx, cache);
+    return 0;
+}
+
 NPY_NO_EXPORT char *
 index2ptr(PyArrayObject *mp, npy_intp i)
 {

@@ -42,6 +42,11 @@ PyArray_NewLikeArrayWithShape(
         PyArrayObject *prototype, NPY_ORDER order,
         PyArray_Descr *dtype, int ndim, npy_intp const *dims, int subok);
 
+NPY_NO_EXPORT HPy
+HPyArray_NewLikeArrayWithShape(HPyContext *ctx, 
+        HPy prototype, NPY_ORDER order,
+        HPy dtype, int ndim, npy_intp const *dims, int subok);
+
 NPY_NO_EXPORT PyObject *
 PyArray_New(
         PyTypeObject *, int nd, npy_intp const *,

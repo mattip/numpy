@@ -55,6 +55,9 @@ NPY_NO_EXPORT int
 PyArray_DTypeFromObjectHelper(PyObject *obj, int maxdims,
                               PyArray_Descr **out_dtype, int string_status);
 
+NPY_NO_EXPORT int
+HPyArray_DTypeFromObject(HPyContext *ctx, HPy obj, int maxdims, 
+                            HPy /* PyArray_Descr ** */ *out_dtype);
 /*
  * Returns NULL without setting an exception if no scalar is matched, a
  * new dtype reference otherwise.
