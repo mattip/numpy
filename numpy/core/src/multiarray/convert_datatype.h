@@ -81,6 +81,10 @@ NPY_NO_EXPORT PyArray_Descr *
 PyArray_FindConcatenationDescriptor(
         npy_intp n, PyArrayObject **arrays, PyObject *requested_dtype);
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+HPyArray_FindConcatenationDescriptor(HPyContext *ctx,
+        npy_intp n, HPy /* PyArrayObject ** */ *arrays, HPy requested_dtype);
+
 NPY_NO_EXPORT int
 PyArray_AddCastingImplementation(PyBoundArrayMethodObject *meth);
 

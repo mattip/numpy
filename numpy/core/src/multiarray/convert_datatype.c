@@ -1541,6 +1541,71 @@ PyArray_FindConcatenationDescriptor(
     return result;
 }
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+HPyArray_FindConcatenationDescriptor(HPyContext *ctx,
+        npy_intp n, HPy /* PyArrayObject ** */ *arrays, HPy requested_dtype)
+{
+    if (HPy_IsNull(requested_dtype)) {
+        return HPyArray_LegacyResultType(ctx, n, arrays, 0, NULL);
+    }
+
+    HPy common_dtype;
+    HPy result = HPy_NULL; // PyArray_Descr *
+    if (HPyArray_ExtractDTypeAndDescriptor(ctx,
+            requested_dtype, &result, &common_dtype) < 0) {
+        return HPy_NULL;
+    }
+    if (!HPy_IsNull(result)) {
+        PyArray_Descr *result_struct = PyArray_Descr_AsStruct(ctx, result);
+        if (result_struct->subarray != NULL) {
+            // PyErr_Format(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "The dtype `%R` is not a valid dtype for concatenation "
+                    "since it is a subarray dtype (the subarray dimensions "
+                    "would be added as array dimensions).");//, result);
+            HPy_Close(ctx, result);
+            result = HPy_NULL;
+        }
+        goto finish;
+    }
+    assert(n > 0);  /* concatenate requires at least one array input. */
+
+    /*
+     * NOTE: This code duplicates `PyArray_CastToDTypeAndPromoteDescriptors`
+     *       to use arrays, copying the descriptors seems not better.
+     */
+    HPy descr = HPyArray_DESCR(ctx, arrays[0], PyArrayObject_AsStruct(ctx, arrays[0]));
+    result = HPyArray_CastDescrToDType(ctx, descr, common_dtype);
+    if (HPy_IsNull(result) || n == 1) {
+        goto finish;
+    }
+    for (npy_intp i = 1; i < n; i++) {
+        descr = HPyArray_DESCR(ctx, arrays[i], PyArrayObject_AsStruct(ctx, arrays[i]));
+        HPy curr = HPyArray_CastDescrToDType(ctx, descr, common_dtype); // PyArray_Descr *
+        if (HPy_IsNull(curr)) {
+            HPy_Close(ctx, result);
+            result = HPy_NULL;
+            goto finish;
+        }
+        CAPI_WARN("calling NPY_DT_SLOTS(common_dtype)->common_instance");
+        PyArray_Descr *py_result = (PyArray_Descr *)HPy_AsPyObject(ctx, result);
+        PyArray_Descr *py_curr = (PyArray_Descr *)HPy_AsPyObject(ctx, curr);
+        PyArray_Descr *py_ci = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(result, curr);
+        HPy_Close(ctx, result);
+        result = HPy_FromPyObject(ctx, py_ci);
+        Py_XDECREF(py_ci);
+        Py_XDECREF(py_curr);
+        Py_XDECREF(py_result);
+        HPy_Close(ctx, curr);
+        if (HPy_IsNull(result)) {
+            goto finish;
+        }
+    }
+
+  finish:
+    HPy_Close(ctx, common_dtype);
+    return result;
+}
 
 /*NUMPY_API
  * Produces the smallest size and lowest kind type to which both
@@ -2736,6 +2801,59 @@ PyArray_ObjectType(PyObject *op, int minimum_type)
     }
 
     Py_XDECREF(dtype);
+
+    return ret;
+}
+
+/*HPY_NUMPY_API
+ * Return the typecode of the array a Python object would be converted to
+ *
+ * Returns the type number the result should have, or NPY_NOTYPE on error.
+ */
+NPY_NO_EXPORT int
+HPyArray_ObjectType(HPyContext *ctx, HPy op, int minimum_type)
+{
+    HPy dtype = HPy_NULL; // PyArray_Descr *
+    int ret;
+
+    if (minimum_type != NPY_NOTYPE && minimum_type >= 0) {
+        dtype = HPyArray_DescrFromType(ctx, minimum_type);
+        if (HPy_IsNull(dtype)) {
+            return NPY_NOTYPE;
+        }
+    }
+    if (HPyArray_DTypeFromObject(ctx, op, NPY_MAXDIMS, &dtype) < 0) {
+        return NPY_NOTYPE;
+    }
+
+    if (HPy_IsNull(dtype)) {
+        ret = NPY_DEFAULT_TYPE;
+    }
+    else {
+        HPy dtype_type = HPy_Type(ctx, dtype);
+        PyArray_DTypeMeta *dtype_type_struct = PyArray_DTypeMeta_AsStruct(ctx, dtype_type);
+        int is_legacy = NPY_DT_is_legacy(dtype_type_struct);
+        HPy_Close(ctx, dtype_type);
+        if (!is_legacy) {
+            /*
+            * TODO: If we keep all type number style API working, by defining
+            *       type numbers always. We may be able to allow this again.
+            */
+            // PyErr_Format(PyExc_TypeError,
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "This function currently only supports native NumPy dtypes "
+                    "and old-style user dtypes, but the dtype was %S.\n"
+                    "(The function may need to be updated to support arbitrary"
+                    "user dtypes.)");//,
+                    // dtype);
+            ret = NPY_NOTYPE;
+        }
+        else {
+            ret = PyArray_Descr_AsStruct(ctx, dtype)->type_num;
+        }
+    }
+
+    HPy_Close(ctx, dtype);
 
     return ret;
 }
