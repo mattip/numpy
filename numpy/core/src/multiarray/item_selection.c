@@ -702,6 +702,130 @@ PyArray_PutMask(PyArrayObject *self, PyObject* values0, PyObject* mask0)
     return NULL;
 }
 
+/*HPY_NUMPY_API
+ * Put values into an array according to a mask.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_PutMask(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy values0, HPy mask0)
+{
+    HPy mask, values; // PyArrayObject *
+    HPy dtype; // PyArray_Descr *
+    npy_intp chunk, ni, nv;
+    char *src, *dest;
+    npy_bool *mask_data;
+    int copied = 0;
+    int overlap = 0;
+
+    mask = HPy_NULL;
+    values = HPy_NULL;
+    if (!HPyArray_Check(ctx, self)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                        "putmask: first argument must "
+                        "be an array");
+        return HPy_NULL;
+    }
+
+    if (HPyArray_FailUnlessWriteable(ctx, self, "putmask: output array") < 0) {
+        return HPy_NULL;
+    }
+    HPy type_descr = HPyArray_DescrFromType(ctx, NPY_BOOL);
+    mask = HPyArray_FROM_OTF(ctx, mask0, type_descr,
+                                NPY_ARRAY_CARRAY | NPY_ARRAY_FORCECAST);
+    HPy_Close(ctx, type_descr);
+    if (HPy_IsNull(mask)) {
+        goto fail;
+    }
+    PyArrayObject *mask_struct = PyArrayObject_AsStruct(ctx, mask);
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
+    ni = HPyArray_SIZE(mask_struct);
+    if (ni != HPyArray_SIZE(self_struct)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "putmask: mask and data must be "
+                        "the same size");
+        goto fail;
+    }
+    mask_data = PyArray_DATA(mask_struct);
+    HPy self_descr = HPyArray_DESCR(ctx, self, self_struct);
+    dtype = self_descr;
+    // Py_INCREF(dtype); // not needed
+    values = HPyArray_FromAny(ctx, values0, dtype,
+                                    0, 0, NPY_ARRAY_CARRAY, HPy_NULL);
+    if (HPy_IsNull(values)) {
+        goto fail;
+    }
+    PyArrayObject *values_struct = PyArrayObject_AsStruct(ctx, values);
+    nv = HPyArray_SIZE(values_struct); /* zero if null array */
+    if (nv <= 0) {
+        HPy_Close(ctx, values);
+        HPy_Close(ctx, mask);
+        return HPy_Dup(ctx, ctx->h_None);
+    }
+    src = PyArray_DATA(values_struct);
+
+    overlap = hpy_arrays_overlap(ctx, self, values) || hpy_arrays_overlap(ctx, self, mask);
+    PyArray_Descr *self_descr_struct = PyArray_Descr_AsStruct(ctx, self_descr);
+    if (overlap || !PyArray_ISCONTIGUOUS(self_struct)) {
+        int flags = NPY_ARRAY_CARRAY | NPY_ARRAY_WRITEBACKIFCOPY;
+        HPy obj; // PyArrayObject *
+
+        if (overlap) {
+            flags |= NPY_ARRAY_ENSURECOPY;
+        }
+
+        dtype = self_descr;
+        PyArray_Descr *dtype_struct = self_descr_struct;
+
+        // Py_INCREF(dtype); // not needed
+        obj = HPyArray_FromArray(ctx, self, self_struct, dtype, dtype_struct, flags);
+        if (!HPy_Is(ctx, obj, self)) {
+            copied = 1;
+        }
+        self = obj;
+    }
+
+    chunk = self_descr_struct->elsize;
+    dest = PyArray_DATA(self_struct);
+
+    if (PyDataType_REFCHK(self_descr_struct)) {
+        for (npy_intp i = 0, j = 0; i < ni; i++, j++) {
+            if (j >= nv) {
+                j = 0;
+            }
+            if (mask_data[i]) {
+                char *src_ptr = src + j*chunk;
+                char *dest_ptr = dest + i*chunk;
+
+                HPyArray_Item_INCREF(ctx, src_ptr, self_descr);
+                HPyArray_Item_XDECREF(ctx, dest_ptr, self_descr);
+                memmove(dest_ptr, src_ptr, chunk);
+            }
+        }
+    }
+    else {
+        HPY_NPY_BEGIN_THREADS_DEF(ctx);
+        HPY_NPY_BEGIN_THREADS_DESCR(ctx, self_descr_struct);
+        npy_fastputmask(dest, src, mask_data, ni, nv, chunk);
+        HPY_NPY_END_THREADS(ctx);
+    }
+
+    HPy_Close(ctx, values);
+    HPy_Close(ctx, mask);
+    if (copied) {
+        HPyArray_ResolveWritebackIfCopy(ctx, self);
+        HPy_Close(ctx, self);
+    }
+    return HPy_Dup(ctx, ctx->h_None);
+
+ fail:
+    HPy_Close(ctx, mask);
+    HPy_Close(ctx, values);
+    if (copied) {
+        HPyArray_DiscardWritebackIfCopy(ctx, self);
+        HPy_Close(ctx, self);
+    }
+    return HPy_NULL;
+}
+
 /*NUMPY_API
  * Repeat the array.
  */
