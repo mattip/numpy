@@ -2575,8 +2575,8 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
     if (!HPy_IsNull(descr)) {
         descr_data = PyArray_Descr_AsStruct(ctx, descr);
     }
-    PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
     if (requires & NPY_ARRAY_NOTSWAPPED) {
+        PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(descr) && HPyArray_Check(ctx, op) &&
                 PyArray_ISBYTESWAPPED(oparr)) {
             descr = HPyArray_DescrNew(ctx, HPyArray_DESCR(ctx, op, oparr));
