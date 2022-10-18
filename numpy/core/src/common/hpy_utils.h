@@ -27,6 +27,12 @@
     #define MEM_FREE free
 #endif
 
+#ifdef GRAALVM_PYTHON
+#define HPyMem_RawCalloc calloc
+#else
+#define HPyMem_RawCalloc PyMem_RawCalloc
+#endif
+
 #define HPy_SETREF(ctx, op, op2) \
     do {                         \
         HPy _h_tmp = (op);       \
@@ -178,7 +184,7 @@ static NPY_INLINE HPy *
 HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
 {
     *n = HPy_Length(ctx, tuple);
-    HPy *h_arr = PyMem_RawCalloc(*n, sizeof(HPy));
+    HPy *h_arr = HPyMem_RawCalloc(*n, sizeof(HPy));
     if (!h_arr)
         return NULL;
     HPy_ssize_t i;
@@ -188,5 +194,73 @@ HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
     return h_arr;
 }
 
+
+// Common patterns helper functions
+
+/*
+ * returns:
+ *  1 if success
+ *  0 if not applicable
+ * -1 if error occurred
+ */
+static NPY_INLINE int
+HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy dict, HPy keys, HPy_ssize_t key_idx, int check_title_key,
+                            HPy *v1, int *v2, HPy *v3) {
+    HPy key = HPy_GetItem_i(ctx, keys, i);
+    HPy value = HPy_GetItem(ctx, dict, key);
+    if (check_title_key && HNPY_TITLE_KEY(ctx, key, value)) {
+        HPy_Close(ctx, key);
+        HPy_Close(ctx, value);
+        return 0;
+    }
+    HPy_Close(ctx, key);
+
+    // HPy_ssize_t value_len;
+    // HPy *value_arr = HPy_TupleToArray(ctx, value, &value_len);
+    // if (!HPyArg_Parse(ctx, NULL, value_arr, value_len, "Oi|O", &v1, &v2, &v3)) {
+    //     HPy_CloseAndFreeArray(ctx, value_arr, value_len);
+    //     return;
+    // }
+
+    // process the items wihtout extra calls and preprocess
+    HPy_ssize_t len = HPy_Length(ctx, value);
+    if (len < 2) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+            "required positional argument missing");
+        HPy_Close(ctx, value);
+        return -1;
+    } else if (len > 3) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+            "mismatched args (too many arguments for fmt)");
+        HPy_Close(ctx, value);
+        return -1;
+    }
+
+    HPy h_v2 = HPy_GetItem_i(ctx, value, 1);
+    long value = HPyLong_AsLong(ctx, current_arg);
+    if (value == -1 && HPyErr_Occurred(ctx)) {
+        return -1;
+        HPy_Close(ctx, value);
+    }
+    if (value > INT_MAX) {
+        HPyErr_SetString(ctx, ctx->h_OverflowError,
+            "signed integer is greater than maximum");
+        HPy_Close(ctx, value);
+        return -1;
+    }
+    if (value < INT_MIN) {
+        HPyErr_SetString(ctx, ctx->h_OverflowError,
+            "signed integer is less than minimum");
+        HPy_Close(ctx, value);
+        return -1;
+    }
+    *v2 = (int)value;
+    *v1 = HPy_GetItem_i(ctx, value, 0);
+    if (v3) {
+        *v3 = (len > 2) ? HPy_GetItem_i(ctx, value, 1) : HPy_NULL;
+    }
+    HPy_Close(ctx, value);
+    return 1;
+}
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
