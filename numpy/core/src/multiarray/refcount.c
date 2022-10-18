@@ -110,16 +110,20 @@ HPyArray_Item_INCREF(HPyContext *ctx, char *data, HPy h_descr)
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, &new, &offset, NULL);
+            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
             if (!r) {
                 continue;
             } else if (r == -1) {
                 // error
+                HPy_Close(ctx, keys);
+                HPy_Close(ctx, fields);
                 return;
             }
             HPyArray_Item_INCREF(ctx, data + offset, new);
             HPy_Close(ctx, new);
         }
+        HPy_Close(ctx, keys);
+        HPy_Close(ctx, fields);
     }
     else if (PyDataType_HASSUBARRAY(descr)) {
         int size, i, inner_elsize;
@@ -237,16 +241,20 @@ HPyArray_Item_XDECREF(HPyContext *ctx, char *data, HPy h_descr)
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, &new, &offset, NULL);
+            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
             if (!r) {
                 continue;
             } else if (r == -1) {
                 // error
+                HPy_Close(ctx, keys);
+                HPy_Close(ctx, fields);
                 return;
             }
             HPyArray_Item_XDECREF(ctx, data + offset, new);
             HPy_Close(ctx, new);
         }
+        HPy_Close(ctx, keys);
+        HPy_Close(ctx, fields);
     }
     else if (PyDataType_HASSUBARRAY(descr)) {
         int size, i, inner_elsize;
@@ -574,16 +582,20 @@ _hpy_fillobject(HPyContext *ctx, char *optr, HPy obj, HPy /* PyArray_Descr * */ 
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, &new, &offset, NULL);
+            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
             if (!r) {
                 continue;
             } else if (r == -1) {
                 // error
+                HPy_Close(ctx, keys);
+                HPy_Close(ctx, fields);
                 return;
             }
             _hpy_fillobject(ctx, optr + offset, obj, new);
             HPy_Close(ctx, new);
         }
+        HPy_Close(ctx, keys);
+        HPy_Close(ctx, fields);
     }
     else if (PyDataType_HASSUBARRAY(dtype_struct)) {
         int size, i, inner_elsize;

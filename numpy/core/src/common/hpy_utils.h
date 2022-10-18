@@ -206,7 +206,7 @@ HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
 static NPY_INLINE int
 HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy dict, HPy keys, HPy_ssize_t key_idx, int check_title_key,
                             HPy *v1, int *v2, HPy *v3) {
-    HPy key = HPy_GetItem_i(ctx, keys, i);
+    HPy key = HPy_GetItem_i(ctx, keys, key_idx);
     HPy value = HPy_GetItem(ctx, dict, key);
     if (check_title_key && HNPY_TITLE_KEY(ctx, key, value)) {
         HPy_Close(ctx, key);
@@ -237,24 +237,24 @@ HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy dict, HPy keys, HPy_ssize_t key_id
     }
 
     HPy h_v2 = HPy_GetItem_i(ctx, value, 1);
-    long value = HPyLong_AsLong(ctx, current_arg);
-    if (value == -1 && HPyErr_Occurred(ctx)) {
+    long v = HPyLong_AsLong(ctx, h_v2);
+    if (v == -1 && HPyErr_Occurred(ctx)) {
         return -1;
         HPy_Close(ctx, value);
     }
-    if (value > INT_MAX) {
+    if (v > INT_MAX) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is greater than maximum");
         HPy_Close(ctx, value);
         return -1;
     }
-    if (value < INT_MIN) {
+    if (v < INT_MIN) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is less than minimum");
         HPy_Close(ctx, value);
         return -1;
     }
-    *v2 = (int)value;
+    *v2 = (int)v;
     *v1 = HPy_GetItem_i(ctx, value, 0);
     if (v3) {
         *v3 = (len > 2) ? HPy_GetItem_i(ctx, value, 1) : HPy_NULL;
