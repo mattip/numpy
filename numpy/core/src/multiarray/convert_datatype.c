@@ -1263,7 +1263,7 @@ npy_set_invalid_cast_error(
 
 NPY_NO_EXPORT void
 hpy_npy_set_invalid_cast_error(HPyContext *ctx,
-        PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
+        HPy /* PyArray_Descr * */ src_dtype, HPy /* PyArray_Descr * */ dst_dtype,
         NPY_CASTING casting, npy_bool scalar)
 {
     char *msg;
@@ -1590,7 +1590,7 @@ HPyArray_FindConcatenationDescriptor(HPyContext *ctx,
         CAPI_WARN("calling NPY_DT_SLOTS(common_dtype)->common_instance");
         PyArray_Descr *py_result = (PyArray_Descr *)HPy_AsPyObject(ctx, result);
         PyArray_Descr *py_curr = (PyArray_Descr *)HPy_AsPyObject(ctx, curr);
-        PyArray_Descr *py_ci = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(result, curr);
+        PyArray_Descr *py_ci = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(py_result, py_curr);
         HPy_Close(ctx, result);
         result = HPy_FromPyObject(ctx, py_ci);
         Py_XDECREF(py_ci);

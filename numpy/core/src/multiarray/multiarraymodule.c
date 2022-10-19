@@ -710,7 +710,9 @@ HPyArray_ConcatenateArrays(HPyContext *ctx, int narrays,
      * successive input arrays.
      */
     HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
-    sliding_view = HPyArray_View(ctx, ret, ret_struct, HPy_NULL, array_type);
+    HPy ret_descr = HPyArray_DESCR(ctx, ret, ret_struct);
+    sliding_view = HPyArray_View(ctx, ret, ret_struct, ret_descr, HPy_NULL, array_type);
+    HPy_Close(ctx, ret_descr);
     if (HPy_IsNull(sliding_view)) {
         HPy_Close(ctx, ret);
         return HPy_NULL;
@@ -893,7 +895,8 @@ HPyArray_ConcatenateFlattenedArrays(HPyContext *ctx, int narrays,
      * array's shape.
      */
     for (iarrays = 0; iarrays < narrays; ++iarrays) {
-        shape += HPyArray_SIZE(arrays[iarrays]);
+        PyArrayObject *iarrays_struct = PyArrayObject_AsStruct(ctx, arrays[iarrays]);
+        shape += HPyArray_SIZE(iarrays_struct);
         /* Check for overflow */
         if (shape < 0) {
             HPyErr_SetString(ctx, ctx->h_ValueError,
@@ -954,18 +957,18 @@ HPyArray_ConcatenateFlattenedArrays(HPyContext *ctx, int narrays,
      * successive input arrays.
      */
     HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
-    sliding_view = HPyArray_View(ctx, ret, ret_struct, HPy_NULL, array_type);
+    sliding_view = HPyArray_View(ctx, ret, ret_struct, ret_descr, HPy_NULL, array_type);
     if (HPy_IsNull(sliding_view)) {
         HPy_Close(ctx, ret);
         return HPy_NULL;
     }
 
-    HPy ret_descr = HPyArray_DESCR(ctx, ret, ret_struct);
     int give_deprecation_warning = 1;  /* To give warning for just one input array. */
+    PyArrayObject_fields *sliding_view_struct = (PyArrayObject_fields *)PyArrayObject_AsStruct(ctx, sliding_view);
     for (iarrays = 0; iarrays < narrays; ++iarrays) {
         PyArrayObject *iarrays_struct = PyArrayObject_AsStruct(ctx, arrays[iarrays]);
         /* Adjust the window dimensions for this array */
-        sliding_view->dimensions[0] = PyArray_SIZE(iarrays_struct);
+        sliding_view_struct->dimensions[0] = PyArray_SIZE(iarrays_struct);
 
         if (!HPyArray_CanCastArrayTo(ctx,
                 arrays[iarrays], ret_descr, casting)) {
@@ -984,9 +987,11 @@ HPyArray_ConcatenateFlattenedArrays(HPyContext *ctx, int narrays,
                 give_deprecation_warning = 0;
             }
             else {
+                HPy iarrays_descr = HPyArray_DESCR(ctx, arrays[iarrays], iarrays_struct);
                 hpy_npy_set_invalid_cast_error(ctx,
-                        PyArray_DESCR(arrays[iarrays]), ret_descr,
+                        iarrays_descr, ret_descr,
                         casting, PyArray_NDIM(iarrays_struct) == 0);
+                HPy_Close(ctx, iarrays_descr);
                 HPy_Close(ctx, sliding_view);
                 HPy_Close(ctx, ret);
                 return HPy_NULL;
@@ -1002,8 +1007,8 @@ HPyArray_ConcatenateFlattenedArrays(HPyContext *ctx, int narrays,
         }
 
         /* Slide to the start of the next window */
-        sliding_view->data +=
-            sliding_view->strides[0] * HPyArray_SIZE(iarrays_struct);
+        sliding_view_struct->data +=
+            sliding_view_struct->strides[0] * HPyArray_SIZE(iarrays_struct);
     }
 
     HPy_Close(ctx, sliding_view);
@@ -2828,7 +2833,6 @@ array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
             return HPy_NULL;
         }
         PyArrayObject *obj_struct = PyArrayObject_AsStruct(ctx, obj);
-        HPy obj_descr = HPyArray_DESCR(ctx, obj, obj_struct);
         if (!HPyArray_EquivTypes(ctx, obj, typecode)) {
             HPyErr_SetString(ctx, ctx->h_RuntimeError,
                     "Pickled array is not compatible with requested scalar "

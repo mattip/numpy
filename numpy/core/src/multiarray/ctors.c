@@ -2800,7 +2800,7 @@ HPyArray_FromArray(HPyContext *ctx,
         HPy arr_descr = HPyArray_DESCR(ctx, arr, arr_data);
         PyArray_Descr *arr_descr_data = PyArray_Descr_AsStruct(ctx, arr_descr);
         hpy_npy_set_invalid_cast_error(ctx,
-                arr_descr_data, newtype_data, casting, PyArray_NDIM(arr_data) == 0);
+                arr_descr, newtype, casting, PyArray_NDIM(arr_data) == 0);
         HPy_Close(ctx, arr_descr);
         HPy_Close(ctx, newtype);
         return HPy_NULL;

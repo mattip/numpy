@@ -22,6 +22,8 @@
 static void
 _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype);
 
+static void
+_hpy_fillobject(HPyContext *ctx, char *optr, HPy obj, HPy /* PyArray_Descr * */ dtype);
 
 /*NUMPY_API
  * XINCREF all objects in a single array item. This is complicated for
@@ -110,15 +112,22 @@ HPyArray_Item_INCREF(HPyContext *ctx, char *data, HPy h_descr)
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
-            if (!r) {
-                continue;
-            } else if (r == -1) {
+            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPy value = HPy_GetItem(ctx, fields, key);
+            if (HNPY_TITLE_KEY(ctx, key, value)) {
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, value);
+                return;
+            }
+            HPy_Close(ctx, key);
+            if (!HPy_ExtractDictItems_OiO(ctx, value, &new, &offset, NULL)) {
                 // error
+                HPy_Close(ctx, value);
                 HPy_Close(ctx, keys);
                 HPy_Close(ctx, fields);
                 return;
             }
+            HPy_Close(ctx, value);
             HPyArray_Item_INCREF(ctx, data + offset, new);
             HPy_Close(ctx, new);
         }
@@ -241,15 +250,22 @@ HPyArray_Item_XDECREF(HPyContext *ctx, char *data, HPy h_descr)
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
-            if (!r) {
-                continue;
-            } else if (r == -1) {
+            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPy value = HPy_GetItem(ctx, fields, key);
+            if (HNPY_TITLE_KEY(ctx, key, value)) {
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, value);
+                return;
+            }
+            HPy_Close(ctx, key);
+            if (!HPy_ExtractDictItems_OiO(ctx, value, &new, &offset, NULL)) {
                 // error
+                HPy_Close(ctx, value);
                 HPy_Close(ctx, keys);
                 HPy_Close(ctx, fields);
                 return;
             }
+            HPy_Close(ctx, value);
             HPyArray_Item_XDECREF(ctx, data + offset, new);
             HPy_Close(ctx, new);
         }
@@ -551,7 +567,7 @@ _hpy_fillobject(HPyContext *ctx, char *optr, HPy obj, HPy /* PyArray_Descr * */ 
     if (!PyDataType_FLAGCHK(dtype_struct, NPY_ITEM_REFCOUNT)) {
         HPy arr;
 
-        if (HPy_IS(ctx, obj, ctx->h_None) ||
+        if (HPy_Is(ctx, obj, ctx->h_None) ||
                 (HPyLong_Check(ctx, obj) && HPyLong_AsLong(ctx, obj) == 0)) {
             return;
         }
@@ -577,20 +593,26 @@ _hpy_fillobject(HPyContext *ctx, char *optr, HPy obj, HPy /* PyArray_Descr * */ 
     else if (PyDataType_HASFIELDS(dtype_struct)) {
         HPy new; // PyArray_Descr *
         int offset;
-        Py_ssize_t pos = 0;
         HPy fields = HPy_FromPyObject(ctx, dtype_struct->fields);
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields, keys, i, 1, &new, &offset, NULL);
-            if (!r) {
-                continue;
-            } else if (r == -1) {
+            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPy value = HPy_GetItem(ctx, fields, key);
+            if (HNPY_TITLE_KEY(ctx, key, value)) {
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, value);
+                return;
+            }
+            HPy_Close(ctx, key);
+            if (!HPy_ExtractDictItems_OiO(ctx, value, &new, &offset, NULL)) {
                 // error
+                HPy_Close(ctx, value);
                 HPy_Close(ctx, keys);
                 HPy_Close(ctx, fields);
                 return;
             }
+            HPy_Close(ctx, value);
             _hpy_fillobject(ctx, optr + offset, obj, new);
             HPy_Close(ctx, new);
         }

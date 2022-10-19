@@ -2378,7 +2378,6 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
                             int *out_needs_api)
 {
     HPy src_names = HPy_NULL, dst_names = HPy_NULL;
-    HPy key, tup, title;
     HPy src_fld_dtype, dst_fld_dtype; // PyArray_Descr *
     npy_int i;
     size_t structsize;
@@ -2413,14 +2412,17 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
         data->base.clone = &_field_transfer_data_clone;
         data->field_count = 0;
         for (i = 0; i < field_count; ++i) {
-            int r = HPy_ExtractDictItems_OiO(ctx, fields_dst, dst_names, i, 0, 
-                                            &dst_fld_dtype, &dst_offset, NULL);
-            if (r == -1) {
+            HPy key = HPy_GetItem_i(ctx, dst_names, i);
+            HPy value = HPy_GetItem(ctx, fields_dst, key);
+            HPy_Close(ctx, key);
+            if (!HPy_ExtractDictItems_OiO(ctx, value, &dst_fld_dtype, &dst_offset, NULL)) {
                 // error
+                HPy_Close(ctx, value);
                 PyMem_Free(data);
                 res = NPY_FAIL;
                 goto finish;
             }
+            HPy_Close(ctx, value);
             if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                     src_stride, dst_stride,
                                     h_src_dtype, dst_fld_dtype,
@@ -2436,7 +2438,6 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
             data->fields[i].dst_offset = dst_offset;
             data->field_count++;
             HPy_Close(ctx, dst_fld_dtype);
-            tup_len = 0;
         }
 
         /*
@@ -2489,14 +2490,17 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
         data->base.free = &_field_transfer_data_free;
         data->base.clone = &_field_transfer_data_clone;
 
-        int r = HPy_ExtractDictItems_OiO(ctx, fields_src, src_names, i, 0, 
-                                        &src_fld_dtype, &src_offset, NULL);
-        if (r == -1) {
+        HPy key = HPy_GetItem_i(ctx, src_names, i);
+        HPy value = HPy_GetItem(ctx, fields_src, key);
+        HPy_Close(ctx, key);
+        if (!HPy_ExtractDictItems_OiO(ctx, value, &src_fld_dtype, &src_offset, NULL)) {
             // error
+            HPy_Close(ctx, value);
             PyMem_Free(data);
             res = NPY_FAIL;
             goto finish;
         }
+        HPy_Close(ctx, value);
         if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                              src_stride, dst_stride,
                                              src_fld_dtype, h_dst_dtype,
@@ -2547,22 +2551,29 @@ get_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
 
     /* set up the transfer function for each field */
     for (i = 0; i < field_count; ++i) {
-        int r = HPy_ExtractDictItems_OiO(ctx, fields_dst, dst_names, i, 0, 
-                                        &dst_fld_dtype, &dst_offset, NULL);
-        if (r == -1) {
+        HPy key = HPy_GetItem_i(ctx, dst_names, i);
+        HPy value = HPy_GetItem(ctx, fields_dst, key);
+        HPy_Close(ctx, key);
+        if (!HPy_ExtractDictItems_OiO(ctx, value, &dst_fld_dtype, &dst_offset, NULL)) {
             // error
+            HPy_Close(ctx, value);
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
-        int r = HPy_ExtractDictItems_OiO(ctx, fields_src, src_names, i, 0, 
-                                        &src_fld_dtype, &src_offset, NULL);
-        if (r == -1) {
+        HPy_Close(ctx, value);
+        key = HPy_GetItem_i(ctx, src_names, i);
+        value = HPy_GetItem(ctx, fields_src, key);
+        HPy_Close(ctx, key);
+        if (!HPy_ExtractDictItems_OiO(ctx, value, &src_fld_dtype, &src_offset, NULL)) {
+            // error
             HPy_Close(ctx, dst_fld_dtype);
+            HPy_Close(ctx, value);
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
+        HPy_Close(ctx, value);
 
         if (HPyArray_GetDTypeTransferFunction(ctx, 0,
                                              src_stride, dst_stride,
@@ -2612,9 +2623,6 @@ get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
     int src_offset;
     int res;
 
-    HPy_ssize_t tup_len = 0;
-    HPy *tup_arr = NULL;
-
     names = HPyField_Load(ctx, h_src_dtype, src_dtype_data->names);
     field_count = HPy_Length(ctx, names);
 
@@ -2635,16 +2643,19 @@ get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
     _single_field_transfer *field = data->fields;
     HPy fields = HPy_FromPyObject(ctx, src_dtype_data->fields);
     for (i = 0; i < field_count; ++i) {
-        int r = HPy_ExtractDictItems_OiO(ctx, fields, names, i, 0, &src_fld_dtype,
-                                                &src_offset, NULL);
-        if (r == -1) {
+        HPy key = HPy_GetItem_i(ctx, names, i);
+        HPy value = HPy_GetItem(ctx, fields, key);
+        HPy_Close(ctx, key);
+        if (!HPy_ExtractDictItems_OiO(ctx, value, &src_fld_dtype, &src_offset, NULL)) {
             // error
+            HPy_Close(ctx, value);
             HPy_Close(ctx, names);
             HPy_Close(ctx, fields);
             NPY_AUXDATA_FREE((NpyAuxData *)data);
             res = NPY_FAIL;
             goto finish;
         }
+        HPy_Close(ctx, value);
         PyArray_Descr *src_fld_dtype_data = PyArray_Descr_AsStruct(ctx, src_fld_dtype);
         if (PyDataType_REFCHK(src_fld_dtype_data)) {
             if (out_needs_api) {
@@ -2667,7 +2678,6 @@ get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
             field++;
         }
         HPy_Close(ctx, src_fld_dtype);
-        tup_len = 0;
     }
     HPy_Close(ctx, names);
     HPy_Close(ctx, fields);
@@ -2678,9 +2688,6 @@ get_decref_fields_transfer_function(HPyContext *ctx, int NPY_UNUSED(aligned),
     res = NPY_SUCCEED;
     // fall through
 finish:
-    if (tup_len) {
-        HPy_CloseAndFreeArray(ctx, tup_arr, tup_len);
-    }
     HPy_Close(ctx, names);
     return res;
 }

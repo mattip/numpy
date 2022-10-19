@@ -199,21 +199,11 @@ HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
 
 /*
  * returns:
- *  1 if success
- *  0 if not applicable
- * -1 if error occurred
+ * 1 if success
+ * 0 if error occurred
  */
 static NPY_INLINE int
-HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy dict, HPy keys, HPy_ssize_t key_idx, int check_title_key,
-                            HPy *v1, int *v2, HPy *v3) {
-    HPy key = HPy_GetItem_i(ctx, keys, key_idx);
-    HPy value = HPy_GetItem(ctx, dict, key);
-    if (check_title_key && HNPY_TITLE_KEY(ctx, key, value)) {
-        HPy_Close(ctx, key);
-        HPy_Close(ctx, value);
-        return 0;
-    }
-    HPy_Close(ctx, key);
+HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy value, HPy *v1, int *v2, HPy *v3) {
 
     // HPy_ssize_t value_len;
     // HPy *value_arr = HPy_TupleToArray(ctx, value, &value_len);
@@ -228,31 +218,31 @@ HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy dict, HPy keys, HPy_ssize_t key_id
         HPyErr_SetString(ctx, ctx->h_TypeError,
             "required positional argument missing");
         HPy_Close(ctx, value);
-        return -1;
+        return 0;
     } else if (len > 3) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
             "mismatched args (too many arguments for fmt)");
         HPy_Close(ctx, value);
-        return -1;
+        return 0;
     }
 
     HPy h_v2 = HPy_GetItem_i(ctx, value, 1);
     long v = HPyLong_AsLong(ctx, h_v2);
     if (v == -1 && HPyErr_Occurred(ctx)) {
-        return -1;
         HPy_Close(ctx, value);
+        return 0;
     }
     if (v > INT_MAX) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is greater than maximum");
         HPy_Close(ctx, value);
-        return -1;
+        return 0;
     }
     if (v < INT_MIN) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is less than minimum");
         HPy_Close(ctx, value);
-        return -1;
+        return 0;
     }
     *v2 = (int)v;
     *v1 = HPy_GetItem_i(ctx, value, 0);
