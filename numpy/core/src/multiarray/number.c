@@ -125,16 +125,16 @@ PyArray_SetNumericOps(PyObject *dict)
 }
 
 /* Note - macro contains goto */
-#define GET(op) if (N_OPS_GET(op) &&                                         \
-                    (PyDict_SetItemString(dict, #op, N_OPS_GET(op))==-1))    \
+#define GET(op) if (!HPy_IsNull(HN_OPS_GET(ctx, op)) &&                                         \
+                    (HPy_SetItem_s(ctx, dict, #op, HN_OPS_GET(ctx, op))==-1))    \
         goto fail;
 
-NPY_NO_EXPORT PyObject *
-_PyArray_GetNumericOps(void)
+NPY_NO_EXPORT HPy
+_PyArray_GetNumericOps(HPyContext *ctx)
 {
-    PyObject *dict;
-    if ((dict = PyDict_New())==NULL)
-        return NULL;
+    HPy dict;
+    if (HPy_IsNull(dict = HPyDict_New(ctx)))
+        return HPy_NULL;
     GET(add);
     GET(subtract);
     GET(multiply);
@@ -176,9 +176,23 @@ _PyArray_GetNumericOps(void)
     return dict;
 
  fail:
-    Py_DECREF(dict);
-    return NULL;
+    HPy_Close(ctx, dict);
+    return HPy_NULL;
 }
+
+/*HPY_NUMPY_API
+  Get dictionary showing number functions that all arrays will use
+*/
+NPY_NO_EXPORT HPy
+HPyArray_GetNumericOps(HPyContext *ctx)
+{
+    /* 2018-09-09, 1.16 */
+    if (HPY_DEPRECATE(ctx, "PyArray_GetNumericOps is deprecated.") < 0) {
+        return HPy_NULL;
+    }
+    return _PyArray_GetNumericOps(ctx);
+}
+
 
 /*NUMPY_API
   Get dictionary showing number functions that all arrays will use
@@ -186,11 +200,11 @@ _PyArray_GetNumericOps(void)
 NPY_NO_EXPORT PyObject *
 PyArray_GetNumericOps(void)
 {
-    /* 2018-09-09, 1.16 */
-    if (DEPRECATE("PyArray_GetNumericOps is deprecated.") < 0) {
-        return NULL;
-    }
-    return _PyArray_GetNumericOps();
+    HPyContext *ctx = npy_get_context();
+    HPy dict = HPyArray_GetNumericOps(ctx);
+    PyObject *ret = HPy_AsPyObject(ctx, dict);
+    HPy_Close(ctx, dict);
+    return ret;
 }
 
 static PyObject *

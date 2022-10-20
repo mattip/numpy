@@ -98,6 +98,15 @@ static inline PyObject *_n_ops_get(PyObject **pyobj, HPyGlobal h_global) {
 
 #define N_OPS_GET(name)     _n_ops_get(&n_ops.name, hpy_n_ops.name)
 
+static inline HPy _h_n_ops_get(HPyContext *ctx, PyObject **pyobj, HPyGlobal h_global) {
+    if (*pyobj != NULL) {
+        return HPy_FromPyObject(ctx, *pyobj);
+    }
+    return HPyGlobal_Load(ctx, h_global);
+}
+
+#define HN_OPS_GET(ctx, name)     _h_n_ops_get(ctx, &n_ops.name, hpy_n_ops.name)
+
 NPY_NO_EXPORT extern HPyDef array_add;
 
 NPY_NO_EXPORT extern HPyDef array_subtract;
@@ -197,8 +206,8 @@ array_index(PyArrayObject *v);
 NPY_NO_EXPORT int
 _PyArray_SetNumericOps(HPyContext *ctx, HPy dict);
 
-NPY_NO_EXPORT PyObject *
-_PyArray_GetNumericOps(void);
+NPY_NO_EXPORT HPy
+_PyArray_GetNumericOps(HPyContext *ctx);
 
 NPY_NO_EXPORT PyObject *
 PyArray_GenericBinaryFunction(PyObject *m1, PyObject *m2, PyObject *op);
