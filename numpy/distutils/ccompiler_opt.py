@@ -2361,7 +2361,7 @@ class CCompilerOpt(_Config, _Distutils, _Cache, _CCompiler, _Feature, _Parse):
         if not os.path.exists(header_dir):
             self.dist_log(
                 f"dispatch header dir {header_dir} does not exist, creating it",
-                stderr=True
+                stderr=False
             )
             os.makedirs(header_dir)
 

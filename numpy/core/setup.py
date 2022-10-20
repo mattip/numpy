@@ -15,6 +15,12 @@ from sysconfig import get_config_var
 from numpy.compat import npy_load_module
 from setup_common import *  # noqa: F403
 
+try:
+    import openblas
+    importable_openblas = True
+except ModuleNotFoundError:
+    importable_openblas = False
+
 # Set to True to enable relaxed strides checking. This (mostly) means
 # that `strides[dim]` is ignored if `shape[dim] == 1` when setting flags.
 NPY_RELAXED_STRIDES_CHECKING = (os.environ.get('NPY_RELAXED_STRIDES_CHECKING', "1") != "0")
@@ -849,6 +855,10 @@ def configuration(parent_package='',top_path=None):
                           ])
     else:
         extra_info = {}
+    if importable_openblas:
+        # TODO: use a better API for importable openblas
+        extra_info.pop('libraries', None)
+        extra_info.pop('runtime_library_dirs', None)
 
     #######################################################################
     #             _multiarray_umath module - multiarray part              #
