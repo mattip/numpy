@@ -87,6 +87,9 @@ convert_shape_to_string(npy_intp n, npy_intp const *vals, char *ending);
 NPY_NO_EXPORT void
 dot_alignment_error(PyArrayObject *a, int i, PyArrayObject *b, int j);
 
+NPY_NO_EXPORT void
+hpy_dot_alignment_error(HPyContext *ctx, PyArrayObject *a, int i, PyArrayObject *b, int j);
+
 NPY_NO_EXPORT HPy
 dummy_array_new(HPyContext *ctx, HPy descr, npy_intp flags, HPy base);
 
@@ -114,9 +117,9 @@ _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
 }
 
 static NPY_INLINE void
-_hpy_set_descr(HPyContext *ctx, HPy h_arr, PyArrayObject *tmp_array, HPy new_descr)
+_hpy_set_descr(HPyContext *ctx, HPy h_tmp_array, PyArrayObject *tmp_array, HPy new_descr)
 {
-    HPyField_Store(ctx, h_arr, &((PyArrayObject_fields *)tmp_array)->f_descr, new_descr);
+    HPyField_Store(ctx, h_tmp_array, &((PyArrayObject_fields *)tmp_array)->f_descr, new_descr);
 }
 
 /**
@@ -503,7 +506,13 @@ NPY_NO_EXPORT PyArrayObject *
 new_array_for_sum(PyArrayObject *ap1, PyArrayObject *ap2, PyArrayObject* out,
                   int nd, npy_intp dimensions[], int typenum, PyArrayObject **result);
 
-
+NPY_NO_EXPORT HPy // PyArrayObject *
+hpy_new_array_for_sum(HPyContext *ctx, 
+                        HPy ap1, PyArrayObject *ap1_struct,
+                        HPy ap2, PyArrayObject *ap2_struct,
+                        HPy out, PyArrayObject* out_struct,
+                        int nd, npy_intp dimensions[], int typenum, 
+                        HPy /* PyArrayObject ** */ *result);
 /*
  * Used to indicate a broadcast axis, see also `npyiter_get_op_axis` in
  * `nditer_constr.c`.  This may be the preferred API for reduction axes

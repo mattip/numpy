@@ -354,6 +354,68 @@ end:
     Py_XDECREF(shape2_j);
 }
 
+NPY_NO_EXPORT void
+hpy_dot_alignment_error(HPyContext *ctx, PyArrayObject *a, int i, PyArrayObject *b, int j)
+{
+    PyObject *errmsg = NULL;
+    HPy format = HPy_NULL, fmt_args = HPy_NULL,
+        i_obj = HPy_NULL, j_obj = HPy_NULL,
+        shape1 = HPy_NULL, shape2 = HPy_NULL,
+        shape1_i = HPy_NULL, shape2_j = HPy_NULL;
+
+    format = HPyUnicode_FromString(ctx, "shapes %s and %s not aligned:"
+                                  " %d (dim %d) != %d (dim %d)");
+
+    CAPI_WARN("missing PyUnicode_Format");    
+    PyObject *py_shape1 = convert_shape_to_string(PyArray_NDIM(a), PyArray_DIMS(a), "");
+    PyObject *py_shape2 = convert_shape_to_string(PyArray_NDIM(b), PyArray_DIMS(b), "");
+    shape1 = HPy_FromPyObject(ctx, py_shape1);
+    Py_DECREF(py_shape1);
+    shape2 = HPy_FromPyObject(ctx, py_shape2);
+    Py_DECREF(py_shape2);
+    i_obj = HPyLong_FromLong(ctx, i);
+    j_obj = HPyLong_FromLong(ctx, j);
+
+    shape1_i = HPyLong_FromSsize_t(ctx, PyArray_DIM(a, i));
+    shape2_j = HPyLong_FromSsize_t(ctx, PyArray_DIM(b, j));
+
+    if (HPy_IsNull(format) || HPy_IsNull(shape1) || HPy_IsNull(shape2) ||
+            HPy_IsNull(i_obj) || HPy_IsNull(j_obj) ||HPy_IsNull(shape1_i) ||
+            HPy_IsNull(shape2_j)) {
+        goto end;
+    }
+
+    fmt_args = HPyTuple_Pack(ctx, 6, shape1, shape2,
+                            shape1_i, i_obj, shape2_j, j_obj);
+    if (HPy_IsNull(fmt_args)) {
+        goto end;
+    }
+    PyObject *py_format = HPy_AsPyObject(ctx, format);
+    PyObject *py_fmt_args = HPy_AsPyObject(ctx, fmt_args);
+    errmsg = PyUnicode_Format(py_format, py_fmt_args);
+    Py_DECREF(py_format);
+    Py_DECREF(py_fmt_args);
+    if (errmsg != NULL) {
+        HPy h_errmsg = HPy_FromPyObject(ctx, errmsg);
+        Py_DECREF(errmsg);
+        HPyErr_SetObject(ctx, ctx->h_ValueError, h_errmsg);
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "shapes are not aligned");
+    }
+
+end:
+    Py_XDECREF(errmsg);
+    HPy_Close(ctx, fmt_args);
+    HPy_Close(ctx, format);
+    HPy_Close(ctx, i_obj);
+    HPy_Close(ctx, j_obj);
+    HPy_Close(ctx, shape1);
+    HPy_Close(ctx, shape2);
+    HPy_Close(ctx, shape1_i);
+    HPy_Close(ctx, shape2_j);
+}
+
 
 NPY_NO_EXPORT HPy
 dummy_array_new(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, npy_intp flags, HPy base)
@@ -570,3 +632,103 @@ new_array_for_sum(PyArrayObject *ap1, PyArrayObject *ap2, PyArrayObject* out,
     }
 }
 
+/*
+ * Make a new empty array, of the passed size, of a type that takes the
+ * priority of ap1 and ap2 into account.
+ *
+ * If `out` is non-NULL, memory overlap is checked with ap1 and ap2, and an
+ * updateifcopy temporary array may be returned. If `result` is non-NULL, the
+ * output array to be returned (`out` if non-NULL and the newly allocated array
+ * otherwise) is incref'd and put to *result.
+ */
+NPY_NO_EXPORT HPy // PyArrayObject *
+hpy_new_array_for_sum(HPyContext *ctx, 
+                        HPy ap1, PyArrayObject *ap1_struct,
+                        HPy ap2, PyArrayObject *ap2_struct,
+                        HPy out, PyArrayObject* out_struct,
+                        int nd, npy_intp dimensions[], int typenum, 
+                        HPy /* PyArrayObject ** */ *result)
+{
+    HPy out_buf; // PyArrayObject *
+
+    if (HPy_IsNull(out)) {
+        int d;
+
+        /* verify that out is usable */
+        if (PyArray_NDIM(out_struct) != nd ||
+            PyArray_TYPE(out_struct) != typenum ||
+            !PyArray_ISCARRAY(out_struct)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                "output array is not acceptable (must have the right datatype, "
+                "number of dimensions, and be a C-Array)");
+            return HPy_NULL;
+        }
+        for (d = 0; d < nd; ++d) {
+            if (dimensions[d] != PyArray_DIM(out_struct, d)) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "output array has wrong dimensions");
+                return HPy_NULL;
+            }
+        }
+
+        /* check for memory overlap */
+        if (!(solve_may_share_memory(out_struct, ap1_struct, 1) == 0 &&
+              solve_may_share_memory(out_struct, ap2_struct, 1) == 0)) {
+            /* allocate temporary output array */
+            out_buf = HPyArray_NewLikeArray(ctx, out, NPY_CORDER,
+                                                            HPy_NULL, 0);
+            if (HPy_IsNull(out_buf)) {
+                return HPy_NULL;
+            }
+            PyArrayObject *out_buf_struct = PyArrayObject_AsStruct(ctx, out_buf);
+            /* set copy-back */
+            // Py_INCREF(out);
+            if (HPyArray_SetWritebackIfCopyBase(ctx, out_buf, out_buf_struct, out, out_struct) < 0) {
+                // HPy_Close(ctx, out);
+                HPy_Close(ctx, out_buf);
+                return HPy_NULL;
+            }
+        }
+        else {
+            // Py_INCREF(out);
+            out_buf = HPy_Dup(ctx, out);
+        }
+
+        if (result) {
+            // Py_INCREF(out);
+            *result = HPy_Dup(ctx, out);
+        }
+
+        return out_buf;
+    }
+    else {
+        HPy subtype;
+        double prior1, prior2;
+        /*
+         * Need to choose an output array that can hold a sum
+         * -- use priority to determine which subtype.
+         */
+        HPy ap1_type = HPy_Type(ctx, ap1);
+        HPy ap2_type = HPy_Type(ctx, ap2);
+        if (!HPy_Is(ctx, ap1_type, ap2_type)) {
+            prior2 = HPyArray_GetPriority(ctx, ap2, 0.0);
+            prior1 = HPyArray_GetPriority(ctx, ap1, 0.0);
+            subtype = (prior2 > prior1 ? ap2_type : ap1_type);
+        }
+        else {
+            prior1 = prior2 = 0.0;
+            subtype = ap1_type;
+        }
+
+        out_buf = HPyArray_New(ctx, subtype, nd, dimensions,
+                                               typenum, NULL, NULL, 0, 0,
+                                               (prior2 > prior1 ? ap2 : ap1));
+
+        if (!HPy_IsNull(out_buf) && result) {
+            // Py_INCREF(out_buf);
+            *result = HPy_Dup(ctx, out_buf);
+        }
+
+        return out_buf;
+    }
+}
