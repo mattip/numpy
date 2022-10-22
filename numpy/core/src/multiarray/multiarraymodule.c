@@ -1427,6 +1427,89 @@ fail:
     return NULL;
 }
 
+/*HPY_NUMPY_API
+ * Numeric.innerproduct(a,v)
+ */
+NPY_NO_EXPORT HPy
+HPyArray_InnerProduct(HPyContext *ctx, HPy op1, HPy op2)
+{
+    HPy ap1 = HPy_NULL; // PyArrayObject *
+    HPy ap2 = HPy_NULL; // PyArrayObject *
+    int typenum;
+    HPy typec = HPy_NULL; // PyArray_Descr *
+    HPy ap2t = HPy_NULL;
+    npy_intp dims[NPY_MAXDIMS];
+    PyArray_Dims newaxes = {dims, 0};
+    int i;
+    HPy ret = HPy_NULL;
+
+    typenum = HPyArray_ObjectType(ctx, op1, 0);
+    if (typenum == NPY_NOTYPE && HPyErr_Occurred(ctx)) {
+        return HPy_NULL;
+    }
+    typenum = HPyArray_ObjectType(ctx, op2, typenum);
+    typec = HPyArray_DescrFromType(ctx, typenum);
+    if (HPy_IsNull(typec)) {
+        if (!HPyErr_Occurred(ctx)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "Cannot find a common data type.");
+        }
+        goto fail;
+    }
+
+    // Py_INCREF(typec);
+    ap1 = HPyArray_FromAny(ctx, op1, typec, 0, 0,
+                                           NPY_ARRAY_ALIGNED, HPy_NULL);
+    if (HPy_IsNull(ap1)) {
+        // Py_DECREF(typec);
+        goto fail;
+    }
+    ap2 = HPyArray_FromAny(ctx, op2, typec, 0, 0,
+                                           NPY_ARRAY_ALIGNED, HPy_NULL);
+    if (HPy_IsNull(ap2)) {
+        goto fail;
+    }
+
+
+    PyArrayObject *ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
+    PyArrayObject *ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
+    newaxes.len = PyArray_NDIM(ap2_struct);
+    if ((PyArray_NDIM(ap1_struct) >= 1) && (newaxes.len >= 2)) {
+        for (i = 0; i < newaxes.len - 2; i++) {
+            dims[i] = (npy_intp)i;
+        }
+        dims[newaxes.len - 2] = newaxes.len - 1;
+        dims[newaxes.len - 1] = newaxes.len - 2;
+
+        ap2t = HPyArray_Transpose(ctx, ap2, ap2_struct, &newaxes);
+        if (HPy_IsNull(ap2t)) {
+            goto fail;
+        }
+    }
+    else {
+        ap2t = HPy_Dup(ctx, ap2);
+        // Py_INCREF(ap2);
+    }
+
+    ret = HPyArray_MatrixProduct2(ctx, ap1, ap2t, HPy_NULL, NULL);
+    if (HPy_IsNull(ret)) {
+        goto fail;
+    }
+
+
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    HPy_Close(ctx, ap2t);
+    return ret;
+
+fail:
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    HPy_Close(ctx, ap2t);
+    HPy_Close(ctx, ret);
+    return HPy_NULL;
+}
+
 /*NUMPY_API
  * Numeric.matrixproduct(a,v)
  * just like inner product but does the swapaxes stuff on the fly
@@ -1593,6 +1676,211 @@ fail:
     return NULL;
 }
 
+/*HPY_NUMPY_API
+ * Numeric.matrixproduct(a,v)
+ * just like inner product but does the swapaxes stuff on the fly
+ */
+NPY_NO_EXPORT HPy
+HPyArray_MatrixProduct(HPyContext *ctx, HPy op1, HPy op2)
+{
+    return HPyArray_MatrixProduct2(ctx, op1, op2, HPy_NULL, NULL);
+}
+
+/*HPY_NUMPY_API
+ * Numeric.matrixproduct2(a,v,out)
+ * just like inner product but does the swapaxes stuff on the fly
+ */
+NPY_NO_EXPORT HPy
+HPyArray_MatrixProduct2(HPyContext *ctx, HPy op1, HPy op2, HPy out, PyArrayObject* out_struct)
+{
+    HPy ap1, ap2, out_buf = HPy_NULL, result = HPy_NULL; // PyArrayObject *
+    PyArrayIterObject *it1, *it2;
+    npy_intp i, j, l;
+    int typenum, nd, axis, matchDim;
+    npy_intp is1, is2, os;
+    char *op;
+    npy_intp dimensions[NPY_MAXDIMS];
+    PyArray_DotFunc *dot;
+    HPy typec = HPy_NULL; // PyArray_Descr *
+    HPY_NPY_BEGIN_THREADS_DEF;
+
+    typenum = HPyArray_ObjectType(ctx, op1, 0);
+    if (typenum == NPY_NOTYPE && HPyErr_Occurred(ctx)) {
+        return HPy_NULL;
+    }
+    typenum = HPyArray_ObjectType(ctx, op2, typenum);
+    typec = HPyArray_DescrFromType(ctx, typenum);
+    if (HPy_IsNull(typec)) {
+        if (!HPyErr_Occurred(ctx)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "Cannot find a common data type.");
+        }
+        return HPy_NULL;
+    }
+
+    // Py_INCREF(typec);
+    ap1 = HPyArray_FromAny(ctx, op1, typec, 0, 0,
+                                        NPY_ARRAY_ALIGNED, HPy_NULL);
+    if (HPy_IsNull(ap1)) {
+        HPy_Close(ctx, typec);
+        return HPy_NULL;
+    }
+    ap2 = HPyArray_FromAny(ctx, op2, typec, 0, 0,
+                                        NPY_ARRAY_ALIGNED, HPy_NULL);
+    if (HPy_IsNull(ap2)) {
+        HPy_Close(ctx, ap1);
+        return HPy_NULL;
+    }
+    PyArrayObject *ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
+    PyArrayObject *ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
+
+#if defined(HAVE_CBLAS)
+    if (PyArray_NDIM(ap1) <= 2 && PyArray_NDIM(ap2) <= 2 &&
+            (NPY_DOUBLE == typenum || NPY_CDOUBLE == typenum ||
+             NPY_FLOAT == typenum || NPY_CFLOAT == typenum)) {
+        PyObject *py_ap1 = HPy_AsPyObject(ctx, ap1);
+        PyObject *py_ap2 = HPy_AsPyObject(ctx, ap2);
+        PyObject *py_out = HPy_AsPyObject(ctx, out);
+        HPy_Close(ctx, ap1);
+        HPy_Close(ctx, ap2);
+        CAPI_WARN("calling cblas_matrixproduct");
+        PyObject *py_result = cblas_matrixproduct(typenum, ap1, ap2, out);
+        result = HPy_FromPyObject(ctx, py_result);
+        Py_DECREF(py_ap1);
+        Py_DECREF(py_ap2);
+        Py_DECREF(py_out);
+        Py_DECREF(py_result);
+        return result;
+    }
+#endif
+
+    if (PyArray_NDIM(ap1_struct) == 0 || PyArray_NDIM(ap2_struct) == 0) {
+        HPy r_type = HPy_Type(ctx, PyArray_NDIM(ap1_struct) == 0 ? ap1 : ap2);
+        PyTypeObject *py_r_type = (PyTypeObject *)HPy_AsPyObject(ctx, r_type);
+        PyObject *py_ap1 = HPy_AsPyObject(ctx, ap1);
+        PyObject *py_ap2 = HPy_AsPyObject(ctx, ap2);
+        CAPI_WARN("calling tp_as_number->nb_multiply");
+        PyObject *py_result = py_r_type->tp_as_number->nb_multiply(
+                                        py_ap1, py_ap2);
+        result = HPy_FromPyObject(ctx, py_result);
+        Py_DECREF(py_ap1);
+        Py_DECREF(py_ap2);
+        Py_DECREF(py_result);
+        HPy_Close(ctx, ap1);
+        HPy_Close(ctx, ap2);
+        return result;
+    }
+    l = PyArray_DIMS(ap1_struct)[PyArray_NDIM(ap1_struct) - 1];
+    if (PyArray_NDIM(ap2_struct) > 1) {
+        matchDim = PyArray_NDIM(ap2_struct) - 2;
+    }
+    else {
+        matchDim = 0;
+    }
+    if (PyArray_DIMS(ap2_struct)[matchDim] != l) {
+        hpy_dot_alignment_error(ctx, ap1_struct, PyArray_NDIM(ap1_struct) - 1, ap2_struct, matchDim);
+        goto fail;
+    }
+    nd = PyArray_NDIM(ap1_struct) + PyArray_NDIM(ap2_struct) - 2;
+    if (nd > NPY_MAXDIMS) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "dot: too many dimensions in result");
+        goto fail;
+    }
+    j = 0;
+    for (i = 0; i < PyArray_NDIM(ap1_struct) - 1; i++) {
+        dimensions[j++] = PyArray_DIMS(ap1_struct)[i];
+    }
+    for (i = 0; i < PyArray_NDIM(ap2_struct) - 2; i++) {
+        dimensions[j++] = PyArray_DIMS(ap2_struct)[i];
+    }
+    if (PyArray_NDIM(ap2_struct) > 1) {
+        dimensions[j++] = PyArray_DIMS(ap2_struct)[PyArray_NDIM(ap2_struct)-1];
+    }
+
+    is1 = PyArray_STRIDES(ap1_struct)[PyArray_NDIM(ap1_struct)-1];
+    is2 = PyArray_STRIDES(ap2_struct)[matchDim];
+    /* Choose which subtype to return */
+    out_buf = hpy_new_array_for_sum(ctx, 
+                                        ap1, ap1_struct, 
+                                        ap2, ap2_struct, 
+                                        out, out_struct, 
+                                        nd, dimensions, typenum, &result);
+    if (HPy_IsNull(out_buf)) {
+        goto fail;
+    }
+    PyArrayObject *out_buf_struct = PyArrayObject_AsStruct(ctx, out_buf);
+    /* Ensure that multiarray.dot(<Nx0>,<0xM>) -> zeros((N,M)) */
+    if (PyArray_SIZE(ap1_struct) == 0 && PyArray_SIZE(ap2_struct) == 0) {
+        memset(PyArray_DATA(out_buf_struct), 0, PyArray_NBYTES(out_buf_struct));
+    }
+
+    HPy out_buf_descr = HPyArray_DESCR(ctx, out_buf, out_buf_struct);
+    PyArray_Descr *out_buf_descr_struct = PyArray_Descr_AsStruct(ctx, out_buf_descr);
+    dot = out_buf_descr_struct->f->dotfunc;
+    if (dot == NULL) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "dot not available for this type");
+        HPy_Close(ctx, out_buf_descr);
+        goto fail;
+    }
+
+    op = PyArray_DATA(out_buf_struct);
+    os = out_buf_descr_struct->elsize;
+    HPy_Close(ctx, out_buf_descr);
+    axis = PyArray_NDIM(ap1_struct)-1;
+    PyObject *py_ap1 = HPy_AsPyObject(ctx, ap1);
+    CAPI_WARN("calling PyArray_IterAllButAxis");
+    it1 = (PyArrayIterObject *)
+        PyArray_IterAllButAxis(py_ap1, &axis);
+    Py_DECREF(py_ap1);
+    if (it1 == NULL) {
+        goto fail;
+    }
+    PyObject *py_ap2 = HPy_AsPyObject(ctx, ap2);
+    it2 = (PyArrayIterObject *)
+        PyArray_IterAllButAxis(py_ap2, &matchDim);
+    Py_DECREF(py_ap2);
+    if (it2 == NULL) {
+        Py_DECREF(it1);
+        goto fail;
+    }
+    HPy ap2_descr = HPyArray_DESCR(ctx, ap2, ap2_struct);
+    PyArray_Descr *ap2_descr_struct = PyArray_Descr_AsStruct(ctx, ap2_descr);
+
+    HPY_NPY_BEGIN_THREADS_DESCR(ctx, ap2_descr_struct);
+    while (it1->index < it1->size) {
+        while (it2->index < it2->size) {
+            dot(it1->dataptr, is1, it2->dataptr, is2, op, l, NULL);
+            op += os;
+            PyArray_ITER_NEXT(it2);
+        }
+        PyArray_ITER_NEXT(it1);
+        PyArray_ITER_RESET(it2);
+    }
+    HPY_NPY_END_THREADS_DESCR(ctx, ap2_descr_struct);
+    HPy_Close(ctx, ap2_descr);
+    Py_DECREF(it1);
+    Py_DECREF(it2);
+    if (HPyErr_Occurred(ctx)) {
+        /* only for OBJECT arrays */
+        goto fail;
+    }
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+
+    /* Trigger possible copy-back into `result` */
+    HPyArray_ResolveWritebackIfCopy(ctx, out_buf);
+    HPy_Close(ctx, out_buf);
+
+    return result;
+
+fail:
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    HPy_Close(ctx, out_buf);
+    HPy_Close(ctx, result);
+    return HPy_NULL;
+}
 
 /*NUMPY_API
  * Copy and Transpose

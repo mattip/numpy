@@ -61,6 +61,32 @@ PyArray_Converter(PyObject *object, PyObject **address)
     }
 }
 
+/*HPY_NUMPY_API
+ *
+ * It will immediately return an object of array type
+ * or will convert to a NPY_ARRAY_CARRAY any other object.
+ *
+ * If you use PyArray_Converter, you must close the array when finished
+ * as you get a new handle to it.
+ */
+NPY_NO_EXPORT int
+HPyArray_Converter(HPyContext *ctx, HPy object, HPy *address)
+{
+    if (HPyArray_Check(ctx, object)) {
+        *address = HPy_Dup(ctx, object);
+        // Py_INCREF(object);
+        return NPY_SUCCEED;
+    }
+    else {
+        *address = HPyArray_FROM_OF(ctx, object, NPY_ARRAY_CARRAY);
+        if (HPy_IsNull(*address)) {
+            return NPY_FAIL;
+        }
+        return NPY_SUCCEED;
+    }
+}
+
+
 /*NUMPY_API
  * Useful to pass as converter function for O& processing in
  * PyArgs_ParseTuple for output arrays

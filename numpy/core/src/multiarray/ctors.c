@@ -1626,6 +1626,47 @@ PyArray_New(
     return new;
 }
 
+/*HPY_NUMPY_API
+ * Generic new array creation routine.
+ */
+NPY_NO_EXPORT HPy
+HPyArray_New(HPyContext *ctx,
+        HPy subtype, int nd, npy_intp const *dims, int type_num,
+        npy_intp const *strides, void *data, int itemsize, int flags,
+        HPy obj)
+{
+    HPy descr; // PyArray_Descr *
+    HPy new; // PyObject *
+
+    if (HPy_IsNull(subtype)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+            "subtype is NULL in PyArray_New");
+        return HPy_NULL;
+    }
+
+    descr = HPyArray_DescrFromType(ctx, type_num);
+    if (HPy_IsNull(descr)) {
+        return HPy_NULL;
+    }
+    PyArray_Descr *descr_struct = PyArray_Descr_AsStruct(ctx, descr);
+    if (PyDataType_ISUNSIZED(descr_struct)) {
+        if (itemsize < 1) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "data type must provide an itemsize");
+            HPy_Close(ctx, descr);
+            return HPy_NULL;
+        }
+        HPyArray_DESCR_REPLACE(ctx, descr);
+        if (HPy_IsNull(descr)) {
+            return HPy_NULL;
+        }
+        descr_struct->elsize = itemsize;
+    }
+    new = HPyArray_NewFromDescr(ctx, subtype, descr, nd, dims, strides,
+                               data, flags, obj);
+    return new;
+}
+
 
 NPY_NO_EXPORT PyArray_Descr *
 _dtype_from_buffer_3118(PyObject *memoryview)
@@ -3464,6 +3505,30 @@ PyArray_DescrFromObject(PyObject *op, PyArray_Descr *mintype)
     }
 }
 
+/*HPY_NUMPY_API
+* new reference -- accepts NULL for mintype
+*/
+NPY_NO_EXPORT HPy
+HPyArray_DescrFromObject(HPyContext *ctx, HPy op, HPy /* PyArray_Descr * */ mintype)
+{
+    HPy dtype; // PyArray_Descr *
+
+    dtype = HPy_Dup(ctx, mintype);
+    // Py_XINCREF(dtype);
+
+    if (HPyArray_DTypeFromObject(ctx, op, NPY_MAXDIMS, &dtype) < 0) {
+        return HPy_NULL;
+    }
+
+    if (HPy_IsNull(dtype)) {
+        return HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
+    }
+    else {
+        return dtype;
+    }
+}
+
+
 /* These are also old calls (should use PyArray_NewFromDescr) */
 
 /* They all zero-out the memory as previously done */
@@ -4496,6 +4561,117 @@ _calc_length(PyObject *start, PyObject *stop, PyObject *step, PyObject **next, i
     return len;
 }
 
+/*
+ * the formula is len = (intp) ceil((stop - start) / step);
+ */
+static npy_intp
+_hpy_calc_length(HPyContext *ctx, HPy start, HPy stop, HPy step, HPy *next, int cmplx)
+{
+    npy_intp len, tmp;
+    HPy zero, val;
+    int next_is_nonzero, val_is_zero;
+    double value;
+
+    *next = HPy_Subtract(ctx, stop, start);
+    if (HPy_IsNull(*next)) {
+        if (HPyTuple_Check(ctx, stop)) {
+            HPyErr_Clear(ctx);
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                            "arange: scalar arguments expected "\
+                            "instead of a tuple.");
+        }
+        return -1;
+    }
+
+    zero = HPyLong_FromLong(ctx, 0);
+    if (HPy_IsNull(zero)) {
+        HPy_Close(ctx, *next);
+        *next = HPy_NULL;
+        return -1;
+    }
+
+    next_is_nonzero = HPy_RichCompareBool(ctx, *next, zero, HPy_NE);
+    if (next_is_nonzero == -1) {
+        HPy_Close(ctx, zero);
+        HPy_Close(ctx, *next);
+        *next = HPy_NULL;
+        return -1;
+    }
+    val = HPy_TrueDivide(ctx, *next, step);
+    HPy_Close(ctx, *next);
+    *next = HPy_NULL;
+
+    if (HPy_IsNull(val)) {
+        HPy_Close(ctx, zero);
+        return -1;
+    }
+
+    val_is_zero = HPy_RichCompareBool(ctx, val, zero, HPy_EQ);
+    HPy_Close(ctx, zero);
+    if (val_is_zero == -1) {
+        HPy_Close(ctx, val);
+        return -1;
+    }
+
+    if (cmplx && HPy_TypeCheck(ctx, val, ctx->h_ComplexType)) {
+        PyObject *py_val = HPy_AsPyObject(ctx, val);
+        CAPI_WARN("missing PyComplex_*AsDouble");
+        HPy_Close(ctx, val);
+        value = PyComplex_RealAsDouble(py_val);
+        if (hpy_error_converting(ctx, value)) {
+            Py_DECREF(py_val);
+            return -1;
+        }
+        len = _arange_safe_ceil_to_intp(value);
+        if (hpy_error_converting(ctx, len)) {
+            Py_DECREF(py_val);
+            return -1;
+        }
+        
+        value = PyComplex_ImagAsDouble(py_val);
+        Py_DECREF(py_val);
+        if (hpy_error_converting(ctx, value)) {
+            return -1;
+        }
+        tmp = _arange_safe_ceil_to_intp(value);
+        if (hpy_error_converting(ctx, tmp)) {
+            return -1;
+        }
+        len = PyArray_MIN(len, tmp);
+    }
+    else {
+        value = HPyFloat_AsDouble(ctx, val);
+        HPy_Close(ctx, val);
+        if (error_converting(value)) {
+            return -1;
+        }
+
+        /* Underflow and divide-by-inf check */
+        if (val_is_zero && next_is_nonzero) {
+            if (npy_signbit(value)) {
+                len = 0;
+            }
+            else {
+                len = 1;
+            }
+        }
+        else {
+            len = _arange_safe_ceil_to_intp(value);
+            if (error_converting(len)) {
+                return -1;
+            }
+        }
+    }
+
+    if (len > 0) {
+        *next = HPy_Add(ctx, start, step);
+        if (HPy_IsNull(*next)) {
+            return -1;
+        }
+    }
+    return len;
+}
+
 /*NUMPY_API
  *
  * ArangeObj,
@@ -4654,6 +4830,181 @@ PyArray_ArangeObj(PyObject *start, PyObject *stop, PyObject *step, PyArray_Descr
     Py_DECREF(step);
     Py_XDECREF(next);
     return NULL;
+}
+
+/*HPY_NUMPY_API
+ *
+ * ArangeObj,
+ *
+ * this doesn't change the handles
+ */
+NPY_NO_EXPORT HPy
+HPyArray_ArangeObj(HPyContext *ctx, HPy start, HPy stop, HPy step, HPy /* PyArray_Descr * */ dtype)
+{
+    HPy range; // PyArrayObject *
+    PyArray_ArrFuncs *funcs;
+    HPy next, err;
+    npy_intp length;
+    HPy native = HPy_NULL; // PyArray_Descr *
+    int swap;
+    HPY_NPY_BEGIN_THREADS_DEF;
+
+    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    /* Datetime arange is handled specially */
+    if ((!HPy_IsNull(dtype) && (dtype_struct->type_num == NPY_DATETIME ||
+                           dtype_struct->type_num == NPY_TIMEDELTA)) ||
+            (HPy_IsNull(dtype) && (hpy_is_any_numpy_datetime_or_timedelta(ctx, start) ||
+                              hpy_is_any_numpy_datetime_or_timedelta(ctx, stop) ||
+                              hpy_is_any_numpy_datetime_or_timedelta(ctx, step)))) {
+        return hpy_datetime_arange(ctx, start, stop, step, dtype);
+    }
+
+    if (HPy_IsNull(dtype)) {
+        HPy deftype; // PyArray_Descr *
+        HPy newtype; // PyArray_Descr *
+
+        /* intentionally made to be at least NPY_LONG */
+        deftype = HPyArray_DescrFromType(ctx, NPY_LONG);
+        newtype = HPyArray_DescrFromObject(ctx, start, deftype);
+        HPy_Close(ctx, deftype);
+        if (HPy_IsNull(newtype)) {
+            return HPy_NULL;
+        }
+        deftype = newtype;
+        if (!HPy_IsNull(stop) && !HPy_Is(ctx, stop, ctx->h_None)) {
+            newtype = HPyArray_DescrFromObject(ctx, stop, deftype);
+            HPy_Close(ctx, deftype);
+            if (HPy_IsNull(newtype)) {
+                return HPy_NULL;
+            }
+            deftype = newtype;
+        }
+        if (!HPy_IsNull(step) && !HPy_Is(ctx, step, ctx->h_None)) {
+            newtype = HPyArray_DescrFromObject(ctx, step, deftype);
+            HPy_Close(ctx, deftype);
+            if (HPy_IsNull(newtype)) {
+                return HPy_NULL;
+            }
+            deftype = newtype;
+        }
+        dtype = deftype;
+        dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    }
+    else {
+        dtype = HPy_Dup(ctx, dtype);
+    }
+    if (HPy_IsNull(step) || HPy_Is(ctx, step, ctx->h_None)) {
+        step = HPyLong_FromLong(ctx, 1);
+    }
+    else {
+        step = HPy_Dup(ctx, step);
+    }
+    if (HPy_IsNull(stop) || HPy_Is(ctx, stop, ctx->h_None)) {
+        stop = start;
+        start = HPyLong_FromLong(ctx, 0);
+    }
+    else {
+        start = HPy_Dup(ctx, start);
+    }
+    /* calculate the length and next = start + step*/
+    length = _hpy_calc_length(ctx, start, stop, step, &next,
+                          PyTypeNum_ISCOMPLEX(dtype_struct->type_num));
+
+    if (HPyErr_Occurred(ctx)) {
+        HPy_Close(ctx, dtype);
+        if (HPyErr_Occurred(ctx) && HPyErr_ExceptionMatches(ctx, ctx->h_OverflowError)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError, "Maximum allowed size exceeded");
+        }
+        goto fail;
+    }
+    if (length <= 0) {
+        length = 0;
+        HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        range = HPyArray_SimpleNewFromDescr(ctx, array_type, 1, &length, dtype);
+        HPy_Close(ctx, array_type);
+        HPy_Close(ctx, step);
+        HPy_Close(ctx, start);
+        return range;
+    }
+
+    /*
+     * If dtype is not in native byte-order then get native-byte
+     * order version.  And then swap on the way out.
+     */
+    if (!PyArray_ISNBO(dtype_struct->byteorder)) {
+        native = HPyArray_DescrNewByteorder(ctx, dtype, NPY_NATBYTE);
+        swap = 1;
+    }
+    else {
+        native = dtype;
+        swap = 0;
+    }
+
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    range = HPyArray_SimpleNewFromDescr(ctx, array_type, 1, &length, native);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(range)) {
+        goto fail;
+    }
+
+    /*
+     * place start in the buffer and the next value in the second position
+     * if length > 2, then call the inner loop, otherwise stop
+     */
+    PyArrayObject *range_struct = PyArrayObject_AsStruct(ctx, range);
+    HPy range_descr = HPyArray_DESCR(ctx, range, range_struct);
+    PyArray_Descr *range_descr_struct = PyArray_Descr_AsStruct(ctx, range_descr);
+    funcs = range_descr_struct->f;
+    if (funcs->setitem(ctx, start, PyArray_DATA(range_struct), range) < 0) {
+        goto fail;
+    }
+    if (length == 1) {
+        goto finish;
+    }
+    if (funcs->setitem(ctx, next,
+            PyArray_BYTES(range_struct)+PyArray_ITEMSIZE(range_struct), range) < 0) {
+        goto fail;
+    }
+    if (length == 2) {
+        goto finish;
+    }
+    if (!funcs->fill) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "no fill-function for data-type.");
+        HPy_Close(ctx, range);
+        goto fail;
+    }
+
+    PyObject *py_range = HPy_AsPyObject(ctx, range);
+    CAPI_WARN("calling ->fill (PyArray_FillFunc)");
+    HPY_NPY_BEGIN_THREADS_DESCR(ctx, range_descr_struct);
+    funcs->fill(PyArray_DATA(range_struct), length, py_range);
+    HPY_NPY_END_THREADS(ctx);
+    Py_DECREF(py_range);
+    if (HPyErr_Occurred(ctx)) {
+        goto fail;
+    }
+ finish:
+    /* TODO: This swapping could be handled on the fly by the nditer */
+    if (swap) {
+        PyObject *new;
+        PyObject *py_range = HPy_AsPyObject(ctx, range);
+        CAPI_WARN("calling PyArray_Byteswap");
+        new = PyArray_Byteswap(py_range, 1);
+        Py_DECREF(py_range);
+        Py_DECREF(new);
+        _hpy_set_descr(ctx, range, range_struct, dtype);
+        HPy_Close(ctx, dtype);
+    }
+    HPy_Close(ctx, start);
+    HPy_Close(ctx, step);
+    HPy_Close(ctx, next);
+    return range;
+
+ fail:
+    HPy_Close(ctx, start);
+    HPy_Close(ctx, step);
+    HPy_Close(ctx, next);
+    return HPy_NULL;
 }
 
 /* This array creation function does not steal the reference to dtype. */
