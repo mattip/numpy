@@ -202,6 +202,10 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
         PyArray_NewFromDescr(&PyArray_Type, descr, nd, dims, \
                              NULL, NULL, 0, NULL)
 
+#define HPyArray_SimpleNewFromDescr(ctx, array_type, nd, dims, descr) \
+        HPyArray_NewFromDescr(ctx, array_type, descr, nd, dims, \
+                             NULL, NULL, 0, HPy_NULL)
+
 #define PyArray_ToScalar(data, arr) \
         PyArray_Scalar(data, PyArray_DESCR(arr), (PyObject *)arr)
 

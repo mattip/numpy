@@ -25,6 +25,9 @@ get_datetimestruct_days(const npy_datetimestruct *dts);
 NPY_NO_EXPORT PyArray_Descr *
 create_datetime_dtype(int type_num, PyArray_DatetimeMetaData *meta);
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+hpy_create_datetime_dtype(HPyContext *ctx, int type_num, PyArray_DatetimeMetaData *meta);
+
 /*
  * Creates a datetime or timedelta dtype using the given unit.
  */
@@ -174,6 +177,9 @@ get_datetime_conversion_factor(HPyContext *ctx, PyArray_DatetimeMetaData *src_me
  */
 NPY_NO_EXPORT PyObject *
 convert_datetime_metadata_to_tuple(PyArray_DatetimeMetaData *meta);
+
+NPY_NO_EXPORT HPy
+hpy_convert_datetime_metadata_to_tuple(HPyContext *ctx, PyArray_DatetimeMetaData *meta);
 
 /*
  * Converts a metadata tuple into a datetime metadata C struct.
@@ -367,12 +373,19 @@ cast_timedelta_to_timedelta(PyArray_DatetimeMetaData *src_meta,
 NPY_NO_EXPORT npy_bool
 is_any_numpy_datetime_or_timedelta(PyObject *obj);
 
+NPY_NO_EXPORT npy_bool
+hpy_is_any_numpy_datetime_or_timedelta(HPyContext *ctx, HPy obj);
+
 /*
  * Implements a datetime-specific arange
  */
 NPY_NO_EXPORT PyArrayObject *
 datetime_arange(PyObject *start, PyObject *stop, PyObject *step,
                 PyArray_Descr *dtype);
+
+NPY_NO_EXPORT HPy // PyArrayObject *
+hpy_datetime_arange(HPyContext *ctx, HPy start, HPy stop, HPy step,
+                HPy /* PyArray_Descr * */ dtype);
 
 /*
  * Examines all the objects in the given Python object by
