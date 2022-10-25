@@ -1023,6 +1023,45 @@ PyArray_ClipmodeConverter(PyObject *object, NPY_CLIPMODE *val)
     return NPY_FAIL;
 }
 
+/*HPY_NUMPY_API
+ * Convert an object to NPY_RAISE / NPY_CLIP / NPY_WRAP
+ */
+NPY_NO_EXPORT int
+HPyArray_ClipmodeConverter(HPyContext *ctx, HPy object, NPY_CLIPMODE *val)
+{
+    if (HPy_IsNull(object) || HPy_Is(ctx, object, ctx->h_None)) {
+        *val = NPY_RAISE;
+    }
+
+    else if (HPyBytes_Check(ctx, object) || HPyUnicode_Check(ctx, object)) {
+        return hpy_string_converter_helper(ctx,
+            object, (void *)val, clipmode_parser, "clipmode",
+            "must be one of 'clip', 'raise', or 'wrap'");
+    }
+    else {
+        /* For users passing `np.RAISE`, `np.WRAP`, `np.CLIP` */
+        int number = HPyArray_PyIntAsInt(ctx, object);
+        if (error_converting(number)) {
+            goto fail;
+        }
+        if (number <= (int) NPY_RAISE
+                && number >= (int) NPY_CLIP) {
+            *val = (NPY_CLIPMODE) number;
+        }
+        else {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "integer clipmode must be np.RAISE, np.WRAP, or np.CLIP");
+        }
+    }
+    return NPY_SUCCEED;
+
+ fail:
+    HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "clipmode not understood");
+    return NPY_FAIL;
+}
+
+
 /*NUMPY_API
  * Convert an object to an array of n NPY_CLIPMODE values.
  * This is intended to be used in functions where a different mode
@@ -1065,6 +1104,50 @@ PyArray_ConvertClipmodeSequence(PyObject *object, NPY_CLIPMODE *modes, int n)
     }
     return NPY_SUCCEED;
 }
+
+/*HPY_NUMPY_API
+ * Convert an object to an array of n NPY_CLIPMODE values.
+ * This is intended to be used in functions where a different mode
+ * could be applied to each axis, like in ravel_multi_index.
+ */
+NPY_NO_EXPORT int
+HPyArray_ConvertClipmodeSequence(HPyContext *ctx, HPy object, NPY_CLIPMODE *modes, int n)
+{
+    int i;
+    /* Get the clip mode(s) */
+    if (!HPy_IsNull(object) && (HPyTuple_Check(ctx, object) || HPyList_Check(ctx, object))) {
+        if (HPy_Length(ctx, object) != n) {
+            HPyErr_Format_p(ctx, ctx->h_ValueError,
+                    "list of clipmodes has wrong length (%zd instead of %d)",
+                    HPy_Length(ctx, object), n);
+            return NPY_FAIL;
+        }
+
+        for (i = 0; i < n; ++i) {
+            HPy item = HPy_GetItem_i(ctx, object, i);
+            if(HPy_IsNull(item)) {
+                return NPY_FAIL;
+            }
+
+            if(HPyArray_ClipmodeConverter(ctx, item, &modes[i]) != NPY_SUCCEED) {
+                HPy_Close(ctx, item);
+                return NPY_FAIL;
+            }
+
+            HPy_Close(ctx, item);
+        }
+    }
+    else if (HPyArray_ClipmodeConverter(ctx, object, &modes[0]) == NPY_SUCCEED) {
+        for (i = 1; i < n; ++i) {
+            modes[i] = modes[0];
+        }
+    }
+    else {
+        return NPY_FAIL;
+    }
+    return NPY_SUCCEED;
+}
+
 
 static int correlatemode_parser(char const *str, Py_ssize_t length, void *data)
 {

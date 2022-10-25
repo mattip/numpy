@@ -106,7 +106,6 @@ HPyArray_Item_INCREF(HPyContext *ctx, char *data, HPy h_descr)
     else if (PyDataType_HASFIELDS(descr)) {
         HPy new; // PyArray_Descr *
         int offset;
-        Py_ssize_t pos = 0;
 
         HPy fields = HPy_FromPyObject(ctx, descr->fields);
         HPy keys = HPyDict_Keys(ctx, fields);
@@ -244,7 +243,6 @@ HPyArray_Item_XDECREF(HPyContext *ctx, char *data, HPy h_descr)
     else if (PyDataType_HASFIELDS(descr)) {
         HPy new; // PyArray_Descr *
         int offset;
-        Py_ssize_t pos = 0;
 
         HPy fields = HPy_FromPyObject(ctx, descr->fields);
         HPy keys = HPyDict_Keys(ctx, fields);

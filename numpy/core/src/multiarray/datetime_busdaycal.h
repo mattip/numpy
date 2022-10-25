@@ -36,6 +36,9 @@ extern NPY_NO_EXPORT PyTypeObject NpyBusDayCalendar_Type;
 NPY_NO_EXPORT int
 PyArray_WeekMaskConverter(PyObject *weekmask_in, npy_bool *weekmask);
 
+NPY_NO_EXPORT int
+HPyArray_WeekMaskConverter(HPyContext *ctx, HPy weekmask_in, npy_bool *weekmask);
+
 /*
  * Sorts the array of dates provided in place and removes
  * NaT, duplicates and any date which is already excluded on account
@@ -57,6 +60,7 @@ normalize_holidays_list(npy_holidayslist *holidays, npy_bool *weekmask);
 NPY_NO_EXPORT int
 PyArray_HolidaysConverter(PyObject *dates_in, npy_holidayslist *holidays);
 
-
+NPY_NO_EXPORT int
+HPyArray_HolidaysConverter(HPyContext *ctx, HPy dates_in, npy_holidayslist *holidays);
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_DATETIME_BUSDAYCAL_H_ */

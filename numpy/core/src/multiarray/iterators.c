@@ -333,6 +333,69 @@ PyArray_IterAllButAxis(PyObject *obj, int *inaxis)
     return (PyObject *)it;
 }
 
+/*HPY_NUMPY_API
+ * Get Iterator that iterates over all but one axis (don't use this with
+ * PyArray_ITER_GOTO1D).  The axis will be over-written if negative
+ * with the axis having the smallest stride.
+ */
+NPY_NO_EXPORT PyObject *
+HPyArray_IterAllButAxis(HPyContext *ctx, HPy obj, int *inaxis)
+{
+    HPy arr; // PyArrayObject *
+    PyArrayIterObject *it;
+    int axis;
+
+    if (!HPyArray_Check(ctx, obj)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "Numpy IterAllButAxis requires an ndarray");
+        return NULL;
+    }
+    arr = obj;
+
+    PyObject *py_arr = HPy_AsPyObject(ctx, arr);
+    CAPI_WARN("calling PyArray_IterNew");
+    it = (PyArrayIterObject *)PyArray_IterNew(py_arr);
+    Py_DECREF(py_arr);
+    if (it == NULL) {
+        return NULL;
+    }
+    PyArrayObject *arr_struct = PyArrayObject_AsStruct(ctx, arr);
+    if (PyArray_NDIM(arr_struct)==0) {
+        return (PyObject *)it;
+    }
+    if (*inaxis < 0) {
+        int i, minaxis = 0;
+        npy_intp minstride = 0;
+        i = 0;
+        while (minstride == 0 && i < PyArray_NDIM(arr_struct)) {
+            minstride = PyArray_STRIDE(arr_struct,i);
+            i++;
+        }
+        for (i = 1; i < PyArray_NDIM(arr_struct); i++) {
+            if (PyArray_STRIDE(arr_struct,i) > 0 &&
+                PyArray_STRIDE(arr_struct, i) < minstride) {
+                minaxis = i;
+                minstride = PyArray_STRIDE(arr_struct,i);
+            }
+        }
+        *inaxis = minaxis;
+    }
+    axis = *inaxis;
+    /* adjust so that will not iterate over axis */
+    it->contiguous = 0;
+    if (it->size != 0) {
+        it->size /= PyArray_DIM(arr_struct,axis);
+    }
+    it->dims_m1[axis] = 0;
+    it->backstrides[axis] = 0;
+
+    /*
+     * (won't fix factors so don't use
+     * PyArray_ITER_GOTO1D with this iterator)
+     */
+    return (PyObject *)it;
+}
+
 /*NUMPY_API
  * Adjusts previously broadcasted iterators so that the axis with
  * the smallest sum of iterator strides is not iterated over.

@@ -34,6 +34,9 @@ hpy_create_datetime_dtype(HPyContext *ctx, int type_num, PyArray_DatetimeMetaDat
 NPY_NO_EXPORT PyArray_Descr *
 create_datetime_dtype_with_unit(int type_num, NPY_DATETIMEUNIT unit);
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+hpy_create_datetime_dtype_with_unit(HPyContext *ctx, int type_num, NPY_DATETIMEUNIT unit);
+
 /*
  * This function returns a pointer to the DateTimeMetaData
  * contained within the provided datetime dtype.
@@ -198,6 +201,9 @@ convert_datetime_metadata_tuple_to_datetime_metadata(PyObject *tuple,
 NPY_NO_EXPORT int
 get_tzoffset_from_pytzinfo(PyObject *timezone, npy_datetimestruct *dts);
 
+NPY_NO_EXPORT int
+hpy_get_tzoffset_from_pytzinfo(HPyContext *ctx, HPy timezone_obj, npy_datetimestruct *dts);
+
 /*
  * Converts an input object into datetime metadata. The input
  * may be either a string or a tuple.
@@ -234,6 +240,11 @@ metastr_to_unicode(PyArray_DatetimeMetaData *meta, int skip_brackets);
  */
 NPY_NO_EXPORT int
 convert_pydatetime_to_datetimestruct(PyObject *obj, npy_datetimestruct *out,
+                                     NPY_DATETIMEUNIT *out_bestunit,
+                                     int apply_tzinfo);
+
+NPY_NO_EXPORT int
+hpy_convert_pydatetime_to_datetimestruct(HPyContext *ctx, HPy obj, npy_datetimestruct *out,
                                      NPY_DATETIMEUNIT *out_bestunit,
                                      int apply_tzinfo);
 

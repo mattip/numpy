@@ -743,6 +743,15 @@ create_datetime_dtype_with_unit(int type_num, NPY_DATETIMEUNIT unit)
     return create_datetime_dtype(type_num, &meta);
 }
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+hpy_create_datetime_dtype_with_unit(HPyContext *ctx, int type_num, NPY_DATETIMEUNIT unit)
+{
+    PyArray_DatetimeMetaData meta;
+    meta.base = unit;
+    meta.num = 1;
+    return hpy_create_datetime_dtype(ctx, type_num, &meta);
+}
+
 /*
  * This function returns a pointer to the DateTimeMetaData
  * contained within the provided datetime dtype.
@@ -2397,6 +2406,226 @@ invalid_time:
     return -1;
 }
 
+NPY_NO_EXPORT int
+hpy_convert_pydatetime_to_datetimestruct(HPyContext *ctx, HPy obj, npy_datetimestruct *out,
+                                     NPY_DATETIMEUNIT *out_bestunit,
+                                     int apply_tzinfo)
+{
+    HPy tmp;
+    int isleap;
+
+    /* Initialize the output to all zeros */
+    memset(out, 0, sizeof(npy_datetimestruct));
+    out->month = 1;
+    out->day = 1;
+
+    /* Need at least year/month/day attributes */
+    if (!HPy_HasAttr_s(ctx, obj, "year") ||
+            !HPy_HasAttr_s(ctx, obj, "month") ||
+            !HPy_HasAttr_s(ctx, obj, "day")) {
+        return 1;
+    }
+
+    /* Get the year */
+    tmp = HPy_GetAttr_s(ctx, obj, "year");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->year = HPyLong_AsLong(ctx, tmp);
+    if (hpy_error_converting(ctx, out->year)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Get the month */
+    tmp = HPy_GetAttr_s(ctx, obj, "month");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->month = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->month)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Get the day */
+    tmp = HPy_GetAttr_s(ctx, obj, "day");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->day = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->day)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Validate that the month and day are valid for the year */
+    if (out->month < 1 || out->month > 12) {
+        goto invalid_date;
+    }
+    isleap = is_leapyear(out->year);
+    if (out->day < 1 ||
+                out->day > _days_per_month_table[isleap][out->month-1]) {
+        goto invalid_date;
+    }
+
+    /* Check for time attributes (if not there, return success as a date) */
+    if (!HPy_HasAttr_s(ctx, obj, "hour") ||
+            !HPy_HasAttr_s(ctx, obj, "minute") ||
+            !HPy_HasAttr_s(ctx, obj, "second") ||
+            !HPy_HasAttr_s(ctx, obj, "microsecond")) {
+        /* The best unit for date is 'D' */
+        if (out_bestunit != NULL) {
+            *out_bestunit = NPY_FR_D;
+        }
+        return 0;
+    }
+
+    /* Get the hour */
+    tmp = HPy_GetAttr_s(ctx, obj, "hour");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->hour = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->hour)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Get the minute */
+    tmp = HPy_GetAttr_s(ctx, obj, "minute");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->min = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->min)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Get the second */
+    tmp = HPy_GetAttr_s(ctx, obj, "second");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->sec = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->sec)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    /* Get the microsecond */
+    tmp = HPy_GetAttr_s(ctx, obj, "microsecond");
+    if (HPy_IsNull(tmp)) {
+        return -1;
+    }
+    out->us = HPyLong_AsLong(ctx, tmp);
+    if (error_converting(out->us)) {
+        HPy_Close(ctx, tmp);
+        return -1;
+    }
+    HPy_Close(ctx, tmp);
+
+    if (out->hour < 0 || out->hour >= 24 ||
+            out->min < 0 || out->min >= 60 ||
+            out->sec < 0 || out->sec >= 60 ||
+            out->us < 0 || out->us >= 1000000) {
+        goto invalid_time;
+    }
+
+    /* Apply the time zone offset if it exists */
+    if (apply_tzinfo && HPy_HasAttr_s(ctx, obj, "tzinfo")) {
+        tmp = HPy_GetAttr_s(ctx, obj, "tzinfo");
+        if (HPy_IsNull(tmp)) {
+            return -1;
+        }
+        if (HPy_Is(ctx, tmp, ctx->h_None)) {
+            HPy_Close(ctx, tmp);
+        }
+        else {
+            HPy offset;
+            int seconds_offset, minutes_offset;
+
+            /* 2016-01-14, 1.11 */
+            HPyErr_Clear(ctx);
+            if (HPY_DEPRECATE(ctx,
+                    "parsing timezone aware datetimes is deprecated; "
+                    "this will raise an error in the future") < 0) {
+                HPy_Close(ctx, tmp);
+                return -1;
+            }
+
+            /* The utcoffset function should return a timedelta */
+            HPy tmp_type = HPy_Type(ctx, tmp);
+            HPy utcoffset = HPy_GetAttr_s(ctx, tmp_type, "utcoffset");
+            HPy args = HPyTuple_Pack(ctx, 1, obj);
+            offset = HPy_CallTupleDict(ctx, utcoffset, args, HPy_NULL);
+            HPy_Close(ctx, tmp_type);
+            HPy_Close(ctx, utcoffset);
+            HPy_Close(ctx, args);
+            if (HPy_IsNull(offset)) {
+                HPy_Close(ctx, tmp);
+                return -1;
+            }
+            HPy_Close(ctx, tmp);
+
+            /*
+             * The timedelta should have a function "total_seconds"
+             * which contains the value we want.
+             */
+            HPy offset_type = HPy_Type(ctx, offset);
+            HPy total_seconds = HPy_GetAttr_s(ctx, offset_type, "total_seconds");
+            tmp = HPy_CallTupleDict(ctx, total_seconds, HPy_NULL, HPy_NULL);
+            HPy_Close(ctx, offset_type);
+            HPy_Close(ctx, total_seconds);
+            HPy_Close(ctx, offset);
+            if (HPy_IsNull(tmp)) {
+                return -1;
+            }
+            /* Rounding here is no worse than the integer division below.
+             * Only whole minute offsets are supported by numpy anyway.
+             */
+            seconds_offset = (int)HPyFloat_AsDouble(ctx, tmp);
+            if (hpy_error_converting(ctx, seconds_offset)) {
+                HPy_Close(ctx, tmp);
+                return -1;
+            }
+            HPy_Close(ctx, tmp);
+
+            /* Convert to a minutes offset and apply it */
+            minutes_offset = seconds_offset / 60;
+
+            add_minutes_to_datetimestruct(out, -minutes_offset);
+        }
+    }
+
+    /* The resolution of Python's datetime is 'us' */
+    if (out_bestunit != NULL) {
+        *out_bestunit = NPY_FR_us;
+    }
+
+    return 0;
+
+invalid_date:
+    HPyErr_Format_p(ctx, ctx->h_ValueError,
+            "Invalid date (%" NPY_INT64_FMT ",%" NPY_INT32_FMT ",%" NPY_INT32_FMT ") when converting to NumPy datetime",
+            out->year, out->month, out->day);
+    return -1;
+
+invalid_time:
+    HPyErr_Format_p(ctx, ctx->h_ValueError,
+            "Invalid time (%" NPY_INT32_FMT ",%" NPY_INT32_FMT ",%" NPY_INT32_FMT ",%" NPY_INT32_FMT ") when converting "
+            "to NumPy datetime",
+            out->hour, out->min, out->sec, out->us);
+    return -1;
+}
+
 /*
  * Gets a tzoffset in minutes by calling the fromutc() function on
  * the Python datetime.tzinfo object.
@@ -2428,6 +2657,48 @@ get_tzoffset_from_pytzinfo(PyObject *timezone_obj, npy_datetimestruct *dts)
     }
 
     Py_DECREF(loc_dt);
+
+    /* Calculate the tzoffset as the difference between the datetimes */
+    return (int)(get_datetimestruct_minutes(&loc_dts) -
+                 get_datetimestruct_minutes(dts));
+}
+
+NPY_NO_EXPORT int
+hpy_get_tzoffset_from_pytzinfo(HPyContext *ctx, HPy timezone_obj, npy_datetimestruct *dts)
+{
+    HPy dt, loc_dt;
+    npy_datetimestruct loc_dts;
+
+    /* Create a Python datetime to give to the timezone object */
+    CAPI_WARN("missing PyDateTime_FromDateAndTime");
+    PyObject *py_dt = PyDateTime_FromDateAndTime((int)dts->year, dts->month, dts->day,
+                            dts->hour, dts->min, 0, 0);
+    if (py_dt == NULL) {
+        return -1;
+    }
+    dt = HPy_FromPyObject(ctx, py_dt);
+    Py_DECREF(py_dt);
+
+    /* Convert the datetime from UTC to local time */
+    HPy obj_type = HPy_Type(ctx, timezone_obj);
+    HPy fromutc = HPy_GetAttr_s(ctx, obj_type, "fromutc");
+    HPy args = HPyTuple_Pack(ctx, 1, dt);
+    loc_dt = HPy_CallTupleDict(ctx, fromutc, args, HPy_NULL);
+    HPy_Close(ctx, obj_type);
+    HPy_Close(ctx, fromutc);
+    HPy_Close(ctx, args);
+    HPy_Close(ctx, dt);
+    if (HPy_IsNull(loc_dt)) {
+        return -1;
+    }
+
+    /* Convert the local datetime into a datetimestruct */
+    if (hpy_convert_pydatetime_to_datetimestruct(ctx, loc_dt, &loc_dts, NULL, 0) < 0) {
+        HPy_Close(ctx, loc_dt);
+        return -1;
+    }
+
+    HPy_Close(ctx, loc_dt);
 
     /* Calculate the tzoffset as the difference between the datetimes */
     return (int)(get_datetimestruct_minutes(&loc_dts) -
@@ -3438,6 +3709,130 @@ convert_pyobjects_to_datetimes(int count,
     return 0;
 }
 
+NPY_NO_EXPORT int
+hpy_convert_pyobjects_to_datetimes(HPyContext *ctx, int count,
+                               HPy *objs, const int *type_nums,
+                               NPY_CASTING casting,
+                               npy_int64 *out_values,
+                               PyArray_DatetimeMetaData *inout_meta)
+{
+    int i, is_out_strict;
+    PyArray_DatetimeMetaData *meta;
+
+    /* No values trivially succeeds */
+    if (count == 0) {
+        return 0;
+    }
+
+    /* Use the inputs to resolve the unit metadata if requested */
+    if (inout_meta->base == NPY_FR_ERROR) {
+        /* Allocate an array of metadata corresponding to the objects */
+        meta = PyArray_malloc(count * sizeof(PyArray_DatetimeMetaData));
+        if (meta == NULL) {
+            HPyErr_NoMemory(ctx);
+            return -1;
+        }
+
+        /* Convert all the objects into timedeltas or datetimes */
+        for (i = 0; i < count; ++i) {
+            meta[i].base = NPY_FR_ERROR;
+            meta[i].num = 1;
+
+            /* NULL -> NaT */
+            if (HPy_IsNull(objs[i])) {
+                out_values[i] = NPY_DATETIME_NAT;
+                meta[i].base = NPY_FR_GENERIC;
+            }
+            else if (type_nums[i] == NPY_DATETIME) {
+                if (hpy_convert_pyobject_to_datetime(ctx, &meta[i], objs[i],
+                                            casting, &out_values[i]) < 0) {
+                    PyArray_free(meta);
+                    return -1;
+                }
+            }
+            else if (type_nums[i] == NPY_TIMEDELTA) {
+                if (hpy_convert_pyobject_to_timedelta(ctx, &meta[i], objs[i],
+                                            casting, &out_values[i]) < 0) {
+                    PyArray_free(meta);
+                    return -1;
+                }
+            }
+            else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "convert_pyobjects_to_datetimes requires that "
+                        "all the type_nums provided be datetime or timedelta");
+                PyArray_free(meta);
+                return -1;
+            }
+        }
+
+        /* Merge all the metadatas, starting with the first one */
+        *inout_meta = meta[0];
+        is_out_strict = (type_nums[0] == NPY_TIMEDELTA);
+
+        for (i = 1; i < count; ++i) {
+            if (compute_datetime_metadata_greatest_common_divisor(
+                                    &meta[i], inout_meta, inout_meta,
+                                    type_nums[i] == NPY_TIMEDELTA,
+                                    is_out_strict) < 0) {
+                PyArray_free(meta);
+                return -1;
+            }
+            is_out_strict = is_out_strict || (type_nums[i] == NPY_TIMEDELTA);
+        }
+
+        /* Convert all the values into the resolved unit metadata */
+        for (i = 0; i < count; ++i) {
+            if (type_nums[i] == NPY_DATETIME) {
+                if (cast_datetime_to_datetime(&meta[i], inout_meta,
+                                         out_values[i], &out_values[i]) < 0) {
+                    PyArray_free(meta);
+                    return -1;
+                }
+            }
+            else if (type_nums[i] == NPY_TIMEDELTA) {
+                if (cast_timedelta_to_timedelta(&meta[i], inout_meta,
+                                         out_values[i], &out_values[i]) < 0) {
+                    PyArray_free(meta);
+                    return -1;
+                }
+            }
+        }
+
+        PyArray_free(meta);
+    }
+    /* Otherwise convert to the provided unit metadata */
+    else {
+        /* Convert all the objects into timedeltas or datetimes */
+        for (i = 0; i < count; ++i) {
+            /* NULL -> NaT */
+            if (HPy_IsNull(objs[i])) {
+                out_values[i] = NPY_DATETIME_NAT;
+            }
+            else if (type_nums[i] == NPY_DATETIME) {
+                if (hpy_convert_pyobject_to_datetime(ctx, inout_meta, objs[i],
+                                            casting, &out_values[i]) < 0) {
+                    return -1;
+                }
+            }
+            else if (type_nums[i] == NPY_TIMEDELTA) {
+                if (hpy_convert_pyobject_to_timedelta(ctx, inout_meta, objs[i],
+                                            casting, &out_values[i]) < 0) {
+                    return -1;
+                }
+            }
+            else {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "convert_pyobjects_to_datetimes requires that "
+                        "all the type_nums provided be datetime or timedelta");
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 NPY_NO_EXPORT PyArrayObject *
 datetime_arange(PyObject *start, PyObject *stop, PyObject *step,
                 PyArray_Descr *dtype)
@@ -3635,130 +4030,6 @@ datetime_arange(PyObject *start, PyObject *stop, PyObject *step,
     return ret;
 }
 
-NPY_NO_EXPORT int
-convert_pyobjects_to_datetimes(HPyContext *ctx, int count,
-                               HPy *objs, const int *type_nums,
-                               NPY_CASTING casting,
-                               npy_int64 *out_values,
-                               PyArray_DatetimeMetaData *inout_meta)
-{
-    int i, is_out_strict;
-    PyArray_DatetimeMetaData *meta;
-
-    /* No values trivially succeeds */
-    if (count == 0) {
-        return 0;
-    }
-
-    /* Use the inputs to resolve the unit metadata if requested */
-    if (inout_meta->base == NPY_FR_ERROR) {
-        /* Allocate an array of metadata corresponding to the objects */
-        meta = PyArray_malloc(count * sizeof(PyArray_DatetimeMetaData));
-        if (meta == NULL) {
-            HPyErr_NoMemory(ctx);
-            return -1;
-        }
-
-        /* Convert all the objects into timedeltas or datetimes */
-        for (i = 0; i < count; ++i) {
-            meta[i].base = NPY_FR_ERROR;
-            meta[i].num = 1;
-
-            /* NULL -> NaT */
-            if (HPy_IsNull(objs[i])) {
-                out_values[i] = NPY_DATETIME_NAT;
-                meta[i].base = NPY_FR_GENERIC;
-            }
-            else if (type_nums[i] == NPY_DATETIME) {
-                if (hpy_convert_pyobject_to_datetime(ctx, &meta[i], objs[i],
-                                            casting, &out_values[i]) < 0) {
-                    PyArray_free(meta);
-                    return -1;
-                }
-            }
-            else if (type_nums[i] == NPY_TIMEDELTA) {
-                if (hpy_convert_pyobject_to_timedelta(ctx, &meta[i], objs[i],
-                                            casting, &out_values[i]) < 0) {
-                    PyArray_free(meta);
-                    return -1;
-                }
-            }
-            else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "convert_pyobjects_to_datetimes requires that "
-                        "all the type_nums provided be datetime or timedelta");
-                PyArray_free(meta);
-                return -1;
-            }
-        }
-
-        /* Merge all the metadatas, starting with the first one */
-        *inout_meta = meta[0];
-        is_out_strict = (type_nums[0] == NPY_TIMEDELTA);
-
-        for (i = 1; i < count; ++i) {
-            if (compute_datetime_metadata_greatest_common_divisor(
-                                    &meta[i], inout_meta, inout_meta,
-                                    type_nums[i] == NPY_TIMEDELTA,
-                                    is_out_strict) < 0) {
-                PyArray_free(meta);
-                return -1;
-            }
-            is_out_strict = is_out_strict || (type_nums[i] == NPY_TIMEDELTA);
-        }
-
-        /* Convert all the values into the resolved unit metadata */
-        for (i = 0; i < count; ++i) {
-            if (type_nums[i] == NPY_DATETIME) {
-                if (cast_datetime_to_datetime(&meta[i], inout_meta,
-                                         out_values[i], &out_values[i]) < 0) {
-                    PyArray_free(meta);
-                    return -1;
-                }
-            }
-            else if (type_nums[i] == NPY_TIMEDELTA) {
-                if (cast_timedelta_to_timedelta(&meta[i], inout_meta,
-                                         out_values[i], &out_values[i]) < 0) {
-                    PyArray_free(meta);
-                    return -1;
-                }
-            }
-        }
-
-        PyArray_free(meta);
-    }
-    /* Otherwise convert to the provided unit metadata */
-    else {
-        /* Convert all the objects into timedeltas or datetimes */
-        for (i = 0; i < count; ++i) {
-            /* NULL -> NaT */
-            if (HPy_IsNull(objs[i])) {
-                out_values[i] = NPY_DATETIME_NAT;
-            }
-            else if (type_nums[i] == NPY_DATETIME) {
-                if (hpy_convert_pyobject_to_datetime(ctx, inout_meta, objs[i],
-                                            casting, &out_values[i]) < 0) {
-                    return -1;
-                }
-            }
-            else if (type_nums[i] == NPY_TIMEDELTA) {
-                if (hpy_convert_pyobject_to_timedelta(ctx, inout_meta, objs[i],
-                                            casting, &out_values[i]) < 0) {
-                    return -1;
-                }
-            }
-            else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "convert_pyobjects_to_datetimes requires that "
-                        "all the type_nums provided be datetime or timedelta");
-                return -1;
-            }
-        }
-    }
-
-    return 0;
-}
-
 NPY_NO_EXPORT HPy // PyArrayObject *
 hpy_datetime_arange(HPyContext *ctx, HPy start, HPy stop, HPy step,
                 HPy /* PyArray_Descr * */ dtype)
@@ -3871,7 +4142,7 @@ hpy_datetime_arange(HPyContext *ctx, HPy start, HPy stop, HPy step,
      * share value variables.
      */
     npy_int64 values[3];
-    if (convert_pyobjects_to_datetimes(3, objs, type_nums,
+    if (hpy_convert_pyobjects_to_datetimes(ctx, 3, objs, type_nums,
                                 NPY_SAME_KIND_CASTING, values, &meta) < 0) {
         return HPy_NULL;
     }

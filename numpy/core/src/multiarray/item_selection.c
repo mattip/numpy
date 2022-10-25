@@ -210,9 +210,11 @@ HPyArray_TakeFrom(HPyContext *ctx, HPy h_self0, HPy h_indices0, int axis,
         return HPy_NULL;
     }
     self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy intp_descr = HPyArray_DescrFromType(ctx, NPY_INTP);
     h_indices = HPyArray_ContiguousFromAny(ctx, h_indices0,
-                                                NPY_INTP,
+                                                intp_descr,
                                                 0, 0);
+    HPy_Close(ctx, intp_descr);
     if (HPy_IsNull(h_indices)) {
         goto fail;
     }

@@ -100,6 +100,11 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_IsPythonNumber(obj)                                           \
         (PyFloat_Check(obj) || PyComplex_Check(obj) ||                        \
          PyLong_Check(obj) || PyBool_Check(obj))
+#define HPyArray_IsPythonNumber(ctx, obj)                                     \
+        (HPy_TypeCheck(ctx, obj, ctx->h_FloatType) ||                         \
+         HPy_TypeCheck(ctx, obj, ctx->h_ComplexType) ||                        \
+         HPy_TypeCheck(ctx, obj, ctx->h_LongType) ||                          \
+         HPy_TypeCheck(ctx, obj, ctx->h_BoolType))
 #define PyArray_IsIntegerScalar(obj) (PyLong_Check(obj)                       \
               || PyArray_IsScalar((obj), Integer))
 #define PyArray_IsPythonScalar(obj)                                           \
@@ -166,6 +171,10 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_ZEROS(m, dims, type, is_f_order) \
         PyArray_Zeros(m, dims, PyArray_DescrFromType(type), is_f_order)
 
+// pass value of HPyArray_DescrFromType(ctx, type)
+#define HPyArray_ZEROS(ctx, m, dims, type_descr, is_f_order) \
+        HPyArray_Zeros(ctx, m, dims, type_descr, is_f_order)
+
 #define PyArray_EMPTY(m, dims, type, is_f_order) \
         PyArray_Empty(m, dims, PyArray_DescrFromType(type), is_f_order)
 
@@ -181,8 +190,9 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \
                               max_depth, NPY_ARRAY_DEFAULT, NULL)
 
-#define HPyArray_ContiguousFromAny(ctx, op, type, min_depth, max_depth) \
-        HPyArray_FromAny(ctx, op, HPyArray_DescrFromType(ctx, type), min_depth, \
+// pass value of HPyArray_DescrFromType(ctx, type)
+#define HPyArray_ContiguousFromAny(ctx, op, type_descr, min_depth, max_depth) \
+        HPyArray_FromAny(ctx, op, type_descr, min_depth, \
                               max_depth, NPY_ARRAY_DEFAULT, HPy_NULL)
 
 #define PyArray_EquivArrTypes(a1, a2) \

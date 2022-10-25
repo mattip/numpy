@@ -203,6 +203,185 @@ finish:
     return 1;
 }
 
+NPY_NO_EXPORT int
+HPyArray_WeekMaskConverter(HPyContext *ctx, HPy weekmask_in, npy_bool *weekmask)
+{
+    HPy obj = weekmask_in;
+
+    /* Make obj into an UTF8 string */
+    if (HPyBytes_Check(ctx, obj)) {
+        /* accept bytes input */
+        HPy obj_str = HPyUnicode_FromEncodedObject(ctx, obj, NULL, NULL);
+        if (HPy_IsNull(obj_str)) {
+            return 0;
+        }
+        obj = obj_str;
+    }
+    else {
+        obj = HPy_Dup(ctx, obj);
+    }
+
+
+    if (HPyUnicode_Check(ctx, obj)) {
+        HPy_ssize_t len;
+        char const *str = HPyUnicode_AsUTF8AndSize(ctx, obj, &len);
+        if (str == NULL) {
+            HPy_Close(ctx, obj);
+            return 0;
+        }
+
+        /* Length 7 is a string like "1111100" */
+        if (len == 7) {
+            for (int i = 0; i < 7; ++i) {
+                switch(str[i]) {
+                    case '0':
+                        weekmask[i] = 0;
+                        break;
+                    case '1':
+                        weekmask[i] = 1;
+                        break;
+                    default:
+                        goto general_weekmask_string;
+                }
+            }
+
+            goto finish;
+        }
+
+general_weekmask_string:
+        /* a string like "SatSun" or "Mon Tue Wed" */
+        memset(weekmask, 0, 7);
+        for (Py_ssize_t i = 0; i < len; i += 3) {
+            while (isspace(str[i]))
+                ++i;
+
+            if (i == len) {
+                goto finish;
+            }
+            else if (i + 2 >= len) {
+                goto invalid_weekmask_string;
+            }
+
+            switch (str[i]) {
+                case 'M':
+                    if (str[i+1] == 'o' && str[i+2] == 'n') {
+                        weekmask[0] = 1;
+                    }
+                    else {
+                        goto invalid_weekmask_string;
+                    }
+                    break;
+                case 'T':
+                    if (str[i+1] == 'u' && str[i+2] == 'e') {
+                        weekmask[1] = 1;
+                    }
+                    else if (str[i+1] == 'h' && str[i+2] == 'u') {
+                        weekmask[3] = 1;
+                    }
+                    else {
+                        goto invalid_weekmask_string;
+                    }
+                    break;
+                case 'W':
+                    if (str[i+1] == 'e' && str[i+2] == 'd') {
+                        weekmask[2] = 1;
+                    }
+                    else {
+                        goto invalid_weekmask_string;
+                    }
+                    break;
+                case 'F':
+                    if (str[i+1] == 'r' && str[i+2] == 'i') {
+                        weekmask[4] = 1;
+                    }
+                    else {
+                        goto invalid_weekmask_string;
+                    }
+                    break;
+                case 'S':
+                    if (str[i+1] == 'a' && str[i+2] == 't') {
+                        weekmask[5] = 1;
+                    }
+                    else if (str[i+1] == 'u' && str[i+2] == 'n') {
+                        weekmask[6] = 1;
+                    }
+                    else {
+                        goto invalid_weekmask_string;
+                    }
+                    break;
+                default:
+                    goto invalid_weekmask_string;
+            }
+        }
+
+        goto finish;
+
+invalid_weekmask_string:
+        HPyErr_Format_p(ctx, ctx->h_ValueError,
+                "Invalid business day weekmask string \"%s\"",
+                str);
+        HPy_Close(ctx, obj);
+        return 0;
+    }
+    /* Something like [1,1,1,1,1,0,0] */
+    else if (HPySequence_Check(ctx, obj)) {
+        PyArrayObject *obj_struct = PyArrayObject_AsStruct(ctx, obj);
+        if (HPy_Length(ctx, obj) != 7 ||
+                        (HPyArray_Check(ctx, obj) &&
+                         PyArray_NDIM(obj_struct) != 1)) {
+            PyErr_SetString(PyExc_ValueError,
+                "A business day weekmask array must have length 7");
+            HPy_Close(ctx, obj);
+            return 0;
+        }
+        else {
+            int i;
+
+            for (i = 0; i < 7; ++i) {
+                long val;
+                HPy f = HPy_GetItem_i(ctx, obj, i);
+                if (HPy_IsNull(f)) {
+                    HPy_Close(ctx, obj);
+                    return 0;
+                }
+
+                val = HPyLong_AsLong(ctx, f);
+                if (error_converting(val)) {
+                    HPy_Close(ctx, f);
+                    HPy_Close(ctx, obj);
+                    return 0;
+                }
+                if (val == 0) {
+                    weekmask[i] = 0;
+                }
+                else if (val == 1) {
+                    weekmask[i] = 1;
+                }
+                else {
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "A business day weekmask array must have all "
+                        "1's and 0's");
+                    HPy_Close(ctx, f);
+                    HPy_Close(ctx, obj);
+                    return 0;
+                }
+                HPy_Close(ctx, f);
+            }
+
+            goto finish;
+        }
+    }
+
+    PyErr_SetString(PyExc_ValueError,
+            "Couldn't convert object into a business day weekmask");
+    HPy_Close(ctx, obj);
+    return 0;
+
+finish:
+    HPy_Close(ctx, obj);
+    return 1;
+}
+
 static int
 qsort_datetime_compare(const void *elem1, const void *elem2)
 {
@@ -340,6 +519,83 @@ PyArray_HolidaysConverter(PyObject *dates_in, npy_holidayslist *holidays)
 fail:
     Py_XDECREF(dates);
     Py_XDECREF(date_dtype);
+    return 0;
+}
+
+NPY_NO_EXPORT int
+HPyArray_HolidaysConverter(HPyContext *ctx, HPy dates_in, npy_holidayslist *holidays)
+{
+    HPy dates = HPy_NULL; // PyArrayObject *
+    HPy date_dtype = HPy_NULL; // PyArray_Descr *
+    npy_intp count;
+
+    /* Make 'dates' into an array */
+    if (HPyArray_Check(ctx, dates_in)) {
+        dates = HPy_Dup(ctx, dates_in);
+        // Py_INCREF(dates);
+    }
+    else {
+        HPy datetime_dtype; // PyArray_Descr *
+
+        /* Use the datetime dtype with generic units so it fills it in */
+        datetime_dtype = HPyArray_DescrFromType(ctx, NPY_DATETIME);
+        if (HPy_IsNull(datetime_dtype)) {
+            goto fail;
+        }
+
+        /* This steals the datetime_dtype reference */
+        dates = HPyArray_FromAny(ctx, dates_in, datetime_dtype,
+                                                0, 0, 0, HPy_NULL);
+        if (HPy_IsNull(dates)) {
+            goto fail;
+        }
+    }
+
+    date_dtype = hpy_create_datetime_dtype_with_unit(ctx, NPY_DATETIME, NPY_FR_D);
+    if (HPy_IsNull(date_dtype)) {
+        goto fail;
+    }
+    PyArrayObject *dates_struct = PyArrayObject_AsStruct(ctx, dates);
+    HPy dates_descr = HPyArray_DESCR(ctx, dates, dates_struct);
+    if (!HPyArray_CanCastTypeTo(ctx, dates_descr,
+                                    date_dtype, NPY_SAFE_CASTING)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "Cannot safely convert "
+                        "provided holidays input into an array of dates");
+        goto fail;
+    }
+    if (PyArray_NDIM(dates_struct) != 1) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, "holidays must be a provided "
+                        "as a one-dimensional array");
+        goto fail;
+    }
+
+    /* Allocate the memory for the dates */
+    count = PyArray_DIM(dates_struct, 0);
+    holidays->begin = PyArray_malloc(sizeof(npy_datetime) * count);
+    if (holidays->begin == NULL) {
+        HPyErr_NoMemory(ctx);
+        goto fail;
+    }
+    holidays->end = holidays->begin + count;
+
+    /* Cast the data into a raw date array */
+    if (HPyArray_CastRawArrays(ctx, count,
+                            PyArray_BYTES(dates_struct), (char *)holidays->begin,
+                            PyArray_STRIDE(dates_struct, 0), sizeof(npy_datetime),
+                            dates_descr, PyArray_Descr_AsStruct(ctx, dates_descr), 
+                            date_dtype, PyArray_Descr_AsStruct(ctx, date_dtype),
+                            0) != NPY_SUCCEED) {
+        goto fail;
+    }
+
+    HPy_Close(ctx, dates);
+    HPy_Close(ctx, date_dtype);
+
+    return 1;
+
+fail:
+    HPy_Close(ctx, dates);
+    HPy_Close(ctx, date_dtype);
     return 0;
 }
 
