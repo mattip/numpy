@@ -5534,72 +5534,85 @@ ufunc_generic_vectorcall(PyObject *ufunc,
 
 typedef PyObject * (*ternaryfunc)(PyObject *, PyObject *, PyObject *);
 
-NPY_NO_EXPORT PyObject *
-ufunc_geterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(ufunc_geterr, "geterrobj", ufunc_geterr_impl, HPyFunc_NOARGS)
+NPY_NO_EXPORT HPy
+ufunc_geterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored))
 {
     PyObject *thedict;
-    PyObject *res;
+    HPy res;
 
-    if (!PyArg_ParseTuple(args, "")) {
-        return NULL;
-    }
+    // if (!PyArg_ParseTuple(args, "")) {
+    //     return NULL;
+    // }
+    CAPI_WARN("calling PyThreadState_GetDict() & PyEval_GetBuiltins()");
     thedict = PyThreadState_GetDict();
     if (thedict == NULL) {
         thedict = PyEval_GetBuiltins();
     }
-    HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_pyvals_name);
-    res = PyDict_GetItemWithError(thedict, HPy_AsPyObject(npy_get_context(), s));
-    HPy_Close(npy_get_context(), s);
-    if (res == NULL && PyErr_Occurred()) {
-        return NULL;
+    HPy h_thedict = HPy_FromPyObject(ctx, thedict);
+    HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
+    res = HPyDict_GetItemWithError(ctx, h_thedict, s);
+    HPy_Close(ctx, h_thedict);
+    HPy_Close(ctx, s);
+    if (HPy_IsNull(res) && HPyErr_Occurred(ctx)) {
+        return HPy_NULL;
     }
-    else if (res != NULL) {
-        Py_INCREF(res);
+    else if (!HPy_IsNull(res)) {
+        // Py_INCREF(res);
         return res;
     }
     /* Construct list of defaults */
-    res = PyList_New(3);
-    if (res == NULL) {
-        return NULL;
+    HPyListBuilder l_res = HPyListBuilder_New(ctx, 3);
+    if (HPyListBuilder_IsNull(l_res)) {
+        return HPy_NULL;
     }
-    PyList_SET_ITEM(res, 0, PyLong_FromLong(NPY_BUFSIZE));
-    PyList_SET_ITEM(res, 1, PyLong_FromLong(UFUNC_ERR_DEFAULT));
-    PyList_SET_ITEM(res, 2, Py_None); Py_INCREF(Py_None);
-    return res;
+    HPy item1 = HPyLong_FromLong(ctx, NPY_BUFSIZE);
+    HPy item2 = HPyLong_FromLong(ctx, UFUNC_ERR_DEFAULT);
+    HPyListBuilder_Set(ctx, l_res, 0, item1);
+    HPy_Close(ctx, item1);
+    HPyListBuilder_Set(ctx, l_res, 1, item2);
+    HPy_Close(ctx, item2);
+    HPyListBuilder_Set(ctx, l_res, 2, ctx->h_None);
+    return HPyListBuilder_Build(ctx, l_res);
 }
 
 
-NPY_NO_EXPORT PyObject *
-ufunc_seterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(ufunc_seterr, "seterrobj", ufunc_seterr_impl, HPyFunc_VARARGS)
+NPY_NO_EXPORT HPy
+ufunc_seterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *thedict;
+    HPy thedict;
     int res;
-    PyObject *val;
+    HPy val;
     static char *msg = "Error object must be a list of length 3";
 
-    if (!PyArg_ParseTuple(args, "O:seterrobj", &val)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O:seterrobj", &val)) {
+        return HPy_NULL;
     }
-    if (!PyList_CheckExact(val) || PyList_GET_SIZE(val) != 3) {
-        PyErr_SetString(PyExc_ValueError, msg);
-        return NULL;
+    HPy val_type = HPy_Type(ctx, val);
+    if (!HPy_Is(ctx, val_type, ctx->h_ListType) || HPy_Length(ctx, val) != 3) {
+        HPyErr_SetString(ctx, ctx->h_ValueError, msg);
+        HPy_Close(ctx, val_type);
+        return HPy_NULL;
     }
-    thedict = PyThreadState_GetDict();
-    if (thedict == NULL) {
-        thedict = PyEval_GetBuiltins();
+    HPy_Close(ctx, val_type);
+    CAPI_WARN("missing PyThreadState_GetDict & PyEval_GetBuiltins");
+    thedict = HPy_FromPyObject(ctx, PyThreadState_GetDict());
+    if (HPy_IsNull(thedict) == NULL) {
+        thedict = HPy_FromPyObject(ctx, PyEval_GetBuiltins());
     }
-    HPy s = HPyGlobal_Load(npy_get_context(), npy_hpy_um_str_pyvals_name);
-    res = PyDict_SetItem(thedict, HPy_AsPyObject(npy_get_context(), s), val);
-    HPy_Close(npy_get_context(), s);
+    HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
+    res = HPy_SetItem(ctx, thedict, s, val);
+    HPy_Close(ctx, s);
     if (res < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 #if USE_USE_DEFAULTS==1
     if (ufunc_update_use_defaults() < 0) {
-        return NULL;
+        return HPy_NULL;
     }
 #endif
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
 
