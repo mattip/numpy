@@ -201,26 +201,36 @@ ufunc_frompyfunc(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t 
 }
 
 /* docstring in numpy.add_newdocs.py */
-PyObject *
-add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(add_newdoc_ufunc, "_add_newdoc_ufunc", add_newdoc_ufunc_impl, HPyFunc_VARARGS)
+HPy
+add_newdoc_ufunc_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
-    PyUFuncObject *ufunc;
-    PyObject *str;
-    if (!PyArg_ParseTuple(args, "O!O!:_add_newdoc_ufunc", &PyUFunc_Type, &ufunc,
-                                        &PyUnicode_Type, &str)) {
-        return NULL;
+    HPy ufunc; // PyUFuncObject *
+    HPy str;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O!O!:_add_newdoc_ufunc", 
+                        &ufunc, &str)) {
+        return HPy_NULL;
     }
-    if (ufunc->doc != NULL) {
+    HPy ufunc_type = HPyGlobal_Load(ctx, HPyUFunc_Type);
+    if (!HPyType_IsSubtype(ctx, ufunc, ufunc_type) || 
+            !HPyType_IsSubtype(ctx, str, ctx->h_UnicodeType)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "_add_newdoc_ufunc: argument error TODO");
+        HPy_Close(ctx, ufunc_type);
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, ufunc_type);
+    PyUFuncObject *ufunc_struct = PyUFuncObject_AsStruct(ctx, ufunc);
+    if (ufunc_struct->doc != NULL) {
         PyErr_SetString(PyExc_ValueError,
                 "Cannot change docstring of ufunc with non-NULL docstring");
-        return NULL;
+        return HPy_NULL;
     }
 
-    PyObject *tmp = PyUnicode_AsUTF8String(str);
-    if (tmp == NULL) {
-        return NULL;
+    HPy tmp = HPyUnicode_AsUTF8String(ctx, str);
+    if (HPy_IsNull(tmp)) {
+        return HPy_NULL;
     }
-    char *docstr = PyBytes_AS_STRING(tmp);
+    char *docstr = HPyBytes_AS_STRING(ctx, tmp);
 
     /*
      * This introduces a memory leak, as the memory allocated for the doc
@@ -230,14 +240,14 @@ add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args)
      */
     char *newdocstr = malloc(strlen(docstr) + 1);
     if (!newdocstr) {
-        Py_DECREF(tmp);
-        return PyErr_NoMemory();
+        HPy_Close(ctx, tmp);
+        return HPyErr_NoMemory(ctx);
     }
     strcpy(newdocstr, docstr);
-    ufunc->doc = newdocstr;
+    ufunc_struct->doc = newdocstr;
 
-    Py_DECREF(tmp);
-    Py_RETURN_NONE;
+    HPy_Close(ctx, tmp);
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
 
