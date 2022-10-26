@@ -17,6 +17,7 @@
 
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
+#include "ufunc_object.h" // HPy ufunc ported functions
 #include "numpy/npy_3kcompat.h"
 #include "abstract.h"
 
@@ -90,37 +91,40 @@ object_ufunc_loop_selector(HPyContext *ctx,
     return 0;
 }
 
-PyObject *
-ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
-    PyObject *function, *pyname = NULL;
+HPyDef_METH(frompyfunc, "frompyfunc", ufunc_frompyfunc, HPyFunc_KEYWORDS)
+HPy
+ufunc_frompyfunc(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t args_len, HPy kwds) {
+    HPy function, pyname = HPy_NULL;
     int nin, nout, i, nargs;
     PyUFunc_PyFuncData *fdata;
-    PyUFuncObject *self;
+    HPy self; // PyUFuncObject *
     const char *fname = NULL;
     char *str, *types, *doc;
-    Py_ssize_t fname_len = -1;
+    HPy_ssize_t fname_len = -1;
     void * ptr, **data;
     int offset[2];
-    PyObject *identity = NULL;  /* note: not the same semantics as Py_None */
+    HPy identity = HPy_NULL;  /* note: not the same semantics as Py_None */
     static char *kwlist[] = {"", "nin", "nout", "identity", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oii|$O:frompyfunc", kwlist,
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, args_len, kwds, "Oii|$O:frompyfunc", kwlist,
                 &function, &nin, &nout, &identity)) {
-        return NULL;
+        return HPy_NULL;
     }
-    if (!PyCallable_Check(function)) {
-        PyErr_SetString(PyExc_TypeError, "function must be callable");
-        return NULL;
+    if (!HPyCallable_Check(ctx, function)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "function must be callable");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
 
     nargs = nin + nout;
 
-    pyname = PyObject_GetAttrString(function, "__name__");
-    if (pyname) {
-        fname = PyUnicode_AsUTF8AndSize(pyname, &fname_len);
+    pyname = HPy_GetAttr_s(ctx, function, "__name__");
+    if (!HPy_IsNull(pyname)) {
+        fname = HPyUnicode_AsUTF8AndSize(ctx, pyname, &fname_len);
     }
     if (fname == NULL) {
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
         fname = "?";
         fname_len = 1;
     }
@@ -148,11 +152,11 @@ ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
     ptr = PyArray_malloc(offset[0] + offset[1] + sizeof(void *) +
                             (fname_len + 14));
     if (ptr == NULL) {
-        Py_XDECREF(pyname);
-        return PyErr_NoMemory();
+        HPy_Close(ctx, pyname);
+        return HPyErr_NoMemory(ctx);
     }
     fdata = (PyUFunc_PyFuncData *)(ptr);
-    fdata->callable = function;
+    fdata->callable = HPy_AsPyObject(ctx, function);
     fdata->nin = nin;
     fdata->nout = nout;
 
@@ -165,31 +169,35 @@ ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
     str = types + offset[1];
     memcpy(str, fname, fname_len);
     memcpy(str+fname_len, " (vectorized)", 14);
-    Py_XDECREF(pyname);
+    HPy_Close(ctx, pyname);
 
     /* Do a better job someday */
     doc = "dynamic ufunc based on a python function";
 
-    self = (PyUFuncObject *)PyUFunc_FromFuncAndDataAndSignatureAndIdentity(
+    self = HPyUFunc_FromFuncAndDataAndSignatureAndIdentity(ctx,
             (PyUFuncGenericFunction *)pyfunc_functions, data,
-            types, /* ntypes */ 1, nin, nout, identity ? PyUFunc_IdentityValue : PyUFunc_None,
+            types, /* ntypes */ 1, nin, nout, !HPy_IsNull(identity) ? PyUFunc_IdentityValue : PyUFunc_None,
             str, doc, /* unused */ 0, NULL, identity);
 
-    if (self == NULL) {
+    if (HPy_IsNull(self)) {
         PyArray_free(ptr);
-        return NULL;
+        return HPy_NULL;
     }
     // Py_INCREF(function);
     // self->obj = function;
-    HPyField_StorePyObj((PyObject *)self, &self->obj, function);
-    self->ptr = ptr;
+    PyUFuncObject *self_struct = PyUFuncObject_AsStruct(ctx, self);
+    HPyField_Store(ctx, self, &self_struct->obj, function);
+    self_struct->ptr = ptr;
 
-    self->hpy_type_resolver = &h_object_ufunc_type_resolver;
-    self->type_resolver = &object_ufunc_type_resolver;
-    self->legacy_inner_loop_selector = &object_ufunc_loop_selector;
-    PyObject_GC_Track(self);
+    self_struct->hpy_type_resolver = &h_object_ufunc_type_resolver;
+    self_struct->type_resolver = &object_ufunc_type_resolver;
+    self_struct->legacy_inner_loop_selector = &object_ufunc_loop_selector;
+    PyObject *py_self = HPy_AsPyObject(ctx, self);
+    CAPI_WARN("missing PyObject_GC_Track");
+    PyObject_GC_Track(py_self);
+    Py_DECREF(py_self);
 
-    return (PyObject *)self;
+    return self;
 }
 
 /* docstring in numpy.add_newdocs.py */
