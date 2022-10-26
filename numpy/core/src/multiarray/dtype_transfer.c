@@ -4065,6 +4065,59 @@ PyArray_CastRawArrays(npy_intp count,
     return (needs_api && PyErr_Occurred()) ? NPY_FAIL : NPY_SUCCEED;
 }
 
+NPY_NO_EXPORT int
+HPyArray_CastRawArrays(HPyContext *ctx, npy_intp count,
+                      char *src, char *dst,
+                      npy_intp src_stride, npy_intp dst_stride,
+                      HPy src_dtype, PyArray_Descr *src_dtype_struct,
+                      HPy dst_dtype, PyArray_Descr *dst_dtype_struct,
+                      int move_references)
+{
+    int aligned = 1, needs_api = 0;
+
+    /* Make sure the copy is reasonable */
+    if (dst_stride == 0 && count > 1) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                    "NumPy CastRawArrays cannot do a reduction");
+        return NPY_FAIL;
+    }
+    else if (count == 0) {
+        return NPY_SUCCEED;
+    }
+
+    /* Check data alignment, both uint and true */
+    aligned = raw_array_is_aligned(1, &count, dst, &dst_stride,
+                                   npy_uint_alignment(dst_dtype_struct->elsize)) &&
+              raw_array_is_aligned(1, &count, dst, &dst_stride,
+                                   dst_dtype_struct->alignment) &&
+              raw_array_is_aligned(1, &count, src, &src_stride,
+                                   npy_uint_alignment(src_dtype_struct->elsize)) &&
+              raw_array_is_aligned(1, &count, src, &src_stride,
+                                   src_dtype_struct->alignment);
+
+    /* Get the function to do the casting */
+    NPY_cast_info cast_info;
+    if (HPyArray_GetDTypeTransferFunction(ctx, aligned,
+                        src_stride, dst_stride,
+                        src_dtype, dst_dtype,
+                        move_references,
+                        &cast_info,
+                        &needs_api) != NPY_SUCCEED) {
+        return NPY_FAIL;
+    }
+
+    /* Cast */
+    char *args[2] = {src, dst};
+    npy_intp strides[2] = {src_stride, dst_stride};
+    cast_info.func(ctx, &cast_info.context, args, &count, strides, cast_info.auxdata);
+
+    /* Cleanup */
+    HNPY_cast_info_xfree(ctx, &cast_info);
+
+    /* If needs_api was set to 1, it may have raised a Python exception */
+    return (needs_api && HPyErr_Occurred(ctx)) ? NPY_FAIL : NPY_SUCCEED;
+}
+
 /*
  * Prepares shape and strides for a simple raw array iteration.
  * This sorts the strides into FORTRAN order, reverses any negative
