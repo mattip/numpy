@@ -1330,11 +1330,11 @@ string_too_short:
 /*
  * This is the Python-exposed datetime_as_string function.
  */
-NPY_NO_EXPORT PyObject *
-array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
-                                PyObject *kwds)
+HPyDef_METH(datetime_as_string, "datetime_as_string", array_datetime_as_string, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+array_datetime_as_string(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *arr_in = NULL, *unit_in = NULL, *timezone_obj = NULL;
+    HPy arr_in = HPy_NULL, unit_in = HPy_NULL, timezone_obj = HPy_NULL;
     NPY_DATETIMEUNIT unit;
     NPY_CASTING casting = NPY_SAME_KIND_CASTING;
 
@@ -1343,39 +1343,43 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
     PyArray_DatetimeMetaData *meta;
     int strsize;
 
-    PyArrayObject *ret = NULL;
+    HPy ret = HPy_NULL; // PyArrayObject *
+    HPy op_0_descr = HPy_NULL;
 
     NpyIter *iter = NULL;
-    PyArrayObject *op[2] = {NULL, NULL};
-    PyArray_Descr *op_dtypes[2] = {NULL, NULL};
+    HPy op[2] = {HPy_NULL, HPy_NULL}; // PyArrayObject *
+    HPy op_dtypes[2] = {HPy_NULL, HPy_NULL}; // PyArray_Descr *
     npy_uint32 flags, op_flags[2];
 
     static char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
 
-    if(!PyArg_ParseTupleAndKeywords(args, kwds,
+    HPyTracker ht;
+    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds,
                                 "O|OOO&:datetime_as_string", kwlist,
                                 &arr_in,
                                 &unit_in,
                                 &timezone_obj,
                                 &PyArray_CastingConverter, &casting)) {
-        return NULL;
+        return HPy_NULL;
     }
 
     /* Claim a reference to timezone for later */
-    Py_XINCREF(timezone_obj);
+    timezone_obj = HPy_Dup(ctx, timezone_obj);
 
-    op[0] = (PyArrayObject *)PyArray_FROM_O(arr_in);
-    if (op[0] == NULL) {
+    op[0] = HPyArray_FROM_O(ctx, arr_in);
+    if (HPy_IsNull(op[0])) {
         goto fail;
     }
-    if (PyArray_DESCR(op[0])->type_num != NPY_DATETIME) {
-        PyErr_SetString(PyExc_TypeError,
+    op_0_descr = HPyArray_GetDescr(ctx, op[0]);
+    PyArray_Descr *op_0_descr_struct = PyArray_Descr_AsStruct(ctx, op_0_descr);
+    if (op_0_descr_struct->type_num != NPY_DATETIME) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                     "input must have type NumPy datetime");
         goto fail;
     }
 
     /* Get the datetime metadata */
-    meta = get_datetime_metadata_from_dtype(PyArray_DESCR(op[0]));
+    meta = h_get_datetime_metadata_from_dtype(ctx, op_0_descr_struct);
     if (meta == NULL) {
         goto fail;
     }
@@ -1384,26 +1388,25 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
     unit = meta->base;
 
     /* Parse the input unit if provided */
-    if (unit_in != NULL && unit_in != Py_None) {
-        PyObject *strobj;
+    if (!HPy_IsNull(unit_in) && !HPy_Is(ctx, unit_in, ctx->h_None)) {
+        HPy strobj;
 
-        if (PyBytes_Check(unit_in)) {
+        if (HPyBytes_Check(ctx, unit_in)) {
             /* accept bytes input */
-            PyObject *obj_str = PyUnicode_FromEncodedObject(unit_in, NULL, NULL);
-            if (obj_str == NULL) {
-                return 0;
+            HPy obj_str = HPyUnicode_FromEncodedObject(ctx, unit_in, NULL, NULL);
+            if (HPy_IsNull(obj_str)) {
+                return HPy_NULL;
             }
             strobj = obj_str;
         }
         else {
-            Py_INCREF(unit_in);
-            strobj = unit_in;
+            strobj = HPy_Dup(ctx, unit_in);
         }
 
         Py_ssize_t len;
-        char const *str = PyUnicode_AsUTF8AndSize(strobj, &len);
+        char const *str = HPyUnicode_AsUTF8AndSize(ctx, strobj, &len);
         if (str == NULL) {
-            Py_DECREF(strobj);
+            HPy_Close(ctx, strobj);
             goto fail;
         }
 
@@ -1417,15 +1420,15 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
         else {
             unit = parse_datetime_unit_from_string(str, len, NULL);
             if (unit == NPY_FR_ERROR) {
-                Py_DECREF(strobj);
+                HPy_Close(ctx, strobj);
                 goto fail;
             }
         }
-        Py_DECREF(strobj);
+        HPy_Close(ctx, strobj);
 
         if (unit != NPY_FR_ERROR &&
                 !can_cast_datetime64_units(meta->base, unit, casting)) {
-            PyErr_Format(PyExc_TypeError, "Cannot create a datetime "
+            HPyErr_Format_p(ctx, ctx->h_TypeError, "Cannot create a datetime "
                         "string as units '%s' from a NumPy datetime "
                         "with units '%s' according to the rule %s",
                         _datetime_strings[unit],
@@ -1436,27 +1439,27 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
     }
 
     /* Get the input time zone */
-    if (timezone_obj != NULL) {
-        PyObject *strobj;
-        if (PyBytes_Check(timezone_obj)) {
+    if (!HPy_IsNull(timezone_obj)) {
+        HPy strobj;
+        if (HPyBytes_Check(ctx, timezone_obj)) {
             /* accept bytes input */
-            PyObject *obj_str = PyUnicode_FromEncodedObject(timezone_obj, NULL, NULL);
-            if (obj_str == NULL) {
+            HPy obj_str = HPyUnicode_FromEncodedObject(ctx, timezone_obj, NULL, NULL);
+            if (HPy_IsNull(obj_str)) {
                 goto fail;
             }
             strobj = obj_str;
         }
         else {
-            Py_INCREF(timezone_obj);
-            strobj = timezone_obj;
+            // Py_INCREF(timezone_obj);
+            strobj = HPy_Dup(ctx, timezone_obj);
         }
 
-        Py_SETREF(timezone_obj, strobj);
+        HPy_SETREF(ctx, timezone_obj, strobj);
 
         /* Check for the supported string inputs */
-        if (PyUnicode_Check(timezone_obj)) {
-            Py_ssize_t len;
-            char const *str = PyUnicode_AsUTF8AndSize(timezone_obj, &len);
+        if (HPyUnicode_Check(ctx, timezone_obj)) {
+            HPy_ssize_t len;
+            char const *str = HPyUnicode_AsUTF8AndSize(ctx, timezone_obj, &len);
             if (str == NULL) {
                 goto fail;
             }
@@ -1464,23 +1467,23 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
             if (strcmp(str, "local") == 0) {
                 local = 1;
                 utc = 0;
-                Py_DECREF(timezone_obj);
-                timezone_obj = NULL;
+                HPy_Close(ctx, timezone_obj);
+                timezone_obj = HPy_NULL;
             }
             else if (strcmp(str, "UTC") == 0) {
                 local = 0;
                 utc = 1;
-                Py_DECREF(timezone_obj);
-                timezone_obj = NULL;
+                HPy_Close(ctx, timezone_obj);
+                timezone_obj = HPy_NULL;
             }
             else if (strcmp(str, "naive") == 0) {
                 local = 0;
                 utc = 0;
-                Py_DECREF(timezone_obj);
-                timezone_obj = NULL;
+                HPy_Close(ctx, timezone_obj);
+                timezone_obj = HPy_NULL;
             }
             else {
-                PyErr_Format(PyExc_ValueError, "Unsupported timezone "
+                HPyErr_Format_p(ctx, ctx->h_ValueError, "Unsupported timezone "
                             "input string \"%s\"", str);
                 goto fail;
             }
@@ -1497,24 +1500,24 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
      * For Python3, allocate the output array as a UNICODE array, so
      * that it will behave as strings properly
      */
-    op_dtypes[1] = PyArray_DescrNewFromType(NPY_UNICODE);
-    if (op_dtypes[1] == NULL) {
+    op_dtypes[1] = HPyArray_DescrNewFromType(ctx, NPY_UNICODE);
+    if (HPy_IsNull(op_dtypes[1])) {
         goto fail;
     }
-    op_dtypes[1]->elsize = strsize * 4;
+    PyArray_Descr_AsStruct(ctx, op_dtypes[1])->elsize = strsize * 4;
     /* This steals the UNICODE dtype reference in op_dtypes[1] */
-    op[1] = (PyArrayObject *)PyArray_NewLikeArray(op[0],
+    op[1] = HPyArray_NewLikeArray(ctx, op[0],
                                         NPY_KEEPORDER, op_dtypes[1], 1);
-    if (op[1] == NULL) {
-        op_dtypes[1] = NULL;
+    if (HPy_IsNull(op[1])) {
+        op_dtypes[1] = HPy_NULL;
         goto fail;
     }
     /* Create the iteration string data type (always ASCII string) */
-    op_dtypes[1] = PyArray_DescrNewFromType(NPY_STRING);
-    if (op_dtypes[1] == NULL) {
+    op_dtypes[1] = HPyArray_DescrNewFromType(ctx, NPY_STRING);
+    if (HPy_IsNull(op_dtypes[1])) {
         goto fail;
     }
-    op_dtypes[1]->elsize = strsize;
+    PyArray_Descr_AsStruct(ctx, op_dtypes[1])->elsize = strsize;
 
     flags = NPY_ITER_ZEROSIZE_OK|
             NPY_ITER_BUFFERED;
@@ -1553,8 +1556,8 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
             }
 
             /* Get the tzoffset from the timezone if provided */
-            if (local && timezone_obj != NULL) {
-                tzoffset = get_tzoffset_from_pytzinfo(timezone_obj, &dts);
+            if (local && !HPy_IsNull(timezone_obj)) {
+                tzoffset = hpy_get_tzoffset_from_pytzinfo(ctx, timezone_obj, &dts);
                 if (tzoffset == -1) {
                     goto fail;
                 }
@@ -1570,29 +1573,31 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
         } while(iternext(npy_get_context(), iter));
     }
 
-    ret = NpyIter_GetOperandArray(iter)[1];
-    Py_INCREF(ret);
+    ret = HPyArray_Return(ctx, HNpyIter_GetOperandArray(iter)[1]);
+    // Py_INCREF(ret);
 
-    Py_XDECREF(timezone_obj);
-    Py_XDECREF(op[0]);
-    Py_XDECREF(op[1]);
-    Py_XDECREF(op_dtypes[0]);
-    Py_XDECREF(op_dtypes[1]);
+    HPy_Close(ctx, op_0_descr);
+    HPy_Close(ctx, timezone_obj);
+    HPy_Close(ctx, op[0]);
+    HPy_Close(ctx, op[1]);
+    HPy_Close(ctx, op_dtypes[0]);
+    HPy_Close(ctx, op_dtypes[1]);
     if (iter != NULL) {
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(ctx, iter);
     }
 
-    return PyArray_Return(ret);
+    return ret;
 
 fail:
-    Py_XDECREF(timezone_obj);
-    Py_XDECREF(op[0]);
-    Py_XDECREF(op[1]);
-    Py_XDECREF(op_dtypes[0]);
-    Py_XDECREF(op_dtypes[1]);
+    HPy_Close(ctx, op_0_descr);
+    HPy_Close(ctx, timezone_obj);
+    HPy_Close(ctx, op[0]);
+    HPy_Close(ctx, op[1]);
+    HPy_Close(ctx, op_dtypes[0]);
+    HPy_Close(ctx, op_dtypes[1]);
     if (iter != NULL) {
-        NpyIter_Deallocate(iter);
+        HNpyIter_Deallocate(ctx, iter);
     }
 
-    return NULL;
+    return HPy_NULL;
 }
