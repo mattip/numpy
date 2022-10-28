@@ -278,6 +278,14 @@ PyArray_CastRawArrays(npy_intp count,
                       PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
                       int move_references);
 
+NPY_NO_EXPORT int
+HPyArray_CastRawArrays(HPyContext *ctx, npy_intp count,
+                      char *src, char *dst,
+                      npy_intp src_stride, npy_intp dst_stride,
+                      HPy src_dtype, PyArray_Descr *src_dtype_struct,
+                      HPy dst_dtype, PyArray_Descr *dst_dtype_struct,
+                      int move_references);
+
 /*
  * These two functions copy or convert the data of an n-dimensional array
  * to/from a 1-dimensional strided buffer.  These functions will only call

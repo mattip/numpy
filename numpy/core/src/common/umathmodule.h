@@ -6,8 +6,8 @@
 
 extern NPY_NO_EXPORT HPyDef get_sfloat_dtype;
 
-PyObject * add_newdoc_ufunc(PyObject *NPY_UNUSED(dummy), PyObject *args);
-PyObject * ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *NPY_UNUSED(kwds));
+extern NPY_NO_EXPORT HPyDef add_newdoc_ufunc;
+extern NPY_NO_EXPORT HPyDef frompyfunc;
 int initumath(HPyContext *ctx, HPy m, HPy module_dict);
 
 #endif  /* NUMPY_CORE_SRC_COMMON_UMATHMODULE_H_ */
