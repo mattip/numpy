@@ -1735,7 +1735,7 @@ HPyArray_MatrixProduct2(HPyContext *ctx, HPy op1, HPy op2, HPy out, PyArrayObjec
     PyArrayObject *ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
 
 #if defined(HAVE_CBLAS)
-    if (PyArray_NDIM(ap1) <= 2 && PyArray_NDIM(ap2) <= 2 &&
+    if (PyArray_NDIM(ap1_struct) <= 2 && PyArray_NDIM(ap2_struct) <= 2 &&
             (NPY_DOUBLE == typenum || NPY_CDOUBLE == typenum ||
              NPY_FLOAT == typenum || NPY_CFLOAT == typenum)) {
         PyObject *py_ap1 = HPy_AsPyObject(ctx, ap1);
@@ -1744,7 +1744,7 @@ HPyArray_MatrixProduct2(HPyContext *ctx, HPy op1, HPy op2, HPy out, PyArrayObjec
         HPy_Close(ctx, ap1);
         HPy_Close(ctx, ap2);
         CAPI_WARN("calling cblas_matrixproduct");
-        PyObject *py_result = cblas_matrixproduct(typenum, ap1, ap2, out);
+        PyObject *py_result = cblas_matrixproduct(typenum, py_ap1, py_ap2, py_out);
         result = HPy_FromPyObject(ctx, py_result);
         Py_DECREF(py_ap1);
         Py_DECREF(py_ap2);
@@ -2590,7 +2590,6 @@ _hpy_array_fromobject_generic(
 {
     HPy array_type = HPy_NULL;
     HPy ret = HPy_NULL;
-    PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
     HPy oldtype = HPy_NULL;
     PyArray_Descr *oldtype_data;
     PyArray_Descr *type_data = PyArray_Descr_AsStruct(ctx, type);
@@ -2612,6 +2611,7 @@ _hpy_array_fromobject_generic(
     HPy_Close(ctx, op_type);
     if (is_op_HPyArray_Type ||
         (subok && HPy_TypeCheck(ctx, op, array_type))) {
+        PyArrayObject *oparr = PyArrayObject_AsStruct(ctx, op);
         if (HPy_IsNull(type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
                 ret = HPy_Dup(ctx, op);
@@ -2663,7 +2663,7 @@ _hpy_array_fromobject_generic(
     else if ((order == NPY_FORTRANORDER)
                  /* order == NPY_ANYORDER && */
                  || (HPy_TypeCheck(ctx, op, array_type) &&
-                     PyArray_ISFORTRAN(oparr))) {
+                     PyArray_ISFORTRAN(PyArrayObject_AsStruct(ctx, op)))) {
         flags |= NPY_ARRAY_F_CONTIGUOUS;
     }
     if (!subok) {
@@ -2754,7 +2754,7 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         }
         if (!HPy_IsNull(h_like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "array", h_like, HPy_NULL, HPy_NULL, args, nargs, kw);
+                    "array", h_like, kw, args, nargs);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, h_type);
                 return deferred;
@@ -3201,7 +3201,7 @@ array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     HPyTracker ht;
 
     // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOO",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOO:zeros",
             (const char*[]) {"shape", "dtype", "order", "like", NULL},
             &h_shape, &h_typecode, &h_order, &h_like)) {
         goto cleanup;
@@ -3214,8 +3214,9 @@ array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     HPy type_descr;
 
     if (HPyArray_IntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED ||
-        HPyArray_DescrConverter(ctx, h_typecode, &type_descr) != NPY_SUCCEED ||
-        HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+            HPyArray_DescrConverter(ctx, h_typecode, &type_descr) != NPY_SUCCEED ||
+            HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "zeros: TODO");
         goto cleanup;
     }
 
@@ -3225,7 +3226,7 @@ array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         // PyObject *deferred = array_implement_c_array_function_creation(
         //         "zeros", like, NULL, NULL, args, len_args, kwnames);
         // if (deferred != Py_NotImplemented) {
-        //     Py_XDECREF(typecode);
+        //     HPy_Close(ctx, typecode);
         //     npy_free_cache_dim_obj(shape);
         //     return deferred;
         // }
@@ -4483,8 +4484,9 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
 
 #undef INNER_WHERE_LOOP
 
+HPyDef_METH(array_where, "where", array_where_impl, HPyFunc_VARARGS)
 static HPy
-array_where(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
+array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
 {
     HPy obj = HPy_NULL, x = HPy_NULL, y = HPy_NULL;
 
