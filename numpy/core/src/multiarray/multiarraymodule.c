@@ -3069,36 +3069,55 @@ fail:
     return HPy_NULL;
 }
 
-static PyObject *
-array_empty(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_empty, "empty", array_empty_impl, HPyFunc_KEYWORDS)
+static HPy
+array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    PyArray_Descr *typecode = NULL;
+    HPy typecode = HPy_NULL; // PyArray_Descr *
     PyArray_Dims shape = {NULL, 0};
     NPY_ORDER order = NPY_CORDER;
     npy_bool is_f_order;
-    PyArrayObject *ret = NULL;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPy ret = HPy_NULL; // PyArrayObject *
+    HPy like = HPy_NULL;
+    // NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("empty", args, len_args, kwnames,
-            "shape", &PyArray_IntpConverter, &shape,
-            "|dtype", &PyArray_DescrConverter, &typecode,
-            "|order", &PyArray_OrderConverter, &order,
-            "$like", NULL, &like,
-            NULL, NULL, NULL) < 0) {
-        goto fail;
+    HPyTracker ht;
+    HPy h_shape = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL;
+    // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:empty",
+            (const char*[]) {"shape", "dtype", "order", "like", NULL},
+            &h_shape, &h_type, &h_order, &like)) {
+        return HPy_NULL;
     }
+    if (HPyArray_IntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED ||
+            HPyArray_DescrConverter(ctx, h_type, &typecode) != NPY_SUCCEED ||
+            HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "empty: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+    // if (npy_parse_arguments("empty", args, len_args, kwnames,
+    //         "shape", &PyArray_IntpConverter, &shape,
+    //         "|dtype", &PyArray_DescrConverter, &typecode,
+    //         "|order", &PyArray_OrderConverter, &order,
+    //         "$like", NULL, &like,
+    //         NULL, NULL, NULL) < 0) {
+    //     goto fail;
+    // }
 
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "empty", like, NULL, NULL, args, len_args, kwnames);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(typecode);
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "empty", like, kw, args, len_args);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPy_Close(ctx, typecode);
+            HPyTracker_Close(ctx, ht);
             npy_free_cache_dim_obj(shape);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
+    HPyTracker_Close(ctx, ht);
 
     switch (order) {
         case NPY_CORDER:
@@ -3108,59 +3127,69 @@ array_empty(PyObject *NPY_UNUSED(ignored),
             is_f_order = NPY_TRUE;
             break;
         default:
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                             "only 'C' or 'F' order is permitted");
             goto fail;
     }
 
-    ret = (PyArrayObject *)PyArray_Empty(shape.len, shape.ptr,
+    ret = HPyArray_Empty(ctx, shape.len, shape.ptr,
                                             typecode, is_f_order);
 
     npy_free_cache_dim_obj(shape);
-    return (PyObject *)ret;
+    return ret;
 
 fail:
-    Py_XDECREF(typecode);
+    HPy_Close(ctx, typecode);
     npy_free_cache_dim_obj(shape);
-    return NULL;
+    return HPy_NULL;
 }
 
-static PyObject *
-array_empty_like(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_empty_like, "empty_like", array_empty_like_impl, HPyFunc_KEYWORDS)
+static HPy
+array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
 
     static char *kwlist[] = {"prototype", "dtype", "order", "subok", "shape", NULL};
-    PyArrayObject *prototype = NULL;
-    PyArray_Descr *dtype = NULL;
+    HPy h_prototype = HPy_NULL, prototype = HPy_NULL; // PyArrayObject *
+    HPy dtype = HPy_NULL; // PyArray_Descr *
     NPY_ORDER order = NPY_KEEPORDER;
-    PyArrayObject *ret = NULL;
+    HPy ret = HPy_NULL; // PyArrayObject *
     int subok = 1;
     /* -1 is a special value meaning "not specified" */
     PyArray_Dims shape = {NULL, -1};
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|O&O&iO&:empty_like", kwlist,
-                &PyArray_Converter, &prototype,
-                &PyArray_DescrConverter2, &dtype,
-                &PyArray_OrderConverter, &order,
+    HPy h_type = HPy_NULL, h_order = HPy_NULL, h_shape = HPy_NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOiO:empty_like", kwlist,
+                &prototype,
+                &h_type,
+                &h_order,
                 &subok,
                 &PyArray_OptionalIntpConverter, &shape)) {
         goto fail;
     }
+    if (HPyArray_Converter(ctx, h_prototype, &prototype) != NPY_SUCCEED ||
+            HPyArray_DescrConverter2(ctx, h_type, &dtype) != NPY_SUCCEED ||
+            HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED ||
+            HPyArray_OptionalIntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "empty_like: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
     /* steals the reference to dtype if it's not NULL */
-    ret = (PyArrayObject *)PyArray_NewLikeArrayWithShape(prototype, order, dtype,
+    ret = HPyArray_NewLikeArrayWithShape(ctx, prototype, order, dtype,
                                                          shape.len, shape.ptr, subok);
     npy_free_cache_dim_obj(shape);
-    if (!ret) {
+    if (HPy_IsNull(ret)) {
         goto fail;
     }
-    Py_DECREF(prototype);
+    HPy_Close(ctx, prototype);
 
-    return (PyObject *)ret;
+    return ret;
 
 fail:
-    Py_XDECREF(prototype);
-    Py_XDECREF(dtype);
-    return NULL;
+    HPy_Close(ctx, prototype);
+    HPy_Close(ctx, dtype);
+    return HPy_NULL;
 }
 
 /*
