@@ -4273,49 +4273,67 @@ array_correlate2(PyObject *NPY_UNUSED(dummy),
     return PyArray_Correlate2(a0, shape, mode);
 }
 
-static PyObject *
-array_arange(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_arange, "arange", array_arange_impl, HPyFunc_KEYWORDS)
+static HPy
+array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
-    PyObject *o_start = NULL, *o_stop = NULL, *o_step = NULL, *range=NULL;
-    PyArray_Descr *typecode = NULL;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPy o_start = HPy_NULL, o_stop = HPy_NULL, o_step = HPy_NULL, range = HPy_NULL;
+    HPy typecode = HPy_NULL; // PyArray_Descr *
+    HPy like = HPy_NULL;
+    // NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("arange", args, len_args, kwnames,
-            "|start", NULL, &o_start,
-            "|stop", NULL, &o_stop,
-            "|step", NULL, &o_step,
-            "|dtype", &PyArray_DescrConverter2, &typecode,
-            "$like", NULL, &like,
-            NULL, NULL, NULL) < 0) {
-        Py_XDECREF(typecode);
-        return NULL;
+    // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    HPy h_typecode = HPy_NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOOO:arange",
+            (const char*[]) {"start", "stop", "step", "dtype", "like", NULL},
+            &o_start, &o_stop, &o_step, &h_typecode, &like)) {
+        return HPy_NULL;
     }
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "arange", like, NULL, NULL, args, len_args, kwnames);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(typecode);
+    if (HPyArray_DescrConverter2(ctx, h_typecode, &typecode) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "arange: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    // if (npy_parse_arguments("arange", args, len_args, kwnames,
+    //         "|start", NULL, &o_start,
+    //         "|stop", NULL, &o_stop,
+    //         "|step", NULL, &o_step,
+    //         "|dtype", &PyArray_DescrConverter2, &typecode,
+    //         "$like", NULL, &like,
+    //         NULL, NULL, NULL) < 0) {
+    //     HPy_Close(ctx, typecode);
+    //     return HPy_NULL;
+    // }
+
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "frombuffer", like, kw, args, nargs);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPy_Close(ctx, typecode);
+            HPyTracker_Close(ctx, ht);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
 
-    if (o_stop == NULL) {
-        if (len_args == 0){
-            PyErr_SetString(PyExc_TypeError,
+    if (HPy_IsNull(o_stop)) {
+        if (nargs == 0){
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                 "arange() requires stop to be specified.");
-            Py_XDECREF(typecode);
-            return NULL;
+            HPy_Close(ctx, typecode);
+            return HPy_NULL;
         }
     }
-    else if (o_start == NULL) {
+    else if (HPy_IsNull(o_start)) {
         o_start = o_stop;
-        o_stop = NULL;
+        o_stop = HPy_NULL;
     }
 
-    range = PyArray_ArangeObj(o_start, o_stop, o_step, typecode);
-    Py_XDECREF(typecode);
+    range = HPyArray_ArangeObj(ctx, o_start, o_stop, o_step, typecode);
+    HPy_Close(ctx, typecode);
 
     return range;
 }
@@ -4464,27 +4482,27 @@ array_set_string_function(PyObject *NPY_UNUSED(self), PyObject *args,
     Py_RETURN_NONE;
 }
 
-static PyObject *
-array_set_ops_function(PyObject *NPY_UNUSED(self), PyObject *NPY_UNUSED(args),
-        PyObject *kwds)
+HPyDef_METH(array_set_ops_function, "set_numeric_ops", array_set_ops_function_impl, HPyFunc_KEYWORDS)
+static HPy
+array_set_ops_function_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *oldops = NULL;
+    HPy oldops = HPy_NULL;
 
-    if ((oldops = _PyArray_GetNumericOps()) == NULL) {
-        return NULL;
+    if (HPy_IsNull(oldops = _PyArray_GetNumericOps(ctx))) {
+        return HPy_NULL;
     }
     /*
      * Should probably ensure that objects are at least callable
      *  Leave this to the caller for now --- error will be raised
      *  later when use is attempted
      */
-    if (kwds && PyArray_SetNumericOps(kwds) == -1) {
-        Py_DECREF(oldops);
-        if (PyErr_Occurred() == NULL) {
-            PyErr_SetString(PyExc_ValueError,
+    if (!HPy_IsNull(kwds) && HPyArray_SetNumericOps(ctx, kwds) == -1) {
+        HPy_Close(ctx, oldops);
+        if (!HPyErr_Occurred(ctx)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                 "one or more objects not callable");
         }
-        return NULL;
+        return HPy_NULL;
     }
     return oldops;
 }
@@ -4708,73 +4726,92 @@ array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
     return res;
 }
 
-static PyObject *
-array_lexsort(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_lexsort, "lexsort", array_lexsort_impl, HPyFunc_KEYWORDS)
+static HPy
+array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     int axis = -1;
-    PyObject *obj;
+    HPy obj;
     static char *kwlist[] = {"keys", "axis", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i:lexsort", kwlist, &obj, &axis)) {
-        return NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|i:lexsort", kwlist, &obj, &axis)) {
+        return HPy_NULL;
     }
-    return PyArray_Return((PyArrayObject *)PyArray_LexSort(obj, axis));
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    CAPI_WARN("calling PyArray_LexSort");
+    PyObject *py_ret = PyArray_LexSort(py_obj, axis);
+    HPy ret = HPy_FromPyObject(ctx, py_ret);
+    Py_DECREF(py_obj);
+    Py_DECREF(py_ret);
+    
+    HPy r = HPyArray_Return(ctx, ret);
+    HPy_Close(ctx, ret);
+    return r;
 }
 
-static PyObject *
-array_can_cast_safely(PyObject *NPY_UNUSED(self), PyObject *args,
-        PyObject *kwds)
+HPyDef_METH(array_can_cast_safely, "can_cast", array_can_cast_safely_impl, HPyFunc_KEYWORDS)
+static HPy
+array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *from_obj = NULL;
-    PyArray_Descr *d1 = NULL;
-    PyArray_Descr *d2 = NULL;
+    HPy from_obj = HPy_NULL;
+    HPy d1 = HPy_NULL; // PyArray_Descr *
+    HPy d2 = HPy_NULL; // PyArray_Descr *
     int ret;
-    PyObject *retobj = NULL;
+    HPy retobj = HPy_NULL;
     NPY_CASTING casting = NPY_SAFE_CASTING;
     static char *kwlist[] = {"from_", "to", "casting", NULL};
 
-    if(!PyArg_ParseTupleAndKeywords(args, kwds, "OO&|O&:can_cast", kwlist,
+    HPy h_d2 = HPy_NULL, h_casting = HPy_NULL;
+    HPyTracker ht;
+    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:can_cast", kwlist,
                 &from_obj,
-                PyArray_DescrConverter2, &d2,
-                PyArray_CastingConverter, &casting)) {
+                &h_d2,
+                &h_casting)) {
         goto finish;
     }
-    if (d2 == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    if (HPyArray_DescrConverter2(ctx, h_d2, &d2) != NPY_SUCCEED ||
+            HPyArray_CastingConverter(ctx, h_casting, &casting) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "can_cast: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+    if (HPy_IsNull(d2)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "did not understand one of the types; 'None' not accepted");
         goto finish;
     }
 
     /* If the first parameter is an object or scalar, use CanCastArrayTo */
-    if (PyArray_Check(from_obj)) {
-        ret = PyArray_CanCastArrayTo((PyArrayObject *)from_obj, d2, casting);
+    if (HPyArray_Check(ctx, from_obj)) {
+        ret = HPyArray_CanCastArrayTo(ctx, from_obj, d2, casting);
     }
-    else if (PyArray_IsScalar(from_obj, Generic) ||
-                                PyArray_IsPythonNumber(from_obj)) {
-        PyArrayObject *arr;
-        arr = (PyArrayObject *)PyArray_FROM_O(from_obj);
-        if (arr == NULL) {
+    else if (HPyArray_IsScalar(ctx, from_obj, Generic) ||
+                                HPyArray_IsPythonNumber(ctx, from_obj)) {
+        HPy arr; // PyArrayObject *
+        arr = HPyArray_FROM_O(ctx, from_obj);
+        if (HPy_IsNull(arr)) {
             goto finish;
         }
-        ret = PyArray_CanCastArrayTo(arr, d2, casting);
-        Py_DECREF(arr);
+        ret = HPyArray_CanCastArrayTo(ctx, arr, d2, casting);
+        HPy_Close(ctx, arr);
     }
     /* Otherwise use CanCastTypeTo */
     else {
-        if (!PyArray_DescrConverter2(from_obj, &d1) || d1 == NULL) {
-            PyErr_SetString(PyExc_TypeError,
+        if (!HPyArray_DescrConverter2(ctx, from_obj, &d1) || HPy_IsNull(d1)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                     "did not understand one of the types; 'None' not accepted");
             goto finish;
         }
-        ret = PyArray_CanCastTypeTo(d1, d2, casting);
+        ret = HPyArray_CanCastTypeTo(ctx, d1, d2, casting);
     }
 
-    retobj = ret ? Py_True : Py_False;
-    Py_INCREF(retobj);
+    retobj = HPy_Dup(ctx, ret ? ctx->h_True : ctx->h_False);
+    // Py_INCREF(retobj);
 
  finish:
-    Py_XDECREF(d1);
-    Py_XDECREF(d2);
+    HPy_Close(ctx, d1);
+    HPy_Close(ctx, d2);
     return retobj;
 }
 
