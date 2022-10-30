@@ -2264,19 +2264,29 @@ fail:
 }
 
 
-static PyObject *
-array_putmask(PyObject *NPY_UNUSED(module), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_putmask, "putmask", array_putmask_impl, HPyFunc_KEYWORDS)
+static HPy
+array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *mask, *values;
-    PyObject *array;
+    HPy mask, values;
+    HPy array;
 
     static char *kwlist[] = {"arr", "mask", "values", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!OO:putmask", kwlist,
-                &PyArray_Type, &array, &mask, &values)) {
-        return NULL;
+    HPyTracker ht;
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OOO:putmask", kwlist,
+                &array, &mask, &values)) {
+        return HPy_NULL;
     }
-    return PyArray_PutMask((PyArrayObject *)array, values, mask);
+    if (!HPy_TypeCheck(ctx, array, array_type)) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "putmask");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+    HPy ret = HPyArray_PutMask(ctx, array, values, mask);
+    HPyTracker_Close(ctx, ht);
+    return ret;
 }
 
 
@@ -2773,81 +2783,118 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     return res;
 }
 
-static PyObject *
-array_asarray(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_asarray, "asarray", array_asarray_impl, HPyFunc_KEYWORDS)
+static HPy
+array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    PyObject *op;
-    PyArray_Descr *type = NULL;
+    HPy op;
+    HPy type = HPy_NULL; // PyArray_Descr *
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPy like = HPy_NULL;
+    // NPY_PREPARE_ARGPARSER;
 
-    if (len_args != 1 || (kwnames != NULL)) {
-        if (npy_parse_arguments("asarray", args, len_args, kwnames,
-                "a", NULL, &op,
-                "|dtype", &PyArray_DescrConverter2, &type,
-                "|order", &PyArray_OrderConverter, &order,
-                "$like", NULL, &like,
-                NULL, NULL, NULL) < 0) {
-            Py_XDECREF(type);
-            return NULL;
+
+    if (len_args != 1 || !HPy_IsNull(kw)) {
+        HPyTracker ht;
+        HPy h_type = HPy_NULL, h_order = HPy_NULL;
+        // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
+        // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO",
+                (const char*[]) {"a", "dtype", "order", "like", NULL},
+                &op, &h_type, &h_order, &like)) {
+            return HPy_NULL;
         }
-        if (like != NULL) {
-            PyObject *deferred = array_implement_c_array_function_creation(
-                    "asarray", like, NULL, NULL, args, len_args, kwnames);
-            if (deferred != Py_NotImplemented) {
-                Py_XDECREF(type);
+        // if (npy_parse_arguments("asarray", args, len_args, kwnames,
+        //         "a", NULL, &op,
+        //         "|dtype", &PyArray_DescrConverter2, &h_type,
+        //         "|order", &PyArray_OrderConverter, &h_order,
+        //         "$like", NULL, &like,
+        //         NULL, NULL, NULL) < 0) {
+        //     HPy_Close(ctx, type);
+        //     return HPy_NULL;
+        // }
+        if (HPyArray_DescrConverter2(ctx, h_type, &type) != NPY_SUCCEED ||
+                HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+            HPyErr_SetString(ctx, ctx->h_SystemError, "asarray: TODO");
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
+        }
+        if (!HPy_IsNull(like)) {
+            HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                    "asarray", like, kw, args, len_args);
+            if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+                HPy_Close(ctx, type);
+                HPyTracker_Close(ctx, ht);
                 return deferred;
             }
+            // HPy_Close(ctx, deferred); ?
         }
+        HPyTracker_Close(ctx, ht);
     }
     else {
         op = args[0];
     }
 
-    PyObject *res = _array_fromobject_generic(
+    HPy res = _hpy_array_fromobject_generic(ctx,
             op, type, NPY_FALSE, order, NPY_FALSE, 0);
-    Py_XDECREF(type);
+    HPy_Close(ctx, type);
     return res;
 }
 
-static PyObject *
-array_asanyarray(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_asanyarray, "asanyarray", array_asanyarray_impl, HPyFunc_KEYWORDS)
+static HPy
+array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    PyObject *op;
-    PyArray_Descr *type = NULL;
+    HPy op;
+    HPy type = HPy_NULL; // PyArray_Descr *
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPy like = HPy_NULL;
+    // NPY_PREPARE_ARGPARSER;
 
-    if (len_args != 1 || (kwnames != NULL)) {
-        if (npy_parse_arguments("asanyarray", args, len_args, kwnames,
-                "a", NULL, &op,
-                "|dtype", &PyArray_DescrConverter2, &type,
-                "|order", &PyArray_OrderConverter, &order,
-                "$like", NULL, &like,
-                NULL, NULL, NULL) < 0) {
-            Py_XDECREF(type);
-            return NULL;
+    if (len_args != 1 || !HPy_IsNull(kw)) {
+        HPyTracker ht;
+        HPy h_type = HPy_NULL, h_order = HPy_NULL;
+        // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
+        // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:asanyarray",
+                (const char*[]) {"a", "dtype", "order", "like", NULL},
+                &op, &h_type, &h_order, &like)) {
+            return HPy_NULL;
         }
-        if (like != NULL) {
-            PyObject *deferred = array_implement_c_array_function_creation(
-                    "asanyarray", like, NULL, NULL, args, len_args, kwnames);
-            if (deferred != Py_NotImplemented) {
-                Py_XDECREF(type);
+        // if (npy_parse_arguments("asanyarray", args, len_args, kwnames,
+        //         "a", NULL, &op,
+        //         "|dtype", &PyArray_DescrConverter2, &type,
+        //         "|order", &PyArray_OrderConverter, &order,
+        //         "$like", NULL, &like,
+        //         NULL, NULL, NULL) < 0) {
+        //     HPy_Close(ctx, type);
+        //     return HPy_NULL;
+        // }
+        if (HPyArray_DescrConverter2(ctx, h_type, &type) != NPY_SUCCEED ||
+                HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+            HPyErr_SetString(ctx, ctx->h_SystemError, "asanyarray: TODO");
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
+        }
+        if (!HPy_IsNull(like)) {
+            HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                    "asanyarray", like, kw, args, len_args);
+            if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+                HPy_Close(ctx, type);
+                HPyTracker_Close(ctx, ht);
                 return deferred;
             }
+            // HPy_Close(ctx, deferred); ?
         }
+        HPyTracker_Close(ctx, ht);
     }
     else {
         op = args[0];
     }
 
-    PyObject *res = _array_fromobject_generic(
+    HPy res = _hpy_array_fromobject_generic(ctx,
             op, type, NPY_FALSE, order, NPY_TRUE, 0);
-    Py_XDECREF(type);
+    HPy_Close(ctx, type);
     return res;
 }
 
