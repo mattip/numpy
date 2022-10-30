@@ -3565,215 +3565,266 @@ fail:
     return HPy_NULL;
 }
 
-static PyObject *
-array_fromiter(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
+HPyDef_METH(array_fromiter, "fromiter", array_fromiter_impl, HPyFunc_KEYWORDS)
+static HPy
+array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
-    PyObject *iter;
-    Py_ssize_t nin = -1;
+    HPy iter = HPy_NULL;
+    HPy_ssize_t nin = -1;
     static char *kwlist[] = {"iter", "dtype", "count", "like", NULL};
-    PyObject *like = NULL;
-    PyArray_Descr *descr = NULL;
+    HPy like = HPy_NULL;
+    HPy h_descr = HPy_NULL, descr = HPy_NULL; // PyArray_Descr *
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds,
-                "OO&|" NPY_SSIZE_T_PYFMT "$O:fromiter", kwlist,
-                &iter, PyArray_DescrConverter, &descr, &nin, &like)) {
-        Py_XDECREF(descr);
-        return NULL;
+    HPyTracker ht;
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+                "OO|" NPY_SSIZE_T_PYFMT "O:fromiter", kwlist,
+                &iter, &h_descr, &nin, &like)) {
+        HPy_Close(ctx, descr);
+        return HPy_NULL;
     }
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "fromiter", like, args, keywds, NULL, 0, NULL);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(descr);
+
+    if (HPyArray_DescrConverter(ctx, h_descr, &descr) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "fromiter: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "fromiter", like, keywds, args, nargs);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPyTracker_Close(ctx, ht);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
 
-    return PyArray_FromIter(iter, descr, (npy_intp)nin);
+    return HPyArray_FromIter(ctx, iter, descr, (npy_intp)nin);
 }
 
-static PyObject *
-array_frombuffer(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
+HPyDef_METH(array_frombuffer, "frombuffer", array_frombuffer_impl, HPyFunc_KEYWORDS)
+static HPy
+array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
-    PyObject *obj = NULL;
+    HPy obj = HPy_NULL;
     Py_ssize_t nin = -1, offset = 0;
     static char *kwlist[] = {"buffer", "dtype", "count", "offset", "like", NULL};
-    PyObject *like = NULL;
-    PyArray_Descr *type = NULL;
+    HPy like = HPy_NULL;
+    HPy h_type = HPy_NULL, type = HPy_NULL; // PyArray_Descr *
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds,
-                "O|O&" NPY_SSIZE_T_PYFMT NPY_SSIZE_T_PYFMT "$O:frombuffer", kwlist,
-                &obj, PyArray_DescrConverter, &type, &nin, &offset, &like)) {
-        Py_XDECREF(type);
-        return NULL;
+    HPyTracker ht;
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+                "O|O" NPY_SSIZE_T_PYFMT NPY_SSIZE_T_PYFMT "$O:frombuffer", kwlist,
+                &obj, &h_type, &nin, &offset, &like)) {
+        HPy_Close(ctx, type);
+        return HPy_NULL;
     }
 
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "frombuffer", like, args, keywds, NULL, 0, NULL);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(type);
+    if (HPyArray_DescrConverter(ctx, h_type, &type) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "frombuffer: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "frombuffer", like, keywds, args, nargs);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPyTracker_Close(ctx, ht);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
 
-    if (type == NULL) {
-        type = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
+    if (HPy_IsNull(type)) {
+        type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
-    return PyArray_FromBuffer(obj, type, (npy_intp)nin, (npy_intp)offset);
+    return HPyArray_FromBuffer(ctx, obj, type, (npy_intp)nin, (npy_intp)offset);
 }
 
-static PyObject *
-array_concatenate(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_concatenate, "concatenate", array_concatenate_impl, HPyFunc_KEYWORDS)
+static HPy
+array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *a0;
-    PyObject *out = NULL;
-    PyArray_Descr *dtype = NULL;
+    HPy a0;
+    HPy out = HPy_NULL;
+    HPy h_dtype = HPy_NULL, dtype = HPy_NULL; // PyArray_Descr *
     NPY_CASTING casting = NPY_SAME_KIND_CASTING;
-    PyObject *casting_obj = NULL;
-    PyObject *res;
+    HPy casting_obj = HPy_NULL;
+    HPy res;
     int axis = 0;
     static char *kwlist[] = {"seq", "axis", "out", "dtype", "casting", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&O$O&O:concatenate", kwlist,
-                &a0, PyArray_AxisConverter, &axis, &out,
-                PyArray_DescrConverter2, &dtype, &casting_obj)) {
-        return NULL;
+    HPy h_axis = HPy_NULL;
+    HPyTracker ht;
+    // 'dtype' and 'casting' are expected to be passed as keywords only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOO:concatenate", kwlist,
+                &a0, &h_axis, &out, 
+                &h_dtype, &casting_obj)) {
+        return HPy_NULL;
     }
+
+    if (HPyArray_AxisConverter(ctx, h_axis, &axis) != NPY_SUCCEED ||
+            HPyArray_DescrConverter2(ctx, h_dtype, &dtype) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "concatenate: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
     int casting_not_passed = 0;
-    if (casting_obj == NULL) {
+    if (HPy_IsNull(casting_obj)) {
         /*
          * Casting was not passed in, needed for deprecation only.
          * This should be simplified once the deprecation is finished.
          */
         casting_not_passed = 1;
     }
-    else if (!PyArray_CastingConverter(casting_obj, &casting)) {
-        Py_XDECREF(dtype);
-        return NULL;
+    else if (!HPyArray_CastingConverter(ctx, casting_obj, &casting)) {
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
     }
-    if (out != NULL) {
-        if (out == Py_None) {
-            out = NULL;
+    if (!HPy_IsNull(out)) {
+        if (HPy_Is(ctx, out, ctx->h_None)) {
+            out = HPy_NULL;
         }
-        else if (!PyArray_Check(out)) {
-            PyErr_SetString(PyExc_TypeError, "'out' must be an array");
-            Py_XDECREF(dtype);
-            return NULL;
+        else if (!HPyArray_Check(ctx, out)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError, "'out' must be an array");
+            HPy_Close(ctx, dtype);
+            return HPy_NULL;
         }
     }
-    res = PyArray_ConcatenateInto(a0, axis, (PyArrayObject *)out, dtype,
+    res = HPyArray_ConcatenateInto(ctx, a0, axis, out, dtype,
             casting, casting_not_passed);
-    Py_XDECREF(dtype);
+    HPy_Close(ctx, dtype);
     return res;
 }
 
-static PyObject *
-array_innerproduct(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_innerproduct, "inner", array_innerproduct_impl, HPyFunc_VARARGS)
+static HPy
+array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
-    PyObject *b0, *a0;
+    HPy b0, a0;
 
-    if (!PyArg_ParseTuple(args, "OO:innerproduct", &a0, &b0)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OO:innerproduct", &a0, &b0)) {
+        return HPy_NULL;
     }
-    return PyArray_Return((PyArrayObject *)PyArray_InnerProduct(a0, b0));
+    HPy inner = HPyArray_InnerProduct(ctx, a0, b0);
+    HPy ret = HPyArray_Return(ctx, inner);
+    HPy_Close(ctx, inner);
+    return ret;
 }
 
-static PyObject *
-array_matrixproduct(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject* kwds)
+HPyDef_METH(array_matrixproduct, "dot", array_matrixproduct_impl, HPyFunc_KEYWORDS)
+static HPy
+array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *v, *a, *o = NULL;
-    PyArrayObject *ret;
+    HPy v, a, o = HPy_NULL;
+    HPy ret; // PyArrayObject *
     static char* kwlist[] = {"a", "b", "out", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|O:matrixproduct",
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:matrixproduct",
                                      kwlist, &a, &v, &o)) {
-        return NULL;
+        return HPy_NULL;
     }
-    if (o != NULL) {
-        if (o == Py_None) {
-            o = NULL;
+    if (!HPy_IsNull(o)) {
+        if (HPy_Is(ctx, o, ctx->h_None)) {
+            o = HPy_NULL;
         }
-        else if (!PyArray_Check(o)) {
-            PyErr_SetString(PyExc_TypeError, "'out' must be an array");
-            return NULL;
+        else if (!HPyArray_Check(ctx, o)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError, "'out' must be an array");
+            HPyTracker_Close(ctx, ht);
+            return HPy_NULL;
         }
     }
-    ret = (PyArrayObject *)PyArray_MatrixProduct2(a, v, (PyArrayObject *)o);
-    return PyArray_Return(ret);
+    PyArrayObject *o_struct = PyArrayObject_AsStruct(ctx, o);
+    ret = HPyArray_MatrixProduct2(ctx, a, v, o, o_struct);
+    HPyTracker_Close(ctx, ht);
+    return HPyArray_Return(ctx, ret);
 }
 
 
-static PyObject *
-array_vdot(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_vdot, "vdot", array_vdot_impl, HPyFunc_VARARGS)
+static HPy
+array_vdot_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
     int typenum;
     char *ip1, *ip2, *op;
     npy_intp n, stride1, stride2;
-    PyObject *op1, *op2;
+    HPy op1, op2;
     npy_intp newdimptr[1] = {-1};
     PyArray_Dims newdims = {newdimptr, 1};
-    PyArrayObject *ap1 = NULL, *ap2  = NULL, *ret = NULL;
-    PyArray_Descr *type;
-    PyArray_DotFunc *vdot;
-    NPY_BEGIN_THREADS_DEF;
+    HPy ap1 = HPy_NULL, ap2  = HPy_NULL, ret = HPy_NULL; // PyArrayObject *
+    HPy type; // PyArray_Descr *
+    PyArray_DotFunc * vdot;
+    HPY_NPY_BEGIN_THREADS_DEF(ctx);
 
-    if (!PyArg_ParseTuple(args, "OO:vdot", &op1, &op2)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "OO:vdot", &op1, &op2)) {
+        return HPy_NULL;
     }
 
     /*
      * Conjugating dot product using the BLAS for vectors.
      * Flattens both op1 and op2 before dotting.
      */
-    typenum = PyArray_ObjectType(op1, 0);
-    typenum = PyArray_ObjectType(op2, typenum);
+    typenum = HPyArray_ObjectType(ctx, op1, 0);
+    typenum = HPyArray_ObjectType(ctx, op2, typenum);
 
-    type = PyArray_DescrFromType(typenum);
-    Py_INCREF(type);
-    ap1 = (PyArrayObject *)PyArray_FromAny(op1, type, 0, 0, 0, NULL);
-    if (ap1 == NULL) {
-        Py_DECREF(type);
+    type = HPyArray_DescrFromType(ctx, typenum);
+    // Py_INCREF(type); type is not a borrowed ref
+    ap1 = HPyArray_FromAny(ctx, op1, type, 0, 0, 0, HPy_NULL);
+    if (HPy_IsNull(ap1)) {
+        HPy_Close(ctx, type);
         goto fail;
     }
-
-    op1 = PyArray_Newshape(ap1, &newdims, NPY_CORDER);
-    if (op1 == NULL) {
-        Py_DECREF(type);
+    PyArrayObject *ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
+    op1 = HPyArray_Newshape(ctx, ap1, ap1_struct, &newdims, NPY_CORDER);
+    if (HPy_IsNull(op1)) {
+        HPy_Close(ctx, type);
         goto fail;
     }
-    Py_DECREF(ap1);
-    ap1 = (PyArrayObject *)op1;
+    HPy_Close(ctx, ap1);
+    ap1 = op1;
 
-    ap2 = (PyArrayObject *)PyArray_FromAny(op2, type, 0, 0, 0, NULL);
-    if (ap2 == NULL) {
+    ap2 = HPyArray_FromAny(ctx, op2, type, 0, 0, 0, HPy_NULL);
+    if (HPy_IsNull(ap2)) {
         goto fail;
     }
-    op2 = PyArray_Newshape(ap2, &newdims, NPY_CORDER);
-    if (op2 == NULL) {
+    PyArrayObject *ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
+    op2 = HPyArray_Newshape(ctx, ap2, ap2_struct, &newdims, NPY_CORDER);
+    if (HPy_IsNull(op2)) {
         goto fail;
     }
-    Py_DECREF(ap2);
-    ap2 = (PyArrayObject *)op2;
+    HPy_Close(ctx, ap2);
+    ap2 = op2;
 
-    if (PyArray_DIM(ap2, 0) != PyArray_DIM(ap1, 0)) {
-        PyErr_SetString(PyExc_ValueError,
+    ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
+    ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
+    if (PyArray_DIM(ap2_struct, 0) != PyArray_DIM(ap1_struct, 0)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "vectors have different lengths");
         goto fail;
     }
 
     /* array scalar output */
-    ret = new_array_for_sum(ap1, ap2, NULL, 0, (npy_intp *)NULL, typenum, NULL);
-    if (ret == NULL) {
+    ret = hpy_new_array_for_sum(ctx, 
+                                    ap1, ap1_struct, 
+                                    ap2, ap2_struct, 
+                                    HPy_NULL, NULL,
+                                    0, (npy_intp *)NULL, typenum, NULL);
+    if (HPy_IsNull(ret)) {
         goto fail;
     }
 
-    n = PyArray_DIM(ap1, 0);
-    stride1 = PyArray_STRIDE(ap1, 0);
-    stride2 = PyArray_STRIDE(ap2, 0);
-    ip1 = PyArray_DATA(ap1);
-    ip2 = PyArray_DATA(ap2);
-    op = PyArray_DATA(ret);
+    n = PyArray_DIM(ap1_struct, 0);
+    stride1 = PyArray_STRIDE(ap1_struct, 0);
+    stride2 = PyArray_STRIDE(ap2_struct, 0);
+    ip1 = PyArray_DATA(ap1_struct);
+    ip2 = PyArray_DATA(ap2_struct);
+    op = PyArray_DATA(PyArrayObject_AsStruct(ctx, ret));
 
+    PyArray_Descr *type_struct = PyArray_Descr_AsStruct(ctx, type);
     switch (typenum) {
         case NPY_CFLOAT:
             vdot = (PyArray_DotFunc *)CFLOAT_vdot;
@@ -3788,9 +3839,9 @@ array_vdot(PyObject *NPY_UNUSED(dummy), PyObject *args)
             vdot = (PyArray_DotFunc *)OBJECT_vdot;
             break;
         default:
-            vdot = type->f->dotfunc;
+            vdot = type_struct->f->dotfunc;
             if (vdot == NULL) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "function not available for this data type");
                 goto fail;
             }
@@ -3800,19 +3851,19 @@ array_vdot(PyObject *NPY_UNUSED(dummy), PyObject *args)
         vdot(ip1, stride1, ip2, stride2, op, n, NULL);
     }
     else {
-        NPY_BEGIN_THREADS_DESCR(type);
+        HPY_NPY_BEGIN_THREADS_DESCR(ctx, type_struct);
         vdot(ip1, stride1, ip2, stride2, op, n, NULL);
-        NPY_END_THREADS_DESCR(type);
+        HPY_NPY_END_THREADS_DESCR(ctx, type_struct);
     }
 
-    Py_XDECREF(ap1);
-    Py_XDECREF(ap2);
-    return PyArray_Return(ret);
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    return HPyArray_Return(ctx, ret);
 fail:
-    Py_XDECREF(ap1);
-    Py_XDECREF(ap2);
-    Py_XDECREF(ret);
-    return NULL;
+    HPy_Close(ctx, ap1);
+    HPy_Close(ctx, ap2);
+    HPy_Close(ctx, ret);
+    return HPy_NULL;
 }
 
 static int
