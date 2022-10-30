@@ -3400,114 +3400,143 @@ array_count_nonzero(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
     return PyLong_FromSsize_t(count);
 }
 
-static PyObject *
-array_fromstring(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
+HPyDef_METH(array_fromstring, "fromstring", array_fromstring_impl, HPyFunc_KEYWORDS)
+static HPy
+array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
     char *data;
-    Py_ssize_t nin = -1;
+    HPy_ssize_t nin = -1;
     char *sep = NULL;
-    Py_ssize_t s;
+    HPy_ssize_t s;
     static char *kwlist[] = {"string", "dtype", "count", "sep", "like", NULL};
-    PyObject *like = NULL;
-    PyArray_Descr *descr = NULL;
-
-    if (!PyArg_ParseTupleAndKeywords(args, keywds,
-                "s#|O&" NPY_SSIZE_T_PYFMT "s$O:fromstring", kwlist,
-                &data, &s, PyArray_DescrConverter, &descr, &nin, &sep, &like)) {
-        Py_XDECREF(descr);
-        return NULL;
+    HPy like = HPy_NULL;
+    HPy h_descr = HPy_NULL, descr = HPy_NULL; // PyArray_Descr *
+    HPyTracker ht;
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+                "s|O" NPY_SSIZE_T_PYFMT "sO:fromstring", kwlist,
+                &data, &s, &h_descr, &nin, &sep, &like)) {
+        return HPy_NULL;
     }
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "fromstring", like, args, keywds, NULL, 0, NULL);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(descr);
+    s = strlen(data);
+    if (HPyArray_DescrConverter(ctx, h_descr, &descr) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "fromstring: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "fromstring", like, keywds, args, nargs);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPyTracker_Close(ctx, ht);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
+    HPyTracker_Close(ctx, ht);
 
     /* binary mode, condition copied from PyArray_FromString */
     if (sep == NULL || strlen(sep) == 0) {
         /* Numpy 1.14, 2017-10-19 */
-        if (DEPRECATE(
+        if (HPY_DEPRECATE(ctx,
                 "The binary mode of fromstring is deprecated, as it behaves "
                 "surprisingly on unicode inputs. Use frombuffer instead") < 0) {
-            Py_XDECREF(descr);
-            return NULL;
+            HPy_Close(ctx, descr);
+            return HPy_NULL;
         }
     }
-    return PyArray_FromString(data, (npy_intp)s, descr, (npy_intp)nin, sep);
+    return HPyArray_FromString(ctx, data, (npy_intp)s, descr, (npy_intp)nin, sep);
 }
 
 
 
-static PyObject *
-array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
+HPyDef_METH(array_fromfile, "fromfile", array_fromfile_impl, HPyFunc_KEYWORDS)
+static HPy
+array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
-    PyObject *file = NULL, *ret = NULL;
+    HPy file = HPy_NULL, ret = HPy_NULL;
     PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
     char *sep = "";
     Py_ssize_t nin = -1;
     static char *kwlist[] = {"file", "dtype", "count", "sep", "offset", "like", NULL};
-    PyObject *like = NULL;
-    PyArray_Descr *type = NULL;
+    HPy like = HPy_NULL;
+    HPy h_type = HPy_NULL, type = HPy_NULL; // PyArray_Descr *
     int own;
     npy_off_t orig_pos = 0, offset = 0;
     FILE *fp;
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds,
-                "O|O&" NPY_SSIZE_T_PYFMT "s" NPY_OFF_T_PYFMT "$O:fromfile", kwlist,
-                &file, PyArray_DescrConverter, &type, &nin, &sep, &offset, &like)) {
-        Py_XDECREF(type);
-        return NULL;
+    HPyTracker ht;
+    // 'like' is expected to be passed as keyword only.. we are ignoring this for now
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+                "O|O" NPY_SSIZE_T_PYFMT "s" NPY_OFF_T_PYFMT "O:fromfile", kwlist,
+                &file, &h_type, &nin, &sep, &offset, &like)) {
+        return HPy_NULL;
+    }
+    if (HPyArray_DescrConverter(ctx, h_type, &type) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "fromstring: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
 
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "fromfile", like, args, keywds, NULL, 0, NULL);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(type);
+    if (!HPy_IsNull(like)) {
+        HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
+                "fromfile", like, keywds, args, nargs);
+        if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
+            HPyTracker_Close(ctx, ht);
             return deferred;
         }
+        // HPy_Close(ctx, deferred); ?
     }
 
-    file = NpyPath_PathlikeToFspath(file);
-    if (file == NULL) {
-        Py_XDECREF(type);
-        return NULL;
+    PyObject *py_file = HPy_AsPyObject(ctx, file);
+    PyObject *py_file_ret = NpyPath_PathlikeToFspath(py_file);
+    Py_DECREF(py_file);
+    if (py_file_ret == NULL) {
+        HPy_Close(ctx, type);
+        return HPy_NULL;
     }
+    file = HPy_FromPyObject(ctx, py_file_ret);
+    Py_DECREF(py_file_ret);
+    HPyTracker_Close(ctx, ht);
 
     if (offset != 0 && strcmp(sep, "") != 0) {
-        PyErr_SetString(PyExc_TypeError, "'offset' argument only permitted for binary files");
-        Py_XDECREF(type);
-        Py_DECREF(file);
-        return NULL;
+        HPyErr_SetString(ctx, ctx->h_TypeError, "'offset' argument only permitted for binary files");
+        HPy_Close(ctx, type);
+        HPy_Close(ctx, file);
+        return HPy_NULL;
     }
-    if (PyBytes_Check(file) || PyUnicode_Check(file)) {
-        Py_SETREF(file, npy_PyFile_OpenFile(file, "rb"));
-        if (file == NULL) {
-            Py_XDECREF(type);
-            return NULL;
+    if (HPyBytes_Check(ctx, file) || HPyUnicode_Check(ctx, file)) {
+        py_file = HPy_AsPyObject(ctx, file);
+        HPy_Close(ctx, file);
+        py_file_ret = npy_PyFile_OpenFile(py_file, "rb");
+        Py_DECREF(py_file);
+        if (py_file_ret == NULL) {
+            HPy_Close(ctx, type);
+            return HPy_NULL;
         }
+        file = HPy_FromPyObject(ctx, py_file_ret);
+        Py_DECREF(py_file_ret);
         own = 1;
     }
     else {
         own = 0;
     }
-    fp = npy_PyFile_Dup2(file, "rb", &orig_pos);
+    py_file = HPy_AsPyObject(ctx, file);
+    fp = npy_PyFile_Dup2(py_file, "rb", &orig_pos);
+    Py_DECREF(py_file);
     if (fp == NULL) {
-        Py_DECREF(file);
-        Py_XDECREF(type);
-        return NULL;
+        HPy_Close(ctx, file);
+        HPy_Close(ctx, type);
+        return HPy_NULL;
     }
     if (npy_fseek(fp, offset, SEEK_CUR) != 0) {
         PyErr_SetFromErrno(PyExc_OSError);
         goto cleanup;
     }
-    if (type == NULL) {
-        type = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
+    if (HPy_IsNull(type)) {
+        type = HPyArray_DescrFromType(ctx, NPY_DEFAULT_TYPE);
     }
-    ret = PyArray_FromFile(fp, type, (npy_intp) nin, sep);
+    ret = HPyArray_FromFile(ctx, fp, type, (npy_intp) nin, sep);
 
     /* If an exception is thrown in the call to PyArray_FromFile
      * we need to clear it, and restore it later to ensure that
@@ -3515,22 +3544,25 @@ array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
      */
 cleanup:
     PyErr_Fetch(&err_type, &err_value, &err_traceback);
-    if (npy_PyFile_DupClose2(file, fp, orig_pos) < 0) {
+    py_file = HPy_AsPyObject(ctx, file);
+    if (npy_PyFile_DupClose2(py_file, fp, orig_pos) < 0) {
         npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
         goto fail;
     }
-    if (own && npy_PyFile_CloseFile(file) < 0) {
+    if (own && npy_PyFile_CloseFile(py_file) < 0) {
         npy_PyErr_ChainExceptions(err_type, err_value, err_traceback);
         goto fail;
     }
     PyErr_Restore(err_type, err_value, err_traceback);
-    Py_DECREF(file);
+    Py_DECREF(py_file);
+    HPy_Close(ctx, file);
     return ret;
 
 fail:
-    Py_DECREF(file);
-    Py_XDECREF(ret);
-    return NULL;
+    Py_DECREF(py_file);
+    HPy_Close(ctx, file);
+    HPy_Close(ctx, ret);
+    return HPy_NULL;
 }
 
 static PyObject *
