@@ -4871,86 +4871,95 @@ array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t na
     return ret;
 }
 
-static PyObject *
-array_result_type(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_result_type, "result_type", array_result_type_impl, HPyFunc_VARARGS)
+static HPy
+array_result_type_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
     npy_intp i, len, narr = 0, ndtypes = 0;
-    PyArrayObject **arr = NULL;
-    PyArray_Descr **dtypes = NULL;
-    PyObject *ret = NULL;
+    HPy *arr = NULL; // PyArrayObject **
+    HPy *dtypes = NULL; // PyArray_Descr **
+    HPy ret = HPy_NULL;
 
-    len = PyTuple_GET_SIZE(args);
+    len = nargs;
     if (len == 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "at least one array or dtype is required");
         goto finish;
     }
 
-    arr = PyArray_malloc(2 * len * sizeof(void *));
+    arr = PyArray_malloc(2 * len * sizeof(HPy)); // sizeof(void *));
     if (arr == NULL) {
-        return PyErr_NoMemory();
+        return HPyErr_NoMemory(ctx);
     }
-    dtypes = (PyArray_Descr**)&arr[len];
+    dtypes = &arr[len]; // (PyArray_Descr**)
 
     for (i = 0; i < len; ++i) {
-        PyObject *obj = PyTuple_GET_ITEM(args, i);
-        if (PyArray_Check(obj)) {
-            Py_INCREF(obj);
-            arr[narr] = (PyArrayObject *)obj;
+        HPy obj = args[i];
+        if (HPyArray_Check(ctx, obj)) {
+            // Py_INCREF(obj);
+            arr[narr] = HPy_Dup(ctx, obj);
             ++narr;
         }
-        else if (PyArray_IsScalar(obj, Generic) ||
-                                    PyArray_IsPythonNumber(obj)) {
-            arr[narr] = (PyArrayObject *)PyArray_FROM_O(obj);
-            if (arr[narr] == NULL) {
+        else if (HPyArray_IsScalar(ctx, obj, Generic) ||
+                                    HPyArray_IsPythonNumber(ctx, obj)) {
+            arr[narr] = HPyArray_FROM_O(ctx, obj);
+            if (HPy_IsNull(arr[narr])) {
                 goto finish;
             }
-            if (PyLong_CheckExact(obj) || PyFloat_CheckExact(obj) ||
-                    PyComplex_CheckExact(obj)) {
-                ((PyArrayObject_fields *)arr[narr])->flags |= _NPY_ARRAY_WAS_PYSCALAR;
+            HPy obj_type = HPy_Type(ctx, obj);
+            if (HPy_Is(ctx, obj, ctx->h_LongType) || 
+                    HPy_Is(ctx, obj, ctx->h_FloatType) ||
+                    HPy_Is(ctx, obj, ctx->h_ComplexType)) {
+                ((PyArrayObject_fields *)PyArrayObject_AsStruct(ctx, arr[narr]))->flags |= _NPY_ARRAY_WAS_PYSCALAR;
             }
+            HPy_Close(ctx, obj_type);
             ++narr;
         }
         else {
-            if (!PyArray_DescrConverter(obj, &dtypes[ndtypes])) {
+            if (!HPyArray_DescrConverter(ctx, obj, &dtypes[ndtypes])) {
                 goto finish;
             }
             ++ndtypes;
         }
     }
 
-    ret = (PyObject *)PyArray_ResultType(narr, arr, ndtypes, dtypes);
+    ret = HPyArray_ResultType(ctx, narr, arr, ndtypes, dtypes);
 
 finish:
     for (i = 0; i < narr; ++i) {
-        Py_DECREF(arr[i]);
+        HPy_Close(ctx, arr[i]);
     }
     for (i = 0; i < ndtypes; ++i) {
-        Py_DECREF(dtypes[i]);
+        HPy_Close(ctx, dtypes[i]);
     }
     PyArray_free(arr);
     return ret;
 }
 
-static PyObject *
-array_datetime_data(PyObject *NPY_UNUSED(dummy), PyObject *args)
+HPyDef_METH(array_datetime_data, "datetime_data", array_datetime_data_impl, HPyFunc_VARARGS)
+static HPy
+array_datetime_data_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
-    PyArray_Descr *dtype;
+    HPy h_dtype = HPy_NULL, dtype =  HPy_NULL; // PyArray_Descr *
     PyArray_DatetimeMetaData *meta;
 
-    if (!PyArg_ParseTuple(args, "O&:datetime_data",
-                PyArray_DescrConverter, &dtype)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "O:datetime_data", &h_dtype)) {
+        return HPy_NULL;
     }
 
-    meta = get_datetime_metadata_from_dtype(dtype);
+    if (HPyArray_DescrConverter(ctx, h_dtype, &dtype) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "datetime_data: TODO");
+        return HPy_NULL;
+    }
+
+    meta = h_get_datetime_metadata_from_dtype(ctx, PyArray_Descr_AsStruct(ctx, dtype));
     if (meta == NULL) {
-        Py_DECREF(dtype);
-        return NULL;
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
     }
 
-    PyObject *res = convert_datetime_metadata_to_tuple(meta);
-    Py_DECREF(dtype);
+    HPy res = hpy_convert_datetime_metadata_to_tuple(ctx, meta);
+    HPy_Close(ctx, dtype);
     return res;
 }
 
@@ -5465,94 +5474,98 @@ _PyArray_GetSigintBuf(void)
 #endif
 
 
-static PyObject *
-array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_work,
+static HPy
+array_shares_memory_impl(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
+                         HPy kwds, Py_ssize_t default_max_work,
                          int raise_exceptions)
 {
-    PyObject * self_obj = NULL;
-    PyObject * other_obj = NULL;
-    PyArrayObject * self = NULL;
-    PyArrayObject * other = NULL;
-    PyObject *max_work_obj = NULL;
+    HPy self_obj = HPy_NULL;
+    HPy other_obj = HPy_NULL;
+    HPy self = HPy_NULL; // PyArrayObject *
+    HPy other = HPy_NULL; // PyArrayObject *
+    HPy max_work_obj = HPy_NULL;
     static char *kwlist[] = {"self", "other", "max_work", NULL};
 
     mem_overlap_t result;
     static PyObject *too_hard_cls = NULL;
     Py_ssize_t max_work;
-    NPY_BEGIN_THREADS_DEF;
+    HPY_NPY_BEGIN_THREADS_DEF;
 
     max_work = default_max_work;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|O:shares_memory_impl", kwlist,
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:shares_memory_impl", kwlist,
                                      &self_obj, &other_obj, &max_work_obj)) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    if (PyArray_Check(self_obj)) {
-        self = (PyArrayObject*)self_obj;
-        Py_INCREF(self);
+    if (HPyArray_Check(ctx, self_obj)) {
+        self = HPy_Dup(ctx, self_obj);
+        // Py_INCREF(self);
     }
     else {
         /* Use FromAny to enable checking overlap for objects exposing array
            interfaces etc. */
-        self = (PyArrayObject*)PyArray_FROM_O(self_obj);
-        if (self == NULL) {
+        self = HPyArray_FROM_O(ctx, self_obj);
+        if (HPy_IsNull(self)) {
             goto fail;
         }
     }
 
-    if (PyArray_Check(other_obj)) {
-        other = (PyArrayObject*)other_obj;
-        Py_INCREF(other);
+    if (HPyArray_Check(ctx, other_obj)) {
+        other = HPy_Dup(ctx, other_obj);
+        // Py_INCREF(other);
     }
     else {
-        other = (PyArrayObject*)PyArray_FROM_O(other_obj);
-        if (other == NULL) {
+        other = HPyArray_FROM_O(ctx, other_obj);
+        if (HPy_IsNull(other)) {
             goto fail;
         }
     }
 
-    if (max_work_obj == NULL || max_work_obj == Py_None) {
+    if (HPy_IsNull(max_work_obj) || HPy_Is(ctx, max_work_obj, ctx->h_None)) {
         /* noop */
     }
-    else if (PyLong_Check(max_work_obj)) {
-        max_work = PyLong_AsSsize_t(max_work_obj);
-        if (PyErr_Occurred()) {
+    else if (HPyLong_Check(ctx, max_work_obj)) {
+        max_work = HPyLong_AsSsize_t(ctx, max_work_obj);
+        if (HPyErr_Occurred(ctx)) {
             goto fail;
         }
     }
     else {
-        PyErr_SetString(PyExc_ValueError, "max_work must be an integer");
+        HPyErr_SetString(ctx, ctx->h_ValueError, "max_work must be an integer");
         goto fail;
     }
 
     if (max_work < -2) {
-        PyErr_SetString(PyExc_ValueError, "Invalid value for max_work");
+        HPyErr_SetString(ctx, ctx->h_ValueError, "Invalid value for max_work");
         goto fail;
     }
 
-    NPY_BEGIN_THREADS;
-    result = solve_may_share_memory(self, other, max_work);
-    NPY_END_THREADS;
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
+    PyArrayObject *other_struct = PyArrayObject_AsStruct(ctx, other);
+    HPY_NPY_BEGIN_THREADS(ctx);
+    result = hpy_solve_may_share_memory(ctx, self, self_struct, other, other_struct, max_work);
+    HPY_NPY_END_THREADS(ctx);
 
-    Py_XDECREF(self);
-    Py_XDECREF(other);
+    HPy_Close(ctx, self);
+    HPy_Close(ctx, other);
 
     if (result == MEM_OVERLAP_NO) {
-        Py_RETURN_FALSE;
+        return HPy_Dup(ctx, ctx->h_False);
     }
     else if (result == MEM_OVERLAP_YES) {
-        Py_RETURN_TRUE;
+        return HPy_Dup(ctx, ctx->h_True);
     }
     else if (result == MEM_OVERLAP_OVERFLOW) {
         if (raise_exceptions) {
-            PyErr_SetString(PyExc_OverflowError,
+            HPyErr_SetString(ctx, ctx->h_OverflowError,
                             "Integer overflow in computing overlap");
-            return NULL;
+            return HPy_NULL;
         }
         else {
             /* Don't know, so say yes */
-            Py_RETURN_TRUE;
+            return HPy_Dup(ctx, ctx->h_True);
         }
     }
     else if (result == MEM_OVERLAP_TOO_HARD) {
@@ -5562,38 +5575,40 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
             if (too_hard_cls) {
                 PyErr_SetString(too_hard_cls, "Exceeded max_work");
             }
-            return NULL;
+            return HPy_NULL;
         }
         else {
             /* Don't know, so say yes */
-            Py_RETURN_TRUE;
+            return HPy_Dup(ctx, ctx->h_True);
         }
     }
     else {
         /* Doesn't happen usually */
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                         "Error in computing overlap");
-        return NULL;
+        return HPy_NULL;
     }
 
 fail:
-    Py_XDECREF(self);
-    Py_XDECREF(other);
-    return NULL;
+    HPy_Close(ctx, self);
+    HPy_Close(ctx, other);
+    return HPy_NULL;
 }
 
 
-static PyObject *
-array_shares_memory(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_shares_memory, "shares_memory", shares_memory_impl, HPyFunc_KEYWORDS)
+static HPy
+shares_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    return array_shares_memory_impl(args, kwds, NPY_MAY_SHARE_EXACT, 1);
+    return array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_EXACT, 1);
 }
 
 
-static PyObject *
-array_may_share_memory(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_may_share_memory, "may_share_memory", array_may_share_memory_impl, HPyFunc_KEYWORDS)
+static HPy
+array_may_share_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    return array_shares_memory_impl(args, kwds, NPY_MAY_SHARE_BOUNDS, 0);
+    return array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_BOUNDS, 0);
 }
 
 static PyObject *
