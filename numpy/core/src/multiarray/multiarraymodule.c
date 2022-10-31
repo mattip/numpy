@@ -5792,11 +5792,13 @@ static PyMappingMethods dummy_as_mapping = {
     (objobjargproc)1,
 };
 
+#ifndef GRAALVM_PYTHON
 static PyAsyncMethods dummy_as_async = {
     (unaryfunc)1,
     (unaryfunc)1,
     (unaryfunc)1,
 };
+#endif
 
 static PyBufferProcs dummy_as_buffer = {
      (getbufferproc)1,
@@ -5809,7 +5811,11 @@ static PyBufferProcs dummy_as_buffer = {
 //           with dummy slots, assign them back, and clean up the new type
 //           from those dummy slots.
 static void set_as_func(PyTypeObject *type) {
+#ifndef GRAALVM_PYTHON
     type->tp_as_async = &dummy_as_async;
+    type->tp_as_async = NULL;
+#endif
+
     type->tp_as_number = &dummy_as_number;
     type->tp_as_mapping = &dummy_as_mapping;
     type->tp_as_sequence = &dummy_as_sequence;
@@ -5874,10 +5880,13 @@ static void cleanup(PyTypeObject *type) {
     map->mp_subscript = (intptr_t)map->mp_subscript == (intptr_t)1 ? NULL : map->mp_subscript;
     map->mp_ass_subscript = (intptr_t)map->mp_ass_subscript == (intptr_t)1 ? NULL : map->mp_ass_subscript;
 
+#ifndef GRAALVM_PYTHON
     PyAsyncMethods *as = type->tp_as_async;
     as->am_await = (intptr_t)as->am_await == (intptr_t)1 ? NULL : as->am_await;
     as->am_aiter = (intptr_t)as->am_aiter == (intptr_t)1 ? NULL : as->am_aiter;
     as->am_anext = (intptr_t)as->am_anext == (intptr_t)1 ? NULL : as->am_anext;
+    type->tp_as_async = NULL;
+#endif
 
     PyBufferProcs *buf = type->tp_as_buffer;
     buf->bf_getbuffer = (intptr_t)buf->bf_getbuffer == (intptr_t)1 ? NULL : buf->bf_getbuffer;
@@ -5994,6 +6003,7 @@ setup_scalartypes(HPyContext *ctx)
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type);
 
+#ifndef GRAALVM_PYTHON
     PyAsyncMethods *tmp_PyAsyncMethods = NULL;
     PyNumberMethods *tmp_PyNumberMethods = NULL;
     PyMappingMethods *tmp_PyMappingMethods = NULL;
@@ -6042,6 +6052,40 @@ setup_scalartypes(HPyContext *ctx)
     _Py##child##ArrType_Type_p =                                        \
         (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type); \
     cleanup(_Py##child##ArrType_Type_p);
+#else
+#define DUAL_INHERIT2(child, parent1, parent2)                          \
+    set_as_func(_Py##parent2##ArrType_Type_p); \
+    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
+        ctx->h_##parent1##Type,                                         \
+        h_Py##parent2##ArrType_Type,                                    \
+    }, 2);                                                              \
+    HPyType_SpecParam child##_params[] = {                              \
+        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { 0 },                                                          \
+    };                                                                  \
+    /* HPY TODO: Py##child##ArrType_Type.tp_richcompare = */            \
+        /*Py##parent1##_Type.tp_richcompare;*/                          \
+    /*Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;*/   \
+    HPy h_Py##child##ArrType_Type =                                     \
+        HPyType_FromSpec(ctx, &Py##child##ArrType_Type_spec, child##_params); \
+    if (HPy_IsNull(h_Py##child##ArrType_Type)) {                        \
+        /* HPY TODO: PyErr_Print();*/                                   \
+        /* HPY TODO: PyErr_Format(PyExc_SystemError,*/                  \
+                     /*"could not initialize Py%sArrType_Type",*/       \
+                     /*#child);*/                                       \
+        char msgbuf[255];                                               \
+        snprintf(msgbuf, 255,                                           \
+            "could not initialize Py%sArrType_Type",                    \
+            #child);                                                    \
+        HPyErr_SetString(ctx, ctx->h_SystemError, msgbuf);              \
+        goto cleanup;                                                   \
+    }                                                                   \
+    HPyTracker_Add(ctx, tracker, h_Py##child##ArrType_Type);            \
+    HPyGlobal_Store(ctx, &HPy##child##ArrType_Type,                     \
+        h_Py##child##ArrType_Type);                                     \
+    _Py##child##ArrType_Type_p =                                        \
+        (PyTypeObject*) HPy_AsPyObject(ctx, h_Py##child##ArrType_Type); 
+#endif
 
     SINGLE_INHERIT(Bool, Generic);
     SINGLE_INHERIT(Byte, SignedInteger);
@@ -6366,7 +6410,9 @@ static HPyModuleDef moduledef = {
     .name = "numpy.core._multiarray_umath",
     .doc = NULL,
     .size = -1,
+#ifndef GRAALVM_PYTHON
     .legacy_methods = array_module_methods,
+#endif
     .defines = array_module_hpy_methods,
     .globals = module_globals,
 };
