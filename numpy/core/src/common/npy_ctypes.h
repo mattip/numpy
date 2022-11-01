@@ -47,4 +47,40 @@ fail:
     return 0;
 }
 
+NPY_INLINE static int
+hpy_npy_ctypes_check(HPyContext *ctx, HPy /* PyTypeObject * */ obj)
+{
+    // static PyObject *py_func = NULL;
+    HPy py_func = HPy_NULL;
+    HPy ret_obj;
+    int ret;
+
+    npy_hpy_cache_import(ctx, "numpy.core._internal", "npy_ctypes_check", &py_func);
+    if (HPy_IsNull(py_func)) {
+        goto fail;
+    }
+
+    HPy args = HPyTuple_Pack(ctx, 1, obj);
+    ret_obj = HPy_CallTupleDict(ctx, py_func, args, HPy_NULL); // PyObject_CallFunctionObjArgs
+    if (HPy_IsNull(ret_obj)) {
+        goto fail;
+    }
+
+    ret = HPy_IsTrue(ctx, ret_obj);
+    HPy_Close(ctx, ret_obj);
+    if (ret == -1) {
+        goto fail;
+    }
+
+    return ret;
+
+fail:
+    /* If the above fails, then we should just assume that the type is not from
+     * ctypes
+     */
+    HPyErr_Clear(ctx);
+    return 0;
+}
+
+
 #endif  /* NUMPY_CORE_SRC_COMMON_NPY_CTYPES_H_ */

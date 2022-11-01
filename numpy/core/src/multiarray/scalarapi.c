@@ -860,10 +860,9 @@ HPyArray_DescrFromTypeObject(HPyContext *ctx, HPy type)
      */
 
     /* Do special thing for VOID sub-types */
-    PyObject *py_type = HPy_AsPyObject(ctx, type);
-    CAPI_WARN("missing PyType_IsSubtype");
-    if (PyType_IsSubtype(py_type, &PyVoidArrType_Type)) {
-        Py_DECREF(py_type);
+    HPy voidarr_type = HPyGlobal_Load(ctx, HPyVoidArrType_Type);
+    if (HPyType_IsSubtype(ctx, type, voidarr_type)) {
+        HPy_Close(ctx, voidarr_type);
         HPy new = HPyArray_DescrNewFromType(ctx, NPY_VOID); // PyArray_Descr *
         if (HPy_IsNull(new)) {
             return HPy_NULL;
@@ -887,6 +886,8 @@ HPyArray_DescrFromTypeObject(HPyContext *ctx, HPy type)
         HPy_Close(ctx, conv);
         HPyField_Store(ctx, new, &new_data->typeobj, type);
         return new;
+    } else {
+        HPy_Close(ctx, voidarr_type);
     }
     
     return _hpy_descr_from_subtype(ctx, type);

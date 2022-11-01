@@ -224,6 +224,8 @@ convert_pyobject_to_datetime_metadata(PyObject *obj,
 NPY_NO_EXPORT PyObject *
 metastr_to_unicode(PyArray_DatetimeMetaData *meta, int skip_brackets);
 
+NPY_NO_EXPORT HPy
+hpy_metastr_to_unicode(HPyContext *ctx, PyArray_DatetimeMetaData *meta, int skip_brackets);
 
 /*
  * Tests for and converts a Python datetime.datetime or datetime.date

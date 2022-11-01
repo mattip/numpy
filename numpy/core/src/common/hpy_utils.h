@@ -44,6 +44,12 @@
 NPY_NO_EXPORT void
 HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...);
 
+NPY_NO_EXPORT HPy
+HPyUnicode_FromFormat_p(HPyContext *ctx, const char *fmt, ...);
+
+NPY_NO_EXPORT HPy
+HPyUnicode_Concat_t(HPyContext *ctx, HPy s1, HPy s2);
+
 NPY_NO_EXPORT int
 HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected);
 
@@ -180,6 +186,13 @@ static inline HPy HPyDict_GetItemWithError(HPyContext *ctx, HPy d, HPy k)
     return res;
 }
 
+static inline int HPyDict_GetItemWithError_IsNull(HPyContext *ctx, HPy d, HPy k) {
+    HPy item = HPyDict_GetItemWithError(ctx, d, k);
+    int ret = HPy_IsNull(item);
+    HPy_Close(ctx, item);
+    return ret;
+}
+
 static NPY_INLINE HPy *
 HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
 {
@@ -194,6 +207,30 @@ HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
     return h_arr;
 }
 
+static NPY_INLINE HPy
+HPySequence_Tuple(HPyContext *ctx, HPy seq) {
+    HPy_ssize_t len = HPy_Length(ctx, seq);
+    HPyTupleBuilder tb = HPyTupleBuilder_New(ctx, len);
+    for (HPy_ssize_t i = 0; i < len; i++) {
+        HPy item = HPy_GetItem_i(ctx, seq, i);
+        HPyTupleBuilder_Set(ctx, tb, i, item);
+        HPy_Close(ctx, item);
+    }
+    return HPyTupleBuilder_Build(ctx, tb);
+}
+
+/*
+    XXX: not sure if we can support this
+*/
+NPY_NO_EXPORT HPy
+HPyLong_FromVoidPtr(HPyContext *ctx, void *p);
+
+
+NPY_NO_EXPORT int
+HPyFloat_CheckExact(HPyContext *ctx, HPy obj);
+
+NPY_NO_EXPORT int
+HPyComplex_CheckExact(HPyContext *ctx, HPy obj);
 
 // Common patterns helper functions
 

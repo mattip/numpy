@@ -30,7 +30,7 @@ HPyArray_NewFlagsObject(HPyContext *ctx, HPy flags_type, HPy obj)
     HPy flagobj;
     PyArrayFlagsObject *data;
     int flags;
-    HPy array_type = HPy_FromPyObject(ctx, (PyObject *) &PyArray_Type);
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     if (HPy_IsNull(obj)) {
         flags = NPY_ARRAY_C_CONTIGUOUS |
                 NPY_ARRAY_OWNDATA |

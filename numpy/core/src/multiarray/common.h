@@ -252,6 +252,47 @@ check_and_adjust_axis_msg(int *axis, int ndim, PyObject *msg_prefix)
     }
     return 0;
 }
+
+HPyGlobal g_AxisError_cls;
+
+static NPY_INLINE int
+hpy_check_and_adjust_axis_msg(HPyContext *ctx, int *axis, int ndim, HPy msg_prefix)
+{
+    /* Check that index is valid, taking into account negative indices */
+    if (NPY_UNLIKELY((*axis < -ndim) || (*axis >= ndim))) {
+        /*
+         * Load the exception type, if we don't already have it. Unfortunately
+         * we don't have access to npy_cache_import here
+         */
+        static int g_AxisError_cls_is_set = 0;
+        HPy AxisError_cls = g_AxisError_cls_is_set ? HPyGlobal_Load(ctx, g_AxisError_cls) : HPy_NULL;
+        HPy exc;
+
+        npy_hpy_cache_import(ctx, "numpy.core._exceptions", "AxisError", &AxisError_cls);
+        if (HPy_IsNull(AxisError_cls)) {
+            return -1;
+        } else {
+            g_AxisError_cls_is_set = 1;
+        }
+
+        /* Invoke the AxisError constructor */
+        HPy args = HPy_BuildValue(ctx, "iiO", *axis, ndim, msg_prefix);
+        exc = HPy_CallTupleDict(ctx, AxisError_cls, args, HPy_NULL);
+        if (HPy_IsNull(exc)) {
+            return -1;
+        }
+        HPyErr_SetObject(ctx, AxisError_cls, exc);
+        HPy_Close(ctx, exc);
+
+        return -1;
+    }
+    /* adjust negative indices */
+    if (*axis < 0) {
+        *axis += ndim;
+    }
+    return 0;
+}
+
 static NPY_INLINE int
 check_and_adjust_axis(int *axis, int ndim)
 {
