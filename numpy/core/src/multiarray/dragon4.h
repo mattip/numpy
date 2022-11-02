@@ -108,6 +108,15 @@ typedef enum TrimMode
 } TrimMode;
 
 #define make_dragon4_typedecl(Type, npy_type) \
+    HPy \
+    hpy_Dragon4_Positional_##Type(HPyContext *ctx, npy_type *val, DigitMode digit_mode,\
+                              CutoffMode cutoff_mode, int precision,\
+                              int min_digits, int sign, TrimMode trim, \
+                              int pad_left, int pad_right);\
+    HPy \
+    hpy_Dragon4_Scientific_##Type(HPyContext *ctx, npy_type *val, DigitMode digit_mode,\
+                              int precision, int min_digits, int sign, \
+                              TrimMode trim, int pad_left, int exp_digits);\
     PyObject *\
     Dragon4_Positional_##Type(npy_type *val, DigitMode digit_mode,\
                               CutoffMode cutoff_mode, int precision,\
@@ -125,13 +134,13 @@ make_dragon4_typedecl(LongDouble, npy_longdouble)
 
 #undef make_dragon4_typedecl
 
-PyObject *
-Dragon4_Positional(PyObject *obj, DigitMode digit_mode, CutoffMode cutoff_mode,
+HPy
+Dragon4_Positional(HPyContext *ctx, HPy obj, DigitMode digit_mode, CutoffMode cutoff_mode,
                    int precision, int min_digits, int sign, TrimMode trim,
                    int pad_left, int pad_right);
 
-PyObject *
-Dragon4_Scientific(PyObject *obj, DigitMode digit_mode, int precision,
+HPy
+Dragon4_Scientific(HPyContext *ctx, HPy obj, DigitMode digit_mode, int precision,
                    int min_digits, int sign, TrimMode trim, int pad_left,
                    int exp_digits);
 

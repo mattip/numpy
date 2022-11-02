@@ -167,10 +167,10 @@ static int _bigint_static_in_use = 0;
 static Dragon4_Scratch _bigint_static;
 
 static Dragon4_Scratch*
-get_dragon4_bigint_scratch(void) {
+get_dragon4_bigint_scratch(HPyContext *ctx) {
     /* this test+set is not threadsafe, but no matter because we have GIL */
     if (_bigint_static_in_use) {
-        PyErr_SetString(PyExc_RuntimeError,
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
             "numpy float printing code is not re-entrant. "
             "Ping the devs to fix it.");
         return NULL;
@@ -3064,25 +3064,25 @@ Dragon4_PrintFloat_IBM_double_double(
  */
 #define make_dragon4_typefuncs_inner(Type, npy_type, format) \
 \
-PyObject *\
-Dragon4_Positional_##Type##_opt(npy_type *val, Dragon4_Options *opt)\
+HPy \
+Dragon4_Positional_##Type##_opt(HPyContext *ctx, npy_type *val, Dragon4_Options *opt)\
 {\
-    PyObject *ret;\
-    Dragon4_Scratch *scratch = get_dragon4_bigint_scratch();\
+    HPy ret;\
+    Dragon4_Scratch *scratch = get_dragon4_bigint_scratch(ctx);\
     if (scratch == NULL) {\
-        return NULL;\
+        return HPy_NULL;\
     }\
     if (Dragon4_PrintFloat_##format(scratch, val, opt) < 0) {\
         free_dragon4_bigint_scratch(scratch);\
-        return NULL;\
+        return HPy_NULL;\
     }\
-    ret = PyUnicode_FromString(scratch->repr);\
+    ret = HPyUnicode_FromString(ctx, scratch->repr);\
     free_dragon4_bigint_scratch(scratch);\
     return ret;\
 }\
 \
-PyObject *\
-Dragon4_Positional_##Type(npy_type *val, DigitMode digit_mode,\
+HPy \
+hpy_Dragon4_Positional_##Type(HPyContext *ctx, npy_type *val, DigitMode digit_mode,\
                    CutoffMode cutoff_mode, int precision, int min_digits, \
                    int sign, TrimMode trim, int pad_left, int pad_right)\
 {\
@@ -3099,27 +3099,41 @@ Dragon4_Positional_##Type(npy_type *val, DigitMode digit_mode,\
     opt.digits_right = pad_right;\
     opt.exp_digits = -1;\
 \
-    return Dragon4_Positional_##Type##_opt(val, &opt);\
+    return Dragon4_Positional_##Type##_opt(ctx, val, &opt);\
 }\
 \
 PyObject *\
-Dragon4_Scientific_##Type##_opt(npy_type *val, Dragon4_Options *opt)\
+Dragon4_Positional_##Type(npy_type *val, DigitMode digit_mode,\
+                   CutoffMode cutoff_mode, int precision, int min_digits, \
+                   int sign, TrimMode trim, int pad_left, int pad_right)\
 {\
-    PyObject *ret;\
-    Dragon4_Scratch *scratch = get_dragon4_bigint_scratch();\
+    HPyContext *ctx = npy_get_context();\
+    HPy ret = hpy_Dragon4_Positional_##Type(ctx, val, digit_mode, cutoff_mode,\
+                        precision, min_digits, sign, trim, pad_left, pad_right);\
+    PyObject *py_ret = HPy_AsPyObject(ctx, ret);\
+    HPy_Close(ctx, ret);\
+    return py_ret;\
+}\
+\
+HPy \
+Dragon4_Scientific_##Type##_opt(HPyContext *ctx, npy_type *val, Dragon4_Options *opt)\
+{\
+    HPy ret;\
+    Dragon4_Scratch *scratch = get_dragon4_bigint_scratch(ctx);\
     if (scratch == NULL) {\
-        return NULL;\
+        return HPy_NULL;\
     }\
     if (Dragon4_PrintFloat_##format(scratch, val, opt) < 0) {\
         free_dragon4_bigint_scratch(scratch);\
-        return NULL;\
+        return HPy_NULL;\
     }\
-    ret = PyUnicode_FromString(scratch->repr);\
+    ret = HPyUnicode_FromString(ctx, scratch->repr);\
     free_dragon4_bigint_scratch(scratch);\
     return ret;\
 }\
-PyObject *\
-Dragon4_Scientific_##Type(npy_type *val, DigitMode digit_mode, int precision,\
+\
+HPy \
+hpy_Dragon4_Scientific_##Type(HPyContext *ctx, npy_type *val, DigitMode digit_mode, int precision,\
                    int min_digits, int sign, TrimMode trim, int pad_left, \
                    int exp_digits)\
 {\
@@ -3136,7 +3150,20 @@ Dragon4_Scientific_##Type(npy_type *val, DigitMode digit_mode, int precision,\
     opt.digits_right = -1;\
     opt.exp_digits = exp_digits;\
 \
-    return Dragon4_Scientific_##Type##_opt(val, &opt);\
+    return Dragon4_Scientific_##Type##_opt(ctx, val, &opt);\
+}\
+\
+PyObject *\
+Dragon4_Scientific_##Type(npy_type *val, DigitMode digit_mode, int precision,\
+                   int min_digits, int sign, TrimMode trim, int pad_left, \
+                   int exp_digits)\
+{\
+    HPyContext *ctx = npy_get_context();\
+    HPy ret = hpy_Dragon4_Scientific_##Type(ctx, val, digit_mode,\
+                        precision, min_digits, sign, trim, pad_left, exp_digits);\
+    PyObject *py_ret = HPy_AsPyObject(ctx, ret);\
+    HPy_Close(ctx, ret);\
+    return py_ret;\
 }
 
 #define make_dragon4_typefuncs(Type, npy_type, format) \
@@ -3150,8 +3177,8 @@ make_dragon4_typefuncs(LongDouble, npy_longdouble, NPY_LONGDOUBLE_BINFMT_NAME)
 #undef make_dragon4_typefuncs
 #undef make_dragon4_typefuncs_inner
 
-PyObject *
-Dragon4_Positional(PyObject *obj, DigitMode digit_mode, CutoffMode cutoff_mode,
+HPy
+Dragon4_Positional(HPyContext *ctx, HPy obj, DigitMode digit_mode, CutoffMode cutoff_mode,
                    int precision, int min_digits, int sign, TrimMode trim,
                    int pad_left, int pad_right)
 {
@@ -3169,32 +3196,32 @@ Dragon4_Positional(PyObject *obj, DigitMode digit_mode, CutoffMode cutoff_mode,
     opt.digits_right = pad_right;
     opt.exp_digits = -1;
 
-    if (PyArray_IsScalar(obj, Half)) {
-        npy_half x = PyArrayScalar_VAL(obj, Half);
-        return Dragon4_Positional_Half_opt(&x, &opt);
+    if (HPyArray_IsScalar(ctx, obj, Half)) {
+        npy_half x = HPyArrayScalar_VAL(ctx, obj, Half);
+        return Dragon4_Positional_Half_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, Float)) {
-        npy_float x = PyArrayScalar_VAL(obj, Float);
-        return Dragon4_Positional_Float_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, Float)) {
+        npy_float x = HPyArrayScalar_VAL(ctx, obj, Float);
+        return Dragon4_Positional_Float_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, Double)) {
-        npy_double x = PyArrayScalar_VAL(obj, Double);
-        return Dragon4_Positional_Double_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, Double)) {
+        npy_double x = HPyArrayScalar_VAL(ctx, obj, Double);
+        return Dragon4_Positional_Double_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, LongDouble)) {
-        npy_longdouble x = PyArrayScalar_VAL(obj, LongDouble);
-        return Dragon4_Positional_LongDouble_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, LongDouble)) {
+        npy_longdouble x = HPyArrayScalar_VAL(ctx, obj, LongDouble);
+        return Dragon4_Positional_LongDouble_opt(ctx, &x, &opt);
     }
 
-    val = PyFloat_AsDouble(obj);
-    if (PyErr_Occurred()) {
-        return NULL;
+    val = HPyFloat_AsDouble(ctx, obj);
+    if (HPyErr_Occurred(ctx)) {
+        return HPy_NULL;
     }
-    return Dragon4_Positional_Double_opt(&val, &opt);
+    return Dragon4_Positional_Double_opt(ctx, &val, &opt);
 }
 
-PyObject *
-Dragon4_Scientific(PyObject *obj, DigitMode digit_mode, int precision,
+HPy
+Dragon4_Scientific(HPyContext *ctx, HPy obj, DigitMode digit_mode, int precision,
                    int min_digits, int sign, TrimMode trim, int pad_left,
                    int exp_digits)
 {
@@ -3212,28 +3239,28 @@ Dragon4_Scientific(PyObject *obj, DigitMode digit_mode, int precision,
     opt.digits_right = -1;
     opt.exp_digits = exp_digits;
 
-    if (PyArray_IsScalar(obj, Half)) {
-        npy_half x = PyArrayScalar_VAL(obj, Half);
-        return Dragon4_Scientific_Half_opt(&x, &opt);
+    if (HPyArray_IsScalar(ctx, obj, Half)) {
+        npy_half x = HPyArrayScalar_VAL(ctx, obj, Half);
+        return Dragon4_Scientific_Half_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, Float)) {
-        npy_float x = PyArrayScalar_VAL(obj, Float);
-        return Dragon4_Scientific_Float_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, Float)) {
+        npy_float x = HPyArrayScalar_VAL(ctx, obj, Float);
+        return Dragon4_Scientific_Float_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, Double)) {
-        npy_double x = PyArrayScalar_VAL(obj, Double);
-        return Dragon4_Scientific_Double_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, Double)) {
+        npy_double x = HPyArrayScalar_VAL(ctx, obj, Double);
+        return Dragon4_Scientific_Double_opt(ctx, &x, &opt);
     }
-    else if (PyArray_IsScalar(obj, LongDouble)) {
-        npy_longdouble x = PyArrayScalar_VAL(obj, LongDouble);
-        return Dragon4_Scientific_LongDouble_opt(&x, &opt);
+    else if (HPyArray_IsScalar(ctx, obj, LongDouble)) {
+        npy_longdouble x = HPyArrayScalar_VAL(ctx, obj, LongDouble);
+        return Dragon4_Scientific_LongDouble_opt(ctx, &x, &opt);
     }
 
-    val = PyFloat_AsDouble(obj);
-    if (PyErr_Occurred()) {
-        return NULL;
+    val = HPyFloat_AsDouble(ctx, obj);
+    if (HPyErr_Occurred(ctx)) {
+        return HPy_NULL;
     }
-    return Dragon4_Scientific_Double_opt(&val, &opt);
+    return Dragon4_Scientific_Double_opt(ctx, &val, &opt);
 }
 
 #undef DEBUG_ASSERT

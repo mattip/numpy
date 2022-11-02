@@ -103,16 +103,17 @@ NPY_NO_EXPORT int set_matmul_flags(HPyContext *ctx, HPy d); /* in ufunc_object.c
  */
 int npy_legacy_print_mode = INT_MAX;
 
-static PyObject *
-set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
+HPyDef_METH(set_legacy_print_mode, "set_legacy_print_mode", set_legacy_print_mode_impl, HPyFunc_VARARGS)
+static HPy
+set_legacy_print_mode_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs)
 {
-    if (!PyArg_ParseTuple(args, "i", &npy_legacy_print_mode)) {
-        return NULL;
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "i", &npy_legacy_print_mode)) {
+        return HPy_NULL;
     }
     if (!npy_legacy_print_mode) {
         npy_legacy_print_mode = INT_MAX;
     }
-    Py_RETURN_NONE;
+    return HPy_Dup(ctx, ctx->h_None);
 }
 
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
@@ -5004,39 +5005,72 @@ error:
  * The differences is that a value of -1 is valid for pad_left, exp_digits,
  * precision, which is equivalent to `None`.
  */
-static PyObject *
-dragon4_scientific(PyObject *NPY_UNUSED(dummy),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(dragon4_scientific, "dragon4_scientific", dragon4_scientific_impl, HPyFunc_KEYWORDS)
+static HPy
+dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj;
+    HPy obj;
     int precision=-1, pad_left=-1, exp_digits=-1, min_digits=-1;
     DigitMode digit_mode;
     TrimMode trim = TrimMode_None;
     int sign=0, unique=1;
-    NPY_PREPARE_ARGPARSER;
-
-    if (npy_parse_arguments("dragon4_scientific", args, len_args, kwnames,
-            "x", NULL , &obj,
-            "|precision", &PyArray_PythonPyIntFromInt, &precision,
-            "|unique", &PyArray_PythonPyIntFromInt, &unique,
-            "|sign", &PyArray_PythonPyIntFromInt, &sign,
-            "|trim", &trimmode_converter, &trim,
-            "|pad_left", &PyArray_PythonPyIntFromInt, &pad_left,
-            "|exp_digits", &PyArray_PythonPyIntFromInt, &exp_digits,
-            "|min_digits", &PyArray_PythonPyIntFromInt, &min_digits,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    static char *kwlist[] = {"x", "precision", "unique", "sign", 
+                            "trim", "pad_left", "exp_digits", "min_digits", NULL};
+    // NPY_PREPARE_ARGPARSER;
+    HPy h_precision = HPy_NULL;
+    HPy h_unique = HPy_NULL;
+    HPy h_sign = HPy_NULL;
+    HPy h_trim = HPy_NULL;
+    HPy h_pad_left = HPy_NULL;
+    HPy h_exp_digits = HPy_NULL;
+    HPy h_min_digits = HPy_NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOOO:dragon4_scientific",
+                kwlist,
+                &obj,
+                &h_precision,
+                &h_unique,
+                &h_sign,
+                &h_trim,
+                &h_pad_left,
+                &h_exp_digits,
+                &h_min_digits)) {
+        return HPy_NULL;
     }
+    if (hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_exp_digits, &exp_digits) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "dragon4_scientific: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+
+    // if (npy_parse_arguments("dragon4_scientific", args, len_args, kwnames,
+    //         "x", NULL , &obj,
+    //         "|precision", &PyArray_PythonPyIntFromInt, &precision,
+    //         "|unique", &PyArray_PythonPyIntFromInt, &unique,
+    //         "|sign", &PyArray_PythonPyIntFromInt, &sign,
+    //         "|trim", &trimmode_converter, &trim,
+    //         "|pad_left", &PyArray_PythonPyIntFromInt, &pad_left,
+    //         "|exp_digits", &PyArray_PythonPyIntFromInt, &exp_digits,
+    //         "|min_digits", &PyArray_PythonPyIntFromInt, &min_digits,
+    //         NULL, NULL, NULL) < 0) {
+    //     return NULL;
+    // }
 
     digit_mode = unique ? DigitMode_Unique : DigitMode_Exact;
 
     if (unique == 0 && precision < 0) {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
             "in non-unique mode `precision` must be supplied");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return Dragon4_Scientific(obj, digit_mode, precision, min_digits, sign, trim,
+    return Dragon4_Scientific(ctx, obj, digit_mode, precision, min_digits, sign, trim,
                               pad_left, exp_digits);
 }
 
@@ -5046,30 +5080,53 @@ dragon4_scientific(PyObject *NPY_UNUSED(dummy),
  * The differences is that a value of -1 is valid for pad_left, pad_right,
  * precision, which is equivalent to `None`.
  */
-static PyObject *
-dragon4_positional(PyObject *NPY_UNUSED(dummy),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(dragon4_positional, "dragon4_positional", dragon4_positional_impl, HPyFunc_KEYWORDS)
+static HPy
+dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj;
+    HPy obj;
     int precision=-1, pad_left=-1, pad_right=-1, min_digits=-1;
     CutoffMode cutoff_mode;
     DigitMode digit_mode;
     TrimMode trim = TrimMode_None;
     int sign=0, unique=1, fractional=0;
-    NPY_PREPARE_ARGPARSER;
+    static char *kwlist[] = {"x", "precision", "unique", "fractional", "sign", 
+                            "trim", "pad_left", "pad_right", "min_digits", NULL};
+    // NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("dragon4_positional", args, len_args, kwnames,
-            "x", NULL , &obj,
-            "|precision", &PyArray_PythonPyIntFromInt, &precision,
-            "|unique", &PyArray_PythonPyIntFromInt, &unique,
-            "|fractional", &PyArray_PythonPyIntFromInt, &fractional,
-            "|sign", &PyArray_PythonPyIntFromInt, &sign,
-            "|trim", &trimmode_converter, &trim,
-            "|pad_left", &PyArray_PythonPyIntFromInt, &pad_left,
-            "|pad_right", &PyArray_PythonPyIntFromInt, &pad_right,
-            "|min_digits", &PyArray_PythonPyIntFromInt, &min_digits,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    HPy h_precision = HPy_NULL;
+    HPy h_unique = HPy_NULL;
+    HPy h_fractional = HPy_NULL;
+    HPy h_sign = HPy_NULL;
+    HPy h_trim = HPy_NULL;
+    HPy h_pad_left = HPy_NULL;
+    HPy h_pad_right = HPy_NULL;
+    HPy h_min_digits = HPy_NULL;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOOO:dragon4_positional",
+                kwlist,
+                &obj,
+                &h_precision,
+                &h_unique,
+                &h_fractional,
+                &h_sign,
+                &h_trim,
+                &h_pad_left,
+                &h_pad_right,
+                &h_min_digits)) {
+        return HPy_NULL;
+    }
+    if (hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED|
+            HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_fractional, &fractional) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_pad_right, &pad_right) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "dragon4_positional: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
 
     digit_mode = unique ? DigitMode_Unique : DigitMode_Exact;
@@ -5077,12 +5134,12 @@ dragon4_positional(PyObject *NPY_UNUSED(dummy),
                                CutoffMode_TotalLength;
 
     if (unique == 0 && precision < 0) {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
             "in non-unique mode `precision` must be supplied");
-        return NULL;
+        return HPy_NULL;
     }
 
-    return Dragon4_Positional(obj, digit_mode, cutoff_mode, precision,
+    return Dragon4_Positional(ctx, obj, digit_mode, cutoff_mode, precision,
                               min_digits, sign, trim, pad_left, pad_right);
 }
 
