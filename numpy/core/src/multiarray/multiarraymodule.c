@@ -3867,52 +3867,52 @@ fail:
 }
 
 static int
-einsum_sub_op_from_str(PyObject *args, PyObject **str_obj, char **subscripts,
-                       PyArrayObject **op)
+hpy_einsum_sub_op_from_str(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy *str_obj, char **subscripts,
+                       HPy /* PyArrayObject ** */ *op)
 {
     int i, nop;
-    PyObject *subscripts_str;
+    HPy subscripts_str;
 
-    nop = PyTuple_GET_SIZE(args) - 1;
+    nop = nargs - 1;
     if (nop <= 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "must specify the einstein sum subscripts string "
                         "and at least one operand");
         return -1;
     }
     else if (nop >= NPY_MAXARGS) {
-        PyErr_SetString(PyExc_ValueError, "too many operands");
+        HPyErr_SetString(ctx, ctx->h_ValueError, "too many operands");
         return -1;
     }
 
     /* Get the subscripts string */
-    subscripts_str = PyTuple_GET_ITEM(args, 0);
-    if (PyUnicode_Check(subscripts_str)) {
-        *str_obj = PyUnicode_AsASCIIString(subscripts_str);
-        if (*str_obj == NULL) {
+    subscripts_str = args[0];
+    if (HPyUnicode_Check(ctx, subscripts_str)) {
+        *str_obj = HPyUnicode_AsASCIIString(ctx, subscripts_str);
+        if (HPy_IsNull(*str_obj)) {
             return -1;
         }
         subscripts_str = *str_obj;
     }
 
-    *subscripts = PyBytes_AsString(subscripts_str);
+    *subscripts = HPyBytes_AsString(ctx, subscripts_str);
     if (*subscripts == NULL) {
-        Py_XDECREF(*str_obj);
-        *str_obj = NULL;
+        HPy_Close(ctx, *str_obj);
+        *str_obj = HPy_NULL;
         return -1;
     }
 
     /* Set the operands to NULL */
     for (i = 0; i < nop; ++i) {
-        op[i] = NULL;
+        op[i] = HPy_NULL;
     }
 
     /* Get the operands */
     for (i = 0; i < nop; ++i) {
-        PyObject *obj = PyTuple_GET_ITEM(args, i+1);
+        HPy obj = args[i+1];
 
-        op[i] = (PyArrayObject *)PyArray_FROM_OF(obj, NPY_ARRAY_ENSUREARRAY);
-        if (op[i] == NULL) {
+        op[i] = HPyArray_FROM_OF(ctx, obj, NPY_ARRAY_ENSUREARRAY);
+        if (HPy_IsNull(op[i])) {
             goto fail;
         }
     }
@@ -3921,8 +3921,8 @@ einsum_sub_op_from_str(PyObject *args, PyObject **str_obj, char **subscripts,
 
 fail:
     for (i = 0; i < nop; ++i) {
-        Py_XDECREF(op[i]);
-        op[i] = NULL;
+        HPy_Close(ctx, op[i]);
+        op[i] = HPy_NULL;
     }
 
     return -1;
@@ -3935,33 +3935,38 @@ fail:
  * otherwise.
  */
 static int
-einsum_list_to_subscripts(PyObject *obj, char *subscripts, int subsize)
+hpy_einsum_list_to_subscripts(HPyContext *ctx, HPy obj, char *subscripts, int subsize)
 {
     int ellipsis = 0, subindex = 0;
     npy_intp i, size;
-    PyObject *item;
+    HPy item;
 
-    obj = PySequence_Fast(obj, "the subscripts for each operand must "
-                               "be a list or a tuple");
-    if (obj == NULL) {
+    // obj = PySequence_Fast(obj, "the subscripts for each operand must "
+    //                            "be a list or a tuple");
+    if (!HPySequence_Check(ctx, obj)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, 
+                                "the subscripts for each operand must "
+                                "be a list or a tuple");
         return -1;
     }
-    size = PySequence_Size(obj);
+    size = HPy_Length(ctx, obj);
 
     for (i = 0; i < size; ++i) {
-        item = PySequence_Fast_GET_ITEM(obj, i);
+        item = HPy_GetItem_i(ctx, obj, i);
         /* Ellipsis */
-        if (item == Py_Ellipsis) {
+        if (HPy_Is(ctx, item, ctx->h_Ellipsis)) {
             if (ellipsis) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "each subscripts list may have only one ellipsis");
-                Py_DECREF(obj);
+                HPy_Close(ctx, item);
+                HPy_Close(ctx, obj);
                 return -1;
             }
             if (subindex + 3 >= subsize) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "subscripts list is too long");
-                Py_DECREF(obj);
+                HPy_Close(ctx, item);
+                HPy_Close(ctx, obj);
                 return -1;
             }
             subscripts[subindex++] = '.';
@@ -3971,21 +3976,23 @@ einsum_list_to_subscripts(PyObject *obj, char *subscripts, int subsize)
         }
         /* Subscript */
         else {
-            npy_intp s = PyArray_PyIntAsIntp(item);
+            npy_intp s = HPyArray_PyIntAsIntp(ctx, item);
             /* Invalid */
-            if (error_converting(s)) {
-                PyErr_SetString(PyExc_TypeError,
+            if (hpy_error_converting(ctx, s)) {
+                HPyErr_SetString(ctx, ctx->h_TypeError,
                         "each subscript must be either an integer "
                         "or an ellipsis");
-                Py_DECREF(obj);
+                HPy_Close(ctx, item);
+                HPy_Close(ctx, obj);
                 return -1;
             }
             npy_bool bad_input = 0;
 
             if (subindex + 1 >= subsize) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "subscripts list is too long");
-                Py_DECREF(obj);
+                HPy_Close(ctx, item);
+                HPy_Close(ctx, obj);
                 return -1;
             }
 
@@ -4003,16 +4010,17 @@ einsum_list_to_subscripts(PyObject *obj, char *subscripts, int subsize)
             }
 
             if (bad_input) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "subscript is not within the valid range [0, 52)");
-                Py_DECREF(obj);
+                HPy_Close(ctx, item);
+                HPy_Close(ctx, obj);
                 return -1;
             }
         }
-
+        HPy_Close(ctx, item);
     }
 
-    Py_DECREF(obj);
+    HPy_Close(ctx, obj);
 
     return subindex;
 }
@@ -4024,51 +4032,51 @@ einsum_list_to_subscripts(PyObject *obj, char *subscripts, int subsize)
  * Returns -1 on error, number of operands placed in op otherwise.
  */
 static int
-einsum_sub_op_from_lists(PyObject *args,
-                char *subscripts, int subsize, PyArrayObject **op)
+hpy_einsum_sub_op_from_lists(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
+                char *subscripts, int subsize, HPy *op)
 {
     int subindex = 0;
     npy_intp i, nop;
 
-    nop = PyTuple_Size(args)/2;
+    nop = nargs/2;
 
     if (nop == 0) {
-        PyErr_SetString(PyExc_ValueError, "must provide at least an "
+        HPyErr_SetString(ctx, ctx->h_ValueError, "must provide at least an "
                         "operand and a subscripts list to einsum");
         return -1;
     }
     else if (nop >= NPY_MAXARGS) {
-        PyErr_SetString(PyExc_ValueError, "too many operands");
+        HPyErr_SetString(ctx, ctx->h_ValueError, "too many operands");
         return -1;
     }
 
     /* Set the operands to NULL */
     for (i = 0; i < nop; ++i) {
-        op[i] = NULL;
+        op[i] = HPy_NULL;
     }
 
     /* Get the operands and build the subscript string */
     for (i = 0; i < nop; ++i) {
-        PyObject *obj = PyTuple_GET_ITEM(args, 2*i);
+        HPy obj = args[2*i];
         int n;
 
         /* Comma between the subscripts for each operand */
         if (i != 0) {
             subscripts[subindex++] = ',';
             if (subindex >= subsize) {
-                PyErr_SetString(PyExc_ValueError,
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "subscripts list is too long");
                 goto fail;
             }
         }
 
-        op[i] = (PyArrayObject *)PyArray_FROM_OF(obj, NPY_ARRAY_ENSUREARRAY);
-        if (op[i] == NULL) {
+        op[i] = HPyArray_FROM_OF(ctx, obj, NPY_ARRAY_ENSUREARRAY);
+        if (HPy_IsNull(op[i])) {
             goto fail;
         }
 
-        obj = PyTuple_GET_ITEM(args, 2*i+1);
-        n = einsum_list_to_subscripts(obj, subscripts+subindex,
+        obj = args[2*i+1];
+        n = hpy_einsum_list_to_subscripts(ctx, obj, subscripts+subindex,
                                       subsize-subindex);
         if (n < 0) {
             goto fail;
@@ -4077,20 +4085,20 @@ einsum_sub_op_from_lists(PyObject *args,
     }
 
     /* Add the '->' to the string if provided */
-    if (PyTuple_Size(args) == 2*nop+1) {
-        PyObject *obj;
+    if (nargs == 2*nop+1) {
+        HPy obj;
         int n;
 
         if (subindex + 2 >= subsize) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "subscripts list is too long");
             goto fail;
         }
         subscripts[subindex++] = '-';
         subscripts[subindex++] = '>';
 
-        obj = PyTuple_GET_ITEM(args, 2*nop);
-        n = einsum_list_to_subscripts(obj, subscripts+subindex,
+        obj = args[2*nop];
+        n = hpy_einsum_list_to_subscripts(ctx, obj, subscripts+subindex,
                                       subsize-subindex);
         if (n < 0) {
             goto fail;
@@ -4105,43 +4113,44 @@ einsum_sub_op_from_lists(PyObject *args,
 
 fail:
     for (i = 0; i < nop; ++i) {
-        Py_XDECREF(op[i]);
-        op[i] = NULL;
+        HPy_Close(ctx, op[i]);
+        op[i] = HPy_NULL;
     }
 
     return -1;
 }
 
-static PyObject *
-array_einsum(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
+HPyDef_METH(array_einsum, "c_einsum", array_einsum_impl, HPyFunc_KEYWORDS)
+static HPy
+array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     char *subscripts = NULL, subscripts_buffer[256];
-    PyObject *str_obj = NULL, *str_key_obj = NULL;
-    PyObject *arg0;
+    HPy str_obj = HPy_NULL, str_key_obj = HPy_NULL;
+    HPy arg0;
     int i, nop;
-    PyArrayObject *op[NPY_MAXARGS];
+    HPy op[NPY_MAXARGS]; // PyArrayObject *
     NPY_ORDER order = NPY_KEEPORDER;
     NPY_CASTING casting = NPY_SAFE_CASTING;
-    PyArrayObject *out = NULL;
-    PyArray_Descr *dtype = NULL;
-    PyObject *ret = NULL;
+    HPy out = HPy_NULL; // PyArrayObject *
+    HPy dtype = HPy_NULL; // PyArray_Descr *
+    HPy ret = HPy_NULL;
 
-    if (PyTuple_GET_SIZE(args) < 1) {
-        PyErr_SetString(PyExc_ValueError,
+    if (nargs < 1) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "must specify the einstein sum subscripts string "
                         "and at least one operand, or at least one operand "
                         "and its corresponding subscripts list");
-        return NULL;
+        return HPy_NULL;
     }
-    arg0 = PyTuple_GET_ITEM(args, 0);
+    arg0 = args[0];
 
     /* einsum('i,j', a, b), einsum('i,j->ij', a, b) */
-    if (PyBytes_Check(arg0) || PyUnicode_Check(arg0)) {
-        nop = einsum_sub_op_from_str(args, &str_obj, &subscripts, op);
+    if (HPyBytes_Check(ctx, arg0) || HPyUnicode_Check(ctx, arg0)) {
+        nop = hpy_einsum_sub_op_from_str(ctx, args, nargs, &str_obj, &subscripts, op);
     }
     /* einsum(a, [0], b, [1]), einsum(a, [0], b, [1], [0,1]) */
     else {
-        nop = einsum_sub_op_from_lists(args, subscripts_buffer,
+        nop = hpy_einsum_sub_op_from_lists(ctx, args, nargs, subscripts_buffer,
                                     sizeof(subscripts_buffer), op);
         subscripts = subscripts_buffer;
     }
@@ -4150,77 +4159,102 @@ array_einsum(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
     }
 
     /* Get the keyword arguments */
-    if (kwds != NULL) {
-        PyObject *key, *value;
-        Py_ssize_t pos = 0;
-        while (PyDict_Next(kwds, &pos, &key, &value)) {
+    if (!HPy_IsNull(kwds)) {
+        HPy keys = HPyDict_Keys(ctx, kwds);
+        HPy_ssize_t keys_len = HPy_Length(ctx, keys);
+        for (HPy_ssize_t i = 0; i < keys_len; i++) {
+            HPy key = HPy_GetItem_i(ctx, keys, i);
             char *str = NULL;
 
-            Py_XDECREF(str_key_obj);
-            str_key_obj = PyUnicode_AsASCIIString(key);
-            if (str_key_obj != NULL) {
+            HPy_Close(ctx, str_key_obj);
+            str_key_obj = HPyUnicode_AsASCIIString(ctx, key);
+            if (!HPy_IsNull(str_key_obj)) {
                 key = str_key_obj;
             }
 
-            str = PyBytes_AsString(key);
+            str = HPyBytes_AsString(ctx, key);
 
             if (str == NULL) {
-                PyErr_Clear();
-                PyErr_SetString(PyExc_TypeError, "invalid keyword");
+                HPy_Close(ctx, key);
+                HPy_Close(ctx, keys);
+                HPyErr_Clear(ctx);
+                HPyErr_SetString(ctx, ctx->h_TypeError, "invalid keyword");
                 goto finish;
             }
 
+            HPy value = HPy_GetItem(ctx, kwds, key);
+            HPy_Close(ctx, key);
             if (strcmp(str,"out") == 0) {
-                if (PyArray_Check(value)) {
-                    out = (PyArrayObject *)value;
+                if (HPyArray_Check(ctx, value)) {
+                    HPy_Close(ctx, out);
+                    out = value;
                 }
                 else {
-                    PyErr_SetString(PyExc_TypeError,
+                    HPy_Close(ctx, value);
+                    HPy_Close(ctx, keys);
+                    HPyErr_SetString(ctx, ctx->h_TypeError,
                                 "keyword parameter out must be an "
                                 "array for einsum");
                     goto finish;
                 }
             }
             else if (strcmp(str,"order") == 0) {
-                if (!PyArray_OrderConverter(value, &order)) {
+                if (!HPyArray_OrderConverter(ctx, value, &order)) {
+                    HPy_Close(ctx, value);
+                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else if (strcmp(str,"casting") == 0) {
-                if (!PyArray_CastingConverter(value, &casting)) {
+                if (!HPyArray_CastingConverter(ctx, value, &casting)) {
+                    HPy_Close(ctx, value);
+                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else if (strcmp(str,"dtype") == 0) {
-                if (!PyArray_DescrConverter2(value, &dtype)) {
+                if (!HPyArray_DescrConverter2(ctx, value, &dtype)) {
+                    HPy_Close(ctx, value);
+                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else {
-                PyErr_Format(PyExc_TypeError,
+                HPy_Close(ctx, value);
+                HPy_Close(ctx, keys);
+                HPyErr_Format_p(ctx, ctx->h_TypeError,
                             "'%s' is an invalid keyword for einsum",
                             str);
                 goto finish;
             }
         }
+        HPy_Close(ctx, keys);
     }
-
-    ret = (PyObject *)PyArray_EinsteinSum(subscripts, nop, op, dtype,
-                                        order, casting, out);
-
+    CAPI_WARN("calling PyArray_EinsteinSum");
+    PyArrayObject **py_op_in = HPy_AsPyObjectArray(ctx, op, nop);
+    PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtype);
+    PyArrayObject *py_out = HPy_AsPyObject(ctx, out);
+    PyObject *py_ret = (PyObject *)PyArray_EinsteinSum(subscripts, nop, py_op_in, py_dtype,
+                                        order, casting, py_out);
+    ret = HPy_FromPyObject(ctx, py_ret);
+    HPy_DecrefAndFreeArray(ctx, py_op_in, nop);
+    Py_DECREF(py_dtype);
+    Py_DECREF(py_out);
+    Py_DECREF(py_ret);
     /* If no output was supplied, possibly convert to a scalar */
-    if (ret != NULL && out == NULL) {
-        ret = PyArray_Return((PyArrayObject *)ret);
+    if (!HPy_IsNull(ret) && HPy_IsNull(out)) {
+        ret = HPyArray_Return(ctx, ret);
     }
 
 finish:
     for (i = 0; i < nop; ++i) {
-        Py_XDECREF(op[i]);
+        HPy_Close(ctx, op[i]);
     }
-    Py_XDECREF(dtype);
-    Py_XDECREF(str_obj);
-    Py_XDECREF(str_key_obj);
-    /* out is a borrowed reference */
+    HPy_Close(ctx, dtype);
+    HPy_Close(ctx, str_obj);
+    HPy_Close(ctx, str_key_obj);
+    HPy_Close(ctx, out);
+    /* out is not a borrowed reference */
 
     return ret;
 }
@@ -4998,6 +5032,42 @@ error:
     return NPY_FAIL;
 }
 
+static int
+hpy_trimmode_converter(HPyContext *ctx, HPy obj, TrimMode *trim)
+{
+    if (!HPyUnicode_Check(ctx, obj) || HPy_Length(ctx, obj) != 1) {
+        goto error;
+    }
+    const char *trimstr = HPyUnicode_AsUTF8AndSize(ctx, obj, NULL);
+
+    if (trimstr != NULL) {
+        if (trimstr[0] == 'k') {
+            *trim = TrimMode_None;
+        }
+        else if (trimstr[0] == '.') {
+            *trim = TrimMode_Zeros;
+        }
+        else if (trimstr[0] ==  '0') {
+            *trim = TrimMode_LeaveOneZero;
+        }
+        else if (trimstr[0] ==  '-') {
+            *trim = TrimMode_DptZeros;
+        }
+        else {
+            goto error;
+        }
+    }
+    return NPY_SUCCEED;
+
+error:
+    // PyErr_Format(PyExc_TypeError,
+    //         "if supplied, trim must be 'k', '.', '0' or '-' found `%100S`",
+    //         obj);
+    HPyErr_SetString(ctx, ctx->h_TypeError,
+            "if supplied, trim must be 'k', '.', '0' or '-' found `%100S`");
+    return NPY_FAIL;
+}
+
 
 /*
  * Prints floating-point scalars using the Dragon4 algorithm, scientific mode.
@@ -5143,45 +5213,59 @@ dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
                               min_digits, sign, trim, pad_left, pad_right);
 }
 
-static PyObject *
-format_longfloat(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
+HPyDef_METH(format_longfloat, "format_longfloat", format_longfloat_impl, HPyFunc_KEYWORDS)
+static HPy
+format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj;
+    HPy obj;
     unsigned int precision;
     static char *kwlist[] = {"x", "precision", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OI:format_longfloat", kwlist,
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OI:format_longfloat", kwlist,
                 &obj, &precision)) {
-        return NULL;
+        return HPy_NULL;
     }
-    if (!PyArray_IsScalar(obj, LongDouble)) {
-        PyErr_SetString(PyExc_TypeError,
+    if (!HPyArray_IsScalar(ctx, obj, LongDouble)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "not a longfloat");
-        return NULL;
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
-    return Dragon4_Scientific(obj, DigitMode_Unique, precision, -1, 0,
+    HPy ret = Dragon4_Scientific(ctx, obj, DigitMode_Unique, precision, -1, 0,
                               TrimMode_LeaveOneZero, -1, -1);
+    HPyTracker_Close(ctx, ht);
+    return ret;
 }
 
-static PyObject *
-compare_chararrays(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
+HPyDef_METH(compare_chararrays, "compare_chararrays", compare_chararrays_impl, HPyFunc_KEYWORDS)
+static HPy
+compare_chararrays_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *array;
-    PyObject *other;
-    PyArrayObject *newarr, *newoth;
+    HPy array;
+    HPy other;
+    HPy newarr, newoth; // PyArrayObject *
     int cmp_op;
     npy_bool rstrip;
     char *cmp_str;
-    Py_ssize_t strlength;
-    PyObject *res = NULL;
+    HPy_ssize_t strlength;
+    HPy res = HPy_NULL;
     static char msg[] = "comparison must be '==', '!=', '<', '>', '<=', '>='";
     static char *kwlist[] = {"a1", "a2", "cmp", "rstrip", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOs#O&:compare_chararrays",
+    HPy h_rstrip;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OOsO:compare_chararrays",
                 kwlist,
-                &array, &other, &cmp_str, &strlength,
-                PyArray_BoolConverter, &rstrip)) {
-        return NULL;
+                &array, &other, &cmp_str,
+                &h_rstrip)) {
+        return HPy_NULL;
+    }
+    strlength = strlen(cmp_str);
+    if (HPyArray_BoolConverter(ctx, h_rstrip, &rstrip) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, ": TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
     if (strlength < 1 || strlength > 2) {
         goto err;
@@ -5218,29 +5302,34 @@ compare_chararrays(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
         }
     }
 
-    newarr = (PyArrayObject *)PyArray_FROM_O(array);
-    if (newarr == NULL) {
-        return NULL;
+    newarr = HPyArray_FROM_O(ctx, array);
+    if (HPy_IsNull(newarr)) {
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
-    newoth = (PyArrayObject *)PyArray_FROM_O(other);
-    if (newoth == NULL) {
-        Py_DECREF(newarr);
-        return NULL;
+    newoth = HPyArray_FROM_O(ctx, other);
+    if (HPy_IsNull(newoth)) {
+        HPy_Close(ctx, newarr);
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
-    if (PyArray_ISSTRING(newarr) && PyArray_ISSTRING(newoth)) {
-        res = _strings_richcompare(newarr, newoth, cmp_op, rstrip != 0);
+    if (PyArray_ISSTRING(PyArrayObject_AsStruct(ctx, newarr)) && 
+            PyArray_ISSTRING(PyArrayObject_AsStruct(ctx, newoth))) {
+        res = _hpy_strings_richcompare(ctx, newarr, newoth, cmp_op, rstrip != 0);
     }
     else {
-        PyErr_SetString(PyExc_TypeError,
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "comparison of non-string arrays");
     }
-    Py_DECREF(newarr);
-    Py_DECREF(newoth);
+    HPy_Close(ctx, newarr);
+    HPy_Close(ctx, newoth);
+    HPyTracker_Close(ctx, ht);
     return res;
 
  err:
-    PyErr_SetString(PyExc_ValueError, msg);
-    return NULL;
+    HPyErr_SetString(ctx, ctx->h_ValueError, msg);
+    HPyTracker_Close(ctx, ht);
+    return HPy_NULL;
 }
 
 static PyObject *
@@ -5667,27 +5756,41 @@ array_may_share_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args,
     return array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_BOUNDS, 0);
 }
 
-static PyObject *
-normalize_axis_index(PyObject *NPY_UNUSED(self),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(normalize_axis_index, "normalize_axis_index", normalize_axis_index_impl, HPyFunc_KEYWORDS)
+static HPy
+normalize_axis_index_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
     int axis;
     int ndim;
-    PyObject *msg_prefix = Py_None;
-    NPY_PREPARE_ARGPARSER;
+    HPy msg_prefix = ctx->h_None;
+    // NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("normalize_axis_index", args, len_args, kwnames,
-            "axis", &PyArray_PythonPyIntFromInt, &axis,
-            "ndim", &PyArray_PythonPyIntFromInt, &ndim,
-            "|msg_prefix", NULL, &msg_prefix,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    HPy h_axis, h_ndim;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "OO|O:normalize_axis_index",
+            (const char*[]) {"axis", "ndim", "msg_prefix", NULL},
+            &axis, &ndim, &msg_prefix)) {
+        return HPy_NULL;
     }
-    if (check_and_adjust_axis_msg(&axis, ndim, msg_prefix) < 0) {
-        return NULL;
+    if (HPyArray_PythonPyIntFromInt(ctx, h_axis, &axis) != NPY_SUCCEED ||
+            HPyArray_PythonPyIntFromInt(ctx, h_ndim, &ndim) != NPY_SUCCEED) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "normalize_axis_index: TODO");
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
     }
 
-    return PyLong_FromLong(axis);
+    // if (npy_parse_arguments("normalize_axis_index", args, len_args, kwnames,
+    //         "axis", &PyArray_PythonPyIntFromInt, &axis,
+    //         "ndim", &PyArray_PythonPyIntFromInt, &ndim,
+    //         "|msg_prefix", NULL, &msg_prefix,
+    //         NULL, NULL, NULL) < 0) {
+    //     return NULL;
+    // }
+    if (hpy_check_and_adjust_axis_msg(ctx, &axis, ndim, msg_prefix) < 0) {
+        return HPy_NULL;
+    }
+
+    return HPyLong_FromLong(ctx, axis);
 }
 
 
@@ -5733,14 +5836,8 @@ static struct PyMethodDef array_module_methods[] = {
     {"set_datetimeparse_function",
         (PyCFunction)array_set_datetimeparse_function,
         METH_VARARGS|METH_KEYWORDS, NULL},
-    {"set_typeDict",
-        (PyCFunction)array_set_typeDict,
-        METH_VARARGS, NULL},
     {"count_nonzero",
         (PyCFunction)array_count_nonzero,
-        METH_VARARGS|METH_KEYWORDS, NULL},
-    {"c_einsum",
-        (PyCFunction)array_einsum,
         METH_VARARGS|METH_KEYWORDS, NULL},
     {"correlate",
         (PyCFunction)array_correlate,
@@ -5748,26 +5845,10 @@ static struct PyMethodDef array_module_methods[] = {
     {"correlate2",
         (PyCFunction)array_correlate2,
         METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"format_longfloat",
-        (PyCFunction)format_longfloat,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-    {"dragon4_positional",
-        (PyCFunction)dragon4_positional,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"dragon4_scientific",
-        (PyCFunction)dragon4_scientific,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"compare_chararrays",
-        (PyCFunction)compare_chararrays,
-        METH_VARARGS | METH_KEYWORDS, NULL},
     {"interp", (PyCFunction)arr_interp,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"interp_complex", (PyCFunction)arr_interp_complex,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"normalize_axis_index", (PyCFunction)normalize_axis_index,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"set_legacy_print_mode", (PyCFunction)set_legacy_print_mode,
-        METH_VARARGS, NULL},
     {"_discover_array_parameters", (PyCFunction)_discover_array_parameters,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"_get_experimental_dtype_api", (PyCFunction)_get_experimental_dtype_api,
@@ -6030,12 +6111,9 @@ setup_scalartypes(HPyContext *ctx)
     SINGLE_INHERIT(Character, Flexible);
 
 #define DUAL_INHERIT(child, parent1, parent2)                           \
-    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
-        h_Py##parent2##ArrType_Type,                                    \
-        ctx->h_##parent1##Type,                                         \
-    }, 2);                                                              \
     HPyType_SpecParam child##_params[] = {                              \
-        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { HPyType_SpecParam_Base, h_Py##parent2##ArrType_Type  },          \
+        { HPyType_SpecParam_Base, ctx->h_##parent1##Type       },          \
         { 0 },                                                          \
     };                                                                  \
     /* HPY TODO: Py##child##ArrType_Type.tp_hash = Py##parent1##_Type.tp_hash;*/ \
@@ -6072,12 +6150,9 @@ setup_scalartypes(HPyContext *ctx)
     tmp_PySequenceMethods = _Py##parent2##ArrType_Type_p->tp_as_sequence;      \
     tmp_PyBufferProcs = _Py##parent2##ArrType_Type_p->tp_as_buffer;      \
     set_as_func(_Py##parent2##ArrType_Type_p); \
-    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
-        ctx->h_##parent1##Type,                                         \
-        h_Py##parent2##ArrType_Type,                                    \
-    }, 2);                                                              \
     HPyType_SpecParam child##_params[] = {                              \
-        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { HPyType_SpecParam_Base, ctx->h_##parent1##Type },             \
+        { HPyType_SpecParam_Base, h_Py##parent2##ArrType_Type },        \
         { 0 },                                                          \
     };                                                                  \
     /* HPY TODO: Py##child##ArrType_Type.tp_richcompare = */            \
@@ -6110,13 +6185,9 @@ setup_scalartypes(HPyContext *ctx)
     cleanup(_Py##child##ArrType_Type_p);
 #else
 #define DUAL_INHERIT2(child, parent1, parent2)                          \
-    set_as_func(_Py##parent2##ArrType_Type_p); \
-    HPy child##_bases_tuple = HPyTuple_FromArray(ctx, (HPy[]) {         \
-        ctx->h_##parent1##Type,                                         \
-        h_Py##parent2##ArrType_Type,                                    \
-    }, 2);                                                              \
     HPyType_SpecParam child##_params[] = {                              \
-        { HPyType_SpecParam_BasesTuple, child##_bases_tuple },          \
+        { HPyType_SpecParam_Base, ctx->h_##parent1##Type },             \
+        { HPyType_SpecParam_Base, h_Py##parent2##ArrType_Type },        \
         { 0 },                                                          \
     };                                                                  \
     /* HPY TODO: Py##child##ArrType_Type.tp_richcompare = */            \
@@ -6313,6 +6384,14 @@ static HPyDef *array_module_hpy_methods[] = {
     &io_unpack,
     &frompyfunc,
     &add_newdoc_ufunc,
+    &array_set_typeDict,
+    &compare_chararrays,
+    &normalize_axis_index,
+    &dragon4_positional,
+    &dragon4_scientific,
+    &format_longfloat,
+    &set_legacy_print_mode,
+    &array_einsum,
 
     // HPy Port TODO: implement them.
     &_hpy_vec_string,
@@ -6456,6 +6535,10 @@ static HPyGlobal *module_globals[] = {
 
     &HPyArray_SFloatDType,
     &SFloatSingleton,
+
+    &descr_typeDict,
+    &g_checkfunc,
+    &g_AxisError_cls,
     NULL
 };
 

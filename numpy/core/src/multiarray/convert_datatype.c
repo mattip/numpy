@@ -852,6 +852,19 @@ PyArray_CanCastTo(PyArray_Descr *from, PyArray_Descr *to)
 }
 
 
+/*HPY_NUMPY_API
+ * leaves reference count alone --- cannot be NULL
+ *
+ * PyArray_CanCastTypeTo is equivalent to this, but adds a 'casting'
+ * parameter.
+ */
+NPY_NO_EXPORT npy_bool
+HPyArray_CanCastTo(HPyContext *ctx, HPy from, HPy to)
+{
+    return HPyArray_CanCastTypeTo(ctx, from, to, NPY_SAFE_CASTING);
+}
+
+
 /* Provides an ordering for the dtype 'kind' character codes */
 NPY_NO_EXPORT int
 dtype_kind_to_ordering(char kind)

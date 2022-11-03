@@ -637,7 +637,7 @@ PyArray_BoolConverter(PyObject *object, npy_bool *val)
 NPY_NO_EXPORT int
 HPyArray_BoolConverter(HPyContext *ctx, HPy object, npy_bool *val)
 {
-    if (HPy_IsTrue(ctx, object)) {
+    if (!HPy_IsNull(object) && HPy_IsTrue(ctx, object)) {
         *val = NPY_TRUE;
     }
     else {
@@ -759,6 +759,16 @@ NPY_NO_EXPORT int
 PyArray_ByteorderConverter(PyObject *obj, char *endian)
 {
     return string_converter_helper(
+        obj, (void *)endian, byteorder_parser, "byteorder", "not recognized");
+}
+
+/*HPY_NUMPY_API
+ * Convert object to endian
+ */
+NPY_NO_EXPORT int
+HPyArray_ByteorderConverter(HPyContext *ctx, HPy obj, char *endian)
+{
+    return hpy_string_converter_helper(ctx,
         obj, (void *)endian, byteorder_parser, "byteorder", "not recognized");
 }
 
