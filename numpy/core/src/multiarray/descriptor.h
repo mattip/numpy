@@ -1,13 +1,13 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_DESCRIPTOR_H_
 
-NPY_NO_EXPORT PyObject *arraydescr_protocol_typestr_get(
-        PyArray_Descr *, void *);
-NPY_NO_EXPORT PyObject *arraydescr_protocol_descr_get(
-        PyArray_Descr *self, void *);
+NPY_NO_EXPORT HPy
+arraydescr_protocol_typestr_get(HPyContext *, HPy, void *);
+NPY_NO_EXPORT HPy
+arraydescr_protocol_descr_get(HPyContext *, HPy, void *);
 
-NPY_NO_EXPORT PyObject *
-array_set_typeDict(PyObject *NPY_UNUSED(ignored), PyObject *args);
+extern NPY_NO_EXPORT HPyDef array_set_typeDict;
+extern HPyGlobal descr_typeDict;
 
 NPY_NO_EXPORT PyArray_Descr *
 _arraydescr_try_convert_from_dtype_attr(PyObject *obj);
