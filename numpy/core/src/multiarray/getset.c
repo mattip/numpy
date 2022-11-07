@@ -27,16 +27,21 @@
 
 /*******************  array attribute get and set routines ******************/
 
-static PyObject *
-array_ndim_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_ndim_get, "ndim", array_ndim_get_impl)
+static HPy
+array_ndim_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong(PyArray_NDIM(self));
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    return HPyLong_FromLong(ctx, PyArray_NDIM(self));
 }
 
-static PyObject *
-array_flags_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_flags_get, "flags", array_flags_get_impl)
+static HPy
+array_flags_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    return PyArray_NewFlagsObject((PyObject *)self);
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy h_flags_type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayFlags_Type);
+    return HPyArray_NewFlagsObject(ctx, h_flags_type, h_self);
 }
 
 HPyDef_GETSET(array_shape, "shape", array_shape_get, array_shape_set)
@@ -112,15 +117,20 @@ array_shape_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_val, void *
 }
 
 
-static PyObject *
-array_strides_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GETSET(array_strides, "strides", array_strides_get, array_strides_set)
+static HPy
+array_strides_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    return PyArray_IntTupleFromIntp(PyArray_NDIM(self), PyArray_STRIDES(self));
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    return HPyArray_IntTupleFromIntp(ctx, PyArray_NDIM(self), PyArray_STRIDES(self));
 }
 
 static int
-array_strides_set(PyArrayObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
+array_strides_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_obj, void *NPY_UNUSED(ignored))
 {
+    PyArrayObject *self = HPy_AsPyObject(ctx, h_self);
+    PyObject *obj = HPy_AsPyObject(ctx, h_obj);
+    CAPI_WARN("calling array_strides_set");
     PyArray_Dims newstrides = {NULL, -1};
     PyArrayObject *new;
     npy_intp numbytes = 0;
@@ -191,23 +201,31 @@ array_strides_set(PyArrayObject *self, PyObject *obj, void *NPY_UNUSED(ignored))
 
 
 
-static PyObject *
-array_priority_get(PyArrayObject *NPY_UNUSED(self), void *NPY_UNUSED(ignored))
+HPyDef_GET(array_priority_get, "__array_priority__", array_priority_get_impl)
+static HPy
+array_priority_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ NPY_UNUSED(self), void *NPY_UNUSED(ignored))
 {
-    return PyFloat_FromDouble(NPY_PRIORITY);
+    return HPyFloat_FromDouble(ctx, NPY_PRIORITY);
 }
 
 static PyObject *
 array_typestr_get(PyArrayObject *self)
 {
-    return arraydescr_protocol_typestr_get(PyArray_DESCR(self), NULL);
+    HPyContext *ctx = npy_get_context();
+    HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy ret = arraydescr_protocol_typestr_get(ctx, obj, NULL);
+    PyObject *py_ret = HPy_AsPyObject(ctx, ret);
+    HPy_Close(ctx, obj);
+    HPy_Close(ctx, ret);
+    return py_ret;
 }
 
-static PyObject *
-array_descr_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GETSET(array_descr_dtype, "dtype", array_descr_get, array_descr_set)
+static HPy
+array_descr_get(HPyContext *ctx, HPy /* PyArrayObject * */ self, void *NPY_UNUSED(ignored))
 {
-    Py_INCREF(PyArray_DESCR(self));
-    return (PyObject *)PyArray_DESCR(self);
+    // Py_INCREF(PyArray_DESCR(self));
+    return HPyArray_GetDescr(ctx, self);
 }
 
 static PyObject *
@@ -216,7 +234,12 @@ array_protocol_descr_get(PyArrayObject *self)
     PyObject *res;
     PyObject *dobj;
 
-    res = arraydescr_protocol_descr_get(PyArray_DESCR(self), NULL);
+    HPyContext *ctx = npy_get_context();
+    HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy h_res = arraydescr_protocol_descr_get(ctx, obj, NULL);
+    res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, obj);
+    HPy_Close(ctx, h_res);
     if (res) {
         return res;
     }
@@ -259,18 +282,24 @@ array_dataptr_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
                          Py_False : Py_True);
 }
 
-static PyObject *
-array_ctypes_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_ctypes_get, "ctypes", array_ctypes_get_impl)
+static HPy
+array_ctypes_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
 {
-    PyObject *_numpy_internal;
-    PyObject *ret;
-    _numpy_internal = PyImport_ImportModule("numpy.core._internal");
-    if (_numpy_internal == NULL) {
-        return NULL;
+    HPy _numpy_internal;
+    HPy ret;
+    _numpy_internal = HPyImport_ImportModule(ctx, "numpy.core._internal");
+    if (HPy_IsNull(_numpy_internal)) {
+        return HPy_NULL;
     }
-    ret = PyObject_CallMethod(_numpy_internal, "_ctypes", "ON", self,
-                              PyLong_FromVoidPtr(PyArray_DATA(self)));
-    Py_DECREF(_numpy_internal);
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPy args = HPyTuple_Pack(ctx, 2, h_self,
+                              HPyLong_FromVoidPtr(ctx, PyArray_DATA(self)));
+    HPy meth = HPy_GetAttr_s(ctx, _numpy_internal, "_ctypes");
+    ret = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
+    HPy_Close(ctx, args);
+    HPy_Close(ctx, meth);
+    HPy_Close(ctx, _numpy_internal);
     return ret;
 }
 
@@ -312,7 +341,13 @@ array_interface_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
         return NULL;
     }
 
-    obj = arraydescr_protocol_typestr_get(PyArray_DESCR(self), NULL);
+    HPyContext *ctx = npy_get_context();
+    HPy h_obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy h_ret = arraydescr_protocol_typestr_get(ctx, h_obj, NULL);
+    obj = HPy_AsPyObject(ctx, h_ret);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_ret);
+    // obj = arraydescr_protocol_typestr_get(PyArray_DESCR(self), NULL);
     ret = PyDict_SetItemString(dict, "typestr", obj);
     Py_DECREF(obj);
     if (ret < 0) {
@@ -320,9 +355,8 @@ array_interface_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
         return NULL;
     }
 
-    HPyContext *ctx = npy_get_context();
     HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
-    HPy h_obj = array_shape_get(ctx, h_self, NULL);
+    h_obj = array_shape_get(ctx, h_self, NULL);
     obj = HPy_AsPyObject(ctx, h_obj);
     HPy_Close(ctx, h_self);
     HPy_Close(ctx, h_obj);
@@ -434,22 +468,30 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
 }
 
 
-static PyObject *
-array_itemsize_get(PyArrayObject *self, void* NPY_UNUSED(ignored))
+HPyDef_GET(array_itemsize_get, "itemsize", array_itemsize_get_impl)
+static HPy
+array_itemsize_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong((long) PyArray_DESCR(self)->elsize);
+    HPy h_self_descr = HPyArray_GetDescr(ctx, h_self);
+    long v = (long) PyArray_Descr_AsStruct(ctx, h_self_descr)->elsize;
+    HPy_Close(ctx, h_self_descr);
+    return HPyLong_FromLong(ctx, v);
 }
 
-static PyObject *
-array_size_get(PyArrayObject *self, void* NPY_UNUSED(ignored))
+HPyDef_GET(array_size_get, "size", array_size_get_impl)
+static HPy
+array_size_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
 {
-    return PyArray_PyIntFromIntp(PyArray_SIZE(self));
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    return HPyArray_PyIntFromIntp(ctx, HPyArray_SIZE(self));
 }
 
-static PyObject *
-array_nbytes_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_nbytes_get, "nbytes", array_nbytes_get_impl)
+static HPy
+array_nbytes_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void *NPY_UNUSED(ignored))
 {
-    return PyArray_PyIntFromIntp(PyArray_NBYTES(self));
+    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    return HPyArray_PyIntFromIntp(ctx, HPyArray_NBYTES(ctx, h_self, self));
 }
 
 
@@ -461,77 +503,87 @@ array_nbytes_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
  * (contiguous or fortran) with compatible dimensions The shape and strides
  * will be adjusted in that case as well.
  */
-static int
-array_descr_set(PyArrayObject *self, PyObject *arg, void *NPY_UNUSED(ignored))
-{
-    PyArray_Descr *newtype = NULL;
+NPY_NO_EXPORT HPyGlobal g_checkfunc;
 
-    if (arg == NULL) {
-        PyErr_SetString(PyExc_AttributeError,
+static int
+array_descr_set(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy arg, void *NPY_UNUSED(ignored))
+{
+    HPy newtype = HPy_NULL; // PyArray_Descr *
+
+    if (HPy_IsNull(arg)) {
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete array dtype");
         return -1;
     }
 
-    if (!(PyArray_DescrConverter(arg, &newtype)) ||
-        newtype == NULL) {
-        PyErr_SetString(PyExc_TypeError,
+    if (!(HPyArray_DescrConverter(ctx, arg, &newtype)) ||
+        HPy_IsNull(newtype)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
                 "invalid data-type for array");
         return -1;
     }
 
     /* check that we are not reinterpreting memory containing Objects. */
-    if (_may_have_objects(PyArray_DESCR(self)) || _may_have_objects(newtype)) {
-        static PyObject *checkfunc = NULL;
-        PyObject *safe;
-
-        npy_cache_import("numpy.core._internal", "_view_is_safe", &checkfunc);
-        if (checkfunc == NULL) {
-            goto fail;
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
+    HPy self_descr = HPyArray_DESCR(ctx, self, self_struct);
+    PyArray_Descr *self_descr_struct = PyArray_Descr_AsStruct(ctx, self_descr);
+    PyArray_Descr *newtype_struct = PyArray_Descr_AsStruct(ctx, newtype);
+    if (_may_have_objects(self_descr_struct) || _may_have_objects(newtype_struct)) {
+        // static PyObject *checkfunc = NULL;
+        HPy safe;
+        
+        static int g_checkfunc_is_set = 0;
+        HPy checkfunc = g_checkfunc_is_set ? HPyGlobal_Load(ctx, g_checkfunc) : HPy_NULL;
+        if (!g_checkfunc_is_set || HPy_IsNull(checkfunc)) {
+            npy_hpy_cache_import(ctx, "numpy.core._internal", "_view_is_safe", &checkfunc);
+            if (HPy_IsNull(checkfunc)) {
+                goto fail;
+            }
+            HPy args = HPyTuple_Pack(ctx, 2, self_descr, newtype);
+            safe = HPy_CallTupleDict(ctx, checkfunc, args, HPy_NULL);
+            HPy_Close(ctx, args);
+            if (HPy_IsNull(safe)) {
+                goto fail;
+            }
+            HPy_Close(ctx, safe);
         }
-
-        safe = PyObject_CallFunction(checkfunc, "OO",
-                                     PyArray_DESCR(self), newtype);
-        if (safe == NULL) {
-            goto fail;
-        }
-        Py_DECREF(safe);
     }
 
     /*
      * Viewing as an unsized void implies a void dtype matching the size of the
      * current dtype.
      */
-    if (newtype->type_num == NPY_VOID &&
-            PyDataType_ISUNSIZED(newtype) &&
-            newtype->elsize != PyArray_DESCR(self)->elsize) {
-        PyArray_DESCR_REPLACE(newtype);
-        if (newtype == NULL) {
+    if (newtype_struct->type_num == NPY_VOID &&
+            PyDataType_ISUNSIZED(newtype_struct) &&
+            newtype_struct->elsize != self_descr_struct->elsize) {
+        HPyArray_DESCR_REPLACE(ctx, newtype);
+        if (HPy_IsNull(newtype)) {
             return -1;
         }
-        newtype->elsize = PyArray_DESCR(self)->elsize;
+        newtype_struct->elsize = self_descr_struct->elsize;
     }
 
     /* Changing the size of the dtype results in a shape change */
-    if (newtype->elsize != PyArray_DESCR(self)->elsize) {
+    if (newtype_struct->elsize != self_descr_struct->elsize) {
         /* forbidden cases */
-        if (PyArray_NDIM(self) == 0) {
-            PyErr_SetString(PyExc_ValueError,
+        if (PyArray_NDIM(self_struct) == 0) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Changing the dtype of a 0d array is only supported "
                     "if the itemsize is unchanged");
             goto fail;
         }
-        else if (PyDataType_HASSUBARRAY(newtype)) {
-            PyErr_SetString(PyExc_ValueError,
+        else if (PyDataType_HASSUBARRAY(newtype_struct)) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "Changing the dtype to a subarray type is only supported "
                     "if the total itemsize is unchanged");
             goto fail;
         }
 
         /* resize on last axis only */
-        int axis = PyArray_NDIM(self) - 1;
-        if (PyArray_DIMS(self)[axis] != 1 &&
-                PyArray_STRIDES(self)[axis] != PyArray_DESCR(self)->elsize) {
-            PyErr_SetString(PyExc_ValueError,
+        int axis = PyArray_NDIM(self_struct) - 1;
+        if (PyArray_DIMS(self_struct)[axis] != 1 &&
+                PyArray_STRIDES(self_struct)[axis] != self_descr_struct->elsize) {
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                     "To change to a dtype of a different size, the last axis "
                     "must be contiguous");
             goto fail;
@@ -539,71 +591,73 @@ array_descr_set(PyArrayObject *self, PyObject *arg, void *NPY_UNUSED(ignored))
 
         npy_intp newdim;
 
-        if (newtype->elsize < PyArray_DESCR(self)->elsize) {
+        if (newtype_struct->elsize < self_descr_struct->elsize) {
             /* if it is compatible, increase the size of the last axis */
-            if (newtype->elsize == 0 ||
-                    PyArray_DESCR(self)->elsize % newtype->elsize != 0) {
-                PyErr_SetString(PyExc_ValueError,
+            if (newtype_struct->elsize == 0 ||
+                    self_descr_struct->elsize % newtype_struct->elsize != 0) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "When changing to a smaller dtype, its size must be a "
                         "divisor of the size of original dtype");
                 goto fail;
             }
-            newdim = PyArray_DESCR(self)->elsize / newtype->elsize;
-            PyArray_DIMS(self)[axis] *= newdim;
-            PyArray_STRIDES(self)[axis] = newtype->elsize;
+            newdim = self_descr_struct->elsize / newtype_struct->elsize;
+            PyArray_DIMS(self_struct)[axis] *= newdim;
+            PyArray_STRIDES(self_struct)[axis] = newtype_struct->elsize;
         }
-        else /* newtype->elsize > PyArray_DESCR(self)->elsize */ {
+        else /* newtype->elsize > self_descr_struct->elsize */ {
             /* if it is compatible, decrease the size of the relevant axis */
-            newdim = PyArray_DIMS(self)[axis] * PyArray_DESCR(self)->elsize;
-            if ((newdim % newtype->elsize) != 0) {
-                PyErr_SetString(PyExc_ValueError,
+            newdim = PyArray_DIMS(self_struct)[axis] * self_descr_struct->elsize;
+            if ((newdim % newtype_struct->elsize) != 0) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
                         "When changing to a larger dtype, its size must be a "
                         "divisor of the total size in bytes of the last axis "
                         "of the array.");
                 goto fail;
             }
-            PyArray_DIMS(self)[axis] = newdim / newtype->elsize;
-            PyArray_STRIDES(self)[axis] = newtype->elsize;
+            PyArray_DIMS(self_struct)[axis] = newdim / newtype_struct->elsize;
+            PyArray_STRIDES(self_struct)[axis] = newtype_struct->elsize;
         }
     }
 
     /* Viewing as a subarray increases the number of dimensions */
-    if (PyDataType_HASSUBARRAY(newtype)) {
+    if (PyDataType_HASSUBARRAY(newtype_struct)) {
         /*
          * create new array object from data and update
          * dimensions, strides and descr from it
          */
-        PyArrayObject *temp;
+        HPy temp; // PyArrayObject *
         /*
          * We would decref newtype here.
          * temp will steal a reference to it
          */
-        temp = (PyArrayObject *)
-            PyArray_NewFromDescr(&PyArray_Type, newtype, PyArray_NDIM(self),
-                                 PyArray_DIMS(self), PyArray_STRIDES(self),
-                                 PyArray_DATA(self), PyArray_FLAGS(self), NULL);
-        if (temp == NULL) {
+        HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+        temp = 
+            HPyArray_NewFromDescr(ctx, array_type, newtype, PyArray_NDIM(self_struct),
+                                 PyArray_DIMS(self_struct), PyArray_STRIDES(self_struct),
+                                 PyArray_DATA(self_struct), PyArray_FLAGS(self_struct), HPy_NULL);
+        if (HPy_IsNull(temp)) {
             return -1;
         }
-        npy_free_cache_dim_array(self);
-        ((PyArrayObject_fields *)self)->dimensions = PyArray_DIMS(temp);
-        ((PyArrayObject_fields *)self)->nd = PyArray_NDIM(temp);
-        ((PyArrayObject_fields *)self)->strides = PyArray_STRIDES(temp);
-        newtype = PyArray_DESCR(temp);
-        Py_INCREF(PyArray_DESCR(temp));
+        PyArrayObject *temp_struct = PyArrayObject_AsStruct(ctx, temp);
+        npy_free_cache_dim_array(self_struct);
+        ((PyArrayObject_fields *)self_struct)->dimensions = PyArray_DIMS(temp_struct);
+        ((PyArrayObject_fields *)self_struct)->nd = PyArray_NDIM(temp_struct);
+        ((PyArrayObject_fields *)self_struct)->strides = PyArray_STRIDES(temp_struct);
+        newtype = HPyArray_DESCR(ctx, temp, temp_struct);
+        // Py_INCREF(PyArray_DESCR(temp));
         /* Fool deallocator not to delete these*/
-        ((PyArrayObject_fields *)temp)->nd = 0;
-        ((PyArrayObject_fields *)temp)->dimensions = NULL;
-        Py_DECREF(temp);
+        ((PyArrayObject_fields *)temp_struct)->nd = 0;
+        ((PyArrayObject_fields *)temp_struct)->dimensions = NULL;
+        HPy_Close(ctx, temp);
     }
 
-    _set_descr(self, newtype);
-    Py_DECREF(newtype);
-    PyArray_UpdateFlags(self, NPY_ARRAY_UPDATE_ALL);
+    _hpy_set_descr(ctx, self, self_struct, newtype);
+    HPy_Close(ctx, newtype);
+    HPyArray_UpdateFlags(ctx, self, self_struct, NPY_ARRAY_UPDATE_ALL);
     return 0;
 
  fail:
-    Py_DECREF(newtype);
+    HPy_Close(ctx, newtype);
     return -1;
 }
 
@@ -651,7 +705,13 @@ array_struct_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     }
     inter->data = PyArray_DATA(self);
     if (PyDataType_HASFIELDS(PyArray_DESCR(self))) {
-        inter->descr = arraydescr_protocol_descr_get(PyArray_DESCR(self), NULL);
+        HPyContext *ctx = npy_get_context();
+        HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+        HPy h_res = arraydescr_protocol_descr_get(ctx, obj, NULL);
+        inter->descr = HPy_AsPyObject(ctx, h_res);
+        HPy_Close(ctx, obj);
+        HPy_Close(ctx, h_res);
+        // inter->descr = arraydescr_protocol_descr_get(PyArray_DESCR(self), NULL);
         if (inter->descr == NULL) {
             PyErr_Clear();
         }
@@ -673,15 +733,16 @@ array_struct_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     return ret;
 }
 
-static PyObject *
-array_base_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_base_get, "base", array_base_get_impl)
+static HPy
+array_base_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    if (PyArray_BASE(self) == NULL) {
-        Py_RETURN_NONE;
+    HPy self_base = HPyArray_BASE(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self));
+    if (HPy_IsNull(self_base)) {
+        return HPy_Dup(ctx, ctx->h_None);
     }
     else {
-        Py_INCREF(PyArray_BASE(self));
-        return PyArray_BASE(self);
+        return self_base;
     }
 }
 
@@ -940,48 +1001,17 @@ array_flat_set(PyArrayObject *self, PyObject *val, void *NPY_UNUSED(ignored))
     return retval;
 }
 
-static PyObject *
-array_transpose_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(array_transpose_get, "T", array_transpose_get_impl)
+static HPy
+array_transpose_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
 {
-    return PyArray_Transpose(self, NULL);
+    return HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), NULL);
 }
 
 NPY_NO_EXPORT PyGetSetDef array_getsetlist[] = {
-    {"ndim",
-        (getter)array_ndim_get,
-        NULL,
-        NULL, NULL},
-    {"flags",
-        (getter)array_flags_get,
-        NULL,
-        NULL, NULL},
-    {"strides",
-        (getter)array_strides_get,
-        (setter)array_strides_set,
-        NULL, NULL},
     {"data",
         (getter)array_data_get,
         (setter)array_data_set,
-        NULL, NULL},
-    {"itemsize",
-        (getter)array_itemsize_get,
-        NULL,
-        NULL, NULL},
-    {"size",
-        (getter)array_size_get,
-        NULL,
-        NULL, NULL},
-    {"nbytes",
-        (getter)array_nbytes_get,
-        NULL,
-        NULL, NULL},
-    {"base",
-        (getter)array_base_get,
-        NULL,
-        NULL, NULL},
-    {"dtype",
-        (getter)array_descr_get,
-        (setter)array_descr_set,
         NULL, NULL},
     {"real",
         (getter)array_real_get,
@@ -995,24 +1025,12 @@ NPY_NO_EXPORT PyGetSetDef array_getsetlist[] = {
         (getter)array_flat_get,
         (setter)array_flat_set,
         NULL, NULL},
-    {"ctypes",
-        (getter)array_ctypes_get,
-        NULL,
-        NULL, NULL},
-    {"T",
-        (getter)array_transpose_get,
-        NULL,
-        NULL, NULL},
     {"__array_interface__",
         (getter)array_interface_get,
         NULL,
         NULL, NULL},
     {"__array_struct__",
         (getter)array_struct_get,
-        NULL,
-        NULL, NULL},
-    {"__array_priority__",
-        (getter)array_priority_get,
         NULL,
         NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL},  /* Sentinel */

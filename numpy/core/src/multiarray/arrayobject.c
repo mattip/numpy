@@ -2328,6 +2328,17 @@ static HPyDef *array_defines[] = {
 
     // getset
     &array_shape,
+    &array_descr_dtype,
+    &array_ndim_get,
+    &array_strides,
+    &array_priority_get,
+    &array_flags_get,
+    &array_ctypes_get,
+    &array_transpose_get,
+    &array_base_get,
+    &array_itemsize_get,
+    &array_size_get,
+    &array_nbytes_get,
 
     // methods:
     &array_ravel,

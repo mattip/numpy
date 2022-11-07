@@ -10,6 +10,12 @@ NPY_NO_EXPORT PyObject *
 _strings_richcompare(PyArrayObject *self, PyArrayObject *other, int cmp_op,
                      int rstrip);
 
+NPY_NO_EXPORT HPy
+_hpy_strings_richcompare(HPyContext *ctx, 
+                            HPy /* PyArrayObject * */ h_self, 
+                            HPy /* PyArrayObject * */ h_other, int cmp_op,
+                     int rstrip);
+
 NPY_NO_EXPORT PyObject *
 array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op);
 
@@ -31,6 +37,8 @@ extern NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
+
+NPY_NO_EXPORT extern HPyGlobal g_checkfunc;
 
 NPY_NO_EXPORT int
 HPyArray_ElementStrides(HPyContext *ctx, HPy obj);
