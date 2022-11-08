@@ -69,6 +69,14 @@ discover_descriptor_from_pyfloat(
     return PyArray_DescrFromType(NPY_DOUBLE);
 }
 
+static HPy // PyArray_Descr*
+hpy_discover_descriptor_from_pyfloat(HPyContext *ctx, 
+        HPy NPY_UNUSED(cls), HPy obj)
+{
+    assert(HPyFloat_CheckExact(ctx, obj));
+    return HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+}
+
 static NPY_INLINE HPy
 complex_default_descriptor(HPyContext *ctx, HPy NPY_UNUSED(cls))
 {
@@ -81,6 +89,14 @@ discover_descriptor_from_pycomplex(
 {
     assert(PyComplex_CheckExact(obj));
     return PyArray_DescrFromType(NPY_COMPLEX128);
+}
+
+static HPy // PyArray_Descr*
+hpy_discover_descriptor_from_pycomplex(HPyContext *ctx, 
+        HPy NPY_UNUSED(cls), HPy obj)
+{
+    assert(HPyComplex_CheckExact(ctx, obj));
+    return HPyArray_DescrFromType(ctx, NPY_COMPLEX128);
 }
 
 /*
@@ -341,13 +357,13 @@ NPY_DType_Slots pyintabstractdtype_slots = {
 NPY_DType_Slots pyfloatabstractdtype_slots = {
     .default_descr = float_default_descriptor,
     .discover_descr_from_pyobject = discover_descriptor_from_pyfloat,
-    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
+    .hdiscover_descr_from_pyobject = hpy_discover_descriptor_from_pyfloat,
     .common_dtype = float_common_dtype,
 };
 
 NPY_DType_Slots pycomplexabstractdtype_slots = {
     .default_descr = complex_default_descriptor,
     .discover_descr_from_pyobject = discover_descriptor_from_pycomplex,
-    .hdiscover_descr_from_pyobject = hdiscover_descr_from_pyobject_function_trampoline,
+    .hdiscover_descr_from_pyobject = hpy_discover_descriptor_from_pycomplex,
     .common_dtype = complex_common_dtype,
 };
