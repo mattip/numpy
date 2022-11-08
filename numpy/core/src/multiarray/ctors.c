@@ -1664,6 +1664,7 @@ HPyArray_New(HPyContext *ctx,
     }
     new = HPyArray_NewFromDescr(ctx, subtype, descr, nd, dims, strides,
                                data, flags, obj);
+    HPy_Close(ctx, descr);
     return new;
 }
 

@@ -1738,18 +1738,12 @@ HPyArray_MatrixProduct2(HPyContext *ctx, HPy op1, HPy op2, HPy out, PyArrayObjec
     if (PyArray_NDIM(ap1_struct) <= 2 && PyArray_NDIM(ap2_struct) <= 2 &&
             (NPY_DOUBLE == typenum || NPY_CDOUBLE == typenum ||
              NPY_FLOAT == typenum || NPY_CFLOAT == typenum)) {
-        PyObject *py_ap1 = HPy_AsPyObject(ctx, ap1);
-        PyObject *py_ap2 = HPy_AsPyObject(ctx, ap2);
-        PyObject *py_out = HPy_AsPyObject(ctx, out);
+        result = hpy_cblas_matrixproduct(ctx, typenum, 
+                                        ap1, ap1_struct,
+                                        ap2, ap2_struct,
+                                        out, out_struct);
         HPy_Close(ctx, ap1);
         HPy_Close(ctx, ap2);
-        CAPI_WARN("calling cblas_matrixproduct");
-        PyObject *py_result = cblas_matrixproduct(typenum, py_ap1, py_ap2, py_out);
-        result = HPy_FromPyObject(ctx, py_result);
-        Py_DECREF(py_ap1);
-        Py_DECREF(py_ap2);
-        Py_DECREF(py_out);
-        Py_DECREF(py_result);
         return result;
     }
 #endif
@@ -2274,16 +2268,18 @@ array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
     static char *kwlist[] = {"arr", "mask", "values", NULL};
 
     HPyTracker ht;
-    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OOO:putmask", kwlist,
                 &array, &mask, &values)) {
         return HPy_NULL;
     }
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     if (!HPy_TypeCheck(ctx, array, array_type)) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "putmask");
         HPyTracker_Close(ctx, ht);
+        HPy_Close(ctx, array_type);
         return HPy_NULL;
     }
+    HPy_Close(ctx, array_type);
     HPy ret = HPyArray_PutMask(ctx, array, values, mask);
     HPyTracker_Close(ctx, ht);
     return ret;
@@ -3083,6 +3079,9 @@ array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
 
     HPyTracker ht;
     HPy h_shape = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL;
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "Here5");
+            return HPy_NULL;
     // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
     if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:empty",

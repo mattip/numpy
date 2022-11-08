@@ -107,6 +107,8 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
          HPy_TypeCheck(ctx, obj, ctx->h_BoolType))
 #define PyArray_IsIntegerScalar(obj) (PyLong_Check(obj)                       \
               || PyArray_IsScalar((obj), Integer))
+#define HPyArray_IsIntegerScalar(ctx, obj) (HPyLong_Check(ctx, obj)            \
+              || HPyArray_IsScalar(ctx, (obj), Integer))
 #define PyArray_IsPythonScalar(obj)                                           \
         (PyArray_IsPythonNumber(obj) || PyBytes_Check(obj) ||                 \
          PyUnicode_Check(obj))
@@ -304,6 +306,8 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
 
 /* Copy should always return contiguous array */
 #define PyArray_Copy(obj) PyArray_NewCopy(obj, NPY_CORDER)
+
+#define HPyArray_Copy(ctx, obj) HPyArray_NewCopy(ctx, obj, NPY_CORDER)
 
 #define PyArray_FromObject(op, type, min_depth, max_depth) \
         PyArray_FromAny(op, PyArray_DescrFromType(type), min_depth, \

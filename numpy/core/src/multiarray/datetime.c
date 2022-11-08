@@ -2125,6 +2125,50 @@ metastr_to_unicode(PyArray_DatetimeMetaData *meta, int skip_brackets)
     }
 }
 
+NPY_NO_EXPORT HPy
+hpy_metastr_to_unicode(HPyContext *ctx, PyArray_DatetimeMetaData *meta, int skip_brackets)
+{
+    int num;
+    char const *basestr;
+
+    if (meta->base == NPY_FR_GENERIC) {
+        /* Without brackets, give a string "generic" */
+        if (skip_brackets) {
+            return HPyUnicode_FromString(ctx, "generic");
+        }
+        /* But with brackets, return nothing */
+        else {
+            return HPyUnicode_FromString(ctx, "");
+        }
+    }
+
+    num = meta->num;
+    if (meta->base >= 0 && meta->base < NPY_DATETIME_NUMUNITS) {
+        basestr = _datetime_strings[meta->base];
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                "NumPy datetime metadata is corrupted");
+        return HPy_NULL;
+    }
+
+    if (num == 1) {
+        if (skip_brackets) {
+            return HPyUnicode_FromFormat_p(ctx, "%s", basestr);
+        }
+        else {
+            return HPyUnicode_FromFormat_p(ctx, "[%s]", basestr);
+        }
+    }
+    else {
+        if (skip_brackets) {
+            return HPyUnicode_FromFormat_p(ctx, "%d%s", num, basestr);
+        }
+        else {
+            return HPyUnicode_FromFormat_p(ctx, "[%d%s]", num, basestr);
+        }
+    }
+}
 
 /*
  * Adjusts a datetimestruct based on a seconds offset. Assumes

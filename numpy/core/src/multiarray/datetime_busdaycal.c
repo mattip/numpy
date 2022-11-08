@@ -251,7 +251,7 @@ HPyArray_WeekMaskConverter(HPyContext *ctx, HPy weekmask_in, npy_bool *weekmask)
 general_weekmask_string:
         /* a string like "SatSun" or "Mon Tue Wed" */
         memset(weekmask, 0, 7);
-        for (Py_ssize_t i = 0; i < len; i += 3) {
+        for (HPy_ssize_t i = 0; i < len; i += 3) {
             while (isspace(str[i]))
                 ++i;
 
@@ -329,7 +329,7 @@ invalid_weekmask_string:
         if (HPy_Length(ctx, obj) != 7 ||
                         (HPyArray_Check(ctx, obj) &&
                          PyArray_NDIM(obj_struct) != 1)) {
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                 "A business day weekmask array must have length 7");
             HPy_Close(ctx, obj);
             return 0;
@@ -372,7 +372,7 @@ invalid_weekmask_string:
         }
     }
 
-    PyErr_SetString(PyExc_ValueError,
+    HPyErr_SetString(ctx, ctx->h_ValueError,
             "Couldn't convert object into a business day weekmask");
     HPy_Close(ctx, obj);
     return 0;
