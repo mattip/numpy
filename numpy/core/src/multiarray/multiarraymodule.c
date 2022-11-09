@@ -5853,8 +5853,6 @@ static struct PyMethodDef array_module_methods[] = {
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"_get_experimental_dtype_api", (PyCFunction)_get_experimental_dtype_api,
         METH_O, NULL},
-    {"_load_from_filelike", (PyCFunction)_load_from_filelike,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
     /* from umath */
     {"get_handler_name",
         (PyCFunction) get_handler_name,
@@ -6392,6 +6390,7 @@ static HPyDef *array_module_hpy_methods[] = {
     &format_longfloat,
     &set_legacy_print_mode,
     &array_einsum,
+    &_load_from_filelike,
 
     // HPy Port TODO: implement them.
     &_hpy_vec_string,

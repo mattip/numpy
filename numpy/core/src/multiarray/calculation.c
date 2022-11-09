@@ -758,6 +758,26 @@ PyArray_Any(PyArrayObject *self, int axis, PyArrayObject *out)
     return ret;
 }
 
+/*HPY_NUMPY_API
+ * Any
+ */
+NPY_NO_EXPORT HPy
+HPyArray_Any(HPyContext *ctx, HPy /* PyArrayObject * */ self, 
+                            int axis, HPy /* PyArrayObject * */ out)
+{
+    HPy arr, ret;
+
+    arr = HPyArray_CheckAxis(ctx, self, &axis, 0);
+    if (HPy_IsNull(arr)) {
+        return HPy_NULL;
+    }
+    ret = HPyArray_GenericReduceFunction(ctx, arr,
+                                        HN_OPS_GET(ctx, logical_or), axis,
+                                        NPY_BOOL, out);
+    HPy_Close(ctx, arr);
+    return ret;
+}
+
 /*NUMPY_API
  * All
  */
@@ -774,6 +794,26 @@ PyArray_All(PyArrayObject *self, int axis, PyArrayObject *out)
                                         N_OPS_GET(logical_and), axis,
                                         NPY_BOOL, out);
     Py_DECREF(arr);
+    return ret;
+}
+
+/*HPY_NUMPY_API
+ * All
+ */
+NPY_NO_EXPORT HPy
+HPyArray_All(HPyContext *ctx, HPy /* PyArrayObject * */ self, 
+                            int axis, HPy /* PyArrayObject * */ out)
+{
+    HPy arr, ret;
+
+    arr = HPyArray_CheckAxis(ctx, self, &axis, 0);
+    if (HPy_IsNull(arr)) {
+        return HPy_NULL;
+    }
+    ret = HPyArray_GenericReduceFunction(ctx, arr,
+                                        HN_OPS_GET(ctx, logical_and), axis,
+                                        NPY_BOOL, out);
+    HPy_Close(ctx, arr);
     return ret;
 }
 
