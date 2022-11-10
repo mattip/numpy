@@ -531,13 +531,14 @@ binary_search_with_guess(const npy_double key, const npy_double *arr,
 
 #undef LIKELY_IN_CACHE_SIZE
 
-NPY_NO_EXPORT PyObject *
-arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
+HPyDef_METH(arr_interp, "interp", arr_interp_impl, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+arr_interp_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
 
-    PyObject *fp, *xp, *x;
-    PyObject *left = NULL, *right = NULL;
-    PyArrayObject *afp = NULL, *axp = NULL, *ax = NULL, *af = NULL;
+    HPy fp, xp, x;
+    HPy left = HPy_NULL, right = HPy_NULL;
+    HPy afp = HPy_NULL, axp = HPy_NULL, ax = HPy_NULL, af = HPy_NULL; // PyArrayObject *
     npy_intp i, lenx, lenxp;
     npy_double lval, rval;
     const npy_double *dy, *dx, *dz;
@@ -545,64 +546,73 @@ arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
 
     static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
 
-    NPY_BEGIN_THREADS_DEF;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "OOO|OO:interp", kwlist,
+    HPY_NPY_BEGIN_THREADS_DEF;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwdict, "OOO|OO:interp", kwlist,
                                      &x, &xp, &fp, &left, &right)) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    afp = (PyArrayObject *)PyArray_ContiguousFromAny(fp, NPY_DOUBLE, 1, 1);
-    if (afp == NULL) {
-        return NULL;
+    HPy double_descr = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+    afp = HPyArray_ContiguousFromAny(ctx, fp, double_descr, 1, 1);
+    if (HPy_IsNull(afp)) {
+        HPy_Close(ctx, double_descr);
+        return HPy_NULL;
     }
-    axp = (PyArrayObject *)PyArray_ContiguousFromAny(xp, NPY_DOUBLE, 1, 1);
-    if (axp == NULL) {
+    axp = HPyArray_ContiguousFromAny(ctx, xp, double_descr, 1, 1);
+    if (HPy_IsNull(axp)) {
+        HPy_Close(ctx, double_descr);
         goto fail;
     }
-    ax = (PyArrayObject *)PyArray_ContiguousFromAny(x, NPY_DOUBLE, 0, 0);
-    if (ax == NULL) {
+    ax = HPyArray_ContiguousFromAny(ctx, x, double_descr, 0, 0);
+    HPy_Close(ctx, double_descr);
+    if (HPy_IsNull(ax)) {
         goto fail;
     }
-    lenxp = PyArray_SIZE(axp);
+    PyArrayObject *axp_struct = PyArrayObject_AsStruct(ctx, axp);
+    lenxp = PyArray_SIZE(axp_struct);
     if (lenxp == 0) {
-        PyErr_SetString(PyExc_ValueError,
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "array of sample points is empty");
         goto fail;
     }
-    if (PyArray_SIZE(afp) != lenxp) {
-        PyErr_SetString(PyExc_ValueError,
+    PyArrayObject *afp_struct = PyArrayObject_AsStruct(ctx, afp);
+    if (PyArray_SIZE(afp_struct) != lenxp) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                 "fp and xp are not of the same length.");
         goto fail;
     }
 
-    af = (PyArrayObject *)PyArray_SimpleNew(PyArray_NDIM(ax),
-                                            PyArray_DIMS(ax), NPY_DOUBLE);
-    if (af == NULL) {
+    PyArrayObject *ax_struct = PyArrayObject_AsStruct(ctx, ax);
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    af = HPyArray_SimpleNew(ctx, array_type, PyArray_NDIM(ax_struct),
+                                            PyArray_DIMS(ax_struct), NPY_DOUBLE);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(af)) {
         goto fail;
     }
-    lenx = PyArray_SIZE(ax);
+    lenx = PyArray_SIZE(ax_struct);
 
-    dy = (const npy_double *)PyArray_DATA(afp);
-    dx = (const npy_double *)PyArray_DATA(axp);
-    dz = (const npy_double *)PyArray_DATA(ax);
-    dres = (npy_double *)PyArray_DATA(af);
+    dy = (const npy_double *)PyArray_DATA(afp_struct);
+    dx = (const npy_double *)PyArray_DATA(axp_struct);
+    dz = (const npy_double *)PyArray_DATA(ax_struct);
+    dres = (npy_double *)PyArray_DATA(PyArrayObject_AsStruct(ctx, af));
     /* Get left and right fill values. */
-    if ((left == NULL) || (left == Py_None)) {
+    if (HPy_IsNull(left) || HPy_Is(ctx, left, ctx->h_None)) {
         lval = dy[0];
     }
     else {
-        lval = PyFloat_AsDouble(left);
-        if (error_converting(lval)) {
+        lval = HPyFloat_AsDouble(ctx, left);
+        if (hpy_error_converting(ctx, lval)) {
             goto fail;
         }
     }
-    if ((right == NULL) || (right == Py_None)) {
+    if (HPy_IsNull(right) || HPy_Is(ctx, right, ctx->h_None)) {
         rval = dy[lenxp - 1];
     }
     else {
-        rval = PyFloat_AsDouble(right);
-        if (error_converting(rval)) {
+        rval = HPyFloat_AsDouble(ctx, right);
+        if (hpy_error_converting(ctx, rval)) {
             goto fail;
         }
     }
@@ -612,13 +622,13 @@ arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
         const npy_double xp_val = dx[0];
         const npy_double fp_val = dy[0];
 
-        NPY_BEGIN_THREADS_THRESHOLDED(lenx);
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, lenx);
         for (i = 0; i < lenx; ++i) {
             const npy_double x_val = dz[i];
             dres[i] = (x_val < xp_val) ? lval :
                                          ((x_val > xp_val) ? rval : fp_val);
         }
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
     }
     else {
         npy_intp j = 0;
@@ -627,12 +637,12 @@ arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
         if (lenxp <= lenx) {
             slopes = PyArray_malloc((lenxp - 1) * sizeof(npy_double));
             if (slopes == NULL) {
-                PyErr_NoMemory();
+                HPyErr_NoMemory(ctx);
                 goto fail;
             }
         }
 
-        NPY_BEGIN_THREADS;
+        HPY_NPY_BEGIN_THREADS(ctx);
 
         if (slopes != NULL) {
             for (i = 0; i < lenxp - 1; ++i) {
@@ -678,31 +688,34 @@ arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
             }
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
     }
 
     PyArray_free(slopes);
-    Py_DECREF(afp);
-    Py_DECREF(axp);
-    Py_DECREF(ax);
-    return PyArray_Return(af);
+    HPy_Close(ctx, afp);
+    HPy_Close(ctx, axp);
+    HPy_Close(ctx, ax);
+    HPy ret = HPyArray_Return(ctx, af);
+    HPy_Close(ctx, af);
+    return ret;
 
 fail:
-    Py_XDECREF(afp);
-    Py_XDECREF(axp);
-    Py_XDECREF(ax);
-    Py_XDECREF(af);
-    return NULL;
+    HPy_Close(ctx, afp);
+    HPy_Close(ctx, axp);
+    HPy_Close(ctx, ax);
+    HPy_Close(ctx, af);
+    return HPy_NULL;
 }
 
 /* As for arr_interp but for complex fp values */
-NPY_NO_EXPORT PyObject *
-arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
+HPyDef_METH(arr_interp_complex, "interp_complex", arr_interp_complex_impl, HPyFunc_KEYWORDS)
+NPY_NO_EXPORT HPy
+arr_interp_complex_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
 
-    PyObject *fp, *xp, *x;
-    PyObject *left = NULL, *right = NULL;
-    PyArrayObject *afp = NULL, *axp = NULL, *ax = NULL, *af = NULL;
+    HPy fp, xp, x;
+    HPy left = HPy_NULL, right = HPy_NULL;
+    HPy afp = HPy_NULL, axp = HPy_NULL, ax = HPy_NULL, af = HPy_NULL; // PyArrayObject *
     npy_intp i, lenx, lenxp;
 
     const npy_double *dx, *dz;
@@ -712,75 +725,92 @@ arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
 
     static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
 
-    NPY_BEGIN_THREADS_DEF;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "OOO|OO:interp_complex",
+    HPY_NPY_BEGIN_THREADS_DEF;
+    HPyTracker ht;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwdict, "OOO|OO:interp_complex",
                                      kwlist, &x, &xp, &fp, &left, &right)) {
-        return NULL;
+        return HPy_NULL;
     }
 
-    afp = (PyArrayObject *)PyArray_ContiguousFromAny(fp, NPY_CDOUBLE, 1, 1);
-
-    if (afp == NULL) {
-        return NULL;
+    HPy cdouble_descr = HPyArray_DescrFromType(ctx, NPY_CDOUBLE);
+    afp = HPyArray_ContiguousFromAny(ctx, fp, cdouble_descr, 1, 1);
+    HPy_Close(ctx, cdouble_descr);
+    if (HPy_IsNull(afp)) {
+        return HPy_NULL;
     }
 
-    axp = (PyArrayObject *)PyArray_ContiguousFromAny(xp, NPY_DOUBLE, 1, 1);
-    if (axp == NULL) {
+    HPy double_descr = HPyArray_DescrFromType(ctx, NPY_DOUBLE);
+    axp = HPyArray_ContiguousFromAny(ctx, xp, double_descr, 1, 1);
+    if (HPy_IsNull(axp)) {
+        HPy_Close(ctx, double_descr);
         goto fail;
     }
-    ax = (PyArrayObject *)PyArray_ContiguousFromAny(x, NPY_DOUBLE, 0, 0);
-    if (ax == NULL) {
+    ax = HPyArray_ContiguousFromAny(ctx, x, double_descr, 0, 0);
+    HPy_Close(ctx, double_descr);
+    if (HPy_IsNull(ax)) {
         goto fail;
     }
-    lenxp = PyArray_SIZE(axp);
+    PyArrayObject *axp_struct = PyArrayObject_AsStruct(ctx, axp);
+    lenxp = PyArray_SIZE(axp_struct);
     if (lenxp == 0) {
         PyErr_SetString(PyExc_ValueError,
                 "array of sample points is empty");
         goto fail;
     }
-    if (PyArray_SIZE(afp) != lenxp) {
+    PyArrayObject *afp_struct = PyArrayObject_AsStruct(ctx, afp);
+    if (PyArray_SIZE(afp_struct) != lenxp) {
         PyErr_SetString(PyExc_ValueError,
                 "fp and xp are not of the same length.");
         goto fail;
     }
 
-    lenx = PyArray_SIZE(ax);
-    dx = (const npy_double *)PyArray_DATA(axp);
-    dz = (const npy_double *)PyArray_DATA(ax);
+    PyArrayObject *ax_struct = PyArrayObject_AsStruct(ctx, ax);
+    lenx = PyArray_SIZE(ax_struct);
+    dx = (const npy_double *)PyArray_DATA(axp_struct);
+    dz = (const npy_double *)PyArray_DATA(ax_struct);
 
-    af = (PyArrayObject *)PyArray_SimpleNew(PyArray_NDIM(ax),
-                                            PyArray_DIMS(ax), NPY_CDOUBLE);
-    if (af == NULL) {
+    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
+    af = HPyArray_SimpleNew(ctx, array_type, PyArray_NDIM(ax_struct),
+                                            PyArray_DIMS(ax_struct), NPY_CDOUBLE);
+    HPy_Close(ctx, array_type);
+    if (HPy_IsNull(af)) {
         goto fail;
     }
 
-    dy = (const npy_cdouble *)PyArray_DATA(afp);
-    dres = (npy_cdouble *)PyArray_DATA(af);
+    dy = (const npy_cdouble *)PyArray_DATA(afp_struct);
+    dres = (npy_cdouble *)PyArray_DATA(PyArrayObject_AsStruct(ctx, af));
     /* Get left and right fill values. */
-    if ((left == NULL) || (left == Py_None)) {
+    if (HPy_IsNull(left) || HPy_Is(ctx, left, ctx->h_None)) {
         lval = dy[0];
     }
     else {
-        lval.real = PyComplex_RealAsDouble(left);
+        PyObject *py_left = HPy_AsPyObject(ctx, left);
+        CAPI_WARN("missing PyComplex_RealAsDouble");
+        lval.real = PyComplex_RealAsDouble(py_left);
         if (error_converting(lval.real)) {
+            Py_DECREF(py_left);
             goto fail;
         }
-        lval.imag = PyComplex_ImagAsDouble(left);
+        lval.imag = PyComplex_ImagAsDouble(py_left);
+        Py_DECREF(py_left);
         if (error_converting(lval.imag)) {
             goto fail;
         }
     }
 
-    if ((right == NULL) || (right == Py_None)) {
+    if (HPy_IsNull(right) || HPy_Is(ctx, right, ctx->h_None)) {
         rval = dy[lenxp - 1];
     }
     else {
-        rval.real = PyComplex_RealAsDouble(right);
+        CAPI_WARN("missing PyComplex_RealAsDouble");
+        PyObject *py_right = HPy_AsPyObject(ctx, right);
+        rval.real = PyComplex_RealAsDouble(py_right);
         if (error_converting(rval.real)) {
+            Py_DECREF(py_right);
             goto fail;
         }
-        rval.imag = PyComplex_ImagAsDouble(right);
+        rval.imag = PyComplex_ImagAsDouble(py_right);
+        Py_DECREF(py_right);
         if (error_converting(rval.imag)) {
             goto fail;
         }
@@ -791,13 +821,13 @@ arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
         const npy_double xp_val = dx[0];
         const npy_cdouble fp_val = dy[0];
 
-        NPY_BEGIN_THREADS_THRESHOLDED(lenx);
+        HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, lenx);
         for (i = 0; i < lenx; ++i) {
             const npy_double x_val = dz[i];
             dres[i] = (x_val < xp_val) ? lval :
               ((x_val > xp_val) ? rval : fp_val);
         }
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
     }
     else {
         npy_intp j = 0;
@@ -811,7 +841,7 @@ arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
             }
         }
 
-        NPY_BEGIN_THREADS;
+        HPY_NPY_BEGIN_THREADS(ctx);
 
         if (slopes != NULL) {
             for (i = 0; i < lenxp - 1; ++i) {
@@ -875,21 +905,23 @@ arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
             }
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
     }
     PyArray_free(slopes);
 
-    Py_DECREF(afp);
-    Py_DECREF(axp);
-    Py_DECREF(ax);
-    return PyArray_Return(af);
+    HPy_Close(ctx, afp);
+    HPy_Close(ctx, axp);
+    HPy_Close(ctx, ax);
+    HPy ret = HPyArray_Return(ctx, af);
+    HPy_Close(ctx, af);
+    return ret;
 
 fail:
-    Py_XDECREF(afp);
-    Py_XDECREF(axp);
-    Py_XDECREF(ax);
-    Py_XDECREF(af);
-    return NULL;
+    HPy_Close(ctx, afp);
+    HPy_Close(ctx, axp);
+    HPy_Close(ctx, ax);
+    HPy_Close(ctx, af);
+    return HPy_NULL;
 }
 
 static const char *EMPTY_SEQUENCE_ERR_MSG = "indices must be integral: the provided " \

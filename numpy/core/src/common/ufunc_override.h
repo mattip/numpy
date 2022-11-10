@@ -27,6 +27,9 @@ HPyUFuncOverride_GetNonDefaultArrayUfunc(HPyContext *ctx, HPy obj);
 NPY_NO_EXPORT int
 PyUFunc_HasOverride(PyObject *obj);
 
+NPY_NO_EXPORT int
+HPyUFunc_HasOverride(HPyContext *ctx, HPy obj);
+
 /*
  * Get possible out argument from kwds, and returns the number of outputs
  * contained within it: if a tuple, the number of elements in it, 1 otherwise.

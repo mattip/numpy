@@ -96,6 +96,41 @@ HPyComplex_CheckExact(HPyContext *ctx, HPy obj) {
     return res;
 }
 
+NPY_NO_EXPORT HPy_ssize_t
+HPyNumber_AsSsize_t(HPyContext *ctx, HPy item, HPy err)
+{
+    HPy_ssize_t result;
+    HPy runerr;
+    HPy value = HPy_Index(ctx, item);
+    if (HPy_IsNull(value))
+        return -1;
+
+    result = HPyLong_AsSsize_t(ctx, value);
+    if (result != -1 || !HPyErr_Occurred(ctx))
+        goto finish;
+
+    if (!HPyErr_ExceptionMatches(ctx, ctx->h_OverflowError))
+        goto finish;
+
+    HPyErr_Clear(ctx);
+    if (HPy_IsNull(err)) {
+        assert(HPyLong_Check(ctx, value));
+        if (HPyLong_AsLong(ctx, value) < 0)
+            result = PY_SSIZE_T_MIN;
+        else
+            result = PY_SSIZE_T_MAX;
+    }
+    else {
+        /* Otherwise replace the error with caller's error object. */
+        HPyErr_SetString(ctx, err,
+                     "cannot fit into an index-sized integer");
+    }
+
+ finish:
+    HPy_Close(ctx, value);
+    return result;
+}
+
 
 // HPy PORT: this is not the actual implementation of PyUnicode_Concat
 // TODO: PyUnicode_Concat should be included in HPy

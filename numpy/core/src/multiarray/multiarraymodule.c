@@ -5845,10 +5845,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"correlate2",
         (PyCFunction)array_correlate2,
         METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"interp", (PyCFunction)arr_interp,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-    {"interp_complex", (PyCFunction)arr_interp_complex,
-        METH_VARARGS | METH_KEYWORDS, NULL},
     {"_discover_array_parameters", (PyCFunction)_discover_array_parameters,
         METH_VARARGS | METH_KEYWORDS, NULL},
     {"_get_experimental_dtype_api", (PyCFunction)_get_experimental_dtype_api,
@@ -6391,6 +6387,8 @@ static HPyDef *array_module_hpy_methods[] = {
     &set_legacy_print_mode,
     &array_einsum,
     &_load_from_filelike,
+    &arr_interp,
+    &arr_interp_complex,
 
     // HPy Port TODO: implement them.
     &_hpy_vec_string,

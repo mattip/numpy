@@ -27,6 +27,7 @@
     #define MEM_FREE free
 #endif
 
+#define GRAALVM_PYTHON 1
 #ifdef GRAALVM_PYTHON
 #define HPyMem_RawCalloc calloc
 #else
@@ -231,6 +232,9 @@ HPyFloat_CheckExact(HPyContext *ctx, HPy obj);
 
 NPY_NO_EXPORT int
 HPyComplex_CheckExact(HPyContext *ctx, HPy obj);
+
+NPY_NO_EXPORT HPy_ssize_t
+HPyNumber_AsSsize_t(HPyContext *ctx, HPy item, HPy err);
 
 // Common patterns helper functions
 
