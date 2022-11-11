@@ -1536,6 +1536,15 @@ PyArray_IntpFromPyIntConverter(PyObject *o, npy_intp *val)
     return NPY_SUCCEED;
 }
 
+NPY_NO_EXPORT int
+HPyArray_IntpFromPyIntConverter(HPyContext *ctx, HPy o, npy_intp *val)
+{
+    *val = HPyArray_PyIntAsIntp(ctx, o);
+    if (hpy_error_converting(ctx, *val)) {
+        return NPY_FAIL;
+    }
+    return NPY_SUCCEED;
+}
 
 /*
  * PyArray_IntpFromIndexSequence

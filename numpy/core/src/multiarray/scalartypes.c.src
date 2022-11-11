@@ -1162,35 +1162,49 @@ gentype_data_get(PyObject *self, void *NPY_UNUSED(ignored))
     return PyMemoryView_FromObject(self);
 }
 
-
-static PyObject *
-gentype_itemsize_get(PyObject *self, void *NPY_UNUSED(ignored))
+HPyDef_GET(gentype_itemsize_get, "itemsize", gentype_itemsize_get_impl)
+static HPy
+gentype_itemsize_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    PyArray_Descr *typecode;
-    PyObject *ret;
+    HPy typecode; // PyArray_Descr *
+    HPy ret;
     int elsize;
 
-    typecode = PyArray_DescrFromScalar(self);
-    elsize = typecode->elsize;
-    ret = PyLong_FromLong((long) elsize);
-    Py_DECREF(typecode);
+    typecode = HPyArray_DescrFromScalar(ctx, self);
+
+    // elsize = typecode->elsize;
+    ret = HPyLong_FromLong(ctx, (long) PyArray_Descr_AsStruct(ctx, typecode)->elsize);
+    HPy_Close(ctx, typecode);
     return ret;
 }
 
-static PyObject *
-gentype_size_get(PyObject *NPY_UNUSED(self), void *NPY_UNUSED(ignored))
+HPyDef_GET(gentype_nbytes_get, "nbytes", gentype_nbytes_get_impl)
+static HPy
+gentype_nbytes_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
-    return PyLong_FromLong(1);
+    return gentype_itemsize_get_impl(ctx, self, NULL);
+}
+
+HPyDef_GET(gentype_size_get, "size", gentype_size_get_impl)
+static HPy
+gentype_size_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+{
+    return HPyLong_FromLong(ctx, 1);
 }
 
 static PyObject *
 gentype_sizeof(PyObject *self, PyObject *NPY_UNUSED(args))
 {
     Py_ssize_t nbytes;
-    PyObject * isz = gentype_itemsize_get(self, NULL);
-    if (isz == NULL) {
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_isz = gentype_itemsize_get_impl(ctx, h_self, NULL);
+    HPy_Close(ctx, h_self);
+    if (HPy_IsNull(h_isz)) {
         return NULL;
     }
+    PyObject *isz = HPy_AsPyObject(ctx, h_isz);
+    HPy_Close(ctx, h_isz);
     nbytes = PyLong_AsLong(isz) + Py_TYPE(self)->tp_basicsize +
         Py_SIZE(self) * Py_TYPE(self)->tp_itemsize;
     Py_DECREF(isz);
@@ -1423,15 +1437,6 @@ static PyGetSetDef gentype_getsets[] = {
     {"data",
         (getter)gentype_data_get,
         (setter) 0, NULL, NULL},
-    {"itemsize",
-        (getter)gentype_itemsize_get,
-        (setter)0, NULL, NULL},
-    {"size",
-        (getter)gentype_size_get,
-        (setter)0, NULL, NULL},
-    {"nbytes",
-        (getter)gentype_itemsize_get,
-        (setter)0, NULL, NULL},
     {"base",
         (getter)gentype_base_get,
         (setter)0, NULL, NULL},
@@ -2878,6 +2883,9 @@ static PyType_Slot PyGenericArrType_Type_slots_legacy[] = {
 static HPyDef *PyGenericArrType_Type_hpy_slots[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &gentype_arrtype_getbuffer,
+    &gentype_itemsize_get,
+    &gentype_nbytes_get,
+    &gentype_size_get,
     0
 };
 

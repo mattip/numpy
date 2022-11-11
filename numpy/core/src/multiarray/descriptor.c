@@ -4184,6 +4184,7 @@ static HPyDef *PyArrayDescr_TypeFull_defines[] = {
     &arraydescr_setstate,
     &arraydescr_newbyteorder,
 
+    NULL
 };
 
 NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec = {

@@ -253,7 +253,7 @@ check_and_adjust_axis_msg(int *axis, int ndim, PyObject *msg_prefix)
     return 0;
 }
 
-HPyGlobal g_AxisError_cls;
+static HPyGlobal g_AxisError_cls;
 
 static NPY_INLINE int
 hpy_check_and_adjust_axis_msg(HPyContext *ctx, int *axis, int ndim, HPy msg_prefix)

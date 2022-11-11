@@ -206,6 +206,9 @@ HPyArray_IsPythonScalar(HPyContext *ctx, HPy op)
 #define PyArray_SimpleNew(nd, dims, typenum) \
         PyArray_New(&PyArray_Type, nd, dims, typenum, NULL, NULL, 0, 0, NULL)
 
+#define HPyArray_SimpleNew(ctx, array_type, nd, dims, typenum) \
+        HPyArray_New(ctx, array_type, nd, dims, typenum, NULL, NULL, 0, 0, HPy_NULL)
+
 #define PyArray_SimpleNewFromData(nd, dims, typenum, data) \
         PyArray_New(&PyArray_Type, nd, dims, typenum, NULL, \
                     data, 0, NPY_ARRAY_CARRAY, NULL)
