@@ -4,8 +4,7 @@
 NPY_NO_EXPORT void
 PyArray_SetStringFunction(PyObject *op, int repr);
 
-NPY_NO_EXPORT PyObject *
-array_repr(PyArrayObject *self);
+extern NPY_NO_EXPORT HPyDef array_repr_slot;
 
 NPY_NO_EXPORT PyObject *
 array_str(PyArrayObject *self);

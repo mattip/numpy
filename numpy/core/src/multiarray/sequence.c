@@ -26,43 +26,44 @@
    we fill it in here so that PySequence_XXXX calls work as expected
 */
 
+HPyDef_SLOT(array_contains_slot, array_contains, HPy_sq_contains);
 NPY_NO_EXPORT int
-array_contains(PyArrayObject *self, PyObject *el)
+array_contains(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy el)
 {
     /* equivalent to (self == el).any() */
 
     int ret;
-    PyObject *res, *any;
-
-    res = PyArray_EnsureAnyArray(PyObject_RichCompare((PyObject *)self,
-                                                      el, Py_EQ));
-    if (res == NULL) {
+    HPy res, any;
+    HPy cmp = HPy_RichCompare(ctx, self, el, HPy_EQ);
+    res = HPyArray_EnsureAnyArray(ctx, cmp);
+    if (HPy_IsNull(res)) {
         return -1;
     }
 
-    any = PyArray_Any((PyArrayObject *)res, NPY_MAXDIMS, NULL);
-    Py_DECREF(res);
-    if (any == NULL) {
+    any = HPyArray_Any(ctx, res, NPY_MAXDIMS, HPy_NULL);
+    HPy_Close(ctx, res);
+    if (HPy_IsNull(any)) {
         return -1;
     }
 
-    ret = PyObject_IsTrue(any);
-    Py_DECREF(any);
+    ret = HPy_IsTrue(ctx, any);
+    HPy_Close(ctx, any);
     return ret;
 }
 
-NPY_NO_EXPORT PyObject *
-array_concat(PyObject *self, PyObject *other)
+HPyDef_SLOT(array_concat_slot, array_concat, HPy_sq_concat);
+NPY_NO_EXPORT HPy
+array_concat(HPyContext *ctx, HPy self, HPy other)
 {
     /*
      * Throw a type error, when trying to concat NDArrays
      * NOTE: This error is not Thrown when running with PyPy
      */
-    PyErr_SetString(PyExc_TypeError,
+    HPyErr_SetString(ctx, ctx->h_TypeError,
             "Concatenation operation is not implemented for NumPy arrays, "
             "use np.concatenate() instead. Please do not rely on this error; "
             "it may not be given on all Python implementations.");
-    return NULL;
+    return HPy_NULL;
 }
 
 

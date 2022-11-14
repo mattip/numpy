@@ -107,101 +107,50 @@ static inline HPy _h_n_ops_get(HPyContext *ctx, PyObject **pyobj, HPyGlobal h_gl
 
 #define HN_OPS_GET(ctx, name)     _h_n_ops_get(ctx, &n_ops.name, hpy_n_ops.name)
 
+#define HPY_N_OPS(name)     hpy_n_ops.name
+
 NPY_NO_EXPORT extern HPyDef array_add;
 
 NPY_NO_EXPORT extern HPyDef array_subtract;
 
-NPY_NO_EXPORT PyObject *
-array_multiply(PyObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_remainder(PyObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_divmod(PyObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_matrix_multiply(PyObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_matrix_multiply(
-        PyArrayObject *NPY_UNUSED(m1), PyObject *NPY_UNUSED(m2));
-
 NPY_NO_EXPORT extern HPyDef array_power;
-
-NPY_NO_EXPORT PyObject *
-array_positive(PyArrayObject *m1);
-
-NPY_NO_EXPORT PyObject *
-array_negative(PyArrayObject *m1);
-
-NPY_NO_EXPORT PyObject *
-array_absolute(PyArrayObject *m1);
-
-NPY_NO_EXPORT PyObject *
-array_invert(PyArrayObject *m1);
-
-NPY_NO_EXPORT PyObject *
-array_left_shift(PyObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_right_shift(PyObject *m1, PyObject *m2);
-
 NPY_NO_EXPORT extern HPyDef array_bitwise_and;
-
 NPY_NO_EXPORT extern HPyDef array_bitwise_or;
-
 NPY_NO_EXPORT extern HPyDef array_bitwise_xor;
-
 NPY_NO_EXPORT extern HPyDef array_inplace_add;
-
-NPY_NO_EXPORT PyObject *
-array_inplace_subtract(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_multiply(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_remainder(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_power(PyArrayObject *a1, PyObject *o2, PyObject *NPY_UNUSED(modulo));
-
-NPY_NO_EXPORT PyObject *
-array_inplace_left_shift(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_right_shift(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_bitwise_and(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_bitwise_or(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_bitwise_xor(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_floor_divide(PyObject *m1, PyObject *m2);
-
 NPY_NO_EXPORT extern HPyDef array_true_divide;
-
-NPY_NO_EXPORT PyObject *
-array_inplace_floor_divide(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT PyObject *
-array_inplace_true_divide(PyArrayObject *m1, PyObject *m2);
-
-NPY_NO_EXPORT int
-_array_nonzero(PyArrayObject *mp);
-
 NPY_NO_EXPORT extern HPyDef array_float;
-
 NPY_NO_EXPORT extern HPyDef array_int;
+NPY_NO_EXPORT extern HPyDef array_multiply_slot;
+NPY_NO_EXPORT extern HPyDef array_remainder_slot;
+NPY_NO_EXPORT extern HPyDef array_divmod_slot;
+NPY_NO_EXPORT extern HPyDef array_negative_slot;
+NPY_NO_EXPORT extern HPyDef array_positive_slot;
+NPY_NO_EXPORT extern HPyDef array_absolute_slot;
+NPY_NO_EXPORT extern HPyDef _array_nonzero_slot;
+NPY_NO_EXPORT extern HPyDef array_invert_slot;
+NPY_NO_EXPORT extern HPyDef array_left_shift_slot;
+NPY_NO_EXPORT extern HPyDef array_right_shift_slot;
+NPY_NO_EXPORT extern HPyDef array_index_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_subtract_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_multiply_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_remainder_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_power_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_left_shift_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_right_shift_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_bitwise_and_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_bitwise_xor_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_bitwise_or_slot;
+NPY_NO_EXPORT extern HPyDef array_floor_divide_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_floor_divide_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_true_divide_slot;
+NPY_NO_EXPORT extern HPyDef array_matrix_multiply_slot;
+NPY_NO_EXPORT extern HPyDef array_inplace_matrix_multiply_slot;
+NPY_NO_EXPORT extern HPyDef array_concat_slot;
+NPY_NO_EXPORT extern HPyDef array_assign_item_slot;
+NPY_NO_EXPORT extern HPyDef array_contains_slot;
+NPY_NO_EXPORT extern HPyDef array_repr_slot;
 
-NPY_NO_EXPORT PyObject *
-array_index(PyArrayObject *v);
 
 NPY_NO_EXPORT int
 _PyArray_SetNumericOps(HPyContext *ctx, HPy dict);

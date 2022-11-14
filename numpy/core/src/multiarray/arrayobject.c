@@ -2258,42 +2258,8 @@ array_iter_impl(HPyContext *ctx, HPy h_arr)
 }
 
 
+
 static PyType_Slot PyArray_Type_slots[] = {
-    {Py_nb_multiply, array_multiply},
-    {Py_nb_remainder, array_remainder},
-    {Py_nb_divmod, array_divmod},
-    {Py_nb_negative, (unaryfunc)array_negative},
-    {Py_nb_positive, (unaryfunc)array_positive},
-    {Py_nb_absolute, (unaryfunc)array_absolute},
-    {Py_nb_bool, (inquiry)_array_nonzero},
-    {Py_nb_invert, (unaryfunc)array_invert},
-    {Py_nb_lshift, array_left_shift},
-    {Py_nb_rshift, array_right_shift},
-
-    {Py_nb_index, (unaryfunc)array_index},
-
-    {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
-    {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
-    {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
-    {Py_nb_inplace_power, (ternaryfunc)array_inplace_power},
-    {Py_nb_inplace_lshift, (binaryfunc)array_inplace_left_shift},
-    {Py_nb_inplace_rshift, (binaryfunc)array_inplace_right_shift},
-    {Py_nb_inplace_and, (binaryfunc)array_inplace_bitwise_and},
-    {Py_nb_inplace_xor, (binaryfunc)array_inplace_bitwise_xor},
-    {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
-
-    {Py_nb_floor_divide, array_floor_divide},
-    {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
-    {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
-
-    {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
-    {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
-
-    {Py_sq_concat, (binaryfunc)array_concat},
-    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item}, // HPY: not needed for example
-    {Py_sq_contains, (objobjproc)array_contains},
-
-    {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
     {Py_tp_methods, array_methods},
@@ -2325,6 +2291,35 @@ static HPyDef *array_defines[] = {
     &array_iter,
     &array_float,
     &array_int,
+    &array_multiply_slot,
+    &array_remainder_slot,
+    &array_divmod_slot,
+    &array_negative_slot,
+    &array_positive_slot,
+    &array_absolute_slot,
+    &_array_nonzero_slot,
+    &array_invert_slot,
+    &array_left_shift_slot,
+    &array_right_shift_slot,
+    &array_index_slot,
+    &array_inplace_subtract_slot,
+    &array_inplace_multiply_slot,
+    &array_inplace_remainder_slot,
+    &array_inplace_power_slot,
+    &array_inplace_left_shift_slot,
+    &array_inplace_right_shift_slot,
+    &array_inplace_bitwise_and_slot,
+    &array_inplace_bitwise_xor_slot,
+    &array_inplace_bitwise_or_slot,
+    &array_floor_divide_slot,
+    &array_inplace_floor_divide_slot,
+    &array_inplace_true_divide_slot,
+    &array_matrix_multiply_slot,
+    &array_inplace_matrix_multiply_slot,
+    &array_concat_slot,
+    &array_assign_item_slot,
+    &array_contains_slot,
+    &array_repr_slot,
 
     // getset
     &array_shape,

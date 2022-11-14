@@ -49,13 +49,21 @@ PyArray_SetStringFunction(PyObject *op, int repr)
 }
 
 
-NPY_NO_EXPORT PyObject *
-array_repr(PyArrayObject *self)
+HPyDef_SLOT(array_repr_slot, array_repr, HPy_tp_repr);
+NPY_NO_EXPORT HPy
+array_repr(HPyContext *ctx, HPy /* PyArrayObject * */ h_self)
 {
+    CAPI_WARN("calling array_repr");
     static PyObject *repr = NULL;
+    PyObject *self = HPy_AsPyObject(ctx, h_self);
+
 
     if (PyArray_ReprFunction != NULL) {
-        return PyObject_CallFunctionObjArgs(PyArray_ReprFunction, self, NULL);
+        PyObject *ret = PyObject_CallFunctionObjArgs(PyArray_ReprFunction, self, NULL);
+        HPy h_ret = HPy_FromPyObject(ctx, ret);
+        Py_DECREF(self);
+        Py_DECREF(ret);
+        return h_ret;
     }
 
     /*
@@ -66,9 +74,13 @@ array_repr(PyArrayObject *self)
     if (repr == NULL) {
         npy_PyErr_SetStringChained(PyExc_RuntimeError,
                 "Unable to configure default ndarray.__repr__");
-        return NULL;
+        return HPy_NULL;
     }
-    return PyObject_CallFunctionObjArgs(repr, self, NULL);
+    PyObject *ret = PyObject_CallFunctionObjArgs(repr, self, NULL);
+    HPy h_ret = HPy_FromPyObject(ctx, ret);
+    Py_DECREF(self);
+    Py_DECREF(ret);
+    return h_ret;
 }
 
 

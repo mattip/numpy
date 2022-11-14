@@ -2636,54 +2636,58 @@ array_subscript_asarray(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy op)
  * Negative indices are not accepted because PySequence_SetItem converts
  * them to positive indices before calling this.
  */
+HPyDef_SLOT(array_assign_item_slot, array_assign_item, HPy_sq_ass_item);
 NPY_NO_EXPORT int
-array_assign_item(PyArrayObject *self, Py_ssize_t i, PyObject *op)
+array_assign_item(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i, HPy op)
 {
     npy_index_info indices[2];
 
-    if (op == NULL) {
-        PyErr_SetString(PyExc_ValueError,
+    if (HPy_IsNull(op)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
                         "cannot delete array elements");
         return -1;
     }
-    if (PyArray_FailUnlessWriteable(self, "assignment destination") < 0) {
+    if (HPyArray_FailUnlessWriteable(ctx, self, "assignment destination") < 0) {
         return -1;
     }
-    if (PyArray_NDIM(self) == 0) {
-        PyErr_SetString(PyExc_IndexError,
+    PyArrayObject *self_struct = PyArrayObject_AsStruct(ctx, self);
+    if (PyArray_NDIM(self_struct) == 0) {
+        HPyErr_SetString(ctx, ctx->h_IndexError,
                         "too many indices for array");
         return -1;
     }
 
     if (i < 0) {
         /* This is an error, but undo PySequence_SetItem fix for message */
-        i -= PyArray_DIM(self, 0);
+        i -= PyArray_DIM(self_struct, 0);
     }
 
     indices[0].value = i;
     indices[0].type = HAS_INTEGER;
-    if (PyArray_NDIM(self) == 1) {
+    if (PyArray_NDIM(self_struct) == 1) {
         char *item;
-        if (get_item_pointer(self, &item, indices, 1) < 0) {
+        if (get_item_pointer(self_struct, &item, indices, 1) < 0) {
             return -1;
         }
-        if (PyArray_Pack(PyArray_DESCR(self), item, op) < 0) {
+        HPy self_descr = HPyArray_DESCR(ctx, self, self_struct);
+        if (HPyArray_Pack(ctx, self_descr, item, op) < 0) {
             return -1;
         }
     }
     else {
-        PyArrayObject *view;
-
-        indices[1].value = PyArray_NDIM(self) - 1;
+        HPy view; // PyArrayObject *
+        
+        indices[1].value = PyArray_NDIM(self_struct) - 1;
         indices[1].type = HAS_ELLIPSIS;
-        if (get_view_from_index(self, &view, indices, 2, 0) < 0) {
+        if (hpy_get_view_from_index(ctx, self, self_struct, &view, indices, 2, 0) < 0) {
             return -1;
         }
-        if (PyArray_CopyObject(view, op) < 0) {
-            Py_DECREF(view);
+        PyArrayObject *view_struct = PyArrayObject_AsStruct(ctx, view);
+        if (HPyArray_CopyObject(ctx, view, view_struct, op) < 0) {
+            HPy_Close(ctx, view);
             return -1;
         }
-        Py_DECREF(view);
+        HPy_Close(ctx, view);
     }
     return 0;
 }

@@ -1,10 +1,8 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_SEQUENCE_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_SEQUENCE_H_
 
-NPY_NO_EXPORT int
-array_contains(PyArrayObject *self, PyObject *el);
+extern NPY_NO_EXPORT HPyDef array_contains_slot;
 
-NPY_NO_EXPORT PyObject *
-array_concat(PyObject *self, PyObject *other);
+extern NPY_NO_EXPORT HPyDef array_concat_slot;
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_SEQUENCE_H_ */
