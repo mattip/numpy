@@ -5544,23 +5544,23 @@ ufunc_geterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored))
     // if (!PyArg_ParseTuple(args, "")) {
     //     return NULL;
     // }
-    CAPI_WARN("calling PyThreadState_GetDict() & PyEval_GetBuiltins()");
-    thedict = PyThreadState_GetDict();
-    if (thedict == NULL) {
-        thedict = PyEval_GetBuiltins();
-    }
-    HPy h_thedict = HPy_FromPyObject(ctx, thedict);
-    HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
-    res = HPyDict_GetItemWithError(ctx, h_thedict, s);
-    HPy_Close(ctx, h_thedict);
-    HPy_Close(ctx, s);
-    if (HPy_IsNull(res) && HPyErr_Occurred(ctx)) {
-        return HPy_NULL;
-    }
-    else if (!HPy_IsNull(res)) {
-        // Py_INCREF(res);
-        return res;
-    }
+    // CAPI_WARN("calling PyThreadState_GetDict() & PyEval_GetBuiltins()");
+    // thedict = PyThreadState_GetDict();
+    // if (thedict == NULL) {
+    //     thedict = PyEval_GetBuiltins();
+    // }
+    // HPy h_thedict = HPy_FromPyObject(ctx, thedict);
+    // HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
+    // res = HPyDict_GetItemWithError(ctx, h_thedict, s);
+    // HPy_Close(ctx, h_thedict);
+    // HPy_Close(ctx, s);
+    // if (HPy_IsNull(res) && HPyErr_Occurred(ctx)) {
+    //     return HPy_NULL;
+    // }
+    // else if (!HPy_IsNull(res)) {
+    //     // Py_INCREF(res);
+    //     return res;
+    // }
     /* Construct list of defaults */
     HPyListBuilder l_res = HPyListBuilder_New(ctx, 3);
     if (HPyListBuilder_IsNull(l_res)) {
@@ -5596,22 +5596,22 @@ ufunc_seterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
         return HPy_NULL;
     }
     HPy_Close(ctx, val_type);
-    CAPI_WARN("missing PyThreadState_GetDict & PyEval_GetBuiltins");
-    thedict = HPy_FromPyObject(ctx, PyThreadState_GetDict());
-    if (HPy_IsNull(thedict) == NULL) {
-        thedict = HPy_FromPyObject(ctx, PyEval_GetBuiltins());
-    }
-    HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
-    res = HPy_SetItem(ctx, thedict, s, val);
-    HPy_Close(ctx, s);
-    if (res < 0) {
-        return HPy_NULL;
-    }
-#if USE_USE_DEFAULTS==1
-    if (ufunc_update_use_defaults() < 0) {
-        return HPy_NULL;
-    }
-#endif
+    // CAPI_WARN("missing PyThreadState_GetDict & PyEval_GetBuiltins");
+    // thedict = HPy_FromPyObject(ctx, PyThreadState_GetDict());
+    // if (HPy_IsNull(thedict) == NULL) {
+    //     thedict = HPy_FromPyObject(ctx, PyEval_GetBuiltins());
+    // }
+    // HPy s = HPyGlobal_Load(ctx, npy_hpy_um_str_pyvals_name);
+    // res = HPy_SetItem(ctx, thedict, s, val);
+    // HPy_Close(ctx, s);
+    // if (res < 0) {
+    //     return HPy_NULL;
+    // }
+// #if USE_USE_DEFAULTS==1
+//     if (ufunc_update_use_defaults() < 0) {
+//         return HPy_NULL;
+//     }
+// #endif
     return HPy_Dup(ctx, ctx->h_None);
 }
 
