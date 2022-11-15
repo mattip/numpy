@@ -4136,7 +4136,7 @@ NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
 static PyType_Slot PyArrayDescr_TypeFull_legacy_slots[] = {
     {Py_tp_str, (reprfunc)arraydescr_str},
     {Py_tp_methods, arraydescr_methods},
-    {Py_tp_hash, PyArray_DescrHash},
+    // {Py_tp_hash, PyArray_DescrHash},
     {0, 0},
 };
 
