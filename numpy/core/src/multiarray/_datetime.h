@@ -59,6 +59,10 @@ find_string_array_datetime64_type(PyArrayObject *arr,
 NPY_NO_EXPORT PyArray_Descr *
 datetime_type_promotion(PyArray_Descr *type1, PyArray_Descr *type2);
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+hpy_datetime_type_promotion(HPyContext *ctx,
+            HPy /* PyArray_Descr * */ type1, HPy /* PyArray_Descr * */ type2);
+
 /*
  * Converts a datetime from a datetimestruct to a datetime based
  * on some metadata.

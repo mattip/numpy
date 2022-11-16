@@ -7,9 +7,10 @@
 #include "array_method.h"
 
 
-typedef int promoter_function(PyUFuncObject *ufunc,
-        PyArray_DTypeMeta *op_dtypes[], PyArray_DTypeMeta *signature[],
-        PyArray_DTypeMeta *new_op_dtypes[]);
+typedef int promoter_function(HPyContext *ctx, HPy /* PyUFuncObject * */ ufunc,
+        HPy /* PyArray_DTypeMeta * */ op_dtypes[], 
+        HPy /* PyArray_DTypeMeta * */ signature[],
+        HPy /* PyArray_DTypeMeta * */ new_op_dtypes[]);
 
 NPY_NO_EXPORT int
 PyUFunc_AddLoop(PyUFuncObject *ufunc, PyObject *info, int ignore_duplicate);
@@ -56,7 +57,7 @@ object_only_ufunc_promoter(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *new_op_dtypes[]);
 
 NPY_NO_EXPORT int
-install_logical_ufunc_promoter(PyObject *ufunc);
+install_logical_ufunc_promoter(HPyContext *ctx, HPy ufunc);
 
 
 #endif  /*_NPY_DISPATCHING_H */

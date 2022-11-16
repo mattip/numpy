@@ -1783,6 +1783,44 @@ datetime_type_promotion(PyArray_Descr *type1, PyArray_Descr *type2)
     return dtype;
 }
 
+NPY_NO_EXPORT HPy // PyArray_Descr *
+hpy_datetime_type_promotion(HPyContext *ctx,
+            HPy /* PyArray_Descr * */ type1, HPy /* PyArray_Descr * */ type2)
+{
+    int type_num1, type_num2;
+    HPy dtype; // PyArray_Descr *
+    int is_datetime;
+    PyArray_Descr *type1_struct = PyArray_Descr_AsStruct(ctx, type1);
+    PyArray_Descr *type2_struct = PyArray_Descr_AsStruct(ctx, type2);
+    type_num1 = type1_struct->type_num;
+    type_num2 = type2_struct->type_num;
+
+    is_datetime = (type_num1 == NPY_DATETIME || type_num2 == NPY_DATETIME);
+
+    /* Create a DATETIME or TIMEDELTA dtype */
+    dtype = HPyArray_DescrNewFromType(ctx, is_datetime ? NPY_DATETIME :
+                                                   NPY_TIMEDELTA);
+    if (HPy_IsNull(dtype)) {
+        return HPy_NULL;
+    }
+    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
+    /*
+     * Get the metadata GCD, being strict about nonlinear units for
+     * timedelta and relaxed for datetime.
+     */
+    if (compute_datetime_metadata_greatest_common_divisor(
+                                    h_get_datetime_metadata_from_dtype(ctx, type1_struct),
+                                    h_get_datetime_metadata_from_dtype(ctx, type2_struct),
+                                    h_get_datetime_metadata_from_dtype(ctx, dtype_struct),
+                                    type_num1 == NPY_TIMEDELTA,
+                                    type_num2 == NPY_TIMEDELTA) < 0) {
+        HPy_Close(ctx, dtype);
+        return HPy_NULL;
+    }
+
+    return dtype;
+}
+
 /*
  * Converts a substring given by 'str' and 'len' into
  * a date time unit enum value. The 'metastr' parameter

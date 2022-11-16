@@ -64,6 +64,13 @@ promote_and_get_info_and_ufuncimpl(PyUFuncObject *ufunc,
         PyArray_DTypeMeta *op_dtypes[],
         npy_bool allow_legacy_promotion);
 
+static NPY_INLINE HPy
+hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
+        HPy /* (PyUFuncObject *) */ ufunc,
+        HPy /* (PyArrayObject *) */ const *ops,
+        HPy /* (PyArray_DTypeMeta *) */ signature[],
+        HPy /* (PyArray_DTypeMeta *) */ op_dtypes[],
+        npy_bool allow_legacy_promotion);
 
 /**
  * Function to add a new loop to the ufunc.  This mainly appends it to the
@@ -525,34 +532,38 @@ finish:
  * only return new operation DTypes (i.e. mutate the input while leaving
  * those defined by the `signature` unmodified).
  */
-static PyObject *
-call_promoter_and_recurse(PyUFuncObject *ufunc, PyObject *promoter,
-        PyArray_DTypeMeta *op_dtypes[], PyArray_DTypeMeta *signature[],
-        PyArrayObject *const operands[])
+static HPy
+hpy_call_promoter_and_recurse(HPyContext *ctx,
+        HPy /* PyUFuncObject * */ ufunc, PyUFuncObject * ufunc_struct,
+        HPy promoter,
+        HPy /* PyArray_DTypeMeta * */ op_dtypes[], 
+        HPy /* PyArray_DTypeMeta * */ signature[],
+        HPy /* PyArrayObject * */ const operands[])
 {
-    int nargs = ufunc->nargs;
-    PyObject *resolved_info = NULL;
+    int nargs = ufunc_struct->nargs;
+    HPy resolved_info = HPy_NULL;
 
     int promoter_result;
-    PyArray_DTypeMeta *new_op_dtypes[NPY_MAXARGS];
+    HPy new_op_dtypes[NPY_MAXARGS]; // PyArray_DTypeMeta *
 
-    if (PyCapsule_CheckExact(promoter)) {
+    HPy promoter_type = HPy_Type(ctx, promoter);
+    if (HPy_Is(ctx, promoter_type, ctx->h_CapsuleType)) {
         /* We could also go the other way and wrap up the python function... */
-        promoter_function *promoter_function = PyCapsule_GetPointer(promoter,
+        promoter_function *promoter_function = HPyCapsule_GetPointer(ctx, promoter,
                 "numpy._ufunc_promoter");
         if (promoter_function == NULL) {
-            return NULL;
+            return HPy_NULL;
         }
-        promoter_result = promoter_function(ufunc,
+        promoter_result = promoter_function(ctx, ufunc,
                 op_dtypes, signature, new_op_dtypes);
     }
     else {
-        PyErr_SetString(PyExc_NotImplementedError,
+        HPyErr_SetString(ctx, ctx->h_NotImplementedError,
                 "Calling python functions for promotion is not implemented.");
-        return NULL;
+        return HPy_NULL;
     }
     if (promoter_result < 0) {
-        return NULL;
+        return HPy_NULL;
     }
     /*
      * If none of the dtypes changes, we would recurse infinitely, abort.
@@ -560,7 +571,7 @@ call_promoter_and_recurse(PyUFuncObject *ufunc, PyObject *promoter,
      */
     int dtypes_changed = 0;
     for (int i = 0; i < nargs; i++) {
-        if (new_op_dtypes[i] != op_dtypes[i]) {
+        if (!HPy_Is(ctx, new_op_dtypes[i], op_dtypes[i])) {
             dtypes_changed = 1;
             break;
         }
@@ -573,18 +584,18 @@ call_promoter_and_recurse(PyUFuncObject *ufunc, PyObject *promoter,
      * Do a recursive call, the promotion function has to ensure that the
      * new tuple is strictly more precise (thus guaranteeing eventual finishing)
      */
-    if (Py_EnterRecursiveCall(" during ufunc promotion.") != 0) {
-        goto finish;
-    }
-    resolved_info = promote_and_get_info_and_ufuncimpl(ufunc,
+    // if (Py_EnterRecursiveCall(" during ufunc promotion.") != 0) {
+    //     goto finish;
+    // }
+    resolved_info = hpy_promote_and_get_info_and_ufuncimpl(ctx, ufunc,
             operands, signature, new_op_dtypes,
             /* no legacy promotion */ NPY_FALSE);
 
-    Py_LeaveRecursiveCall();
+    // Py_LeaveRecursiveCall();
 
   finish:
     for (int i = 0; i < nargs; i++) {
-        Py_XDECREF(new_op_dtypes[i]);
+        HPy_Close(ctx, new_op_dtypes[i]);
     }
     return resolved_info;
 }
@@ -852,21 +863,8 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
     if (!HPy_IsNull(info)) {
         // HPy promoter = HPy_GetItem_i(ctx, info, 1);
         HPy promoter = info1;
-
-        CAPI_WARN("hpy_promote_and_get_info_and_ufuncimpl: call to call_promoter_and_recurse");
-        py_op_dtypes = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, op_dtypes, ufunc_data->nargs);
-        PyObject *py_promoter = HPy_AsPyObject(ctx, promoter);
-        PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
-        PyArray_DTypeMeta **py_signature = (PyArray_DTypeMeta **)HPy_AsPyObjectArray(ctx, signature, ufunc_data->nargs);
-        PyArrayObject **py_ops = (PyArrayObject **)HPy_AsPyObjectArray(ctx, ops, ufunc_data->nargs);
-        PyObject *py_info = call_promoter_and_recurse(py_ufunc,
-                py_promoter, py_op_dtypes, py_signature, py_ops);
-        HPy_SETREF(ctx, info, HPy_FromPyObject(ctx, py_info));
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_signature, ufunc_data->nargs);
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_ops, ufunc_data->nargs);
-        Py_DECREF(py_info);
-        Py_DECREF(py_ufunc);
-        Py_DECREF(py_promoter);
+        info = hpy_call_promoter_and_recurse(ctx, ufunc, ufunc_data,
+                promoter, op_dtypes, signature, ops);
         if (HPy_IsNull(info) && HPyErr_Occurred(ctx)) {
             res = HPy_NULL;
             goto finish;
@@ -1314,33 +1312,96 @@ logical_ufunc_promoter(PyUFuncObject *NPY_UNUSED(ufunc),
     return 0;
 }
 
+static int
+hpy_logical_ufunc_promoter(HPyContext *ctx, HPy /* PyUFuncObject * */ NPY_UNUSED(ufunc),
+        HPy /* PyArray_DTypeMeta * */ op_dtypes[], 
+        HPy /* PyArray_DTypeMeta * */ signature[],
+        HPy /* PyArray_DTypeMeta * */ new_op_dtypes[])
+{
+    /*
+     * If we find any object DType at all, we currently force to object.
+     * However, if the output is specified and not object, there is no point,
+     * it should be just as well to cast the input rather than doing the
+     * unsafe out cast.
+     */
+    int force_object = 0;
+
+    if (HPy_IsNull(signature[0]) && HPy_IsNull(signature[1])
+            && !HPy_IsNull(signature[2]) 
+            && PyArray_DTypeMeta_AsStruct(ctx, signature[2])->type_num != NPY_BOOL) {
+        /* bail out, this is _only_ to give future/deprecation warning! */
+        return -1;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        HPy item; // PyArray_DTypeMeta *
+        if (!HPy_IsNull(signature[i])) {
+            item = HPy_Dup(ctx, signature[i]);
+            // Py_INCREF(item);
+            if (PyArray_DTypeMeta_AsStruct(ctx, item)->type_num == NPY_OBJECT) {
+                force_object = 1;
+            }
+        }
+        else {
+            /* Always override to boolean */
+            item = HPyArray_DTypeFromTypeNum(ctx, NPY_BOOL);
+            if (!HPy_IsNull(op_dtypes[i]) 
+                    && PyArray_DTypeMeta_AsStruct(ctx, op_dtypes[i])->type_num == NPY_OBJECT) {
+                force_object = 1;
+            }
+        }
+        new_op_dtypes[i] = item;
+    }
+
+    if (!force_object || (!HPy_IsNull(op_dtypes[2])
+                          && PyArray_DTypeMeta_AsStruct(ctx, op_dtypes[2])->type_num != NPY_OBJECT)) {
+        return 0;
+    }
+    /*
+     * Actually, we have to use the OBJECT loop after all, set all we can
+     * to object (that might not work out, but try).
+     *
+     * NOTE: Change this to check for `op_dtypes[0] == NULL` to STOP
+     *       returning `object` for `np.logical_and.reduce(obj_arr)`
+     *       which will also affect `np.all` and `np.any`!
+     */
+    for (int i = 0; i < 3; i++) {
+        if (!HPy_IsNull(signature[i])) {
+            continue;
+        }
+        HPy_SETREF(ctx, new_op_dtypes[i], HPyArray_DTypeFromTypeNum(ctx, NPY_OBJECT));
+    }
+    return 0;
+}
 
 NPY_NO_EXPORT int
-install_logical_ufunc_promoter(PyObject *ufunc)
+install_logical_ufunc_promoter(HPyContext *ctx, HPy ufunc)
 {
-    if (PyObject_Type(ufunc) != (PyObject *)&PyUFunc_Type) {
-        PyErr_SetString(PyExc_RuntimeError,
+    HPy ufunc_type = HPy_Type(ctx, ufunc);
+    if (!HPyGlobal_Is(ctx, ufunc_type, HPyUFunc_Type)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
                 "internal numpy array, logical ufunc was not a ufunc?!");
         return -1;
     }
-    PyObject *dtype_tuple = PyTuple_Pack(3,
-            &PyArrayDescr_Type, &PyArrayDescr_Type, &PyArrayDescr_Type, NULL);
-    if (dtype_tuple == NULL) {
+    HPy arraydescr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
+    HPy dtype_tuple = HPyTuple_Pack(ctx, 3, arraydescr_type, arraydescr_type, arraydescr_type);
+    HPy_Close(ctx, arraydescr_type);
+    if (HPy_IsNull(dtype_tuple)) {
         return -1;
     }
-    PyObject *promoter = PyCapsule_New(&logical_ufunc_promoter,
+    HPy promoter = HPyCapsule_New(ctx, &hpy_logical_ufunc_promoter,
             "numpy._ufunc_promoter", NULL);
-    if (promoter == NULL) {
-        Py_DECREF(dtype_tuple);
+    if (HPy_IsNull(promoter)) {
+        HPy_Close(ctx, dtype_tuple);
         return -1;
     }
 
-    PyObject *info = PyTuple_Pack(2, dtype_tuple, promoter);
-    Py_DECREF(dtype_tuple);
-    Py_DECREF(promoter);
-    if (info == NULL) {
+    HPy info = HPyTuple_Pack(ctx, 2, dtype_tuple, promoter);
+    HPy_Close(ctx, dtype_tuple);
+    HPy_Close(ctx, promoter);
+    if (HPy_IsNull(info)) {
         return -1;
     }
 
-    return PyUFunc_AddLoop((PyUFuncObject *)ufunc, info, 0);
+    return HPyUFunc_AddLoop(ctx, ufunc, info, 0);
 }
