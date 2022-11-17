@@ -71,6 +71,42 @@ PyArray_CommonDType(PyArray_DTypeMeta *dtype1, PyArray_DTypeMeta *dtype2)
     return common_dtype;
 }
 
+NPY_NO_EXPORT HPy // PyArray_DTypeMeta *
+HPyArray_CommonDType(HPyContext *ctx,
+                        HPy /* PyArray_DTypeMeta * */ dtype1, 
+                        HPy /* PyArray_DTypeMeta * */ dtype2)
+{
+    if (HPy_Is(ctx, dtype1, dtype2)) {
+        // Py_INCREF(dtype1);
+        return HPy_Dup(ctx, dtype1);
+    }
+
+    HPy common_dtype; // PyArray_DTypeMeta *
+
+    common_dtype = HNPY_DT_CALL_common_dtype(ctx, dtype1, dtype2);
+    if (HPy_Is(ctx, common_dtype, ctx->h_NotImplemented)) {
+        // Py_DECREF(common_dtype);
+        common_dtype = HNPY_DT_CALL_common_dtype(ctx, dtype2, dtype1);
+    }
+    if (HPy_IsNull(common_dtype)) {
+        return HPy_NULL;
+    }
+    if (HPy_Is(ctx, common_dtype, ctx->h_NotImplemented)) {
+        HPy_Close(ctx, common_dtype);
+        // PyErr_Format(PyExc_TypeError,
+        //         "The DTypes %S and %S do not have a common DType. "
+        //         "For example they cannot be stored in a single array unless "
+        //         "the dtype is `object`.", dtype1, dtype2);
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "The DTypes %S and %S do not have a common DType. "
+                "For example they cannot be stored in a single array unless "
+                "the dtype is `object`.");
+
+        return HPy_NULL;
+    }
+    return common_dtype;
+}
+
 
 /**
  * This function takes a list of dtypes and "reduces" them (in a sense,

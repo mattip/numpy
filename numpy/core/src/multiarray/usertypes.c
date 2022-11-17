@@ -653,6 +653,127 @@ legacy_userdtype_common_dtype_function(
     return (PyArray_DTypeMeta *)Py_NotImplemented;
 }
 
+NPY_NO_EXPORT HPy // PyArray_DTypeMeta *
+hpy_legacy_userdtype_common_dtype_function(HPyContext *ctx,
+        HPy /* PyArray_DTypeMeta * */ cls, HPy /* PyArray_DTypeMeta * */ other)
+{
+    int skind1 = NPY_NOSCALAR, skind2 = NPY_NOSCALAR, skind;
+
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (!NPY_DT_is_legacy(other_struct)) {
+        /* legacy DTypes can always defer to new style ones */
+        // Py_INCREF(Py_NotImplemented);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    /* Defer so that only one of the types handles the cast */
+    PyArray_DTypeMeta *cls_struct = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    if (cls_struct->type_num < other_struct->type_num) {
+        // Py_INCREF(Py_NotImplemented);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+
+    /* Check whether casting is possible from one type to the other */
+    if (PyArray_CanCastSafely(cls_struct->type_num, other_struct->type_num)) {
+        // Py_INCREF(other);
+        return HPy_Dup(ctx, other);
+    }
+    if (PyArray_CanCastSafely(other_struct->type_num, cls_struct->type_num)) {
+        // Py_INCREF(cls);
+        return HPy_Dup(ctx, cls);
+    }
+
+    /*
+     * The following code used to be part of PyArray_PromoteTypes().
+     * We can expect that this code is never used.
+     * In principle, it allows for promotion of two different user dtypes
+     * to a single NumPy dtype of the same "kind". In practice
+     * using the same `kind` as NumPy was never possible due to an
+     * simplification where `PyArray_EquivTypes(descr1, descr2)` will
+     * return True if both kind and element size match (e.g. bfloat16 and
+     * float16 would be equivalent).
+     * The option is also very obscure and not used in the examples.
+     */
+
+    /* Convert the 'kind' char into a scalar kind */
+    HPy h_cls_singleton = HPyField_Load(ctx, cls, cls_struct->singleton);
+    HPy h_other_singleton = HPyField_Load(ctx, other, other_struct->singleton);
+
+    PyArray_Descr *h_cls_singleton_data = PyArray_Descr_AsStruct(ctx, h_cls_singleton);
+    PyArray_Descr *h_other_singleton_data = PyArray_Descr_AsStruct(ctx, h_other_singleton);
+    switch (h_cls_singleton_data->kind) {
+        case 'b':
+            skind1 = NPY_BOOL_SCALAR;
+            break;
+        case 'u':
+            skind1 = NPY_INTPOS_SCALAR;
+            break;
+        case 'i':
+            skind1 = NPY_INTNEG_SCALAR;
+            break;
+        case 'f':
+            skind1 = NPY_FLOAT_SCALAR;
+            break;
+        case 'c':
+            skind1 = NPY_COMPLEX_SCALAR;
+            break;
+    }
+    switch (h_other_singleton_data->kind) {
+        case 'b':
+            skind2 = NPY_BOOL_SCALAR;
+            break;
+        case 'u':
+            skind2 = NPY_INTPOS_SCALAR;
+            break;
+        case 'i':
+            skind2 = NPY_INTNEG_SCALAR;
+            break;
+        case 'f':
+            skind2 = NPY_FLOAT_SCALAR;
+            break;
+        case 'c':
+            skind2 = NPY_COMPLEX_SCALAR;
+            break;
+    }
+
+    HPy_Close(ctx, h_cls_singleton);
+    HPy_Close(ctx, h_other_singleton);
+
+    /* If both are scalars, there may be a promotion possible */
+    if (skind1 != NPY_NOSCALAR && skind2 != NPY_NOSCALAR) {
+
+        /* Start with the larger scalar kind */
+        skind = (skind1 > skind2) ? skind1 : skind2;
+        int ret_type_num = _npy_smallest_type_of_kind_table[skind];
+
+        for (;;) {
+
+            /* If there is no larger type of this kind, try a larger kind */
+            if (ret_type_num < 0) {
+                ++skind;
+                /* Use -1 to signal no promoted type found */
+                if (skind < NPY_NSCALARKINDS) {
+                    ret_type_num = _npy_smallest_type_of_kind_table[skind];
+                }
+                else {
+                    break;
+                }
+            }
+
+            /* If we found a type to which we can promote both, done! */
+            if (HPyArray_CanCastSafely(ctx, cls_struct->type_num, ret_type_num) &&
+                HPyArray_CanCastSafely(ctx, other_struct->type_num, ret_type_num)) {
+                return HPyArray_DTypeFromTypeNum(ctx, ret_type_num);
+            }
+
+            /* Try the next larger type of this kind */
+            ret_type_num = _npy_next_larger_type_table[ret_type_num];
+        }
+    }
+
+    // Py_INCREF(Py_NotImplemented);
+    return HPy_Dup(ctx, ctx->h_NotImplemented);
+}
+
 
 /**
  * This function wraps a legacy cast into an array-method. This is mostly

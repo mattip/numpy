@@ -263,6 +263,31 @@ int_common_dtype(PyArray_DTypeMeta *NPY_UNUSED(cls), PyArray_DTypeMeta *other)
     return (PyArray_DTypeMeta *)Py_NotImplemented;
 }
 
+static HPy // PyArray_DTypeMeta *
+hpy_int_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ NPY_UNUSED(cls), 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (NPY_DT_is_legacy(other_struct) && other_struct->type_num < NPY_NTYPES) {
+        if (other_struct->type_num == NPY_BOOL) {
+            /* Use the default integer for bools: */
+            return HPyArray_DTypeFromTypeNum(ctx, NPY_LONG);
+        }
+        else if (PyTypeNum_ISNUMBER(other_struct->type_num) ||
+                 other_struct->type_num == NPY_TIMEDELTA) {
+            /* All other numeric types (ant timedelta) are preserved: */
+            // Py_INCREF(other);
+            return HPy_Dup(ctx, other);
+        }
+    }
+    else if (NPY_DT_is_legacy(other_struct)) {
+        /* This is a back-compat fallback to usually do the right thing... */
+        return HPyArray_DTypeFromTypeNum(ctx, NPY_UINT8);
+    }
+    // Py_INCREF(Py_NotImplemented);
+    return HPy_Dup(ctx, ctx->h_NotImplemented);
+}
+
 
 static PyArray_DTypeMeta *
 float_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
@@ -288,6 +313,35 @@ float_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
     }
     Py_INCREF(Py_NotImplemented);
     return (PyArray_DTypeMeta *)Py_NotImplemented;
+}
+
+
+static HPy // PyArray_DTypeMeta *
+hpy_float_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (NPY_DT_is_legacy(other_struct) && other_struct->type_num < NPY_NTYPES) {
+        if (other_struct->type_num == NPY_BOOL || PyTypeNum_ISINTEGER(other_struct->type_num)) {
+            /* Use the default integer for bools and ints: */
+            return HPyArray_DTypeFromTypeNum(ctx, NPY_DOUBLE);
+        }
+        else if (PyTypeNum_ISNUMBER(other_struct->type_num)) {
+            /* All other numeric types (float+complex) are preserved: */
+            // Py_INCREF(other);
+            return HPy_Dup(ctx, other);
+        }
+    }
+    else if (HPyGlobal_Is(ctx, other, HPyArray_PyIntAbstractDType)) {
+        // Py_INCREF(cls);
+        return HPy_Dup(ctx, cls);
+    }
+    else if (NPY_DT_is_legacy(other_struct)) {
+        /* This is a back-compat fallback to usually do the right thing... */
+        return HPyArray_DTypeFromTypeNum(ctx, NPY_HALF);
+    }
+    // Py_INCREF(Py_NotImplemented);
+    return HPy_Dup(ctx, ctx->h_NotImplemented);
 }
 
 
@@ -331,6 +385,50 @@ complex_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
     }
     Py_INCREF(Py_NotImplemented);
     return (PyArray_DTypeMeta *)Py_NotImplemented;
+}
+
+static HPy // PyArray_DTypeMeta *
+hpy_complex_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (NPY_DT_is_legacy(other_struct) && other_struct->type_num < NPY_NTYPES) {
+        if (other_struct->type_num == NPY_BOOL ||
+                PyTypeNum_ISINTEGER(other_struct->type_num)) {
+            /* Use the default integer for bools and ints: */
+            return HPyArray_DTypeFromTypeNum(ctx, NPY_CDOUBLE);
+        }
+        else if (PyTypeNum_ISFLOAT(other_struct->type_num)) {
+            /*
+             * For floats we choose the equivalent precision complex, although
+             * there is no CHALF, so half also goes to CFLOAT.
+             */
+            if (other_struct->type_num == NPY_HALF || other_struct->type_num == NPY_FLOAT) {
+                return HPyArray_DTypeFromTypeNum(ctx, NPY_CFLOAT);
+            }
+            if (other_struct->type_num == NPY_DOUBLE) {
+                return HPyArray_DTypeFromTypeNum(ctx, NPY_CDOUBLE);
+            }
+            assert(other_struct->type_num == NPY_LONGDOUBLE);
+            return HPyArray_DTypeFromTypeNum(ctx, NPY_CLONGDOUBLE);
+        }
+        else if (PyTypeNum_ISCOMPLEX(other_struct->type_num)) {
+            /* All other numeric types are preserved: */
+            // Py_INCREF(other);
+            return HPy_Dup(ctx, other);
+        }
+    }
+    else if (NPY_DT_is_legacy(other_struct)) {
+        /* This is a back-compat fallback to usually do the right thing... */
+        return HPyArray_DTypeFromTypeNum(ctx, NPY_CFLOAT);
+    }
+    else if (HPyGlobal_Is(ctx, other, HPyArray_PyIntAbstractDType) ||
+             HPyGlobal_Is(ctx, other, HPyArray_PyFloatAbstractDType)) {
+        // Py_INCREF(cls);
+        return HPy_Dup(ctx, cls);
+    }
+    // Py_INCREF(Py_NotImplemented);
+    return HPy_Dup(ctx, ctx->h_NotImplemented);
 }
 
 /*

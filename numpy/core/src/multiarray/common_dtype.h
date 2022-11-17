@@ -10,6 +10,11 @@
 NPY_NO_EXPORT PyArray_DTypeMeta *
 PyArray_CommonDType(PyArray_DTypeMeta *dtype1, PyArray_DTypeMeta *dtype2);
 
+NPY_NO_EXPORT HPy // PyArray_DTypeMeta *
+HPyArray_CommonDType(HPyContext *ctx,
+                        HPy /* PyArray_DTypeMeta * */ dtype1, 
+                        HPy /* PyArray_DTypeMeta * */ dtype2);
+
 NPY_NO_EXPORT PyArray_DTypeMeta *
 PyArray_PromoteDTypeSequence(
         npy_intp length, PyArray_DTypeMeta **dtypes_in);

@@ -26,6 +26,10 @@ NPY_NO_EXPORT PyArray_DTypeMeta *
 legacy_userdtype_common_dtype_function(
         PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other);
 
+NPY_NO_EXPORT HPy // PyArray_DTypeMeta *
+hpy_legacy_userdtype_common_dtype_function(HPyContext *ctx,
+        HPy /* PyArray_DTypeMeta * */ cls, HPy /* PyArray_DTypeMeta * */ other);
+
 NPY_NO_EXPORT int
 PyArray_AddLegacyWrapping_CastingImpl(
         PyArray_DTypeMeta *from, PyArray_DTypeMeta *to, NPY_CASTING casting);

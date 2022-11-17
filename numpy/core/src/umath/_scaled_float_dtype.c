@@ -87,6 +87,19 @@ sfloat_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
     return (PyArray_DTypeMeta *)Py_NotImplemented;
 }
 
+static HPy // PyArray_DTypeMeta *
+hpy_sfloat_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (NPY_DT_is_legacy(other_struct) && other_struct->type_num == NPY_DOUBLE) {
+        // Py_INCREF(cls);
+        return HPy_Dup(ctx, cls);
+    }
+    // Py_INCREF(Py_NotImplemented);
+    return HPy_Dup(ctx, ctx->h_NotImplemented);
+}
+
 
 static PyArray_Descr *
 sfloat_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
