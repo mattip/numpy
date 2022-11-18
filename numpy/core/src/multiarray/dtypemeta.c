@@ -284,6 +284,20 @@ string_unicode_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
     }
 }
 
+static HPy // PyArray_Descr *
+hpy_string_unicode_common_instance(HPyContext *ctx,
+            HPy /* PyArray_Descr * */ descr1, HPy /* PyArray_Descr * */ descr2)
+{
+    PyArray_Descr *descr1_struct = PyArray_Descr_AsStruct(ctx, descr1);
+    PyArray_Descr *descr2_struct = PyArray_Descr_AsStruct(ctx, descr2);
+    if (descr1_struct->elsize >= descr2_struct->elsize) {
+        return hensure_dtype_nbo_with_struct(ctx, descr1, descr1_struct);
+    }
+    else {
+        return hensure_dtype_nbo_with_struct(ctx, descr2, descr2_struct);
+    }
+}
+
 
 static PyArray_Descr *
 void_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
@@ -307,6 +321,34 @@ void_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
         return NULL;
     }
     Py_INCREF(descr1);
+    return descr1;
+}
+
+static HPy // PyArray_Descr *
+hpy_void_common_instance(HPyContext *ctx,
+            HPy /* PyArray_Descr * */ descr1, HPy /* PyArray_Descr * */ descr2)
+{
+    /*
+     * We currently do not support promotion of void types unless they
+     * are equivalent.
+     */
+    PyArray_Descr *descr1_struct = PyArray_Descr_AsStruct(ctx, descr1);
+    PyArray_Descr *descr2_struct = PyArray_Descr_AsStruct(ctx, descr2);
+    if (!HPyArray_CanCastTypeTo(ctx, descr1, descr2, NPY_EQUIV_CASTING)) {
+        if (descr1_struct->subarray == NULL && HPyField_IsNull(descr1_struct->names) &&
+                descr2_struct->subarray == NULL && HPyField_IsNull(descr2_struct->names)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "Invalid type promotion with void datatypes of different "
+                    "lengths. Use the `np.bytes_` datatype instead to pad the "
+                    "shorter value with trailing zero bytes.");
+        }
+        else {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
+                    "invalid type promotion with structured datatype(s).");
+        }
+        return HPy_NULL;
+    }
+    HPy_Close(ctx, descr1);
     return descr1;
 }
 
@@ -430,6 +472,35 @@ default_builtin_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
     return PyArray_DTypeFromTypeNum(common_num);
 }
 
+static HPy // PyArray_DTypeMeta *
+hpy_default_builtin_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *cls_struct = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    assert(cls_struct->type_num < NPY_NTYPES);
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    if (!NPY_DT_is_legacy(other_struct) || other_struct->type_num > cls_struct->type_num) {
+        /*
+         * Let the more generic (larger type number) DType handle this
+         * (note that half is after all others, which works out here.)
+         */
+        // Py_INCREF(Py_NotImplemented);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+
+    /*
+     * Note: The use of the promotion table should probably be revised at
+     *       some point. It may be most useful to remove it entirely and then
+     *       consider adding a fast path/cache `PyArray_CommonDType()` itself.
+     */
+    int common_num = _npy_type_promotion_table[cls_struct->type_num][other_struct->type_num];
+    if (common_num < 0) {
+        // Py_INCREF(Py_NotImplemented);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    return HPyArray_DTypeFromTypeNum(ctx, common_num);
+}
+
 
 static PyArray_DTypeMeta *
 string_unicode_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
@@ -450,6 +521,28 @@ string_unicode_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
     return cls;
 }
 
+static HPy // PyArray_DTypeMeta *
+hpy_string_unicode_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    PyArray_DTypeMeta *cls_struct = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    assert(cls_struct->type_num < NPY_NTYPES && !HPy_Is(ctx, cls, other));
+    if (!NPY_DT_is_legacy(other_struct) || (!PyTypeNum_ISNUMBER(other_struct->type_num) &&
+            /* Not numeric so defer unless cls is unicode and other is string */
+            !(cls_struct->type_num == NPY_UNICODE && other_struct->type_num == NPY_STRING))) {
+        // Py_INCREF(Py_NotImplemented);
+        return HPy_Dup(ctx, ctx->h_NotImplemented);
+    }
+    /*
+     * The builtin types are ordered by complexity (aside from object) here.
+     * Arguably, we should not consider numbers and strings "common", but
+     * we currently do.
+     */
+    // Py_INCREF(cls);
+    return HPy_Dup(ctx, cls);
+}
+
 static PyArray_DTypeMeta *
 datetime_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
 {
@@ -463,6 +556,24 @@ datetime_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
         return cls;
     }
     return default_builtin_common_dtype(cls, other);
+}
+
+static HPy // PyArray_DTypeMeta *
+hpy_datetime_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    PyArray_DTypeMeta *other_struct = PyArray_DTypeMeta_AsStruct(ctx, other);
+    PyArray_DTypeMeta *cls_struct = PyArray_DTypeMeta_AsStruct(ctx, cls);
+    if (cls_struct->type_num == NPY_DATETIME && other_struct->type_num == NPY_TIMEDELTA) {
+        /*
+         * TODO: We actually currently do allow promotion here. This is
+         *       currently relied on within `np.add(datetime, timedelta)`,
+         *       while for concatenation the cast step will fail.
+         */
+        // Py_INCREF(cls);
+        return HPy_Dup(ctx, cls);
+    }
+    return hpy_default_builtin_common_dtype(ctx, cls, other);
 }
 
 
@@ -480,6 +591,21 @@ object_common_dtype(
      */
     Py_INCREF(cls);
     return cls;
+}
+
+static HPy // PyArray_DTypeMeta *
+hpy_object_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls, 
+                                            HPy /* PyArray_DTypeMeta * */ other)
+{
+    /*
+     * The object DType is special in that it can represent everything,
+     * including all potential user DTypes.
+     * One reason to defer (or error) here might be if the other DType
+     * does not support scalars so that e.g. `arr1d[0]` returns a 0-D array
+     * and `arr.astype(object)` would fail. But object casts are special.
+     */
+    // Py_INCREF(cls);
+    return HPy_Dup(ctx, cls);
 }
 
 static HPyDef *new_dtype_legacy_defines[] = {

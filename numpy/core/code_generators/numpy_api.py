@@ -434,7 +434,7 @@ hpy_multiarray_funcs_api = {
     'HPyArray_CastToType':                   (49,),
     # 'HPyArray_CastTo':                       (50,),
     # 'HPyArray_CastAnyTo':                    (51,),
-    # 'HPyArray_CanCastSafely':                (52,),
+    'HPyArray_CanCastSafely':                (52,),
     'HPyArray_CanCastTo':                    (53,),
     'HPyArray_ObjectType':                   (54,),
     'HPyArray_DescrFromObject':              (55,),

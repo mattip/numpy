@@ -1927,6 +1927,124 @@ ufunc_loop_matches(PyUFuncObject *self,
     return 1;
 }
 
+
+static int
+hpy_ufunc_loop_matches(HPyContext *ctx,
+                    HPy self, PyUFuncObject *self_struct,
+                    HPy /* PyArrayObject ** */ *op,
+                    NPY_CASTING input_casting,
+                    NPY_CASTING output_casting,
+                    int any_object,
+                    int use_min_scalar,
+                    int *types, 
+                    HPy /* PyArray_Descr ** */ *dtypes,
+                    int *out_no_castable_output,
+                    char *out_err_src_typecode,
+                    char *out_err_dst_typecode)
+{
+    npy_intp i, nin = self_struct->nin, nop = nin + self_struct->nout;
+
+    /*
+     * First check if all the inputs can be safely cast
+     * to the types for this function
+     */
+    for (i = 0; i < nin; ++i) {
+        HPy tmp; // PyArray_Descr *
+
+        /*
+         * If no inputs are objects and there are more than one
+         * loop, don't allow conversion to object.  The rationale
+         * behind this is mostly performance.  Except for custom
+         * ufuncs built with just one object-parametered inner loop,
+         * only the types that are supported are implemented.  Trying
+         * the object version of logical_or on float arguments doesn't
+         * seem right.
+         */
+        if (types[i] == NPY_OBJECT && !any_object && self_struct->ntypes > 1) {
+            return 0;
+        }
+        if (types[i] == NPY_NOTYPE) {
+            continue;  /* Matched by being explicitly specified. */
+        }
+
+        /*
+         * If type num is NPY_VOID and struct dtypes have been passed in,
+         * use struct dtype object. Otherwise create new dtype object
+         * from type num.
+         */
+        if (types[i] == NPY_VOID && dtypes != NULL) {
+            tmp = HPy_Dup(ctx, dtypes[i]);
+            // Py_INCREF(tmp);
+        }
+        else {
+            tmp = HPyArray_DescrFromType(ctx, types[i]);
+        }
+        if (HPy_IsNull(tmp)) {
+            return -1;
+        }
+
+#if NPY_UF_DBG_TRACING
+        printf("Checking type for op %d, type %d: ", (int)i, (int)types[i]);
+        // PyObject_Print((PyObject *)tmp, stdout, 0);
+        // printf(", operand type: ");
+        // PyObject_Print((PyObject *)PyArray_DESCR(op[i]), stdout, 0);
+        printf("\n");
+#endif
+        /*
+         * If all the inputs are scalars, use the regular
+         * promotion rules, not the special value-checking ones.
+         */
+        if (!use_min_scalar) {
+            HPy op_i_descr = HPyArray_GetDescr(ctx, op[i]);
+            if (!HPyArray_CanCastTypeTo(ctx, op_i_descr, tmp,
+                                                    input_casting)) {
+                HPy_Close(ctx, tmp);
+                HPy_Close(ctx, op_i_descr);
+                return 0;
+            }
+            HPy_Close(ctx, op_i_descr);
+        }
+        else {
+            if (!HPyArray_CanCastArrayTo(ctx, op[i], tmp, input_casting)) {
+                HPy_Close(ctx, tmp);
+                return 0;
+            }
+        }
+        HPy_Close(ctx, tmp);
+    }
+
+    /*
+     * If all the inputs were ok, then check casting back to the
+     * outputs.
+     */
+    for (i = nin; i < nop; ++i) {
+        if (types[i] == NPY_NOTYPE) {
+            continue;  /* Matched by being explicitly specified. */
+        }
+        if (!HPy_IsNull(op[i])) {
+            HPy tmp = HPyArray_DescrFromType(ctx, types[i]); // PyArray_Descr *
+            if (HPy_IsNull(tmp)) {
+                return -1;
+            }
+            HPy op_i_descr = HPyArray_GetDescr(ctx, op[i]);
+            if (!HPyArray_CanCastTypeTo(ctx, tmp, op_i_descr,
+                                                        output_casting)) {
+                if (!(*out_no_castable_output)) {
+                    *out_no_castable_output = 1;
+                    *out_err_src_typecode = PyArray_Descr_AsStruct(ctx, tmp)->type;
+                    *out_err_dst_typecode = PyArray_Descr_AsStruct(ctx, op_i_descr)->type;
+                }
+                HPy_Close(ctx, tmp);
+                HPy_Close(ctx, op_i_descr);
+                return 0;
+            }
+            HPy_Close(ctx, tmp);
+            HPy_Close(ctx, op_i_descr);
+        }
+    }
+    return 1;
+}
+
 static int
 set_ufunc_loop_data_types(PyUFuncObject *self, PyArrayObject **op,
                     PyArray_Descr **out_dtypes,
@@ -1977,6 +2095,74 @@ fail:
     while (--i >= 0) {
         Py_DECREF(out_dtypes[i]);
         out_dtypes[i] = NULL;
+    }
+    return -1;
+}
+
+
+static int
+hpy_set_ufunc_loop_data_types(HPyContext *ctx, HPy /* PyUFuncObject * */ self, 
+                    HPy /* PyArrayObject ** */ *op,
+                    HPy /* PyArray_Descr ** */ *out_dtypes,
+                    int *type_nums, HPy /* PyArray_Descr ** */ *dtypes)
+{
+    PyUFuncObject *self_struct = PyUFuncObject_AsStruct(ctx, self);
+    int i, nin = self_struct->nin, nop = nin + self_struct->nout;
+
+    /*
+     * Fill the dtypes array.
+     * For outputs,
+     * also search the inputs for a matching type_num to copy
+     * instead of creating a new one, similarly to preserve metadata.
+     **/
+        if (dtypes != NULL) {
+            for (i = 0; i < nop; ++i) {
+                out_dtypes[i] = HPy_Dup(ctx, dtypes[i]);
+                // Py_XINCREF(out_dtypes[i]);
+                /*
+                * Copy the dtype from 'op' if the type_num matches,
+                * to preserve metadata.
+                */
+            }
+        } else {
+            HPy op_0_descr = !HPy_IsNull(op[0]) && nop > 0 ? HPyArray_GetDescr(ctx, op[0]) : HPy_NULL;
+            PyArray_Descr *op_0_descr_struct = !HPy_IsNull(op_0_descr) ? PyArray_Descr_AsStruct(ctx, op_0_descr) : NULL;
+            for (i = 0; i < nop; ++i) {
+                HPy op_i_descr = !HPy_IsNull(op[i]) ? HPyArray_GetDescr(ctx, op[i]) : HPy_NULL;
+                if (!HPy_IsNull(op_i_descr) &&
+                    PyArray_Descr_AsStruct(ctx, op_i_descr)->type_num == type_nums[i]) {
+                    out_dtypes[i] = hensure_dtype_nbo(ctx, op_i_descr);
+                    HPy_Close(ctx, op_i_descr);
+                }
+                /*
+                * For outputs, copy the dtype from op[0] if the type_num
+                * matches, similarly to preserve metadata.
+                */
+                else {
+                    HPy_Close(ctx, op_i_descr);
+                    if (i >= nin && !HPy_IsNull(op[0]) &&
+                                    op_0_descr_struct->type_num == type_nums[i]) {
+                        out_dtypes[i] = hensure_dtype_nbo(ctx, op_0_descr);
+                    }
+                    /* Otherwise create a plain descr from the type number */
+                    else {
+                        out_dtypes[i] = HPyArray_DescrFromType(ctx, type_nums[i]);
+                    }
+                }
+            }
+            HPy_Close(ctx, op_0_descr);
+        }
+
+        if (HPy_IsNull(out_dtypes[i])) {
+            goto fail;
+        }
+
+    return 0;
+
+fail:
+    while (--i >= 0) {
+        HPy_Close(ctx, out_dtypes[i]);
+        out_dtypes[i] = HPy_NULL;
     }
     return -1;
 }
@@ -2048,6 +2234,82 @@ linear_search_userloop_type_resolver(PyUFuncObject *self,
                     /* Found a match */
                     case 1:
                         set_ufunc_loop_data_types(self, op, out_dtype, types, funcdata->arg_dtypes);
+                        return 1;
+                }
+            }
+        }
+    }
+
+    /* Didn't find a match */
+    return 0;
+}
+
+static int
+hpy_linear_search_userloop_type_resolver(HPyContext *ctx,
+                        HPy self, PyUFuncObject *self_struct,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING output_casting,
+                        int any_object,
+                        int use_min_scalar,
+                        HPy /* PyArray_Descr ** */ *out_dtype,
+                        int *out_no_castable_output,
+                        char *out_err_src_typecode,
+                        char *out_err_dst_typecode)
+{
+    npy_intp i, nop = self_struct->nin + self_struct->nout;
+
+    /* Use this to try to avoid repeating the same userdef loop search */
+    int last_userdef = -1;
+
+    for (i = 0; i < nop; ++i) {
+        int type_num;
+
+        /* no more ufunc arguments to check */
+        if (HPy_IsNull(op[i])) {
+            break;
+        }
+        HPy op_descr = HPyArray_GetDescr(ctx, op[i]);
+        type_num = PyArray_Descr_AsStruct(ctx, op_descr)->type_num;
+        HPy_Close(ctx, op_descr);
+        if (type_num != last_userdef &&
+                (PyTypeNum_ISUSERDEF(type_num) || type_num == NPY_VOID)) {
+            HPy key, obj;
+
+            last_userdef = type_num;
+
+            key = HPyLong_FromLong(ctx, type_num);
+            if (HPy_IsNull(key)) {
+                return -1;
+            }
+            HPy userloops = HPyField_Load(ctx, self, self_struct->userloops);
+            obj = HPyDict_GetItemWithError(ctx, userloops, key);
+            HPy_Close(ctx, userloops);
+            HPy_Close(ctx, key);
+            if (HPy_IsNull(obj) && HPyErr_Occurred(ctx)){
+                return -1;
+            }
+            else if (HPy_IsNull(obj)) {
+                continue;
+            }
+            PyUFunc_Loop1d *funcdata = (PyUFunc_Loop1d *)HPyCapsule_GetPointer(ctx, obj, NULL);
+            if (funcdata == NULL) {
+                return -1;
+            }
+            for (; funcdata != NULL; funcdata = funcdata->next) {
+                int *types = funcdata->arg_types;
+                switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
+                            input_casting, output_casting,
+                            any_object, use_min_scalar,
+                            types, funcdata->arg_dtypes,
+                            out_no_castable_output, out_err_src_typecode,
+                            out_err_dst_typecode)) {
+                    /* Error */
+                    case -1:
+                        return -1;
+                    /* Found a match */
+                    case 1:
+                        hpy_set_ufunc_loop_data_types(ctx, self, op, out_dtype, types, funcdata->arg_dtypes);
                         return 1;
                 }
             }

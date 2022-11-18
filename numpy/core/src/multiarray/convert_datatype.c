@@ -837,6 +837,61 @@ PyArray_CanCastSafely(int fromtype, int totype)
     return res;
 }
 
+/*HPY_NUMPY_API
+ *Check the type coercion rules.
+ */
+NPY_NO_EXPORT int
+HPyArray_CanCastSafely(HPyContext *ctx, int fromtype, int totype)
+{
+    /* Identity */
+    if (fromtype == totype) {
+        return 1;
+    }
+    /*
+     * As a micro-optimization, keep the cast table around.  This can probably
+     * be removed as soon as the ufunc loop lookup is modified (presumably
+     * before the 1.21 release).  It does no harm, but the main user of this
+     * function is the ufunc-loop lookup calling it until a loop matches!
+     *
+     * (The table extends further, but is not strictly correct for void).
+     * TODO: Check this!
+     */
+    if ((unsigned int)fromtype <= NPY_CLONGDOUBLE &&
+            (unsigned int)totype <= NPY_CLONGDOUBLE) {
+        return _npy_can_cast_safely_table[fromtype][totype];
+    }
+
+    HPy from = HPyArray_DTypeFromTypeNum(ctx, fromtype);
+    if (HPy_IsNull(from)) {
+        HPyErr_WriteUnraisable(ctx, HPy_NULL);
+        return 0;
+    }
+    PyArray_DTypeMeta *from_struct = PyArray_DTypeMeta_AsStruct(ctx, from);
+    HPy to = HPyArray_DTypeFromTypeNum(ctx, totype);
+    if (HPy_IsNull(to)) {
+        HPyErr_WriteUnraisable(ctx, HPy_NULL);
+        return 0;
+    }
+    PyArray_DTypeMeta *to_struct = PyArray_DTypeMeta_AsStruct(ctx, to);
+    HPy castingimpl = HPyArray_GetCastingImpl(ctx, from, from_struct, to, to_struct);
+    HPy_Close(ctx, from);
+    HPy_Close(ctx, to);
+
+    if (HPy_IsNull(castingimpl)) {
+        HPyErr_WriteUnraisable(ctx, HPy_NULL);
+        return 0;
+    }
+    else if (HPy_Is(ctx, castingimpl, ctx->h_None)) {
+        HPy_Close(ctx, castingimpl);
+        return 0;
+    }
+    PyArrayMethodObject *castingimpl_struct = PyArrayMethodObject_AsStruct(ctx, castingimpl);
+    NPY_CASTING safety = castingimpl_struct->casting;
+    int res = PyArray_MinCastSafety(safety, NPY_SAFE_CASTING) == NPY_SAFE_CASTING;
+    HPy_Close(ctx, castingimpl);
+    return res;
+}
+
 
 
 /*NUMPY_API
