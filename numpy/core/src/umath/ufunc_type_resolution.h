@@ -126,6 +126,16 @@ linear_search_type_resolver(PyUFuncObject *self,
                             int any_object,
                             PyArray_Descr **out_dtype);
 
+NPY_NO_EXPORT int
+hpy_linear_search_type_resolver(HPyContext *ctx, 
+                        HPy /* PyUFuncObject * */ self,
+                        PyUFuncObject *self_struct,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING output_casting,
+                        int any_object,
+                        HPy /* PyArray_Descr ** */ *out_dtype);
+
 /*
  * Does a linear search for the inner loop of the ufunc specified by type_tup.
  *
@@ -140,6 +150,16 @@ type_tuple_type_resolver(PyUFuncObject *self,
                          NPY_CASTING casting,
                          int any_object,
                          PyArray_Descr **out_dtype);
+
+NPY_NO_EXPORT int
+hpy_type_tuple_type_resolver(HPyContext *ctx,
+                        HPy self, PyUFuncObject *self_struct,
+                        HPy type_tup,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING casting,
+                        int any_object,
+                        HPy /* PyArray_Descr ** */ *out_dtype);
 
 NPY_NO_EXPORT int
 PyUFunc_DefaultLegacyInnerLoopSelector(HPyContext *ctx,

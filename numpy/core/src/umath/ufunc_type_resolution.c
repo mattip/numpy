@@ -528,26 +528,45 @@ HPyUFunc_DefaultTypeResolver(HPyContext *ctx,
                                 HPy type_tup,
                                 HPy /* (PyArray_Descr **) */ *out_dtypes)
 {
-    CAPI_WARN("HPyUFunc_DefaultTypeResolver: calling PyUFunc_DefaultTypeResolver");
-    PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
-    PyArray_Descr *py_out_dtypes[NPY_MAXARGS] = {NULL};
-    PyUFuncObject *py_ufunc = (PyUFuncObject *)HPy_AsPyObject(ctx, ufunc);
-    PyObject *py_type_tup = HPy_AsPyObject(ctx, type_tup);
-    PyArrayObject **py_operands = (PyArrayObject **)HPy_AsPyObjectArray(ctx, operands, ufunc_data->nargs);
-    for (int i=0; i < ufunc_data->nargs; i++) {
-        py_out_dtypes[i] = (PyArray_Descr *)HPy_AsPyObject(ctx, out_dtypes[i]);
+    PyUFuncObject *ufunc_struct = PyUFuncObject_AsStruct(ctx, ufunc);
+    int i, nop = ufunc_struct->nin + ufunc_struct->nout;
+    int retval = 0, any_object = 0;
+    NPY_CASTING input_casting;
+
+    for (i = 0; i < nop; ++i) {
+        HPy op_descr = !HPy_IsNull(operands[i]) ? HPyArray_GetDescr(ctx, operands[i]) : HPy_NULL;
+        if (!HPy_IsNull(op_descr)) {
+            int type_num = PyArray_Descr_AsStruct(ctx, op_descr)->type_num;
+            HPy_Close(ctx, op_descr);
+            if(PyTypeNum_ISOBJECT(type_num)) {
+                any_object = 1;
+                break;
+            }
+        }
     }
-    int res = PyUFunc_DefaultTypeResolver(py_ufunc, casting, py_operands,
-            py_type_tup, py_out_dtypes);
-    HPy_DecrefAndFreeArray(ctx, (PyObject **)py_operands, ufunc_data->nargs);
-    Py_DECREF(py_ufunc);
-    // Py_DECREF(py_type_tup);
-    for (int i=0; i < ufunc_data->nargs; i++) {
-        out_dtypes[i] = HPy_FromPyObject(ctx, (PyObject *)py_out_dtypes[i]);
-        Py_XDECREF(py_out_dtypes[i]);
+
+    /*
+     * Decide the casting rules for inputs and outputs.  We want
+     * NPY_SAFE_CASTING or stricter, so that the loop selection code
+     * doesn't choose an integer loop for float inputs, or a float32
+     * loop for float64 inputs.
+     */
+    input_casting = (casting > NPY_SAFE_CASTING) ? NPY_SAFE_CASTING : casting;
+
+    if (HPy_IsNull(type_tup)) {
+        /* Find the best ufunc inner loop, and fill in the dtypes */
+        retval = hpy_linear_search_type_resolver(ctx, ufunc, ufunc_struct, operands,
+                        input_casting, casting, any_object,
+                        out_dtypes);
+    } else {
+        /* Find the specified ufunc inner loop, and fill in the dtypes */
+        retval = hpy_type_tuple_type_resolver(ctx, ufunc, ufunc_struct, type_tup,
+                        operands, input_casting, casting, any_object, out_dtypes);
     }
-    return res;
+
+    return retval;
 }
+
 /*
  * This function applies special type resolution rules for the case
  * where all the functions have the pattern XX->bool, using
@@ -2438,6 +2457,123 @@ type_tuple_userloop_type_resolver(PyUFuncObject *self,
     return 0;
 }
 
+static int
+hpy_type_tuple_userloop_type_resolver(HPyContext *ctx,
+                        HPy self, PyUFuncObject *self_struct,
+                        int n_specified,
+                        int *specified_types,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING casting,
+                        int any_object,
+                        int use_min_scalar,
+                        HPy /* PyArray_Descr ** */ *out_dtype)
+{
+    int i, j, nin = self_struct->nin, nop = nin + self_struct->nout;
+    assert(n_specified == nop);
+    int types[NPY_MAXARGS];
+
+    /* Use this to try to avoid repeating the same userdef loop search */
+    int last_userdef = -1;
+
+    int no_castable_output = 0;
+    char err_src_typecode = '-', err_dst_typecode = '-';
+
+    for (i = 0; i < nin; ++i) {
+        HPy op_descr = HPyArray_GetDescr(ctx, op[i]);
+        int type_num = PyArray_Descr_AsStruct(ctx, op_descr)->type_num;
+        HPy_Close(ctx, op_descr);
+        if (type_num != last_userdef && PyTypeNum_ISUSERDEF(type_num)) {
+            HPy key, obj;
+
+            last_userdef = type_num;
+
+            key = HPyLong_FromLong(ctx, type_num);
+            if (HPy_IsNull(key)) {
+                return -1;
+            }
+            HPy userloops = HPyField_Load(ctx, self, self_struct->userloops);
+            obj = HPyDict_GetItemWithError(ctx, userloops, key);
+            HPy_Close(ctx, userloops);
+            HPy_Close(ctx, key);
+            if (HPy_IsNull(obj) && HPyErr_Occurred(ctx)){
+                return -1;
+            }
+            else if (HPy_IsNull(obj)) {
+                continue;
+            }
+            PyUFunc_Loop1d *funcdata = (PyUFunc_Loop1d *)HPyCapsule_GetPointer(ctx, obj, NULL);
+            if (funcdata == NULL) {
+                return -1;
+            }
+            for (; funcdata != NULL; funcdata = funcdata->next) {
+                int *orig_types = funcdata->arg_types;
+
+                /*
+                 * Copy the types into an int array for matching
+                 * (Mostly duplicated in `type_tuple_type_resolver`)
+                 */
+                for (j = 0; j < nop; ++j) {
+                    if (specified_types[j] == NPY_NOTYPE) {
+                        types[j] = orig_types[j];
+                        continue;
+                    }
+                    if (orig_types[j] != specified_types[j]) {
+                        break;
+                    }
+                    /* indicate that we do not have to check this type anymore. */
+                    types[j] = NPY_NOTYPE;
+                }
+
+                if (j != nop) {
+                    /* no match */
+                    continue;
+                }
+
+                switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
+                            input_casting, casting,
+                            any_object, use_min_scalar,
+                            types, NULL,
+                            &no_castable_output, &err_src_typecode,
+                            &err_dst_typecode)) {
+                    /* It works */
+                    case 1:
+                        hpy_set_ufunc_loop_data_types(ctx, self, op,
+                            out_dtype, orig_types, NULL);
+                        /*
+                         * In principle, we only need to validate the
+                         * NPY_NOTYPE ones
+                         */
+                        if (HPyUFunc_ValidateCasting(ctx, self, self_struct,
+                                casting, op, out_dtype) < 0) {
+                            for (j = 0; j < self_struct->nargs; j++) {
+                                HPy_Close(ctx, out_dtype[j]);
+                                out_dtype[j] = HPy_NULL;
+                            }
+                            return -1;
+                        }
+                        return 1;
+                    /* Didn't match */
+                    case 0:
+                        HPyErr_Format_p(ctx, ctx->h_TypeError,
+                             "found a user loop for ufunc '%s' "
+                             "matching the type-tuple, "
+                             "but the inputs and/or outputs could not be "
+                             "cast according to the casting rule",
+                             ufunc_get_name_cstr(self_struct));
+                        return -1;
+                    /* Error */
+                    case -1:
+                        return -1;
+                }
+            }
+        }
+    }
+
+    /* Didn't find a match */
+    return 0;
+}
+
 
 /*
  * Does a linear search for the best inner loop of the ufunc.
@@ -2548,6 +2684,111 @@ linear_search_type_resolver(PyUFuncObject *self,
     return -1;
 }
 
+NPY_NO_EXPORT int
+hpy_linear_search_type_resolver(HPyContext *ctx, 
+                        HPy /* PyUFuncObject * */ self,
+                        PyUFuncObject *self_struct,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING output_casting,
+                        int any_object,
+                        HPy /* PyArray_Descr ** */ *out_dtype)
+{
+    npy_intp i, j, nin = self_struct->nin, nop = nin + self_struct->nout;
+    int types[NPY_MAXARGS];
+    const char *ufunc_name;
+    int no_castable_output = 0;
+    int use_min_scalar;
+
+    /* For making a better error message on coercion error */
+    char err_dst_typecode = '-', err_src_typecode = '-';
+
+    ufunc_name = ufunc_get_name_cstr(self_struct);
+
+    use_min_scalar = hshould_use_min_scalar(ctx, nin, op, 0, NULL);
+
+    /* If the ufunc has userloops, search for them. */
+    if (!HPyField_IsNull(self_struct->userloops)) {
+        switch (hpy_linear_search_userloop_type_resolver(ctx, self, self_struct, op,
+                                input_casting, output_casting,
+                                any_object, use_min_scalar, out_dtype,
+                                &no_castable_output, &err_src_typecode,
+                                &err_dst_typecode)) {
+            /* Error */
+            case -1:
+                return -1;
+            /* A loop was found */
+            case 1:
+                return 0;
+        }
+    }
+
+    /*
+     * Determine the UFunc loop.  This could in general be *much* faster,
+     * and a better way to implement it might be for the ufunc to
+     * provide a function which gives back the result type and inner
+     * loop function.
+     *
+     * A default fast mechanism could be provided for functions which
+     * follow the most typical pattern, when all functions have signatures
+     * "xx...x -> x" for some built-in data type x, as follows.
+     *  - Use PyArray_ResultType to get the output type
+     *  - Look up the inner loop in a table based on the output type_num
+     *
+     * The method for finding the loop in the previous code did not
+     * appear consistent (as noted by some asymmetry in the generated
+     * coercion tables for np.add).
+     */
+    no_castable_output = 0;
+    for (i = 0; i < self_struct->ntypes; ++i) {
+        char *orig_types = self_struct->types + i*self_struct->nargs;
+
+        /* Copy the types into an int array for matching */
+        for (j = 0; j < nop; ++j) {
+            types[j] = orig_types[j];
+        }
+
+        switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
+                    input_casting, output_casting,
+                    any_object, use_min_scalar,
+                    types, NULL,
+                    &no_castable_output, &err_src_typecode,
+                    &err_dst_typecode)) {
+            /* Error */
+            case -1:
+                return -1;
+            /* Found a match */
+            case 1:
+                hpy_set_ufunc_loop_data_types(ctx, self, op, out_dtype, types, NULL);
+                return 0;
+        }
+    }
+
+    /* If no function was found, throw an error */
+    if (no_castable_output) {
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
+                "ufunc '%s' output (typecode '%c') could not be coerced to "
+                "provided output parameter (typecode '%c') according "
+                "to the casting rule '%s'",
+                ufunc_name, err_src_typecode, err_dst_typecode,
+                npy_casting_to_string(output_casting));
+    }
+    else {
+        /*
+         * TODO: We should try again if the casting rule is same_kind
+         *       or unsafe, and look for a function more liberally.
+         */
+        HPyErr_Format_p(ctx, ctx->h_TypeError,
+                "ufunc '%s' not supported for the input types, and the "
+                "inputs could not be safely coerced to any supported "
+                "types according to the casting rule '%s'",
+                ufunc_name,
+                npy_casting_to_string(input_casting));
+    }
+
+    return -1;
+}
+
 
 static int
 type_tuple_type_resolver_core(PyUFuncObject *self,
@@ -2627,6 +2868,94 @@ type_tuple_type_resolver_core(PyUFuncObject *self,
                     for (j = 0; j < self->nargs; j++) {
                         Py_DECREF(out_dtype[j]);
                         out_dtype[j] = NULL;
+                    }
+                    return -1;
+                }
+                return 0;
+        }
+    }
+    return -2;
+}
+
+static int
+hpy_type_tuple_type_resolver_core(HPyContext *ctx,
+        HPy self, PyUFuncObject *self_struct,
+        HPy /* PyArrayObject ** */ *op,
+        NPY_CASTING input_casting, NPY_CASTING casting,
+        int specified_types[],
+        int any_object,
+        int no_castable_output, int use_min_scalar,
+        HPy /* PyArray_Descr ** */ *out_dtype)
+{
+    int i, j;
+    int nop = self_struct->nargs;
+    int types[NPY_MAXARGS];
+
+    /* For making a better error message on coercion error */
+    char err_dst_typecode = '-', err_src_typecode = '-';
+
+    /* If the ufunc has userloops, search for them. */
+    if (!HPyField_IsNull(self_struct->userloops)) {
+        switch (hpy_type_tuple_userloop_type_resolver(ctx, self, self_struct,
+                nop, specified_types,
+                op, input_casting, casting,
+                any_object, use_min_scalar,
+                out_dtype)) {
+            /* Error */
+            case -1:
+                return -1;
+            /* Found matching loop */
+            case 1:
+                return 0;
+        }
+    }
+
+    for (i = 0; i < self_struct->ntypes; ++i) {
+        char *orig_types = self_struct->types + i*self_struct->nargs;
+
+        /*
+         * Check specified types and copy into an int array for matching
+         * (Mostly duplicated in `type_tuple_userloop_type_resolver`)
+         */
+        for (j = 0; j < nop; ++j) {
+            if (specified_types[j] == NPY_NOTYPE) {
+                types[j] = orig_types[j];
+                continue;
+            }
+            if (orig_types[j] != specified_types[j]) {
+                break;
+            }
+            /* indicate that we do not have to check this type anymore. */
+            types[j] = NPY_NOTYPE;
+        }
+        if (j < nop) {
+            /* no match */
+            continue;
+        }
+
+        switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
+                input_casting, casting,
+                any_object, use_min_scalar,
+                types, NULL,
+                &no_castable_output, &err_src_typecode,
+                &err_dst_typecode)) {
+            case -1:
+                /* Error */
+                return -1;
+            case 0:
+                /* Cannot cast inputs */
+                continue;
+            case 1:
+                /* Success, fill also the NPY_NOTYPE (cast from char to int) */
+                for (j = 0; j < nop; j++) {
+                    types[j] = orig_types[j];
+                }
+                hpy_set_ufunc_loop_data_types(ctx, self, op, out_dtype, types, NULL);
+                /* In principle, we only need to validate the NPY_NOTYPE ones */
+                if (HPyUFunc_ValidateCasting(ctx, self, self_struct, casting, op, out_dtype) < 0) {
+                    for (j = 0; j < self_struct->nargs; j++) {
+                        HPy_Close(ctx, out_dtype[j]);
+                        out_dtype[j] = HPy_NULL;
                     }
                     return -1;
                 }
@@ -2749,6 +3078,120 @@ type_tuple_type_resolver(PyUFuncObject *self,
 
     /* If no function was found, throw an error */
     PyErr_Format(PyExc_TypeError,
+            "No loop matching the specified signature and casting "
+            "was found for ufunc %s", ufunc_name);
+
+    return -1;
+}
+
+NPY_NO_EXPORT int
+hpy_type_tuple_type_resolver(HPyContext *ctx,
+                        HPy self, PyUFuncObject *self_struct,
+                        HPy type_tup,
+                        HPy /* PyArrayObject ** */ *op,
+                        NPY_CASTING input_casting,
+                        NPY_CASTING casting,
+                        int any_object,
+                        HPy /* PyArray_Descr ** */ *out_dtype)
+{
+    int nin = self_struct->nin, nop = nin + self_struct->nout;
+    int specified_types[NPY_MAXARGS];
+    const char *ufunc_name;
+    int no_castable_output = 0, use_min_scalar;
+
+    ufunc_name = ufunc_get_name_cstr(self_struct);
+
+    use_min_scalar = should_use_min_scalar(nin, op, 0, NULL);
+
+    /* Fill in specified_types from the tuple or string */
+    const char *bad_type_tup_msg = (
+            "Only NumPy must call `ufunc->type_resolver()` explicitly. "
+            "NumPy ensures that a type-tuple is normalized now to be a tuple "
+            "only containing None or descriptors.  If anything else is passed "
+            "(you are seeing this message), the `type_resolver()` was called "
+            "directly by a third party. "
+            "This is unexpected, please inform the NumPy developers about it. "
+            "Also note that `type_resolver` will be phased out, since it must "
+            "be replaced.");
+
+    if (HPyTuple_CheckExact(ctx, type_tup)) {
+        HPy_ssize_t n = HPy_Length(ctx, type_tup);
+        if (n != nop) {
+            HPyErr_SetString(ctx, ctx->h_RuntimeError, bad_type_tup_msg);
+            return -1;
+        }
+        for (int i = 0; i < nop; ++i) {
+            HPy item = HPy_GetItem_i(ctx, type_tup, i);
+            if (HPy_Is(ctx, item, ctx->h_None)) {
+                specified_types[i] = NPY_NOTYPE;
+            }
+            else {
+                if (!HPyArray_DescrCheck(ctx, item)) {
+                    HPyErr_SetString(ctx, ctx->h_RuntimeError, bad_type_tup_msg);
+                    return -1;
+                }
+                specified_types[i] = PyArray_Descr_AsStruct(ctx, item)->type_num;
+            }
+        }
+    }
+    else {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError, bad_type_tup_msg);
+        return -1;
+    }
+
+    int res = hpy_type_tuple_type_resolver_core(ctx, self, self_struct,
+            op, input_casting, casting, specified_types, any_object,
+            no_castable_output, use_min_scalar, out_dtype);
+
+    if (res != -2) {
+        return res;
+    }
+
+    /*
+     * When the user passes `dtype=dtype`, it gets translated to
+     * `signature=(None,)*nin + (dtype,)*nout`.  If the signature matches that
+     * exactly (could be relaxed but that is not necessary for backcompat),
+     * we also try `signature=(dtype,)*(nin+nout)`.
+     * Since reduction pass in `(dtype, None, dtype)` we broaden this to
+     * replacing all unspecified dtypes with the homogeneous output one.
+     * Note that this can (and often will) lead to unsafe casting.  This is
+     * normally rejected (but not currently for reductions!).
+     * This used to be the main meaning for `dtype=dtype`, but some calls broke
+     * the expectation, and changing it allows for `dtype=dtype` to be useful
+     * for ufuncs like `np.ldexp` in the future while also normalizing it to
+     * a `signature` early on.
+     */
+    int homogeneous_type = NPY_NOTYPE;
+    if (self_struct->nout > 0) {
+        homogeneous_type = specified_types[nin];
+        for (int i = nin+1; i < nop; i++) {
+            if (specified_types[i] != homogeneous_type) {
+                homogeneous_type = NPY_NOTYPE;
+                break;
+            }
+        }
+    }
+    if (homogeneous_type != NPY_NOTYPE) {
+        for (int i = 0; i < nin; i++) {
+            if (specified_types[i] != NPY_NOTYPE) {
+                /* Never replace a specified type! */
+                continue;
+            }
+            specified_types[i] = homogeneous_type;
+        }
+
+        /* Try again with the homogeneous specified types. */
+        res = hpy_type_tuple_type_resolver_core(ctx, self, self_struct,
+                op, input_casting, casting, specified_types, any_object,
+                no_castable_output, use_min_scalar, out_dtype);
+
+        if (res != -2) {
+            return res;
+        }
+    }
+
+    /* If no function was found, throw an error */
+    HPyErr_Format_p(ctx, ctx->h_TypeError,
             "No loop matching the specified signature and casting "
             "was found for ufunc %s", ufunc_name);
 
