@@ -1437,14 +1437,20 @@ ensure_dtype_nbo(PyArray_Descr *type)
 }
 
 NPY_NO_EXPORT HPy
-hensure_dtype_nbo(HPyContext *ctx, HPy type)
+hensure_dtype_nbo_with_struct(HPyContext *ctx, HPy type, PyArray_Descr *type_struct)
 {
-    if (PyArray_ISNBO(PyArray_Descr_AsStruct(ctx, type)->byteorder)) {
+    if (PyArray_ISNBO(type_struct->byteorder)) {
         return HPy_Dup(ctx, type);
     }
     else {
         return HPyArray_DescrNewByteorder(ctx, type, NPY_NATIVE);
     }
+}
+
+NPY_NO_EXPORT HPy
+hensure_dtype_nbo(HPyContext *ctx, HPy type)
+{
+    return hensure_dtype_nbo_with_struct(ctx, type, PyArray_Descr_AsStruct(ctx, type));
 }
 
 
@@ -1655,15 +1661,7 @@ HPyArray_FindConcatenationDescriptor(HPyContext *ctx,
             result = HPy_NULL;
             goto finish;
         }
-        CAPI_WARN("calling NPY_DT_SLOTS(common_dtype)->common_instance");
-        PyArray_Descr *py_result = (PyArray_Descr *)HPy_AsPyObject(ctx, result);
-        PyArray_Descr *py_curr = (PyArray_Descr *)HPy_AsPyObject(ctx, curr);
-        PyArray_Descr *py_ci = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(py_result, py_curr);
-        HPy_Close(ctx, result);
-        result = HPy_FromPyObject(ctx, py_ci);
-        Py_XDECREF(py_ci);
-        Py_XDECREF(py_curr);
-        Py_XDECREF(py_result);
+        result = HNPY_DT_SLOTS(ctx, common_dtype)->hpy_common_instance(ctx, result, curr);
         HPy_Close(ctx, curr);
         if (HPy_IsNull(result)) {
             goto finish;
@@ -1709,35 +1707,30 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
         return HPy_Dup(ctx, h_type1);
     }
 
-    CAPI_WARN("HPyArray_PromoteTypes: calling PyArray_CommonDType (common_dtype)");
-    PyArray_DTypeMeta *py_dtype1 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type1);
-    PyArray_DTypeMeta *py_dtype2 = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, h_type2);
-    PyArray_DTypeMeta *common_dtype = PyArray_CommonDType(NPY_DTYPE(py_dtype1), NPY_DTYPE(py_dtype2));
-    HPy h_common_dtype = HPy_FromPyObject(ctx, (PyObject *)common_dtype);
-    Py_DECREF(py_dtype1);
-    Py_DECREF(py_dtype2);
+    HPy common_dtype = HPyArray_CommonDType(ctx, HNPY_DTYPE(ctx, h_type1), HNPY_DTYPE(ctx, h_type2));
 
-    if (HPy_IsNull(h_common_dtype)) {
+    if (HPy_IsNull(common_dtype)) {
         return HPy_NULL;
     }
 
-    if (!NPY_DT_is_parametric(common_dtype)) {
+    PyArray_DTypeMeta *common_dtype_struct = PyArray_DTypeMeta_AsStruct(ctx, common_dtype);
+    if (!NPY_DT_is_parametric(common_dtype_struct)) {
         /* Note that this path loses all metadata */
-        res = HNPY_DT_CALL_default_descr(ctx, h_common_dtype, common_dtype);
-        HPy_Close(ctx, h_common_dtype);
+        res = HNPY_DT_CALL_default_descr(ctx, common_dtype, common_dtype_struct);
+        HPy_Close(ctx, common_dtype);
         return res;
     }
 
     /* Cast the input types to the common DType if necessary */
-    HPy hh_type1 = HPyArray_CastDescrToDType(ctx, h_type1, h_common_dtype);
+    HPy hh_type1 = HPyArray_CastDescrToDType(ctx, h_type1, common_dtype);
     if (HPy_IsNull(hh_type1)) {
-        HPy_Close(ctx, h_common_dtype);
+        HPy_Close(ctx, common_dtype);
         return HPy_NULL;
     }
-    HPy hh_type2 = HPyArray_CastDescrToDType(ctx, h_type2, h_common_dtype);
+    HPy hh_type2 = HPyArray_CastDescrToDType(ctx, h_type2, common_dtype);
     if (HPy_IsNull(hh_type2)) {
         HPy_Close(ctx, hh_type1);
-        HPy_Close(ctx, h_common_dtype);
+        HPy_Close(ctx, common_dtype);
         return HPy_NULL;
     }
 
@@ -1745,14 +1738,10 @@ HPyArray_PromoteTypes(HPyContext *ctx, HPy h_type1, HPy h_type2)
      * And find the common instance of the two inputs
      * NOTE: Common instance preserves metadata (normally and of one input)
      */
-    CAPI_WARN("HPyArray_PromoteTypes: calling NPY_DT_SLOTS(common_dtype)->common_instance");
-    PyArray_Descr *py_type1 = (PyArray_Descr *)HPy_AsPyObject(ctx, hh_type1);
-    PyArray_Descr *py_type2 = (PyArray_Descr *)HPy_AsPyObject(ctx, hh_type2);
-    PyArray_Descr *py_res = NPY_DT_SLOTS(common_dtype)->common_instance(py_type1, py_type2);
-    res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    res = NPY_DT_SLOTS(common_dtype_struct)->hpy_common_instance(ctx, hh_type1, hh_type2);
     HPy_Close(ctx, hh_type1);
     HPy_Close(ctx, hh_type2);
-    HPy_Close(ctx, h_common_dtype);
+    HPy_Close(ctx, common_dtype);
     return res;
 }
 
@@ -2459,17 +2448,12 @@ HPyArray_ResultType(HPyContext *ctx,
             if (HPy_IsNull(curr)) {
                 goto error;
             }
-            PyObject *py_result = HPy_AsPyObject(ctx, result);
-            PyObject *py_curr = HPy_AsPyObject(ctx, curr);
-            CAPI_WARN("HPyArray_ResultType: calling HNPY_DT_SLOTS(ctx, common_dtype)->common_instance");
-            py_result = HNPY_DT_SLOTS(ctx, common_dtype)->common_instance(py_result, py_curr);
-            HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, py_result));
-            Py_DECREF(py_curr);
+            HPy _result = HNPY_DT_SLOTS(ctx, common_dtype)->hpy_common_instance(ctx, result, curr);
+            HPy_SETREF(ctx, result, _result);
             HPy_Close(ctx, curr);
             if (HPy_IsNull(result)) {
                 goto error;
             }
-            Py_DECREF(py_result);
         }
     }
 

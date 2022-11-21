@@ -28,8 +28,13 @@ typedef int (is_known_scalar_type_function)(HPyContext *ctx,
 typedef HPy (default_descr_function)(HPyContext *ctx, HPy cls);
 typedef PyArray_DTypeMeta *(common_dtype_function)(
         PyArray_DTypeMeta *dtype1, PyArray_DTypeMeta *dtype2);
+typedef HPy (hpy_common_dtype_function)(HPyContext *ctx, // PyArray_DTypeMeta *
+        HPy /* PyArray_DTypeMeta * */ dtype1, HPy /* PyArray_DTypeMeta * */ dtype2);
 typedef PyArray_Descr *(common_instance_function)(
         PyArray_Descr *dtype1, PyArray_Descr *dtype2);
+
+typedef HPy (hpy_common_instance_function)(HPyContext *ctx, // PyArray_Descr *
+        HPy /* PyArray_Descr * */ dtype1, HPy /* PyArray_Descr * */ dtype2);
 
 /*
  * TODO: These two functions are currently only used for experimental DType
@@ -49,7 +54,9 @@ typedef struct {
     is_known_scalar_type_function *is_known_scalar_type;
     default_descr_function *default_descr;
     common_dtype_function *common_dtype;
+    hpy_common_dtype_function *hpy_common_dtype;
     common_instance_function *common_instance;
+    hpy_common_instance_function *hpy_common_instance;
     /*
      * Currently only used for experimental user DTypes.
      * Typing as `void *` until NumPy itself uses these (directly).
@@ -157,6 +164,8 @@ static inline HPy HPY_DTYPE_SLOTS_WITHIN_DTYPE_CASTINGIMPL(HPyContext *ctx, HPy 
     (((NPY_DType_Slots *)((dtype_data)->dt_slots))->default_descr(ctx, dtype))
 #define NPY_DT_CALL_common_dtype(dtype, other)  \
     NPY_DT_SLOTS(dtype)->common_dtype(dtype, other)
+#define HNPY_DT_CALL_common_dtype(ctx, dtype, other)  \
+    HNPY_DT_SLOTS(ctx, dtype)->hpy_common_dtype(ctx, dtype, other)
 #define NPY_DT_CALL_getitem(descr, data_ptr)  \
     NPY_DT_SLOTS(NPY_DTYPE(descr))->getitem(descr, data_ptr)
 #define NPY_DT_CALL_setitem(descr, value, data_ptr)  \

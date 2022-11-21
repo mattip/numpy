@@ -650,14 +650,16 @@ NPY_NO_EXPORT HPy
 hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy obj)
 {
     CAPI_WARN("hdiscover_descr_from_pyobject_function_trampoline: calling to legacy function");
-    PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, cls);
-    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    PyArray_Descr *py_res = NPY_DT_CALL_discover_descr_from_pyobject(py_cls, py_obj);
-    HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
-    Py_XDECREF(py_res);
-    Py_XDECREF(py_obj);
-    Py_XDECREF(py_cls);
-    return res;
+    HPyErr_SetString(ctx, ctx->h_SystemError, "Here");
+    return HPy_NULL;
+    // PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, cls);
+    // PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    // PyArray_Descr *py_res = NPY_DT_CALL_discover_descr_from_pyobject(py_cls, py_obj);
+    // HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    // Py_XDECREF(py_res);
+    // Py_XDECREF(py_obj);
+    // Py_XDECREF(py_cls);
+    // return res;
 }
 
 /**
@@ -813,6 +815,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
             nonparametric_discover_descr_from_pyobject);
     dt_slots->is_known_scalar_type = python_builtins_are_known_scalar_types;
     dt_slots->common_dtype = default_builtin_common_dtype;
+    dt_slots->hpy_common_dtype = hpy_default_builtin_common_dtype;
     dt_slots->common_instance = NULL;
 
     if (PyTypeNum_ISSIGNED(new_dtype_data->type_num)) {
@@ -822,9 +825,11 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
 
     if (PyTypeNum_ISUSERDEF(descr->type_num)) {
         dt_slots->common_dtype = legacy_userdtype_common_dtype_function;
+        dt_slots->hpy_common_dtype = hpy_legacy_userdtype_common_dtype_function;
     }
     else if (descr->type_num == NPY_OBJECT) {
         dt_slots->common_dtype = object_common_dtype;
+        dt_slots->hpy_common_dtype = hpy_object_common_dtype;
     }
     else if (PyTypeNum_ISDATETIME(descr->type_num)) {
         /* Datetimes are flexible, but were not considered previously */
@@ -834,8 +839,10 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
                 discover_datetime_and_timedelta_from_pyobject);
         dt_slots->hdiscover_descr_from_pyobject = (
                 hdiscover_descr_from_pyobject_function_trampoline);
-        dt_slots->common_dtype = datetime_common_dtype;
+        dt_slots->hpy_common_dtype = hpy_datetime_common_dtype;
+        dt_slots->hpy_common_dtype = hpy_datetime_common_dtype;
         dt_slots->common_instance = datetime_type_promotion;
+        dt_slots->hpy_common_instance = hpy_datetime_type_promotion;
         if (descr->type_num == NPY_DATETIME) {
             dt_slots->is_known_scalar_type = datetime_known_scalar_types;
         }
@@ -849,6 +856,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
             dt_slots->hdiscover_descr_from_pyobject = (
                     hdiscover_descr_from_pyobject_function_trampoline);
             dt_slots->common_instance = void_common_instance;
+            dt_slots->hpy_common_instance = hpy_void_common_instance;
         }
         else {
             dt_slots->default_descr = string_and_unicode_default_descr;
@@ -858,7 +866,9 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
             dt_slots->hdiscover_descr_from_pyobject = (
                     hdiscover_descr_from_pyobject_function_trampoline);
             dt_slots->common_dtype = string_unicode_common_dtype;
+            dt_slots->hpy_common_dtype = hpy_string_unicode_common_dtype;
             dt_slots->common_instance = string_unicode_common_instance;
+            dt_slots->hpy_common_instance = hpy_string_unicode_common_instance;
         }
     }
 

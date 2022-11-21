@@ -383,41 +383,30 @@ int initumath(HPyContext *ctx, HPy m, HPy d)
         return -1;
     }
 
-    // Calls to install_logical_ufunc_promoter, install_logical_ufunc_promoter,
-    // and install_logical_ufunc_promoter removed, because they do not seem necessary
-    // for the HPy example
-    // PyObject *py_s;
-    // *py_s = HPy_AsPyObject(ctx, s);
-    // CAPI_WARN("Leaving to install_logical_ufunc_promoter");
-    // if (install_logical_ufunc_promoter(py_s) < 0) {
-    //      return -1;
-    // }
-    // Py_DECREF(py_s);
-    // HPy_Close(ctx, s);
+    if (install_logical_ufunc_promoter(ctx, s) < 0) {
+         return -1;
+    }
+    HPy_Close(ctx, s);
 
     s = HPy_GetItem_s(ctx, d, "logical_or");
     if (HPy_IsNull(s)) {
         return -1;
     }
 
-    // py_s = HPy_AsPyObject(ctx, s);
-    // if (install_logical_ufunc_promoter(py_s) < 0) {
-    //     return -1;
-    // }
-    // Py_DECREF(py_s);
-    // HPy_Close(ctx, s);
+    if (install_logical_ufunc_promoter(ctx, s) < 0) {
+         return -1;
+    }
+    HPy_Close(ctx, s);
 
     s = HPy_GetItem_s(ctx, d, "logical_xor");
     if (HPy_IsNull(s)) {
         return -1;
     }
 
-    // py_s = HPy_AsPyObject(ctx, s);
-    // if (install_logical_ufunc_promoter(py_s) < 0) {
-    //     return -1;
-    // }
-    // Py_DECREF(py_s);
-    // HPy_Close(ctx, s);
+    if (install_logical_ufunc_promoter(ctx, s) < 0) {
+         return -1;
+    }
+    HPy_Close(ctx, s);
 
     return 0;
 }

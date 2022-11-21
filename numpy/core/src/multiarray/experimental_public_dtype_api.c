@@ -376,6 +376,7 @@ static int
 PyUFunc_AddPromoter(
         PyObject *ufunc, PyObject *DType_tuple, PyObject *promoter)
 {
+    CAPI_WARN("promoter should be in an HPy signature form!!");
     if (!PyObject_TypeCheck(ufunc, &PyUFunc_Type)) {
         PyErr_SetString(PyExc_TypeError,
                 "ufunc object passed is not a ufunc!");

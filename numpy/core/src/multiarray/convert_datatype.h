@@ -51,6 +51,9 @@ NPY_NO_EXPORT PyArray_Descr *
 ensure_dtype_nbo(PyArray_Descr *type);
 
 NPY_NO_EXPORT HPy
+hensure_dtype_nbo_with_struct(HPyContext *ctx, HPy type, PyArray_Descr *type_struct);
+
+NPY_NO_EXPORT HPy
 hensure_dtype_nbo(HPyContext *ctx, HPy type);
 
 NPY_NO_EXPORT int

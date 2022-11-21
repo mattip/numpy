@@ -182,7 +182,9 @@ NPY_DType_Slots sfloat_slots = {
     .hdiscover_descr_from_pyobject = &sfloat_discover_from_hpy,
     .is_known_scalar_type = &sfloat_is_known_scalar_type,
     .common_dtype = &sfloat_common_dtype,
+    .hpy_common_dtype = &hpy_sfloat_common_dtype,
     .common_instance = &sfloat_common_instance,
+    .hpy_common_instance = &hpy_sfloat_common_instance,
     .f = {
         .getitem = (PyArray_GetItemFunc *)&sfloat_getitem,
         .setitem = (PyArray_SetItemFunc *)&sfloat_setitem,
@@ -780,19 +782,16 @@ hpy_add_loop(HPyContext *ctx, const char *ufunc_name,
  * We add some very basic promoters to allow multiplying normal and scaled
  */
 static int
-promote_to_sfloat(PyUFuncObject *NPY_UNUSED(ufunc),
-        PyArray_DTypeMeta *const NPY_UNUSED(dtypes[3]),
-        PyArray_DTypeMeta *const signature[3],
-        PyArray_DTypeMeta *new_dtypes[3])
+hpy_promote_to_sfloat(HPyContext *ctx, HPy /* PyUFuncObject * */ NPY_UNUSED(ufunc),
+        HPy /* PyArray_DTypeMeta * */ const NPY_UNUSED(dtypes[3]),
+        HPy /* PyArray_DTypeMeta * */ const signature[3],
+        HPy /* PyArray_DTypeMeta * */ new_dtypes[3])
 {
+    HPy sfloatDType = HPyGlobal_Load(ctx, HPyArray_SFloatDType);
     for (int i = 0; i < 3; i++) {
-        PyArray_DTypeMeta *new = PyArray_SFloatDType;
-        if (signature[i] != NULL) {
-            new = signature[i];
-        }
-        Py_INCREF(new);
-        new_dtypes[i] = new;
+        new_dtypes[i] = HPy_Dup(ctx, !HPy_IsNull(signature[i]) ? signature[i] : sfloatDType);
     }
+    HPy_Close(ctx, sfloatDType);
     return 0;
 }
 
@@ -884,7 +883,7 @@ init_ufuncs(HPyContext *ctx) {
             h_PyArray_SFloatDType, double_DType, HPy_NULL};
 
     HPy promoter = HPyCapsule_New(ctx,
-            &promote_to_sfloat, "numpy._ufunc_promoter", NULL);
+            &hpy_promote_to_sfloat, "numpy._ufunc_promoter", NULL);
     if (HPy_IsNull(promoter)) {
         return -1;
     }
@@ -993,16 +992,16 @@ get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod))
     h_SFloatSingleton_data->scaling = 1;
     PyObject *py_SFloatSingleton = HPy_AsPyObject(ctx, h_SFloatSingleton);
     PyObject *py_PyArray_SFloatDType = HPy_AsPyObject(ctx, h_PyArray_SFloatDType);
-    CAPI_WARN("missing PyObject_Init");
-    PyObject *o = PyObject_Init(
-            (PyObject *)py_SFloatSingleton, (PyTypeObject *)py_PyArray_SFloatDType);
+    // CAPI_WARN("missing PyObject_Init");
+    // PyObject *o = PyObject_Init(
+    //         (PyObject *)py_SFloatSingleton, (PyTypeObject *)py_PyArray_SFloatDType);
     HPyGlobal_Store(ctx, &SFloatSingleton, h_SFloatSingleton);
     Py_DECREF(py_SFloatSingleton);
     Py_DECREF(py_PyArray_SFloatDType);
     HPy_Close(ctx, h_SFloatSingleton);
-    if (o == NULL) {
-        return HPy_NULL;
-    }
+    // if (o == NULL) {
+    //     return HPy_NULL;
+    // }
 
     if (init_casts(ctx, h_PyArray_SFloatDType) < 0) {
         return HPy_NULL;
