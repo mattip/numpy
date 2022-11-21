@@ -169,7 +169,7 @@ hpy_raw_array_assign_array(HPyContext *ctx, int ndim, npy_intp const *shape,
 
     int aligned, needs_api = 0;
 
-    HPY_NPY_BEGIN_THREADS_DEF;
+    // HPY_NPY_BEGIN_THREADS_DEF;
 
     aligned =
         copycast_isaligned(ndim, shape, dst_dtype, dst_data, dst_strides) &&
@@ -209,7 +209,7 @@ hpy_raw_array_assign_array(HPyContext *ctx, int ndim, npy_intp const *shape,
     }
 
     if (!needs_api) {
-        HPY_NPY_BEGIN_THREADS(ctx);
+        // HPY_NPY_BEGIN_THREADS(ctx);
     }
 
     npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
@@ -225,11 +225,11 @@ hpy_raw_array_assign_array(HPyContext *ctx, int ndim, npy_intp const *shape,
                             dst_data, dst_strides_it,
                             src_data, src_strides_it);
 
-    HPY_NPY_END_THREADS(ctx);
+    // HPY_NPY_END_THREADS(ctx);
     HNPY_cast_info_xfree(ctx, &cast_info);
     return 0;
 fail:
-    HPY_NPY_END_THREADS(ctx);
+    // HPY_NPY_END_THREADS(ctx);
     HNPY_cast_info_xfree(ctx, &cast_info);
     return -1;
 }
