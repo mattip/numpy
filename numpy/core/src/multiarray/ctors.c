@@ -4615,22 +4615,17 @@ _hpy_calc_length(HPyContext *ctx, HPy start, HPy stop, HPy step, HPy *next, int 
     }
 
     if (cmplx && HPy_TypeCheck(ctx, val, ctx->h_ComplexType)) {
-        PyObject *py_val = HPy_AsPyObject(ctx, val);
-        CAPI_WARN("missing PyComplex_*AsDouble");
         HPy_Close(ctx, val);
-        value = PyComplex_RealAsDouble(py_val);
+        value = HPyComplex_RealAsDouble(ctx, val);
         if (hpy_error_converting(ctx, value)) {
-            Py_DECREF(py_val);
             return -1;
         }
         len = _arange_safe_ceil_to_intp(value);
         if (hpy_error_converting(ctx, len)) {
-            Py_DECREF(py_val);
             return -1;
         }
         
-        value = PyComplex_ImagAsDouble(py_val);
-        Py_DECREF(py_val);
+        value = HPyComplex_ImagAsDouble(ctx, val);
         if (hpy_error_converting(ctx, value)) {
             return -1;
         }

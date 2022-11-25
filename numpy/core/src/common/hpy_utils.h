@@ -18,21 +18,18 @@
     #define OBJECT_FREE PyObject_Free
     #define MEM_MALLOC PyMem_Malloc
     #define MEM_CALLOC PyMem_Calloc
+    #define MEM_CALLOC PyMem_RawCalloc
     #define MEM_FREE PyMem_Free
 #else
     #define OBJECT_MALLOC malloc
     #define OBJECT_FREE free
     #define MEM_MALLOC malloc
     #define MEM_CALLOC calloc
+    #define MEM_RAWCALLOC calloc
     #define MEM_FREE free
 #endif
 
-#define GRAALVM_PYTHON 1
-#ifdef GRAALVM_PYTHON
-#define HPyMem_RawCalloc calloc
-#else
-#define HPyMem_RawCalloc PyMem_RawCalloc
-#endif
+// #define GRAALVM_PYTHON 1
 
 #define HPy_SETREF(ctx, op, op2) \
     do {                         \
@@ -198,7 +195,7 @@ static NPY_INLINE HPy *
 HPy_TupleToArray(HPyContext *ctx, HPy tuple, HPy_ssize_t *n)
 {
     *n = HPy_Length(ctx, tuple);
-    HPy *h_arr = HPyMem_RawCalloc(*n, sizeof(HPy));
+    HPy *h_arr = MEM_RAWCALLOC(*n, sizeof(HPy));
     if (!h_arr)
         return NULL;
     HPy_ssize_t i;
@@ -292,6 +289,22 @@ HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy value, HPy *v1, int *v2, HPy *v3) 
     }
     HPy_Close(ctx, value);
     return 1;
+}
+
+static NPY_INLINE double
+HPyComplex_RealAsDouble(HPyContext *ctx, HPy obj) {
+    HPy real = HPy_GetAttr_s(ctx, obj, "real");
+    double val = HPyFloat_AsDouble(ctx, real);
+    HPy_Close(ctx, real);
+    return val;
+}
+
+static NPY_INLINE double
+HPyComplex_ImagAsDouble(HPyContext *ctx, HPy obj) {
+    HPy imag = HPy_GetAttr_s(ctx, obj, "imag");
+    double val = HPyFloat_AsDouble(ctx, imag);
+    HPy_Close(ctx, imag);
+    return val;
 }
 
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */

@@ -37,6 +37,7 @@ extern NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArray_Type;
 extern NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec;
 extern NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
+extern NPY_NO_EXPORT HPyGlobal HPyArrayFlags_Type;
 
 NPY_NO_EXPORT extern HPyGlobal g_checkfunc;
 

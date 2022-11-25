@@ -120,6 +120,7 @@ NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
 NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
 NPY_NO_EXPORT HPyGlobal HPyArray_Type;
 NPY_NO_EXPORT HPyGlobal HPyArrayDescr_Type;
+NPY_NO_EXPORT HPyGlobal HPyArrayFlags_Type;
 
 /* Only here for API compatibility */
 NPY_NO_EXPORT PyTypeObject PyBigArray_Type;
@@ -6716,6 +6717,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     if (HPy_IsNull(h_arrayFlagsType)) {
         goto err;
     }
+    HPyGlobal_Store(ctx, &HPyArrayFlags_Type, h_arrayFlagsType);
     _PyArrayFlags_Type_p = (PyTypeObject*)HPy_AsPyObject(ctx, h_arrayFlagsType);
 
     // Ignored for the HPy example port

@@ -137,15 +137,10 @@ HPyNumber_AsSsize_t(HPyContext *ctx, HPy item, HPy err)
 NPY_NO_EXPORT HPy
 HPyUnicode_Concat_t(HPyContext *ctx, HPy s1, HPy s2)
 {
-    HPy ret = HPy_NULL;
-    char *ss1, *ss2;
-    HPy_ssize_t ls1, ls2;
-    ss1 = HPyUnicode_AsUTF8AndSize(ctx, s1, &ls1);
-    if (ls1 == 0) {
-        return HPy_Dup(ctx, s2);
+    if (!HPyUnicode_Check(ctx, s1) || !HPyUnicode_Check(ctx, s2)) {
+        return HPy_NULL;
     }
-    ss2 = HPyUnicode_AsUTF8AndSize(ctx, s2, &ls2);
-    return HPyUnicode_FromString(ctx, strcat(ss1, ss2));
+    return HPy_Add(ctx, s1, s2);
 }
 
 NPY_NO_EXPORT int

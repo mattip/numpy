@@ -40,8 +40,10 @@ static HPy
 array_flags_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
-    HPy h_flags_type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayFlags_Type);
-    return HPyArray_NewFlagsObject(ctx, h_flags_type, h_self);
+    HPy h_flags_type = HPyGlobal_Load(ctx, HPyArrayFlags_Type);
+    HPy res = HPyArray_NewFlagsObject(ctx, h_flags_type, h_self);
+    HPy_Close(ctx, h_flags_type);
+    return res;
 }
 
 HPyDef_GETSET(array_shape, "shape", array_shape_get, array_shape_set)

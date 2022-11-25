@@ -70,7 +70,7 @@ PyArray_NewFlagsObject(PyObject *obj)
     HPyContext *ctx = npy_get_context();
     HPy h_res;
     HPy h_obj = HPy_FromPyObject(ctx, obj);
-    HPy h_flags_type = HPy_FromPyObject(ctx, (PyObject *) &PyArrayFlags_Type);
+    HPy h_flags_type = HPyGlobal_Load(ctx, HPyArrayFlags_Type);
     PyObject *res;
     h_res = HPyArray_NewFlagsObject(ctx, h_flags_type, h_obj);
     HPy_Close(ctx, h_flags_type);

@@ -1583,8 +1583,9 @@ static HPy
 _hpy_convert_from_type(HPyContext *ctx, HPy typ) {
     // TODO: create instead global handles for those:
     HPy h_PyGenericArrType_Type = HPyGlobal_Load(ctx, HPyGenericArrType_Type);
-
-    if (HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type)) {
+    int isSubtype = HPyType_IsSubtype(ctx, typ, h_PyGenericArrType_Type);
+    HPy_Close(ctx, h_PyGenericArrType_Type);
+    if (isSubtype) {
         return HPyArray_DescrFromTypeObject(ctx, typ);
     }
     else if (HPy_Is(ctx, typ, ctx->h_LongType)) {
@@ -2324,6 +2325,7 @@ arraydescr_isbuiltin_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, v
     long val;
     val = 0;
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
+    CAPI_WARN("PyArray_Descr.fields is a PyObject");
     if (self_struct->fields == Py_None) {
         val = 1;
     }
@@ -2599,9 +2601,9 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
                 HPyErr_NoMemory(ctx);
                 return HPy_NULL;
             }
-            CAPI_WARN("missing PyObject_Init");
-            PyObject *py_descr = HPy_AsPyObject(ctx, h_descr);
-            PyObject_Init((PyObject *)descr, subtype_typeobj);
+            // CAPI_WARN("missing PyObject_Init");
+            // PyObject *py_descr = HPy_AsPyObject(ctx, h_descr);
+            // PyObject_Init((PyObject *)descr, subtype_typeobj);
             descr->f = &NPY_DT_SLOTS(DType)->f;
             //Py_XINCREF(DType->scalar_type);
             HPy h_DType = HPy_FromPyObject(ctx,(PyObject *)DType);
@@ -2969,6 +2971,7 @@ arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *a
     char dtypeflags;
 
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
+    CAPI_WARN("PyArray_Descr.fields is a PyObject");
     if (self_struct->fields == Py_None) {
         return HPy_Dup(ctx, ctx->h_None);
     }
