@@ -376,7 +376,7 @@ hpy_multiarray_global_types_api = {
     # 'HPyBigArray_Type':                  (1,),
     'HPyArray_Type':                     (2,),
     'HPyArrayDescr_Type':                (3,),
-    # 'HPyArrayFlags_Type':                (4,),
+    'HPyArrayFlags_Type':                (4,),
     # 'HPyArrayIter_Type':                 (5,),
     # 'HPyArrayMultiIter_Type':            (6,),
     'HPyBoolArrType_Type':               (8,),
