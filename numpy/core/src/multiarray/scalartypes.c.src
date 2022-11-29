@@ -84,6 +84,7 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .legacy = true,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .flags = HPY_BASEFLAGS,
+    .basicsize = sizeof(PyObject),
 };
 /**end repeat**/
 
@@ -2895,6 +2896,7 @@ HPyType_Spec PyGenericArrType_Type_spec = {
     .legacy = true,
     .legacy_slots = &PyGenericArrType_Type_slots_legacy,
     .defines = PyGenericArrType_Type_hpy_slots,
+    .basicsize = sizeof(PyObject),
 };
 
 
