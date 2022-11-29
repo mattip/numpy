@@ -651,7 +651,7 @@ hpy_new_array_for_sum(HPyContext *ctx,
 {
     HPy out_buf; // PyArrayObject *
 
-    if (HPy_IsNull(out)) {
+    if (!HPy_IsNull(out)) {
         int d;
 
         /* verify that out is usable */

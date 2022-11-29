@@ -825,17 +825,14 @@ _hpy_convert_from_list(HPyContext *ctx, HPy obj, int align)
 static HPy // PyArray_Descr *
 _hpy_convert_from_commastring(HPyContext *ctx, HPy obj, int align)
 {
-    HPy listobj;
-    HPy res; // PyArray_Descr *
-    HPy _numpy_internal;
     assert(HPyUnicode_Check(ctx, obj));
-    _numpy_internal = HPyImport_ImportModule(ctx, "numpy.core._internal");
+    HPy _numpy_internal = HPyImport_ImportModule(ctx, "numpy.core._internal");
     if (HPy_IsNull(_numpy_internal)) {
         return HPy_NULL;
     }
     HPy args = HPyTuple_Pack(ctx, 1, obj);
     HPy meth = HPy_GetAttr_s(ctx, _numpy_internal, "_commastring");
-    res = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
+    HPy listobj = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
     HPy_Close(ctx, args);
     HPy_Close(ctx, meth);
     HPy_Close(ctx, _numpy_internal);
@@ -848,6 +845,7 @@ _hpy_convert_from_commastring(HPyContext *ctx, HPy obj, int align)
         HPy_Close(ctx, listobj);
         return HPy_NULL;
     }
+    HPy res; // PyArray_Descr *
     if (HPy_Length(ctx, listobj) == 1) {
         HPy item = HPy_GetItem_i(ctx, listobj, 0);
         res = _hpy_convert_from_any(ctx, item, align);
@@ -2128,7 +2126,7 @@ HPyDef_MEMBER(arraydescr_itemsize, "itemsize", HPyMember_INT, offsetof(PyArray_D
 HPyDef_MEMBER(arraydescr_alignment, "alignment", HPyMember_INT, offsetof(PyArray_Descr, alignment), .readonly=1)
 HPyDef_MEMBER(arraydescr_flags, "flags", HPyMember_BYTE, offsetof(PyArray_Descr, flags), .readonly=1)
 
-HPyDef_GET(arraydescr_subdescr_get, "subdescr", arraydescr_subdescr_get_impl)
+HPyDef_GET(arraydescr_subdescr_get, "subdtype", arraydescr_subdescr_get_impl)
 static HPy
 arraydescr_subdescr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
@@ -4139,7 +4137,7 @@ NPY_NO_EXPORT PyTypeObject *_PyArrayDescr_Type_p;
 static PyType_Slot PyArrayDescr_TypeFull_legacy_slots[] = {
     {Py_tp_str, (reprfunc)arraydescr_str},
     {Py_tp_methods, arraydescr_methods},
-    // {Py_tp_hash, PyArray_DescrHash},
+    {Py_tp_hash, PyArray_DescrHash},
     {0, 0},
 };
 

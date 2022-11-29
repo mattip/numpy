@@ -650,16 +650,14 @@ NPY_NO_EXPORT HPy
 hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy obj)
 {
     CAPI_WARN("hdiscover_descr_from_pyobject_function_trampoline: calling to legacy function");
-    HPyErr_SetString(ctx, ctx->h_SystemError, "Here");
-    return HPy_NULL;
-    // PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, cls);
-    // PyObject *py_obj = HPy_AsPyObject(ctx, obj);
-    // PyArray_Descr *py_res = NPY_DT_CALL_discover_descr_from_pyobject(py_cls, py_obj);
-    // HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
-    // Py_XDECREF(py_res);
-    // Py_XDECREF(py_obj);
-    // Py_XDECREF(py_cls);
-    // return res;
+    PyArray_DTypeMeta *py_cls = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, cls);
+    PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+    PyArray_Descr *py_res = NPY_DT_CALL_discover_descr_from_pyobject(py_cls, py_obj);
+    HPy res = HPy_FromPyObject(ctx, (PyObject *)py_res);
+    Py_XDECREF(py_res);
+    Py_XDECREF(py_obj);
+    Py_XDECREF(py_cls);
+    return res;
 }
 
 /**

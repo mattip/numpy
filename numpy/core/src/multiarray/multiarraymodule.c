@@ -1188,11 +1188,10 @@ HPyArray_ConcatenateInto(HPyContext *ctx, HPy op, int axis,
                 narrays, arrays, axis, ret, dtype, casting);
     }
 
-    HPy_CloseAndFreeArray(ctx, arrays, narrays);
-    // for (iarrays = 0; iarrays < narrays; ++iarrays) {
-    //     Py_DECREF(arrays[iarrays]);
-    // }
-    // PyArray_free(arrays);
+    for (iarrays = 0; iarrays < narrays; ++iarrays) {
+        HPy_Close(ctx, arrays[iarrays]);
+    }
+    PyArray_free(arrays);
 
     return ret;
 
@@ -3018,10 +3017,7 @@ array_copyto_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     HPyTracker ht;
 
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|OO:copyto", kwlist,
-            &PyArray_Type, &dst,
-            &PyArray_Converter, &src,
-            &PyArray_CastingConverter, &casting,
-            &wheremask_in)) {
+            &dst, &h_src, &h_casting, &wheremask_in)) {
         goto fail;
     }
 
@@ -3081,9 +3077,6 @@ array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
 
     HPyTracker ht;
     HPy h_shape = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL;
-            HPyErr_SetString(ctx, ctx->h_ValueError,
-                            "Here5");
-            return HPy_NULL;
     // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
     if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:empty",

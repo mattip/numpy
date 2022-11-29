@@ -524,7 +524,8 @@ PyArray_AxisConverter(PyObject *obj, int *axis)
 NPY_NO_EXPORT int
 HPyArray_AxisConverter(HPyContext *ctx, HPy obj, int *axis)
 {
-    if (HPy_Is(ctx, obj, ctx->h_None)) {
+    // HPY TODO: the default for kwargs parsing is NULL with HPY
+    if (HPy_Is(ctx, obj, ctx->h_None) || HPy_IsNull(obj)) {
         *axis = NPY_MAXDIMS;
     }
     else {

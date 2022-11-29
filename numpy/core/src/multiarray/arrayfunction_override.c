@@ -631,7 +631,6 @@ cleanup:
         HPy_Close(ctx, array_function_methods[j]);
     }
     HPy_Close(ctx, types);
-    HPy_Close(ctx, relevant_args);
     return result;
 }
 

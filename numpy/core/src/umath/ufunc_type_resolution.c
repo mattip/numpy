@@ -2168,13 +2168,15 @@ hpy_set_ufunc_loop_data_types(HPyContext *ctx, HPy /* PyUFuncObject * */ self,
                         out_dtypes[i] = HPyArray_DescrFromType(ctx, type_nums[i]);
                     }
                 }
+
+                if (HPy_IsNull(out_dtypes[i])) {
+                    HPy_Close(ctx, op_0_descr);
+                    goto fail;
+                }
             }
             HPy_Close(ctx, op_0_descr);
         }
 
-        if (HPy_IsNull(out_dtypes[i])) {
-            goto fail;
-        }
 
     return 0;
 
@@ -2315,23 +2317,28 @@ hpy_linear_search_userloop_type_resolver(HPyContext *ctx,
             if (funcdata == NULL) {
                 return -1;
             }
+            CAPI_WARN("PyUFunc_Loop1d->arg_dtypes is a (PyArray_Descr **)!");
+            HPy *arg_dtypes = HPy_FromPyObjectArray(ctx, funcdata->arg_dtypes, funcdata->nargs);
             for (; funcdata != NULL; funcdata = funcdata->next) {
                 int *types = funcdata->arg_types;
                 switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
                             input_casting, output_casting,
                             any_object, use_min_scalar,
-                            types, funcdata->arg_dtypes,
+                            types, arg_dtypes,
                             out_no_castable_output, out_err_src_typecode,
                             out_err_dst_typecode)) {
                     /* Error */
                     case -1:
+                        HPy_CloseAndFreeArray(ctx, arg_dtypes, funcdata->nargs);
                         return -1;
                     /* Found a match */
                     case 1:
-                        hpy_set_ufunc_loop_data_types(ctx, self, op, out_dtype, types, funcdata->arg_dtypes);
+                        hpy_set_ufunc_loop_data_types(ctx, self, op, out_dtype, types, arg_dtypes);
+                        HPy_CloseAndFreeArray(ctx, arg_dtypes, funcdata->nargs);
                         return 1;
                 }
             }
+            HPy_CloseAndFreeArray(ctx, arg_dtypes, funcdata->nargs);
         }
     }
 
