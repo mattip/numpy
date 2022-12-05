@@ -241,8 +241,8 @@ hpy_get_implementing_args_and_methods(HPyContext *ctx, HPy relevant_args,
                 }
                 Py_DECREF(py_argument);
                 hpy_array_insert(implementing_args, num_implementing_args,
-                                      arg_index, argument);
-                HPy_Close(ctx, argument);
+                                      arg_index, HPy_Dup(ctx, argument));
+                // HPy_Close(ctx, argument);
                 hpy_array_insert(methods, num_implementing_args,
                                       arg_index, method);
                 ++num_implementing_args;

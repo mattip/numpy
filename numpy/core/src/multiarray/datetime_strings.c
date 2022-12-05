@@ -1353,13 +1353,20 @@ array_datetime_as_string(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HP
 
     static char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
 
+    HPy h_casting = HPy_NULL;
     HPyTracker ht;
     if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds,
-                                "O|OOO&:datetime_as_string", kwlist,
+                                "O|OOO:datetime_as_string", kwlist,
                                 &arr_in,
                                 &unit_in,
                                 &timezone_obj,
-                                &PyArray_CastingConverter, &casting)) {
+                                &h_casting)) {
+        return HPy_NULL;
+    }
+
+    if (!HPy_IsNull(h_casting) && 
+            HPyArray_CastingConverter(ctx, h_casting, &casting) != NPY_SUCCEED) {
+        HPyTracker_Close(ctx, ht);
         return HPy_NULL;
     }
 
