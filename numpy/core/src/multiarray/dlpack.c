@@ -289,7 +289,7 @@ array_dlpack_device(PyArrayObject *self, PyObject *NPY_UNUSED(args))
     return Py_BuildValue("ii", device.device_type, device.device_id);
 }
 
-HPyDef_METH(_from_dlpack, "_from_dlpack", _from_dlpack_impl, HPyFunc_O)
+HPyDef_METH(_from_dlpack, "_from_dlpack", HPyFunc_O)
 NPY_NO_EXPORT HPy
 _from_dlpack_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy obj) {
     HPy obj_type = HPy_Type(ctx, obj);

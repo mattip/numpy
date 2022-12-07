@@ -623,7 +623,7 @@ boundarraymethod_destroy_impl(void *object)
  */
 //    {"_resolve_descriptors", (PyCFunction)boundarraymethod__resolve_descripors,
 //     METH_O, "Resolve the given dtypes."},
-HPyDef_METH(boundarraymethod__resolve_descripors, "_resolve_descriptors", boundarraymethod__resolve_descripors_impl, HPyFunc_O, .doc="Resolve the given dtypes.")
+HPyDef_METH(boundarraymethod__resolve_descripors, "_resolve_descriptors", HPyFunc_O, .doc="Resolve the given dtypes.")
 static HPy
 boundarraymethod__resolve_descripors_impl(HPyContext *ctx,
         HPy h_self, HPy descr_tuple)
@@ -785,7 +785,7 @@ clean_up:
  * TODO: This function is not public API, and certain code paths will need
  *       changes and especially testing if they were to be made public.
  */
-HPyDef_METH(boundarraymethod__simple_strided_call, "", boundarraymethod__simple_strided_call_impl, HPyFunc_O, .doc="call on 1-d inputs and pre-allocated outputs (single call).")
+HPyDef_METH(boundarraymethod__simple_strided_call, "", HPyFunc_O, .doc="call on 1-d inputs and pre-allocated outputs (single call).")
 static HPy
 boundarraymethod__simple_strided_call_impl(HPyContext *ctx,
         HPy h_self, // PyBoundArrayMethodObject *self

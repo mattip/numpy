@@ -45,7 +45,7 @@ static int _madvise_hugepage = 1;
  *
  * It is exposed to Python as `np.core.multiarray._set_madvise_hugepage`.
  */
-HPyDef_METH(_set_madvise_hugepage, "_set_madvise_hugepage", _set_madvise_hugepage_impl, HPyFunc_O)
+HPyDef_METH(_set_madvise_hugepage, "_set_madvise_hugepage", HPyFunc_O)
 NPY_NO_EXPORT HPy
 _set_madvise_hugepage_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy enabled_obj)
 {

@@ -1330,9 +1330,9 @@ string_too_short:
 /*
  * This is the Python-exposed datetime_as_string function.
  */
-HPyDef_METH(datetime_as_string, "datetime_as_string", array_datetime_as_string, HPyFunc_KEYWORDS)
-NPY_NO_EXPORT HPy
-array_datetime_as_string(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+HPyDef_METH(datetime_as_string, "datetime_as_string", HPyFunc_KEYWORDS)
+static HPy
+datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     HPy arr_in = HPy_NULL, unit_in = HPy_NULL, timezone_obj = HPy_NULL;
     NPY_DATETIMEUNIT unit;

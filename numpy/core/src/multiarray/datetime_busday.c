@@ -933,7 +933,7 @@ finish:
  * This is the 'busday_offset' function exposed for calling
  * from Python.
  */
-HPyDef_METH(array_busday_offset, "busday_offset", array_busday_offset_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_busday_offset, "busday_offset", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_busday_offset_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -1089,7 +1089,7 @@ fail:
  * This is the 'busday_count' function exposed for calling
  * from Python.
  */
-HPyDef_METH(array_busday_count, "busday_count", array_busday_count_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_busday_count, "busday_count", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_busday_count_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -1258,7 +1258,7 @@ fail:
  * This is the 'is_busday' function exposed for calling
  * from Python.
  */
-HPyDef_METH(array_is_busday, "is_busday", array_is_busday_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_is_busday, "is_busday", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_is_busday_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {

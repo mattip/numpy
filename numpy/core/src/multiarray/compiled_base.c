@@ -108,7 +108,7 @@ minmax(const npy_intp *data, npy_intp data_len, npy_intp *mn, npy_intp *mx)
  * The third argument, if present, is a minimum length desired for the
  * output array.
  */
-HPyDef_METH(arr_bincount, "bincount", arr_bincount_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(arr_bincount, "bincount", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 arr_bincount_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -241,9 +241,9 @@ fail:
 }
 
 /* Internal function to expose check_array_monotonic to python */
-HPyDef_METH(_monotonicity, "_monotonicity", arr__monotonicity, HPyFunc_KEYWORDS)
-NPY_NO_EXPORT HPy
-arr__monotonicity(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwds)
+HPyDef_METH(_monotonicity, "_monotonicity", HPyFunc_KEYWORDS)
+static HPy
+_monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     static char *kwlist[] = {"x", NULL};
     HPy obj_x = HPy_NULL;
@@ -287,9 +287,9 @@ arr__monotonicity(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t 
  * Returns input array with values inserted sequentially into places
  * indicated by the mask
  */
-HPyDef_METH(_insert, "_insert", arr_insert, HPyFunc_KEYWORDS)
-NPY_NO_EXPORT HPy
-arr_insert(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
+HPyDef_METH(_insert, "_insert", HPyFunc_KEYWORDS)
+static HPy
+_insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
     char *src, *dest;
     npy_bool *mask_data;
@@ -531,8 +531,8 @@ binary_search_with_guess(const npy_double key, const npy_double *arr,
 
 #undef LIKELY_IN_CACHE_SIZE
 
-HPyDef_METH(arr_interp, "interp", arr_interp_impl, HPyFunc_KEYWORDS)
-NPY_NO_EXPORT HPy
+HPyDef_METH(arr_interp, "interp", HPyFunc_KEYWORDS)
+static HPy
 arr_interp_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
 
@@ -708,8 +708,8 @@ fail:
 }
 
 /* As for arr_interp but for complex fp values */
-HPyDef_METH(arr_interp_complex, "interp_complex", arr_interp_complex_impl, HPyFunc_KEYWORDS)
-NPY_NO_EXPORT HPy
+HPyDef_METH(arr_interp_complex, "interp_complex", HPyFunc_KEYWORDS)
+static HPy
 arr_interp_complex_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
 {
 
@@ -1098,7 +1098,7 @@ end_while:
 }
 
 /* ravel_multi_index implementation - see add_newdocs.py */
-HPyDef_METH(arr_ravel_multi_index, "ravel_multi_index", arr_ravel_multi_index_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(arr_ravel_multi_index, "ravel_multi_index", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 arr_ravel_multi_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -1307,7 +1307,7 @@ unravel_index_loop(HPyContext *ctx, int unravel_ndim, npy_intp const *unravel_di
 }
 
 /* unravel_index implementation - see add_newdocs.py */
-HPyDef_METH(arr_unravel_index, "unravel_index", arr_unravel_index_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(arr_unravel_index, "unravel_index", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 arr_unravel_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -1496,9 +1496,9 @@ fail:
 
 // TODO
 
-HPyDef_METH(hpy_add_docstring, "add_docstring", hpy_arr_add_docstring, HPyFunc_VARARGS)
+HPyDef_METH(hpy_add_docstring, "add_docstring", HPyFunc_VARARGS)
 static HPy
-hpy_arr_add_docstring(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+hpy_add_docstring_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
     // HPy PORT: we will ignore adding docs and behave as `Py_OptimizeFlag > 1` path
     return HPy_Dup(ctx, ctx->h_None);
@@ -2074,7 +2074,7 @@ fail:
     return HPy_NULL;
 }
 
-HPyDef_METH(io_pack, "packbits", io_pack_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(io_pack, "packbits", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -2112,7 +2112,7 @@ io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t na
     return ret;
 }
 
-HPyDef_METH(io_unpack, "unpackbits", io_unpack_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(io_unpack, "unpackbits", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 io_unpack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {

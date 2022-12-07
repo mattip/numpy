@@ -861,7 +861,7 @@ fail:
     return -1;
 }
 
-HPyDef_METH(NpyIter_NestedIters, "nested_iters", NpyIter_NestedIters_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(NpyIter_NestedIters, "nested_iters", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 NpyIter_NestedIters_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
         HPy *args, HPy_ssize_t len_args, HPy kwds)
@@ -1278,7 +1278,7 @@ npyiter_resetbasepointers(HPyContext *ctx, HPy h_self, NewNpyArrayIterObject *se
     return NPY_SUCCEED;
 }
 
-HPyDef_METH(npyiter_reset, "reset", npyiter_reset_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_reset, "reset", HPyFunc_NOARGS)
 static HPy
 npyiter_reset_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -1317,7 +1317,7 @@ npyiter_reset_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
  * Makes a copy of the iterator.  Note that the nesting is not
  * copied.
  */
-HPyDef_METH(npyiter_copy, "copy", npyiter_copy_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_copy, "copy", HPyFunc_NOARGS)
 static HPy
 npyiter_copy_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -1358,14 +1358,14 @@ npyiter_copy_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
     return h_iter;
 }
 
-HPyDef_METH(npyiter___copy__, "__copy__", npyiter___copy__impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter___copy__, "__copy__", HPyFunc_NOARGS)
 static HPy
 npyiter___copy__impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
     return npyiter_copy_impl(ctx, h_self);
 }
 
-HPyDef_METH(npyiter_iternext, "iternext", npyiter_iternext_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_iternext, "iternext", HPyFunc_NOARGS)
 static HPy
 npyiter_iternext_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -1391,7 +1391,7 @@ npyiter_iternext_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
     }
 }
 
-HPyDef_METH(npyiter_remove_axis, "remove_axis", npyiter_remove_axis_impl, HPyFunc_VARARGS)
+HPyDef_METH(npyiter_remove_axis, "remove_axis", HPyFunc_VARARGS)
 static HPy
 npyiter_remove_axis_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
                     HPy *args, HPy_ssize_t len_args)
@@ -1429,7 +1429,7 @@ npyiter_remove_axis_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_se
     return HPy_Dup(ctx, ctx->h_None);
 }
 
-HPyDef_METH(npyiter_remove_multi_index, "remove_multi_index", npyiter_remove_multi_index_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_remove_multi_index, "remove_multi_index", HPyFunc_NOARGS)
 static HPy
 npyiter_remove_multi_index_impl(
     HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
@@ -1457,7 +1457,7 @@ npyiter_remove_multi_index_impl(
     return HPy_Dup(ctx, ctx->h_None);
 }
 
-HPyDef_METH(npyiter_enable_external_loop, "enable_external_loop", npyiter_enable_external_loop_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_enable_external_loop, "enable_external_loop", HPyFunc_NOARGS)
 static HPy
 npyiter_enable_external_loop_impl(
     HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
@@ -1485,7 +1485,7 @@ npyiter_enable_external_loop_impl(
     return HPy_Dup(ctx, ctx->h_None);
 }
 
-HPyDef_METH(npyiter_debug_print, "debug_print", npyiter_debug_print_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_debug_print, "debug_print", HPyFunc_NOARGS)
 static HPy
 npyiter_debug_print_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -2518,7 +2518,7 @@ npyiter_ass_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_
     return -1;
 }
 
-HPyDef_METH(npyiter_enter, "__enter__", npyiter_enter_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_enter, "__enter__", HPyFunc_NOARGS)
 static HPy
 npyiter_enter_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -2531,7 +2531,7 @@ npyiter_enter_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
     return HPy_Dup(ctx, h_self);
 }
 
-HPyDef_METH(npyiter_close, "close", npyiter_close_impl, HPyFunc_NOARGS)
+HPyDef_METH(npyiter_close, "close", HPyFunc_NOARGS)
 static HPy
 npyiter_close_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -2552,7 +2552,7 @@ npyiter_close_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
     return HPy_Dup(ctx, ctx->h_None);
 }
 
-HPyDef_METH(npyiter_exit, "__exit__", npyiter_exit_impl, HPyFunc_VARARGS)
+HPyDef_METH(npyiter_exit, "__exit__", HPyFunc_VARARGS)
 static HPy
 npyiter_exit_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
                     HPy *args, HPy_ssize_t len_args)

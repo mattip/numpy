@@ -2361,7 +2361,7 @@ array_sizeof(PyArrayObject *self, PyObject *NPY_UNUSED(args))
     return PyLong_FromSsize_t(nbytes);
 }
 
-HPyDef_METH(array_transpose, "transpose", array_transpose_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_transpose, "transpose", HPyFunc_VARARGS)
 static HPy
 array_transpose_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy *args, HPy_ssize_t n)
 {
@@ -2517,7 +2517,7 @@ array_variance(PyArrayObject *self, PyObject *args, PyObject *kwds)
     NPY_FORWARD_NDARRAY_METHOD("_var");
 }
 
-HPyDef_METH(array_compress, "compress", array_compress_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_compress, "compress", HPyFunc_KEYWORDS)
 static HPy
 array_compress_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -2558,7 +2558,7 @@ array_compress_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs, H
 }
 
 
-HPyDef_METH(array_nonzero, "nonzero", array_nonzero_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_nonzero, "nonzero", HPyFunc_VARARGS)
 static HPy
 array_nonzero_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs)
 {
@@ -2660,7 +2660,7 @@ array_flatten(PyArrayObject *self,
     return PyArray_Flatten(self, order);
 }
 
-HPyDef_METH(array_ravel, "ravel", array_ravel_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_ravel, "ravel", HPyFunc_KEYWORDS)
 static HPy 
 array_ravel_impl(HPyContext *ctx, HPy self,
         HPy *args, HPy_ssize_t len_args, HPy kw)

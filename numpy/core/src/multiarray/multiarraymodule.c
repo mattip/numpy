@@ -103,7 +103,7 @@ NPY_NO_EXPORT int set_matmul_flags(HPyContext *ctx, HPy d); /* in ufunc_object.c
  */
 int npy_legacy_print_mode = INT_MAX;
 
-HPyDef_METH(set_legacy_print_mode, "set_legacy_print_mode", set_legacy_print_mode_impl, HPyFunc_VARARGS)
+HPyDef_METH(set_legacy_print_mode, "set_legacy_print_mode", HPyFunc_VARARGS)
 static HPy
 set_legacy_print_mode_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs)
 {
@@ -2259,7 +2259,7 @@ fail:
 }
 
 
-HPyDef_METH(array_putmask, "putmask", array_putmask_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_putmask, "putmask", HPyFunc_KEYWORDS)
 static HPy
 array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -2717,7 +2717,7 @@ fail:
 #include <stdio.h>
 #include <stdlib.h>
 
-HPyDef_METH(array_array, "array", array_array_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_array, "array", HPyFunc_KEYWORDS)
 static HPy
 array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
@@ -2780,7 +2780,7 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     return res;
 }
 
-HPyDef_METH(array_asarray, "asarray", array_asarray_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_asarray, "asarray", HPyFunc_KEYWORDS)
 static HPy
 array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
@@ -2838,7 +2838,7 @@ array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
     return res;
 }
 
-HPyDef_METH(array_asanyarray, "asanyarray", array_asanyarray_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_asanyarray, "asanyarray", HPyFunc_KEYWORDS)
 static HPy
 array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
@@ -2896,7 +2896,7 @@ array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 }
 
 
-HPyDef_METH(array_ascontiguousarray, "ascontiguousarray", array_ascontiguousarray_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_ascontiguousarray, "ascontiguousarray", HPyFunc_KEYWORDS)
 static HPy
 array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
@@ -2950,7 +2950,7 @@ array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args
     return res;
 }
 
-HPyDef_METH(array_asfortranarray, "asfortranarray", array_asfortranarray_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_asfortranarray, "asfortranarray", HPyFunc_KEYWORDS)
 static HPy
 array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
@@ -3005,7 +3005,7 @@ array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, H
 }
 
 
-HPyDef_METH(array_copyto, "copyto", array_copyto_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_copyto, "copyto", HPyFunc_KEYWORDS)
 static HPy
 array_copyto_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -3063,7 +3063,7 @@ fail:
     return HPy_NULL;
 }
 
-HPyDef_METH(array_empty, "empty", array_empty_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_empty, "empty", HPyFunc_KEYWORDS)
 static HPy
 array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
 {
@@ -3138,7 +3138,7 @@ fail:
     return HPy_NULL;
 }
 
-HPyDef_METH(array_empty_like, "empty_like", array_empty_like_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_empty_like, "empty_like", HPyFunc_KEYWORDS)
 static HPy
 array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -3190,7 +3190,7 @@ fail:
  * This function is needed for supporting Pickles of
  * numpy scalar objects.
  */
-HPyDef_METH(array_scalar, "scalar", array_scalar_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_scalar, "scalar", HPyFunc_KEYWORDS)
 static HPy
 array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -3312,7 +3312,7 @@ array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     return ret;
 }
 
-HPyDef_METH(array_zeros, "zeros", array_zeros_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_zeros, "zeros", HPyFunc_KEYWORDS)
 static HPy
 array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
@@ -3394,7 +3394,7 @@ array_count_nonzero(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
     return PyLong_FromSsize_t(count);
 }
 
-HPyDef_METH(array_fromstring, "fromstring", array_fromstring_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_fromstring, "fromstring", HPyFunc_KEYWORDS)
 static HPy
 array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
@@ -3444,7 +3444,7 @@ array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
 
 
-HPyDef_METH(array_fromfile, "fromfile", array_fromfile_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_fromfile, "fromfile", HPyFunc_KEYWORDS)
 static HPy
 array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
@@ -3559,7 +3559,7 @@ fail:
     return HPy_NULL;
 }
 
-HPyDef_METH(array_fromiter, "fromiter", array_fromiter_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_fromiter, "fromiter", HPyFunc_KEYWORDS)
 static HPy
 array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
@@ -3597,7 +3597,7 @@ array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
     return HPyArray_FromIter(ctx, iter, descr, (npy_intp)nin);
 }
 
-HPyDef_METH(array_frombuffer, "frombuffer", array_frombuffer_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_frombuffer, "frombuffer", HPyFunc_KEYWORDS)
 static HPy
 array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
 {
@@ -3638,7 +3638,7 @@ array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     return HPyArray_FromBuffer(ctx, obj, type, (npy_intp)nin, (npy_intp)offset);
 }
 
-HPyDef_METH(array_concatenate, "concatenate", array_concatenate_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_concatenate, "concatenate", HPyFunc_KEYWORDS)
 static HPy
 array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -3694,7 +3694,7 @@ array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_
     return res;
 }
 
-HPyDef_METH(array_innerproduct, "inner", array_innerproduct_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_innerproduct, "inner", HPyFunc_VARARGS)
 static HPy
 array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
@@ -3709,7 +3709,7 @@ array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy
     return ret;
 }
 
-HPyDef_METH(array_matrixproduct, "dot", array_matrixproduct_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_matrixproduct, "dot", HPyFunc_KEYWORDS)
 static HPy
 array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -3739,7 +3739,7 @@ array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HP
 }
 
 
-HPyDef_METH(array_vdot, "vdot", array_vdot_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_vdot, "vdot", HPyFunc_VARARGS)
 static HPy
 array_vdot_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
@@ -4114,7 +4114,7 @@ fail:
     return -1;
 }
 
-HPyDef_METH(array_einsum, "c_einsum", array_einsum_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_einsum, "c_einsum", HPyFunc_KEYWORDS)
 static HPy
 array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -4253,9 +4253,9 @@ finish:
     return ret;
 }
 
-HPyDef_METH(_fastCopyAndTranspose, "_fastCopyAndTranspose", array_fastCopyAndTranspose, HPyFunc_VARARGS)
+HPyDef_METH(_fastCopyAndTranspose, "_fastCopyAndTranspose", HPyFunc_VARARGS)
 static HPy
-array_fastCopyAndTranspose(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+_fastCopyAndTranspose_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
     HPy a0;
 
@@ -4301,7 +4301,7 @@ array_correlate2(PyObject *NPY_UNUSED(dummy),
     return PyArray_Correlate2(a0, shape, mode);
 }
 
-HPyDef_METH(array_arange, "arange", array_arange_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_arange, "arange", HPyFunc_KEYWORDS)
 static HPy
 array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
@@ -4395,9 +4395,9 @@ PyArray_GetNDArrayCFeatureVersion(void)
     return (unsigned int)NPY_API_VERSION;
 }
 
-HPyDef_METH(_get_ndarray_c_version, "_get_ndarray_c_version", array__get_ndarray_c_version, HPyFunc_NOARGS)
+HPyDef_METH(_get_ndarray_c_version, "_get_ndarray_c_version", HPyFunc_NOARGS)
 static HPy
-array__get_ndarray_c_version(HPyContext *ctx, HPy NPY_UNUSED(dummy))
+_get_ndarray_c_version_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy))
 {
     // static char *kwlist[] = {NULL};
 
@@ -4428,9 +4428,9 @@ PyArray_GetEndianness(void)
     }
 }
 
-HPyDef_METH(_reconstruct, "_reconstruct", array__reconstruct, HPyFunc_VARARGS)
+HPyDef_METH(_reconstruct, "_reconstruct", HPyFunc_VARARGS)
 static HPy
-array__reconstruct(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+_reconstruct_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
 
     HPy ret;
@@ -4510,7 +4510,7 @@ array_set_string_function(PyObject *NPY_UNUSED(self), PyObject *args,
     Py_RETURN_NONE;
 }
 
-HPyDef_METH(array_set_ops_function, "set_numeric_ops", array_set_ops_function_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_set_ops_function, "set_numeric_ops", HPyFunc_KEYWORDS)
 static HPy
 array_set_ops_function_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -4739,7 +4739,7 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
 
 #undef INNER_WHERE_LOOP
 
-HPyDef_METH(array_where, "where", array_where_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_where, "where", HPyFunc_VARARGS)
 static HPy
 array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
 {
@@ -4754,7 +4754,7 @@ array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
     return res;
 }
 
-HPyDef_METH(array_lexsort, "lexsort", array_lexsort_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_lexsort, "lexsort", HPyFunc_KEYWORDS)
 static HPy
 array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -4778,7 +4778,7 @@ array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
     return r;
 }
 
-HPyDef_METH(array_can_cast_safely, "can_cast", array_can_cast_safely_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_can_cast_safely, "can_cast", HPyFunc_KEYWORDS)
 static HPy
 array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -4843,7 +4843,7 @@ array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, 
     return retobj;
 }
 
-HPyDef_METH(array_promote_types, "promote_types", array_promote_types_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_promote_types, "promote_types", HPyFunc_VARARGS)
 static HPy
 array_promote_types_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
@@ -4877,7 +4877,7 @@ array_promote_types_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t narg
     return ret;
 }
 
-HPyDef_METH(array_min_scalar_type, "min_scalar_type", array_min_scalar_type_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_min_scalar_type, "min_scalar_type", HPyFunc_VARARGS)
 static HPy
 array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
@@ -4899,7 +4899,7 @@ array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t na
     return ret;
 }
 
-HPyDef_METH(array_result_type, "result_type", array_result_type_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_result_type, "result_type", HPyFunc_VARARGS)
 static HPy
 array_result_type_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
@@ -4964,7 +4964,7 @@ finish:
     return ret;
 }
 
-HPyDef_METH(array_datetime_data, "datetime_data", array_datetime_data_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_datetime_data, "datetime_data", HPyFunc_VARARGS)
 static HPy
 array_datetime_data_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
@@ -5069,7 +5069,7 @@ error:
  * The differences is that a value of -1 is valid for pad_left, exp_digits,
  * precision, which is equivalent to `None`.
  */
-HPyDef_METH(dragon4_scientific, "dragon4_scientific", dragon4_scientific_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(dragon4_scientific, "dragon4_scientific", HPyFunc_KEYWORDS)
 static HPy
 dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -5144,7 +5144,7 @@ dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
  * The differences is that a value of -1 is valid for pad_left, pad_right,
  * precision, which is equivalent to `None`.
  */
-HPyDef_METH(dragon4_positional, "dragon4_positional", dragon4_positional_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(dragon4_positional, "dragon4_positional", HPyFunc_KEYWORDS)
 static HPy
 dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -5207,7 +5207,7 @@ dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
                               min_digits, sign, trim, pad_left, pad_right);
 }
 
-HPyDef_METH(format_longfloat, "format_longfloat", format_longfloat_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(format_longfloat, "format_longfloat", HPyFunc_KEYWORDS)
 static HPy
 format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -5232,7 +5232,7 @@ format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssi
     return ret;
 }
 
-HPyDef_METH(compare_chararrays, "compare_chararrays", compare_chararrays_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(compare_chararrays, "compare_chararrays", HPyFunc_KEYWORDS)
 static HPy
 compare_chararrays_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
@@ -5555,7 +5555,7 @@ _vec_string(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *NPY_UNUSED(kw
     return 0;
 }
 
-HPyDef_METH(_hpy_vec_string, "_vec_string", _hpy_vec_string_impl, HPyFunc_VARARGS)
+HPyDef_METH(_hpy_vec_string, "_vec_string", HPyFunc_VARARGS)
 static HPy
 _hpy_vec_string_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
@@ -5614,7 +5614,7 @@ _PyArray_GetSigintBuf(void)
 
 
 static HPy
-array_shares_memory_impl(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
+_array_shares_memory_impl(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
                          HPy kwds, Py_ssize_t default_max_work,
                          int raise_exceptions)
 {
@@ -5735,22 +5735,22 @@ fail:
 }
 
 
-HPyDef_METH(array_shares_memory, "shares_memory", shares_memory_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_shares_memory, "shares_memory", HPyFunc_KEYWORDS)
 static HPy
-shares_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_shares_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    return array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_EXACT, 1);
+    return _array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_EXACT, 1);
 }
 
 
-HPyDef_METH(array_may_share_memory, "may_share_memory", array_may_share_memory_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(array_may_share_memory, "may_share_memory", HPyFunc_KEYWORDS)
 static HPy
 array_may_share_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    return array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_BOUNDS, 0);
+    return _array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_BOUNDS, 0);
 }
 
-HPyDef_METH(normalize_axis_index, "normalize_axis_index", normalize_axis_index_impl, HPyFunc_KEYWORDS)
+HPyDef_METH(normalize_axis_index, "normalize_axis_index", HPyFunc_KEYWORDS)
 static HPy
 normalize_axis_index_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kw)
 {

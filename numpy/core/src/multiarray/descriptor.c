@@ -185,7 +185,7 @@ _hpy_arraydescr_try_convert_from_dtype_attr(HPyContext *ctx, HPy obj)
  * Sets the global typeDict object, which is a dictionary mapping
  * dtype names to numpy scalar types.
  */
-HPyDef_METH(array_set_typeDict, "set_typeDict", array_set_typeDict_impl, HPyFunc_VARARGS)
+HPyDef_METH(array_set_typeDict, "set_typeDict", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
 array_set_typeDict_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {
@@ -2769,7 +2769,7 @@ _hpy_get_pickleabletype_from_datetime_metadata(HPyContext *ctx,
  *       use __setstate__. This is required for the dtype
  *       to be an immutable object.
  */
-HPyDef_METH(arraydescr_reduce, "__reduce__", arraydescr_reduce_impl, HPyFunc_NOARGS)
+HPyDef_METH(arraydescr_reduce, "__reduce__", HPyFunc_NOARGS)
 static HPy
 arraydescr_reduce_impl(HPyContext *ctx, HPy self)
 {
@@ -2955,7 +2955,7 @@ _hpy_descr_find_object(HPyContext *ctx, HPy self, PyArray_Descr *self_struct)
  * state is at least byteorder, subarray, and fields but could include elsize
  * and alignment for EXTENDED arrays
  */
- HPyDef_METH(arraydescr_setstate, "__setstate__", arraydescr_setstate_impl, HPyFunc_VARARGS)
+ HPyDef_METH(arraydescr_setstate, "__setstate__", HPyFunc_VARARGS)
 static HPy
 arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *args, HPy_ssize_t nargs)
 {
@@ -3634,7 +3634,7 @@ HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char
     return new;
 }
 
-HPyDef_METH(arraydescr_newbyteorder, "newbyteorder", arraydescr_newbyteorder_impl, HPyFunc_VARARGS)
+HPyDef_METH(arraydescr_newbyteorder, "newbyteorder", HPyFunc_VARARGS)
 static HPy
 arraydescr_newbyteorder_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *args, HPy_ssize_t nargs)
 {

@@ -211,7 +211,7 @@ sfloat_scaled_copy(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self, doub
 }
 
 
-HPyDef_METH(python_sfloat_scaled_copy, "scaled_by", python_sfloat_scaled_copy_impl, HPyFunc_O)
+HPyDef_METH(python_sfloat_scaled_copy, "scaled_by", HPyFunc_O)
 HPy
 python_sfloat_scaled_copy_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self, HPy arg)
 {
@@ -227,7 +227,7 @@ python_sfloat_scaled_copy_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ 
 }
 
 
-HPyDef_METH(sfloat_get_scaling, "get_scaling", sfloat_get_scaling_impl, HPyFunc_NOARGS)
+HPyDef_METH(sfloat_get_scaling, "get_scaling", HPyFunc_NOARGS)
 static HPy
 sfloat_get_scaling_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
 {
@@ -928,7 +928,7 @@ static PyType_Slot sfloat_slots_legacy[] = {
  * Python entry point, exported via `umathmodule.h` and `multiarraymodule.c`.
  * TODO: Should be moved when the necessary API is not internal anymore.
  */
-HPyDef_METH(get_sfloat_dtype, "_get_sfloat_dtype", get_sfloat_dtype_impl, HPyFunc_NOARGS)
+HPyDef_METH(get_sfloat_dtype, "_get_sfloat_dtype", HPyFunc_NOARGS)
 NPY_NO_EXPORT HPy
 get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod))
 {

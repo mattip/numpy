@@ -5534,7 +5534,7 @@ ufunc_generic_vectorcall(PyObject *ufunc,
 
 typedef PyObject * (*ternaryfunc)(PyObject *, PyObject *, PyObject *);
 
-HPyDef_METH(ufunc_geterr, "geterrobj", ufunc_geterr_impl, HPyFunc_NOARGS)
+HPyDef_METH(ufunc_geterr, "geterrobj", HPyFunc_NOARGS)
 NPY_NO_EXPORT HPy
 ufunc_geterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored))
 {
@@ -5577,7 +5577,7 @@ ufunc_geterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored))
 }
 
 
-HPyDef_METH(ufunc_seterr, "seterrobj", ufunc_seterr_impl, HPyFunc_VARARGS)
+HPyDef_METH(ufunc_seterr, "seterrobj", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
 ufunc_seterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {

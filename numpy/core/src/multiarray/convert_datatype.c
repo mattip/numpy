@@ -237,7 +237,7 @@ HPyArray_GetBoundCastingImpl(HPyContext *ctx,
 }
 
 
-HPyDef_METH(_get_castingimpl, "_get_castingimpl", _get_castingimpl_impl, HPyFunc_VARARGS)
+HPyDef_METH(_get_castingimpl, "_get_castingimpl", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
 _get_castingimpl_impl(HPyContext *ctx, HPy NPY_UNUSED(module), HPy *args, HPy_ssize_t nargs)
 {

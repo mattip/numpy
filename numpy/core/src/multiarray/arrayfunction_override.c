@@ -638,9 +638,9 @@ cleanup:
  * Implements the __array_function__ protocol for a Python function, as described in
  * in NEP-18. See numpy.core.overrides for a full docstring.
  */
-HPyDef_METH(implement_array_function, "implement_array_function", array_implement_array_function, HPyFunc_VARARGS)
+HPyDef_METH(implement_array_function, "implement_array_function", HPyFunc_VARARGS)
 static HPy
-array_implement_array_function(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+implement_array_function_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
     // if (!PyArg_UnpackTuple(
     //         positional_args, "implement_array_function", 5, 5,
@@ -912,9 +912,9 @@ hpy_array_implement_c_array_function_creation(HPyContext *ctx,
 /*
  * Python wrapper for get_implementing_args_and_methods, for testing purposes.
  */
-HPyDef_METH(_get_implementing_args, "_get_implementing_args", array__get_implementing_args, HPyFunc_VARARGS)
+HPyDef_METH(_get_implementing_args, "_get_implementing_args", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
-array__get_implementing_args(
+_get_implementing_args_impl(
     HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
 {
     HPy relevant_args;

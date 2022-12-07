@@ -91,9 +91,9 @@ object_ufunc_loop_selector(HPyContext *ctx,
     return 0;
 }
 
-HPyDef_METH(frompyfunc, "frompyfunc", ufunc_frompyfunc, HPyFunc_KEYWORDS)
+HPyDef_METH(frompyfunc, "frompyfunc", HPyFunc_KEYWORDS)
 HPy
-ufunc_frompyfunc(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t args_len, HPy kwds) {
+frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t args_len, HPy kwds) {
     HPy function, pyname = HPy_NULL;
     int nin, nout, i, nargs;
     PyUFunc_PyFuncData *fdata;
@@ -201,7 +201,7 @@ ufunc_frompyfunc(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t 
 }
 
 /* docstring in numpy.add_newdocs.py */
-HPyDef_METH(add_newdoc_ufunc, "_add_newdoc_ufunc", add_newdoc_ufunc_impl, HPyFunc_VARARGS)
+HPyDef_METH(add_newdoc_ufunc, "_add_newdoc_ufunc", HPyFunc_VARARGS)
 HPy
 add_newdoc_ufunc_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
 {

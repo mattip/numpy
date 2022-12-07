@@ -658,7 +658,7 @@ fromstring_null_term_c_api(PyObject *dummy, PyObject *byte_obj)
  * The dtypes created by this function may be not be usable (or even crash
  * while using).
  */
-HPyDef_METH(create_custom_field_dtype, "create_custom_field_dtype", create_custom_field_dtype_impl, HPyFunc_VARARGS)
+HPyDef_METH(create_custom_field_dtype, "create_custom_field_dtype", HPyFunc_VARARGS)
 static HPy
 create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
 {
