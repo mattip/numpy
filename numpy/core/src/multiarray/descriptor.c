@@ -2014,7 +2014,7 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
     }
     /* Don't copy PyObject_HEAD part */
     size_t offset = 0;
-    if (PyArray_Descr_IS_LEGACY) {
+    if (SHAPE(PyArray_Descr) == HPyType_BuiltinShape_Legacy) {
         offset = sizeof(PyObject);
     }
     memcpy((char *)newdescr + offset,
@@ -4194,5 +4194,5 @@ NPY_NO_EXPORT HPyType_Spec PyArrayDescr_TypeFull_spec = {
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
     .defines = PyArrayDescr_TypeFull_defines,
     .legacy_slots = PyArrayDescr_TypeFull_legacy_slots,
-    .legacy = PyArray_Descr_IS_LEGACY
+    .builtin_shape = SHAPE(PyArray_Descr),
 };

@@ -2351,5 +2351,5 @@ NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec = {
     .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | HPy_TPFLAGS_HAVE_GC),
     .defines = array_defines,
     .legacy_slots = PyArray_Type_slots,
-    .legacy = true,
+    .builtin_shape = SHAPE(PyArrayObject),
 };

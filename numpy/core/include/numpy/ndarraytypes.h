@@ -1281,6 +1281,8 @@ typedef void (NpyIter_GetMultiIndexFunc)(NpyIter *iter,
 /* FWD declaration */
 typedef struct PyArrayIterObject_tag PyArrayIterObject;
 
+HPyType_LEGACY_HELPERS(PyArrayIterObject)
+
 /*
  * type of the function which translates a set of coordinates to a
  * pointer to the data
@@ -1430,6 +1432,7 @@ typedef struct {
         npy_intp             dimensions[NPY_MAXDIMS]; /* dimensions */
         PyArrayIterObject    *iters[NPY_MAXARGS];     /* iterators */
 } PyArrayMultiIterObject;
+HPyType_LEGACY_HELPERS(PyArrayMultiIterObject)
 
 #define _PyMIT(m) ((PyArrayMultiIterObject *)(m))
 #define PyArray_MultiIter_RESET(multi) do {                                   \
@@ -1558,6 +1561,7 @@ typedef struct {
         npy_intp              iter_count;
 
 } PyArrayMapIterObject;
+HPyType_LEGACY_HELPERS(PyArrayMapIterObject)
 
 enum {
     NPY_NEIGHBORHOOD_ITER_ZERO_PADDING,
@@ -1610,6 +1614,7 @@ typedef struct {
 
     int mode;
 } PyArrayNeighborhoodIterObject;
+HPyType_LEGACY_HELPERS(PyArrayNeighborhoodIterObject)
 
 /*
  * Neighborhood iterator API

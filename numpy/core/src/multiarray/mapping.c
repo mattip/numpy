@@ -4385,7 +4385,7 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMapIter_Type_Spec = {
     .name = "numpy.mapiter",
     .basicsize = sizeof(PyArrayMapIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-    .legacy = 1,
+    .builtin_shape = SHAPE(PyArrayMapIterObject),
     .legacy_slots = arraymapiter_slots
 };
 

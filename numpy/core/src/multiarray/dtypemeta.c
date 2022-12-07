@@ -616,7 +616,7 @@ static HPyType_Spec New_PyArrayDescr_spec_prototype = {
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE,
     .defines = new_dtype_legacy_defines,
-    .legacy = PyArray_DTypeMeta_IS_LEGACY,
+    .builtin_shape = SHAPE(PyArray_DTypeMeta),
 };
 
 
@@ -934,6 +934,6 @@ NPY_NO_EXPORT HPyType_Spec PyArrayDTypeMeta_Type_spec = {
     /* Types are garbage collected (see dtypemeta_is_gc documentation) */
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)",
-    .legacy = PyArray_DTypeMeta_IS_LEGACY,
+    .builtin_shape = SHAPE(PyArray_DTypeMeta),
     .defines = PyArrayDTypeMeta_Type_defines,
 };

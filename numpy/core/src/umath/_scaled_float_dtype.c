@@ -948,7 +948,7 @@ get_sfloat_dtype_impl(HPyContext *ctx, HPy NPY_UNUSED(mod))
         .flags = HPy_TPFLAGS_DEFAULT,
         .defines = sfloat_defines,
         .legacy_slots = sfloat_slots_legacy,
-        .legacy = true,
+        .builtin_shape = SHAPE(PyArray_SFloatDescr),
     };
 
     HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);

@@ -81,7 +81,7 @@ static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
 
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@",
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .flags = HPY_BASEFLAGS,
     .basicsize = sizeof(PyObject),
@@ -2893,7 +2893,7 @@ static HPyDef *PyGenericArrType_Type_hpy_slots[] = {
 HPyType_Spec PyGenericArrType_Type_spec = {
     .name = "numpy.generic",
     .flags = HPY_BASEFLAGS,
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = &PyGenericArrType_Type_slots_legacy,
     .defines = PyGenericArrType_Type_hpy_slots,
     .basicsize = sizeof(PyObject),
@@ -3684,7 +3684,7 @@ static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
 NPY_NO_EXPORT HPyType_Spec PyObjectArrType_Type_spec = {
     .name = "numpy.object_",
     .basicsize = sizeof(PyObjectScalarObject),
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = PyObjectArrType_Type_slots_legacy,
 };
 
@@ -3732,7 +3732,7 @@ static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy." NAME_@name@ "@ex@",
     .basicsize = sizeof(Py@NAME@ScalarObject),
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .flags = HPY_BASEFLAGS,
 };
@@ -3780,7 +3780,7 @@ static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
 NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .name = "numpy.@name@" _THIS_SIZE,
     .basicsize = sizeof(Py@NAME@ScalarObject),
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
     .flags = HPY_BASEFLAGS,
     .defines = Py@NAME@ArrType_Type_hpy_defines,
@@ -3823,7 +3823,7 @@ NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
     .basicsize = sizeof(Py@NAME@ScalarObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-    .legacy = true,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
     .defines = Py@NAME@ArrType_Type_hpy_defines,
 };
 

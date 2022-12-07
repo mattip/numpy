@@ -2617,7 +2617,7 @@ NPY_NO_EXPORT HPyType_Spec NpyIter_Type_Spec = {
     .name = "numpy.nditer",
     .basicsize = sizeof(NewNpyArrayIterObject),
     .flags = HPy_TPFLAGS_DEFAULT,
-    .legacy = 1,
+    .builtin_shape = SHAPE(NewNpyArrayIterObject),
     .legacy_slots = npyiter_slots,
     .defines = npyiter_defines,
 };
