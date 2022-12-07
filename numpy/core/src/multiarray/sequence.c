@@ -26,9 +26,9 @@
    we fill it in here so that PySequence_XXXX calls work as expected
 */
 
-HPyDef_SLOT(array_contains_slot, array_contains, HPy_sq_contains);
-NPY_NO_EXPORT int
-array_contains(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy el)
+HPyDef_SLOT(array_contains_slot, HPy_sq_contains);
+static int
+array_contains_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy el)
 {
     /* equivalent to (self == el).any() */
 
@@ -51,9 +51,9 @@ array_contains(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy el)
     return ret;
 }
 
-HPyDef_SLOT(array_concat_slot, array_concat, HPy_sq_concat);
-NPY_NO_EXPORT HPy
-array_concat(HPyContext *ctx, HPy self, HPy other)
+HPyDef_SLOT(array_concat_slot, HPy_sq_concat);
+static HPy
+array_concat_slot_impl(HPyContext *ctx, HPy self, HPy other)
 {
     /*
      * Throw a type error, when trying to concat NDArrays

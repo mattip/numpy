@@ -522,7 +522,7 @@ HPyArrayMethod_FromSpec_int(HPyContext *ctx, PyArrayMethod_Spec *spec, int priva
 }
 
 
-HPyDef_SLOT(arraymethod_dealloc, arraymethod_dealloc_impl, HPy_tp_destroy)
+HPyDef_SLOT(arraymethod_dealloc, HPy_tp_destroy)
 static void
 arraymethod_dealloc_impl(void *data)
 {
@@ -532,7 +532,7 @@ arraymethod_dealloc_impl(void *data)
     free(meth->wrapped_dtypes);
 }
 
-HPyDef_SLOT(arraymethod_traverse, arraymethod_traverse_impl, HPy_tp_traverse)
+HPyDef_SLOT(arraymethod_traverse, HPy_tp_traverse)
 static int
 arraymethod_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
 {
@@ -562,11 +562,11 @@ NPY_NO_EXPORT HPyType_Spec PyArrayMethod_Type_Spec = {
     .basicsize = sizeof(PyArrayMethodObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .defines = PyArrayMethod_Type_defines,
-    .legacy = 1,
+    .builtin_shape = SHAPE(PyArrayMethodObject),
 };
 
 
-HPyDef_SLOT(boundarraymethod_repr, boundarraymethod_repr_impl, HPy_tp_repr)
+HPyDef_SLOT(boundarraymethod_repr, HPy_tp_repr)
 static HPy
 boundarraymethod_repr_impl(HPyContext *ctx, HPy self)
 {
@@ -588,7 +588,7 @@ boundarraymethod_repr_impl(HPyContext *ctx, HPy self)
 }
 
 
-HPyDef_SLOT(boundarraymethod_traverse, boundarraymethod_traverse_impl, HPy_tp_traverse)
+HPyDef_SLOT(boundarraymethod_traverse, HPy_tp_traverse)
 static int
 boundarraymethod_traverse_impl(void *object, HPyFunc_visitproc visit, void *arg)
 {
@@ -601,7 +601,7 @@ boundarraymethod_traverse_impl(void *object, HPyFunc_visitproc visit, void *arg)
     return 0;
 }
 
-HPyDef_SLOT(boundarraymethod_destroy, boundarraymethod_destroy_impl, HPy_tp_destroy)
+HPyDef_SLOT(boundarraymethod_destroy, HPy_tp_destroy)
 static void
 boundarraymethod_destroy_impl(void *object)
 {

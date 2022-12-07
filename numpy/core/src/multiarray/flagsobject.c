@@ -612,7 +612,7 @@ arrayflags_warn_on_write_set_impl(HPyContext *ctx,
     return 0;
 }
 
-HPyDef_SLOT(arrayflags_getitem, arrayflags_getitem_impl, HPy_mp_subscript)
+HPyDef_SLOT(arrayflags_getitem, HPy_mp_subscript)
 static HPy
 arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
 {
@@ -733,7 +733,7 @@ arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
     return HPy_NULL;
 }
 
-HPyDef_SLOT(arrayflags_setitem, arrayflags_setitem_impl, HPy_mp_ass_subscript)
+HPyDef_SLOT(arrayflags_setitem, HPy_mp_ass_subscript)
 static int
 arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
 {
@@ -798,7 +798,7 @@ HPyDef arrayflags_str = {
 };
 */
 
-HPyDef_SLOT(arrayflags_repr, arrayflags_print_impl, HPy_tp_repr)
+HPyDef_SLOT(arrayflags_repr, HPy_tp_repr)
 static HPy
 arrayflags_print_impl(HPyContext *ctx, HPy self)
 {
@@ -848,7 +848,7 @@ arrayflags_print_impl(HPyContext *ctx, HPy self)
     return res;
 }
 
-HPyDef_SLOT(arrayflags_richcompare, arrayflags_richcompare_impl, HPy_tp_richcompare)
+HPyDef_SLOT(arrayflags_richcompare, HPy_tp_richcompare)
 static HPy
 arrayflags_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp cmp_op)
 {
@@ -876,7 +876,7 @@ arrayflags_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp 
     }
 }
 
-HPyDef_SLOT(arrayflags_new, arrayflags_new_impl, HPy_tp_new)
+HPyDef_SLOT(arrayflags_new, HPy_tp_new)
 static HPy
 arrayflags_new_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy NPY_UNUSED(kw))
 {

@@ -56,7 +56,7 @@ _nonzero_indices(PyObject *myBool, PyArrayObject **arrays);
  ***                    IMPLEMENT MAPPING PROTOCOL                          ***
  *****************************************************************************/
 
-HPyDef_SLOT(array_length, array_length_impl, HPy_sq_length)
+HPyDef_SLOT(array_length, HPy_sq_length)
 NPY_NO_EXPORT HPy_ssize_t
 array_length_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self)
 {
@@ -69,7 +69,7 @@ array_length_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self)
     }
 }
 
-HPyDef_SLOT(mp_array_length, mp_array_length_impl, HPy_mp_length)
+HPyDef_SLOT(mp_array_length, HPy_mp_length)
 NPY_NO_EXPORT HPy_ssize_t
 mp_array_length_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self) {
     return array_length_impl(ctx, h_self);
@@ -2235,7 +2235,7 @@ hpy_array_item_asarray(HPyContext *ctx, HPy h_self, PyArrayObject *self, npy_int
  * Negative indices are not accepted because PySequence_GetItem converts
  * them to positive indices before calling this.
  */
-HPyDef_SLOT(array_item, array_item_impl, HPy_sq_item)
+HPyDef_SLOT(array_item, HPy_sq_item)
 NPY_NO_EXPORT HPy
 array_item_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, Py_ssize_t i)
 {
@@ -2387,7 +2387,7 @@ _get_field_view(HPyContext *ctx,
 /*
  * General function for indexing a NumPy array with a Python object.
  */
-HPyDef_SLOT(array_subscript, array_subscript_impl, HPy_mp_subscript)
+HPyDef_SLOT(array_subscript, HPy_mp_subscript)
 NPY_NO_EXPORT HPy
 array_subscript_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_op)
 {
@@ -2636,7 +2636,7 @@ array_subscript_asarray(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy op)
  * Negative indices are not accepted because PySequence_SetItem converts
  * them to positive indices before calling this.
  */
-HPyDef_SLOT(array_assign_item_slot, array_assign_item, HPy_sq_ass_item);
+HPyDef_SLOT(array_assign_item_slot, HPy_sq_ass_item);
 NPY_NO_EXPORT int
 array_assign_item(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i, HPy op)
 {
@@ -2696,7 +2696,7 @@ array_assign_item(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i
 /*
  * General assignment with python indexing objects.
  */
-HPyDef_SLOT(array_assign_subscript, array_assign_subscript_impl, HPy_mp_ass_subscript);
+HPyDef_SLOT(array_assign_subscript, HPy_mp_ass_subscript);
 static int
 array_assign_subscript_impl(HPyContext *ctx, HPy h_self, HPy h_ind, HPy h_op)
 {

@@ -96,7 +96,7 @@ static int npyiter_cache_values(HPyContext *ctx, HPy h_self, NewNpyArrayIterObje
     return 0;
 }
 
-HPyDef_SLOT(npyiter_new, npyiter_new_impl, HPy_tp_new)
+HPyDef_SLOT(npyiter_new, HPy_tp_new)
 static HPy
 npyiter_new_impl(HPyContext *ctx, HPy h_subtype, HPy *NPY_UNUSED(args_h),
                           HPy_ssize_t NPY_UNUSED(nargs), HPy NPY_UNUSED(kwds))
@@ -701,7 +701,7 @@ npyiter_convert_ops(HPyContext *ctx, HPy op_in, HPy op_flags_in,
     return 1;
 }
 
-HPyDef_SLOT(npyiter_init, npyiter_init_impl, HPy_tp_init)
+HPyDef_SLOT(npyiter_init, HPy_tp_init)
 static int
 npyiter_init_impl(HPyContext *ctx, HPy h_self,
         HPy *args, HPy_ssize_t len_args, HPy kwds)
@@ -1606,7 +1606,7 @@ npyiter_itviews_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_se
 }
 
 // Not supported by HPy
-// HPyDef_SLOT(npyiter_next, hpy_npyiter_next, HPy_tp_iternext)
+// HPyDef_SLOT(npyiter_next, HPy_tp_iternext)
 static HPy
 hpy_npyiter_next(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -2122,7 +2122,7 @@ npyiter_finished_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_s
     }
 }
 
-HPyDef_SLOT(npyiter_seq_length_sq, npyiter_seq_length_sq_impl, HPy_sq_length)
+HPyDef_SLOT(npyiter_seq_length_sq, HPy_sq_length)
 static HPy_ssize_t
 npyiter_seq_length_sq_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
@@ -2135,14 +2135,14 @@ npyiter_seq_length_sq_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_
     }
 }
 
-HPyDef_SLOT(npyiter_seq_length_mp, npyiter_seq_length_mp_impl, HPy_mp_length)
+HPyDef_SLOT(npyiter_seq_length_mp, HPy_mp_length)
 static HPy_ssize_t
 npyiter_seq_length_mp_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
     return npyiter_seq_length_sq_impl(ctx, h_self);
 }
 
-HPyDef_SLOT(npyiter_seq_item, npyiter_seq_item_impl, HPy_sq_item)
+HPyDef_SLOT(npyiter_seq_item, HPy_sq_item)
 static HPy
 npyiter_seq_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i)
 {
@@ -2271,7 +2271,7 @@ npyiter_seq_slice(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self,
     return HPyTupleBuilder_Build(ctx, tb_ret);
 }
 
-HPyDef_SLOT(npyiter_seq_ass_item, npyiter_seq_ass_item_impl, HPy_sq_ass_item)
+HPyDef_SLOT(npyiter_seq_ass_item, HPy_sq_ass_item)
 NPY_NO_EXPORT int
 npyiter_seq_ass_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i, HPy v)
 {
@@ -2411,7 +2411,7 @@ npyiter_seq_ass_slice(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self,
     return 0;
 }
 
-HPyDef_SLOT(npyiter_subscript, npyiter_subscript_impl, HPy_mp_subscript)
+HPyDef_SLOT(npyiter_subscript, HPy_mp_subscript)
 static HPy
 npyiter_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy op)
 {
@@ -2461,7 +2461,7 @@ npyiter_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self
     return HPy_NULL;
 }
 
-HPyDef_SLOT(npyiter_ass_subscript, npyiter_ass_subscript_impl, HPy_mp_ass_subscript)
+HPyDef_SLOT(npyiter_ass_subscript, HPy_mp_ass_subscript)
 static int
 npyiter_ass_subscript_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy op,
                         HPy value)

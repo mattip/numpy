@@ -756,7 +756,7 @@ _buffer_get_info(void **buffer_info_cache_ptr, PyObject *obj, int flags)
 /*
  * Retrieving buffers for ndarray
  */
-HPyDef_SLOT(array_getbuffer, array_getbuffer_impl, HPy_bf_getbuffer)
+HPyDef_SLOT(array_getbuffer, HPy_bf_getbuffer)
 static int
 array_getbuffer_impl(HPyContext *ctx, HPy h_obj, HPy_buffer *view, int flags)
 {

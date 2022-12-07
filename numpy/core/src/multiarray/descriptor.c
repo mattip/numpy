@@ -2083,7 +2083,7 @@ HPyArray_DescrNew(HPyContext *ctx, HPy h_base)
  * should never be called for builtin-types unless
  * there is a reference-count problem
  */
-HPyDef_SLOT(arraydescr_dealloc, arraydescr_dealloc_impl, HPy_tp_destroy)
+HPyDef_SLOT(arraydescr_dealloc, HPy_tp_destroy)
 static void
 arraydescr_dealloc_impl(void *self_p)
 {
@@ -2571,7 +2571,7 @@ arraydescr_names_set_impl(
     return 0;
 }
 
-HPyDef_SLOT(arraydescr_new, arraydescr_new_impl, HPy_tp_new)
+HPyDef_SLOT(arraydescr_new, HPy_tp_new)
 static HPy
 arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
                            HPy_ssize_t nargs, HPy kwds)
@@ -3755,7 +3755,7 @@ finish:
 /*
  * The general dtype repr function.
  */
-HPyDef_SLOT(arraydescr_repr, arraydescr_repr_impl, HPy_tp_repr)
+HPyDef_SLOT(arraydescr_repr, HPy_tp_repr)
 static HPy
 arraydescr_repr_impl(HPyContext *ctx, HPy dtype)
 {
@@ -3790,7 +3790,7 @@ arraydescr_str(PyArray_Descr *dtype)
     return res;
 }
 
- HPyDef_SLOT(arraydescr_richcompare, arraydescr_richcompare_impl, HPy_tp_richcompare)
+ HPyDef_SLOT(arraydescr_richcompare, HPy_tp_richcompare)
 static HPy
 arraydescr_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp cmp_op)
 {
@@ -3833,7 +3833,7 @@ arraydescr_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp 
     }
 }
 
-HPyDef_SLOT(descr_nonzero, descr_nonzero_impl, HPy_nb_bool)
+HPyDef_SLOT(descr_nonzero, HPy_nb_bool)
 static int
 descr_nonzero_impl(HPyContext *ctx, HPy NPY_UNUSED(self))
 {
@@ -3846,7 +3846,7 @@ descr_nonzero_impl(HPyContext *ctx, HPy NPY_UNUSED(self))
  ****************   Implement Mapping Protocol ***************************
  *************************************************************************/
 
-HPyDef_SLOT(descr_length, descr_length_impl, HPy_mp_length)
+HPyDef_SLOT(descr_length, HPy_mp_length)
 static HPy_ssize_t
 descr_length_impl(HPyContext *ctx, HPy self0)
 {
@@ -3862,14 +3862,14 @@ descr_length_impl(HPyContext *ctx, HPy self0)
     }
 }
 
-HPyDef_SLOT(descr_length_sq, descr_length_sq_impl, HPy_sq_length)
+HPyDef_SLOT(descr_length_sq, HPy_sq_length)
 static HPy_ssize_t
 descr_length_sq_impl(HPyContext *ctx, HPy self0)
 {
     return descr_length_impl(ctx, self0);
 }
 
-HPyDef_SLOT(descr_repeat, descr_repeat_impl, HPy_sq_repeat)
+HPyDef_SLOT(descr_repeat, HPy_sq_repeat)
 static HPy
 descr_repeat_impl(HPyContext *ctx, HPy self, HPy_ssize_t length)
 {
@@ -4094,7 +4094,7 @@ arraydescr_field_subset_view(PyArray_Descr *self, PyObject *ind)
     return ret;
 }
 
-HPyDef_SLOT(descr_subscript, descr_subscript_impl, HPy_mp_subscript)
+HPyDef_SLOT(descr_subscript, HPy_mp_subscript)
 static HPy
 descr_subscript_impl(HPyContext *ctx, HPy self, HPy op)
 {

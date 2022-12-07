@@ -703,7 +703,7 @@ WARN_IN_DEALLOC(PyObject* warning, const char * msg) {
 }
 
 /* array object functions */
-HPyDef_SLOT(array_finalize, array_finalize_impl, HPy_tp_finalize)
+HPyDef_SLOT(array_finalize, HPy_tp_finalize)
 static void
 array_finalize_impl(HPyContext *ctx, HPy h_self)
 {
@@ -797,7 +797,7 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
 }
 
 /* array object functions */
-HPyDef_SLOT(array_destroy, array_destroy_impl, HPy_tp_destroy)
+HPyDef_SLOT(array_destroy, HPy_tp_destroy)
 static void
 array_destroy_impl(void *data)
 {
@@ -807,7 +807,7 @@ array_destroy_impl(void *data)
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
 }
 
-HPyDef_SLOT(array_traverse, array_traverse_impl, HPy_tp_traverse)
+HPyDef_SLOT(array_traverse, HPy_tp_traverse)
 static int
 array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
 {
@@ -1497,8 +1497,9 @@ _hpy_strings_richcompare(HPyContext *ctx,
     return result;
 }
 
+// forward declaration
 static HPy
-hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/ HPy self, HPy other, HPy_RichCmpOp cmp_op);
+hpy_array_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp cmp_op);
 
 /*
  * VOID-type arrays can only be compared equal and not-equal
@@ -1560,7 +1561,7 @@ _void_compare(HPyContext *ctx,
                 HPy_Close(ctx, a);
                 return HPy_NULL;
             }
-            temp = hpy_array_richcompare(ctx, a, b, cmp_op);
+            temp = hpy_array_richcompare_impl(ctx, a, b, cmp_op);
             HPy_Close(ctx, a);
             HPy_Close(ctx, b);
             if (HPy_IsNull(temp)) {
@@ -1786,7 +1787,7 @@ fail:
     return HPy_NULL;
 }
 
-HPyDef_SLOT(array_richcompare_def, hpy_array_richcompare, HPy_tp_richcompare);
+HPyDef_SLOT(hpy_array_richcompare, HPy_tp_richcompare);
 
 PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 {
@@ -1794,7 +1795,7 @@ PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
     HPyContext *ctx = npy_get_context();
     HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
     HPy h_other = HPy_FromPyObject(ctx, (PyObject*)other);
-    HPy result = hpy_array_richcompare(ctx, h_self, h_other, (HPy_RichCmpOp) cmp_op);
+    HPy result = hpy_array_richcompare_impl(ctx, h_self, h_other, (HPy_RichCmpOp) cmp_op);
     HPy_Close(ctx, h_self);
     HPy_Close(ctx, h_other);
     PyObject *res = HPy_AsPyObject(ctx, result);
@@ -1803,7 +1804,7 @@ PyObject *array_richcompare(PyArrayObject *self, PyObject *other, int cmp_op)
 }
 
 static HPy
-hpy_array_richcompare(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy_RichCmpOp cmp_op)
+hpy_array_richcompare_impl(HPyContext *ctx, /*PyArrayObject*/HPy self, HPy other, HPy_RichCmpOp cmp_op)
 {
     HPy result = HPy_NULL;
 
@@ -2086,7 +2087,7 @@ PyArray_CheckStrides(int elsize, int nd, npy_intp numbytes, npy_intp offset,
 }
 
 
-HPyDef_SLOT(array_new, array_new_impl, HPy_tp_new)
+HPyDef_SLOT(array_new, HPy_tp_new)
 static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
                           HPy_ssize_t nargs, HPy h_kwds)
 {
@@ -2244,7 +2245,7 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
 }
 
 
-HPyDef_SLOT(array_iter, array_iter_impl, HPy_tp_iter)
+HPyDef_SLOT(array_iter, HPy_tp_iter)
 static HPy
 array_iter_impl(HPyContext *ctx, HPy h_arr)
 {
@@ -2284,7 +2285,7 @@ static HPyDef *array_defines[] = {
     &array_subtract,
     &array_true_divide,
     &array_add,
-    &array_richcompare_def,
+    &hpy_array_richcompare,
     &array_bitwise_and,
     &array_bitwise_or,
     &array_bitwise_xor,

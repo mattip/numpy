@@ -377,7 +377,7 @@ HPyArray_GenericInplaceUnaryFunction(HPyContext *ctx, HPy m1, HPyGlobal op)
 
 
 
-HPyDef_SLOT(array_add, array_add_impl, HPy_nb_add)
+HPyDef_SLOT(array_add, HPy_nb_add)
 NPY_NO_EXPORT HPy
 array_add_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -389,7 +389,7 @@ array_add_impl(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.add);
 }
 
-HPyDef_SLOT(array_subtract, array_subtract_impl, HPy_nb_subtract);
+HPyDef_SLOT(array_subtract, HPy_nb_subtract);
 NPY_NO_EXPORT HPy
 array_subtract_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -401,9 +401,9 @@ array_subtract_impl(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.subtract);
 }
 
-HPyDef_SLOT(array_multiply_slot, array_multiply, HPy_nb_multiply);
-NPY_NO_EXPORT HPy
-array_multiply(HPyContext *ctx, HPy m1, HPy m2)
+HPyDef_SLOT(array_multiply_slot, HPy_nb_multiply);
+static HPy
+array_multiply_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     PyObject *res;
 
@@ -414,34 +414,34 @@ array_multiply(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(multiply));
 }
 
-HPyDef_SLOT(array_remainder_slot, array_remainder, HPy_nb_remainder);
-NPY_NO_EXPORT HPy
-array_remainder(HPyContext *ctx, HPy m1, HPy m2)
+HPyDef_SLOT(array_remainder_slot, HPy_nb_remainder);
+static HPy
+array_remainder_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     HPY_BINOP_GIVE_UP_IF_NEEDED(ctx,m1, m2, &array_remainder_slot);
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(remainder));
 }
 
-HPyDef_SLOT(array_divmod_slot, array_divmod, HPy_nb_divmod);
-NPY_NO_EXPORT HPy
-array_divmod(HPyContext *ctx, HPy m1, HPy m2)
+HPyDef_SLOT(array_divmod_slot, HPy_nb_divmod);
+static HPy
+array_divmod_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     HPY_BINOP_GIVE_UP_IF_NEEDED(ctx,m1, m2, &array_divmod_slot);
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(divmod));
 }
 
 /* Need this to be version dependent on account of the slot check */
-HPyDef_SLOT(array_matrix_multiply_slot, array_matrix_multiply, HPy_nb_matrix_multiply);
-NPY_NO_EXPORT HPy
-array_matrix_multiply(HPyContext *ctx, HPy m1, HPy m2)
+HPyDef_SLOT(array_matrix_multiply_slot, HPy_nb_matrix_multiply);
+static HPy
+array_matrix_multiply_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     HPY_BINOP_GIVE_UP_IF_NEEDED(ctx,m1, m2, &array_matrix_multiply_slot);
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(matmul));
 }
 
-HPyDef_SLOT(array_inplace_matrix_multiply_slot, array_inplace_matrix_multiply, HPy_nb_inplace_matrix_multiply);
-NPY_NO_EXPORT HPy
-array_inplace_matrix_multiply(HPyContext *ctx,
+HPyDef_SLOT(array_inplace_matrix_multiply_slot, HPy_nb_inplace_matrix_multiply);
+static HPy
+array_inplace_matrix_multiply_slot_impl(HPyContext *ctx,
         HPy /* PyArrayObject * */ NPY_UNUSED(m1), HPy NPY_UNUSED(m2))
 {
     HPyErr_SetString(ctx, ctx->h_TypeError,
@@ -630,7 +630,7 @@ fast_scalar_power(HPyContext *ctx, HPy h_o1, HPy h_o2, int inplace,
     return -1;
 }
 
-HPyDef_SLOT(array_power, array_power_impl, HPy_nb_power);
+HPyDef_SLOT(array_power, HPy_nb_power);
 static HPy array_power_impl(HPyContext *ctx, HPy a1, HPy o2, HPy modulo)
 {
     HPy value = HPy_NULL;
@@ -647,9 +647,9 @@ static HPy array_power_impl(HPyContext *ctx, HPy a1, HPy o2, HPy modulo)
     return value;
 }
 
-HPyDef_SLOT(array_positive_slot, array_positive, HPy_nb_positive);
-NPY_NO_EXPORT HPy
-array_positive(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
+HPyDef_SLOT(array_positive_slot, HPy_nb_positive);
+static HPy
+array_positive_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
 {
     /*
      * For backwards compatibility, where + just implied a copy,
@@ -697,9 +697,9 @@ array_positive(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
     return value;
 }
 
-HPyDef_SLOT(array_negative_slot, array_negative, HPy_nb_negative);
-NPY_NO_EXPORT HPy
-array_negative(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
+HPyDef_SLOT(array_negative_slot, HPy_nb_negative);
+static HPy
+array_negative_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
 {
     // if (can_elide_temp_unary(m1)) {
     //     return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(negative));
@@ -707,9 +707,9 @@ array_negative(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
     return HPyArray_GenericUnaryFunction(ctx, m1, hpy_n_ops.negative);
 }
 
-HPyDef_SLOT(array_absolute_slot, array_absolute, HPy_nb_absolute);
-NPY_NO_EXPORT HPy
-array_absolute(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
+HPyDef_SLOT(array_absolute_slot, HPy_nb_absolute);
+static HPy
+array_absolute_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
 {
     // if (can_elide_temp_unary(m1) && !PyArray_ISCOMPLEX(m1)) {
     //     return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(absolute));
@@ -717,9 +717,9 @@ array_absolute(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
     return HPyArray_GenericUnaryFunction(ctx, m1, hpy_n_ops.absolute);
 }
 
-HPyDef_SLOT(array_invert_slot, array_invert, HPy_nb_invert);
+HPyDef_SLOT(array_invert_slot, HPy_nb_invert);
 NPY_NO_EXPORT HPy
-array_invert(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
+array_invert_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
 {
     // if (can_elide_temp_unary(m1)) {
     //     return PyArray_GenericInplaceUnaryFunction(m1, N_OPS_GET(invert));
@@ -727,9 +727,9 @@ array_invert(HPyContext *ctx, HPy /* PyArrayObject * */ m1)
     return HPyArray_GenericUnaryFunction(ctx, m1, hpy_n_ops.invert);
 }
 
-HPyDef_SLOT(array_left_shift_slot, array_left_shift, HPy_nb_lshift);
+HPyDef_SLOT(array_left_shift_slot, HPy_nb_lshift);
 NPY_NO_EXPORT HPy
-array_left_shift(HPyContext *ctx, HPy m1, HPy m2)
+array_left_shift_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     // PyObject *res;
 
@@ -740,9 +740,9 @@ array_left_shift(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(left_shift));
 }
 
-HPyDef_SLOT(array_right_shift_slot, array_right_shift, HPy_nb_rshift);
+HPyDef_SLOT(array_right_shift_slot, HPy_nb_rshift);
 NPY_NO_EXPORT HPy
-array_right_shift(HPyContext *ctx, HPy m1, HPy m2)
+array_right_shift_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     // PyObject *res;
 
@@ -753,7 +753,7 @@ array_right_shift(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(right_shift));
 }
 
-HPyDef_SLOT(array_bitwise_and, array_bitwise_and_impl, HPy_nb_and)
+HPyDef_SLOT(array_bitwise_and, HPy_nb_and)
 NPY_NO_EXPORT HPy
 array_bitwise_and_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -766,7 +766,7 @@ array_bitwise_and_impl(HPyContext *ctx, HPy m1, HPy m2)
 }
 
 
-HPyDef_SLOT(array_bitwise_or, array_bitwise_or_impl, HPy_nb_or)
+HPyDef_SLOT(array_bitwise_or, HPy_nb_or)
 NPY_NO_EXPORT HPy
 array_bitwise_or_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -778,7 +778,7 @@ array_bitwise_or_impl(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.bitwise_or);
 }
 
-HPyDef_SLOT(array_bitwise_xor, array_bitwise_xor_impl, HPy_nb_xor)
+HPyDef_SLOT(array_bitwise_xor, HPy_nb_xor)
 NPY_NO_EXPORT HPy
 array_bitwise_xor_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -790,7 +790,7 @@ array_bitwise_xor_impl(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.bitwise_xor);
 }
 
-HPyDef_SLOT(array_inplace_add, array_inplace_add_impl, HPy_nb_inplace_add)
+HPyDef_SLOT(array_inplace_add, HPy_nb_inplace_add)
 HPy array_inplace_add_impl(HPyContext *ctx, /*PyArrayObject*/HPy m1, /*PyObject*/HPy m2)
 {    
     // If m2's nb_inplace_add != array_inplace_add => return NotImplemented
@@ -799,36 +799,36 @@ HPy array_inplace_add_impl(HPyContext *ctx, /*PyArrayObject*/HPy m1, /*PyObject*
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, hpy_n_ops.add);
 }
 
-HPyDef_SLOT(array_inplace_subtract_slot, array_inplace_subtract, HPy_nb_inplace_subtract);
-NPY_NO_EXPORT HPy
-array_inplace_subtract(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+HPyDef_SLOT(array_inplace_subtract_slot, HPy_nb_inplace_subtract);
+static HPy
+array_inplace_subtract_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_subtract_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(subtract));
 }
 
-HPyDef_SLOT(array_inplace_multiply_slot, array_inplace_multiply, HPy_nb_inplace_multiply);
+HPyDef_SLOT(array_inplace_multiply_slot, HPy_nb_inplace_multiply);
 NPY_NO_EXPORT HPy
-array_inplace_multiply(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_multiply_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_multiply_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(multiply));
 }
 
-HPyDef_SLOT(array_inplace_remainder_slot, array_inplace_remainder, HPy_nb_inplace_remainder);
+HPyDef_SLOT(array_inplace_remainder_slot, HPy_nb_inplace_remainder);
 NPY_NO_EXPORT HPy
-array_inplace_remainder(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_remainder_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_remainder_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(remainder));
 }
 
-HPyDef_SLOT(array_inplace_power_slot, array_inplace_power, HPy_nb_inplace_power);
+HPyDef_SLOT(array_inplace_power_slot, HPy_nb_inplace_power);
 NPY_NO_EXPORT HPy
-array_inplace_power(HPyContext *ctx, HPy /* PyArrayObject * */ a1, HPy o2, HPy NPY_UNUSED(modulo))
+array_inplace_power_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ a1, HPy o2, HPy NPY_UNUSED(modulo))
 {
     /* modulo is ignored! */
     HPy value = HPy_NULL;
@@ -842,54 +842,54 @@ array_inplace_power(HPyContext *ctx, HPy /* PyArrayObject * */ a1, HPy o2, HPy N
     return value;
 }
 
-HPyDef_SLOT(array_inplace_left_shift_slot, array_inplace_left_shift, HPy_nb_inplace_lshift);
+HPyDef_SLOT(array_inplace_left_shift_slot, HPy_nb_inplace_lshift);
 NPY_NO_EXPORT HPy
-array_inplace_left_shift(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_left_shift_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_left_shift_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(left_shift));
 }
 
-HPyDef_SLOT(array_inplace_right_shift_slot, array_inplace_right_shift, HPy_nb_inplace_rshift);
+HPyDef_SLOT(array_inplace_right_shift_slot, HPy_nb_inplace_rshift);
 NPY_NO_EXPORT HPy
-array_inplace_right_shift(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_right_shift_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_right_shift_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(right_shift));
 }
 
-HPyDef_SLOT(array_inplace_bitwise_and_slot, array_inplace_bitwise_and, HPy_nb_inplace_and);
+HPyDef_SLOT(array_inplace_bitwise_and_slot, HPy_nb_inplace_and);
 NPY_NO_EXPORT HPy
-array_inplace_bitwise_and(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_bitwise_and_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_bitwise_and_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(bitwise_and));
 }
 
-HPyDef_SLOT(array_inplace_bitwise_or_slot, array_inplace_bitwise_or, HPy_nb_inplace_or);
+HPyDef_SLOT(array_inplace_bitwise_or_slot, HPy_nb_inplace_or);
 NPY_NO_EXPORT HPy
-array_inplace_bitwise_or(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_bitwise_or_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_bitwise_or_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(bitwise_or));
 }
 
-HPyDef_SLOT(array_inplace_bitwise_xor_slot, array_inplace_bitwise_xor, HPy_nb_inplace_xor);
+HPyDef_SLOT(array_inplace_bitwise_xor_slot, HPy_nb_inplace_xor);
 NPY_NO_EXPORT HPy
-array_inplace_bitwise_xor(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_bitwise_xor_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_bitwise_xor_slot);
     return HPyArray_GenericInplaceBinaryFunction(ctx, m1, m2, HPY_N_OPS(bitwise_xor));
 }
 
-HPyDef_SLOT(array_floor_divide_slot, array_floor_divide, HPy_nb_floor_divide);
+HPyDef_SLOT(array_floor_divide_slot, HPy_nb_floor_divide);
 NPY_NO_EXPORT HPy
-array_floor_divide(HPyContext *ctx, HPy m1, HPy m2)
+array_floor_divide_slot_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
     // PyObject *res;
 
@@ -900,7 +900,7 @@ array_floor_divide(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, HPY_N_OPS(floor_divide));
 }
 
-HPyDef_SLOT(array_true_divide, array_true_divide_impl, HPy_nb_true_divide);
+HPyDef_SLOT(array_true_divide, HPy_nb_true_divide);
 NPY_NO_EXPORT HPy
 array_true_divide_impl(HPyContext *ctx, HPy m1, HPy m2)
 {
@@ -916,9 +916,9 @@ array_true_divide_impl(HPyContext *ctx, HPy m1, HPy m2)
     return HPyArray_GenericBinaryFunction(ctx, m1, m2, hpy_n_ops.true_divide);
 }
 
-HPyDef_SLOT(array_inplace_floor_divide_slot, array_inplace_floor_divide, HPy_nb_inplace_floor_divide);
+HPyDef_SLOT(array_inplace_floor_divide_slot, HPy_nb_inplace_floor_divide);
 NPY_NO_EXPORT HPy
-array_inplace_floor_divide(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_floor_divide_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_floor_divide_slot);
@@ -926,9 +926,9 @@ array_inplace_floor_divide(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2
                                                 HPY_N_OPS(floor_divide));
 }
 
-HPyDef_SLOT(array_inplace_true_divide_slot, array_inplace_true_divide, HPy_nb_inplace_true_divide);
+HPyDef_SLOT(array_inplace_true_divide_slot, HPy_nb_inplace_true_divide);
 NPY_NO_EXPORT HPy
-array_inplace_true_divide(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
+array_inplace_true_divide_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 {
     HPY_INPLACE_GIVE_UP_IF_NEEDED(ctx,
             m1, m2, &array_inplace_true_divide_slot);
@@ -937,9 +937,9 @@ array_inplace_true_divide(HPyContext *ctx, HPy /* PyArrayObject * */ m1, HPy m2)
 }
 
 
-HPyDef_SLOT(_array_nonzero_slot, _array_nonzero, HPy_nb_bool);
+HPyDef_SLOT(_array_nonzero_slot, HPy_nb_bool);
 NPY_NO_EXPORT int
-_array_nonzero(HPyContext *ctx, HPy /* PyArrayObject * */ mp)
+_array_nonzero_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ mp)
 {
     npy_intp n;
     PyArrayObject *mp_struct = PyArrayObject_AsStruct(ctx, mp);
@@ -1025,23 +1025,23 @@ array_scalar_forward(HPyContext *ctx, /*PyArrayObject*/ HPy h_v,
 }
 
 
-HPyDef_SLOT(array_float, array_float_impl, HPy_nb_float)
+HPyDef_SLOT(array_float, HPy_nb_float)
 NPY_NO_EXPORT HPy
 array_float_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_v)
 {
     return array_scalar_forward(ctx, h_v, &HPy_Float, " in ndarray.__float__");
 }
 
-HPyDef_SLOT(array_int, array_int_impl, HPy_nb_int)
+HPyDef_SLOT(array_int, HPy_nb_int)
 NPY_NO_EXPORT HPy
 array_int_impl(HPyContext *ctx, HPy h_v)
 {
     return array_scalar_forward(ctx, h_v, &HPy_Long, " in ndarray.__int__");
 }
 
-HPyDef_SLOT(array_index_slot, array_index, HPy_nb_index);
+HPyDef_SLOT(array_index_slot, HPy_nb_index);
 NPY_NO_EXPORT HPy
-array_index(HPyContext *ctx, HPy /* PyArrayObject * */ v)
+array_index_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ v)
 {
     PyArrayObject *v_struct = PyArrayObject_AsStruct(ctx, v);
     if (!PyArray_ISINTEGER(v_struct) || PyArray_NDIM(v_struct) != 0) {

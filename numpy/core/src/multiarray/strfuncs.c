@@ -49,9 +49,9 @@ PyArray_SetStringFunction(PyObject *op, int repr)
 }
 
 
-HPyDef_SLOT(array_repr_slot, array_repr, HPy_tp_repr);
-NPY_NO_EXPORT HPy
-array_repr(HPyContext *ctx, HPy /* PyArrayObject * */ h_self)
+HPyDef_SLOT(array_repr_slot, HPy_tp_repr);
+static HPy
+array_repr_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self)
 {
     CAPI_WARN("calling array_repr");
     static PyObject *repr = NULL;

@@ -235,7 +235,7 @@ sfloat_get_scaling_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
     return HPyFloat_FromDouble(ctx, self->scaling);
 }
 
-HPyDef_SLOT(sfloat_new, sfloat_new_impl, HPy_tp_new)
+HPyDef_SLOT(sfloat_new, HPy_tp_new)
 static HPy
 sfloat_new_impl(HPyContext *ctx, HPy NPY_UNUSED(cls), HPy *args_h,
                           HPy_ssize_t nargs, HPy kwds)
@@ -258,7 +258,7 @@ sfloat_new_impl(HPyContext *ctx, HPy NPY_UNUSED(cls), HPy *args_h,
 }
 
 
-HPyDef_SLOT(sfloat_repr, sfloat_repr_impl, HPy_tp_repr)
+HPyDef_SLOT(sfloat_repr, HPy_tp_repr)
 static HPy
 sfloat_repr_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
 {

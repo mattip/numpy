@@ -21,7 +21,7 @@
 
 #include <assert.h>
 
-HPyDef_SLOT(dtypemeta_new, dtypemeta_new_impl, HPy_tp_new)
+HPyDef_SLOT(dtypemeta_new, HPy_tp_new)
 static HPy
 dtypemeta_new_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
         HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
@@ -31,7 +31,7 @@ dtypemeta_new_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
     return HPy_NULL;
 }
 
-HPyDef_SLOT(dtypemeta_init, dtypemeta_init_impl, HPy_tp_init)
+HPyDef_SLOT(dtypemeta_init, HPy_tp_init)
 static int
 dtypemeta_init_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
         HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
@@ -61,7 +61,7 @@ dtypemeta_is_gc(PyObject *dtype_class)
     return PyType_Type.tp_is_gc(dtype_class);
 }
 
-HPyDef_SLOT(DTypeMeta_traverse, DTypeMeta_traverse_impl, HPy_tp_traverse)
+HPyDef_SLOT(DTypeMeta_traverse, HPy_tp_traverse)
 static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg) {
     /*
      * We have to traverse the base class (if it is a HeapType).
@@ -84,7 +84,7 @@ static int DTypeMeta_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *
     return 0;
 }
 
-HPyDef_SLOT(DTypeMeta_destroy, DTypeMeta_destroy_impl, HPy_tp_destroy)
+HPyDef_SLOT(DTypeMeta_destroy, HPy_tp_destroy)
 static void DTypeMeta_destroy_impl(void *self) {
     PyArray_DTypeMeta *data = (PyArray_DTypeMeta *) self;
     PyMem_Free(data->dt_slots);
@@ -92,7 +92,7 @@ static void DTypeMeta_destroy_impl(void *self) {
 
 
 
-HPyDef_SLOT(legacy_dtype_default_new, legacy_dtype_default_new_impl, HPy_tp_new)
+HPyDef_SLOT(legacy_dtype_default_new, HPy_tp_new)
 static HPy
 legacy_dtype_default_new_impl(HPyContext *ctx, HPy h_self,
         HPy *args, HPy_ssize_t nargs, HPy kwargs)

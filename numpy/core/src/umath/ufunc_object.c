@@ -6239,7 +6239,7 @@ PyUFunc_RegisterLoopForType(PyUFuncObject *ufunc,
 #undef _SETCPTR
 
 
-HPyDef_SLOT(ufunc_destroy, ufunc_destroy_impl, HPy_tp_destroy)
+HPyDef_SLOT(ufunc_destroy, HPy_tp_destroy)
 static void
 ufunc_destroy_impl(void *self_p)
 {
@@ -6263,7 +6263,7 @@ ufunc_repr(PyUFuncObject *ufunc)
     return PyUnicode_FromFormat("<ufunc '%s'>", ufunc->name);
 }
 
-HPyDef_SLOT(ufunc_traverse, ufunc_traverse_impl, HPy_tp_traverse)
+HPyDef_SLOT(ufunc_traverse, HPy_tp_traverse)
 static int
 ufunc_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg)
 {
@@ -7033,7 +7033,7 @@ ufunc_get_signature_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 
 #undef _typecharfromnum
 
-HPyDef_SLOT(ufunc_call, ufunc_call_impl, HPy_tp_call)
+HPyDef_SLOT(ufunc_call, HPy_tp_call)
 static HPy
 ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
 {
