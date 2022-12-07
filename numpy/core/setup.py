@@ -747,6 +747,7 @@ def configuration(parent_package='', top_path=None):
                     get_hpy_includes("")
                 ],
                 'extra_compiler_args': [gl_if_msvc],
+                'macros': [('HPY_ABI_HYBRID', None)],
             })
     config.add_npy_pkg_config("npymath.ini.in", "lib/npy-pkg-config",
             subst_dict)

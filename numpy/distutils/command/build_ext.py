@@ -82,7 +82,7 @@ class build_ext (old_build_ext):
         self.include_dirs = self.distribution.include_dirs
         self.include_dirs.extend(incl_dirs)
         hpy_abi = self.distribution.hpy_abi
-        assert hpy_abi in ['cpython', 'universal']
+        assert hpy_abi in ['cpython', 'hybrid', 'universal']
         print(f'{hpy_abi=}')
         for ext in self.distribution.ext_modules:
             if not hasattr(ext, 'hpy_abi'):
@@ -90,8 +90,10 @@ class build_ext (old_build_ext):
                 ext.include_dirs.extend(get_hpy_includes(hpy_abi))
                 ext.sources.extend(get_hpy_src(hpy_abi))
                 ext.define_macros.append(('HPY', None))
-                if hpy_abi == 'universal':
-                    ext.define_macros.append(('HPY_UNIVERSAL_ABI', None))
+                if hpy_abi == 'hybrid':
+                    ext.define_macros.append(('HPY_ABI_HYBRID', None))
+                elif hpy_abi == 'universal':
+                    ext.define_macros.append(('HPY_ABI_UNIVERSAL', None))
 
         old_build_ext.finalize_options(self)
         self.set_undefined_options('build',
