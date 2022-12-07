@@ -899,15 +899,15 @@ cleanup:
  * Simple exposed information, defined for each DType (class).
  */
 
-HPyDef_GET(dtypemeta_get_abstract, "_abstract", dtypemeta_get_abstract_impl)
+HPyDef_GET(dtypemeta_get_abstract, "_abstract")
 static HPy
-dtypemeta_get_abstract_impl(HPyContext *ctx, HPy self, void *ptr) {
+dtypemeta_get_abstract_get(HPyContext *ctx, HPy self, void *ptr) {
     return HPyBool_FromLong(ctx, NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, self)));
 }
 
-HPyDef_GET(dtypemeta_get_parametric, "_parametric", dtypemeta_get_parametric_impl)
+HPyDef_GET(dtypemeta_get_parametric, "_parametric")
 static HPy
-dtypemeta_get_parametric_impl(HPyContext *ctx, HPy self, void *ptr) {
+dtypemeta_get_parametric_get(HPyContext *ctx, HPy self, void *ptr) {
     return HPyBool_FromLong(ctx, NPY_DT_is_parametric(PyArray_DTypeMeta_AsStruct(ctx, self)));
 }
 

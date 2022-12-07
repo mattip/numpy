@@ -1503,9 +1503,9 @@ npyiter_debug_print_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_se
 static HPy
 npyiter_seq_item_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, HPy_ssize_t i);
 
-HPyDef_GET(npyiter_value_get, "value", npyiter_value_get_impl)
+HPyDef_GET(npyiter_value, "value")
 static HPy
-npyiter_value_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_value_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     HPy ret;
 
@@ -1543,9 +1543,9 @@ npyiter_value_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self
     return ret;
 }
 
-HPyDef_GET(npyiter_operands_get, "operands", npyiter_operands_get_impl)
+HPyDef_GET(npyiter_operands, "operands")
 static HPy
-npyiter_operands_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_operands_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     HPyTupleBuilder ret;
 
@@ -1572,9 +1572,9 @@ npyiter_operands_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_s
     return HPyTupleBuilder_Build(ctx, ret);
 }
 
-HPyDef_GET(npyiter_itviews_get, "itviews", npyiter_itviews_get_impl)
+HPyDef_GET(npyiter_itviews, "itviews")
 static HPy
-npyiter_itviews_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_itviews_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     HPyTupleBuilder ret;
 
@@ -1637,7 +1637,7 @@ hpy_npyiter_next(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
     }
     self->started = 1;
 
-    return npyiter_value_get_impl(ctx, h_self, NULL);
+    return npyiter_value_get(ctx, h_self, NULL);
 };
 
 static PyObject *
@@ -1651,9 +1651,9 @@ npyiter_next(NewNpyArrayIterObject *self)
     return ret;
 }
 
-HPyDef_GET(npyiter_shape_get, "shape", npyiter_shape_get_impl)
+HPyDef_GET(npyiter_shape, "shape")
 static HPy
-npyiter_shape_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_shape_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp ndim, shape[NPY_MAXDIMS];
 
@@ -1672,8 +1672,10 @@ npyiter_shape_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self
     return HPy_NULL;
 }
 
+HPyDef_GETSET(npyiter_multi_index, "multi_index")
+
 static HPy
-npyiter_multi_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_multi_index_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp ndim, multi_index[NPY_MAXDIMS];
 
@@ -1709,9 +1711,8 @@ npyiter_multi_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ 
     }
 }
 
-HPyDef_GETSET(npyiter_multi_index_getset, "multi_index", npyiter_multi_index_get_impl, npyiter_multi_index_set_impl)
 static int
-npyiter_multi_index_set_impl(
+npyiter_multi_index_set(
         HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp idim, ndim, multi_index[NPY_MAXDIMS];
@@ -1769,7 +1770,7 @@ npyiter_multi_index_set_impl(
 }
 
 static HPy
-npyiter_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_index_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
@@ -1789,9 +1790,9 @@ npyiter_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self
     }
 }
 
-HPyDef_GETSET(npyiter_index_getset, "index", npyiter_index_get_impl, npyiter_index_set_impl)
+HPyDef_GETSET(npyiter_index, "index")
 static int
-npyiter_index_set_impl(
+npyiter_index_set(
         HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     if (HPy_IsNull(value)) {
@@ -1833,7 +1834,7 @@ npyiter_index_set_impl(
 }
 
 static HPy
-npyiter_iterindex_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_iterindex_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || self->finished) {
@@ -1845,9 +1846,9 @@ npyiter_iterindex_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_
     return HPyLong_FromLong(ctx, NpyIter_GetIterIndex(self->iter));
 }
 
-HPyDef_GETSET(npyiter_iterindex_getset, "iterindex", npyiter_iterindex_get_impl, npyiter_iterindex_set_impl)
+HPyDef_GETSET(npyiter_iterindex, "iterindex")
 static int
-npyiter_iterindex_set_impl(
+npyiter_iterindex_set(
         HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp iterindex;
@@ -1884,7 +1885,7 @@ npyiter_iterindex_set_impl(
 }
 
 static HPy
-npyiter_iterrange_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_iterrange_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     npy_intp istart = 0, iend = 0;
     HPy ret;
@@ -1906,9 +1907,9 @@ npyiter_iterrange_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_
     return ret;
 }
 
-HPyDef_GETSET(npyiter_iterrange_getset, "iterrange", npyiter_iterrange_get_impl, npyiter_iterrange_set_impl)
+HPyDef_GETSET(npyiter_iterrange, "iterrange")
 static int
-npyiter_iterrange_set_impl(
+npyiter_iterrange_set(
         HPyContext *ctx, HPy h_self, HPy value, void *NPY_UNUSED(ignored))
 {
     npy_intp istart = 0, iend = 0;
@@ -1958,9 +1959,9 @@ npyiter_iterrange_set_impl(
     return 0;
 }
 
-HPyDef_GET(npyiter_has_delayed_bufalloc_get, "has_delayed_bufalloc", npyiter_has_delayed_bufalloc_get_impl)
+HPyDef_GET(npyiter_has_delayed_bufalloc, "has_delayed_bufalloc")
 static HPy
-npyiter_has_delayed_bufalloc_get_impl(
+npyiter_has_delayed_bufalloc_get(
         HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
@@ -1978,9 +1979,9 @@ npyiter_has_delayed_bufalloc_get_impl(
     }
 }
 
-HPyDef_GET(npyiter_iterationneedsapi_get, "iterationneedsapi", npyiter_iterationneedsapi_get_impl)
+HPyDef_GET(npyiter_iterationneedsapi, "iterationneedsapi")
 static HPy
-npyiter_iterationneedsapi_get_impl(
+npyiter_iterationneedsapi_get(
         HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
@@ -1998,9 +1999,9 @@ npyiter_iterationneedsapi_get_impl(
     }
 }
 
-HPyDef_GET(npyiter_has_multi_index_get, "has_multi_index", npyiter_has_multi_index_get_impl)
+HPyDef_GET(npyiter_has_multi_index, "has_multi_index")
 static HPy
-npyiter_has_multi_index_get_impl(
+npyiter_has_multi_index_get(
         HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
@@ -2018,9 +2019,9 @@ npyiter_has_multi_index_get_impl(
     }
 }
 
-HPyDef_GET(npyiter_has_index_get, "has_index", npyiter_has_index_get_impl)
+HPyDef_GET(npyiter_has_index, "has_index")
 static HPy
-npyiter_has_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_has_index_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
@@ -2037,9 +2038,9 @@ npyiter_has_index_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_
     }
 }
 
-HPyDef_GET(npyiter_dtypes_get, "dtypes", npyiter_dtypes_get_impl)
+HPyDef_GET(npyiter_dtypes, "dtypes")
 static HPy
-npyiter_dtypes_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_dtypes_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     HPyTupleBuilder ret;
 
@@ -2067,9 +2068,9 @@ npyiter_dtypes_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_sel
     return HPyTupleBuilder_Build(ctx, ret);
 }
 
-HPyDef_GET(npyiter_ndim_get, "ndim", npyiter_ndim_get_impl)
+HPyDef_GET(npyiter_ndim, "ndim")
 static HPy
-npyiter_ndim_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_ndim_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
@@ -2081,9 +2082,9 @@ npyiter_ndim_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self,
     return HPyLong_FromLong(ctx, NpyIter_GetNDim(self->iter));
 }
 
-HPyDef_GET(npyiter_nop_get, "nop", npyiter_nop_get_impl)
+HPyDef_GET(npyiter_nop, "nop")
 static HPy
-npyiter_nop_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_nop_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
@@ -2095,9 +2096,9 @@ npyiter_nop_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
     return HPyLong_FromLong(ctx, NpyIter_GetNOp(self->iter));
 }
 
-HPyDef_GET(npyiter_itersize_get, "itersize", npyiter_itersize_get_impl)
+HPyDef_GET(npyiter_itersize, "itersize")
 static HPy
-npyiter_itersize_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_itersize_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL) {
@@ -2109,9 +2110,9 @@ npyiter_itersize_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_s
     return HPyLong_FromLong(ctx, NpyIter_GetIterSize(self->iter));
 }
 
-HPyDef_GET(npyiter_finished_get, "finished", npyiter_finished_get_impl)
+HPyDef_GET(npyiter_finished, "finished")
 static HPy
-npyiter_finished_get_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
+npyiter_finished_get(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     NewNpyArrayIterObject *self = NewNpyArrayIterObject_AsStruct(ctx, h_self);
     if (self->iter == NULL || !self->finished) {
@@ -2580,23 +2581,23 @@ static HPyDef *npyiter_defines[] = {
     &npyiter_subscript,
 
     // getset
-    &npyiter_value_get,
-    &npyiter_shape_get,
-    &npyiter_multi_index_getset,
-    &npyiter_index_getset,
-    &npyiter_iterindex_getset,
-    &npyiter_iterrange_getset,
-    &npyiter_operands_get,
-    &npyiter_itviews_get,
-    &npyiter_has_delayed_bufalloc_get,
-    &npyiter_iterationneedsapi_get,
-    &npyiter_has_multi_index_get,
-    &npyiter_has_index_get,
-    &npyiter_dtypes_get,
-    &npyiter_ndim_get,
-    &npyiter_nop_get,
-    &npyiter_itersize_get,
-    &npyiter_finished_get,
+    &npyiter_value,
+    &npyiter_shape,
+    &npyiter_multi_index,
+    &npyiter_index,
+    &npyiter_iterindex,
+    &npyiter_iterrange,
+    &npyiter_operands,
+    &npyiter_itviews,
+    &npyiter_has_delayed_bufalloc,
+    &npyiter_iterationneedsapi,
+    &npyiter_has_multi_index,
+    &npyiter_has_index,
+    &npyiter_dtypes,
+    &npyiter_ndim,
+    &npyiter_nop,
+    &npyiter_itersize,
+    &npyiter_finished,
 
     // methods
     &npyiter_reset,

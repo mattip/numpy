@@ -1127,10 +1127,9 @@ resolve_descriptors_trampoline(
 
 
 HPyDef_GET(boundarraymethod__supports_unaligned, "_supports_unaligned",
-        boundarraymethod__supports_unaligned_impl,
         .doc = "whether the method supports unaligned inputs/outputs.")
 static HPy
-boundarraymethod__supports_unaligned_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ptr))
+boundarraymethod__supports_unaligned_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ptr))
 {
     PyBoundArrayMethodObject *data = PyBoundArrayMethodObject_AsStruct(ctx, self);
     HPy h_method = HPyField_Load(ctx, self, data->method);

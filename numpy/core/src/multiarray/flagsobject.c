@@ -326,7 +326,7 @@ _hpy_UpdateContiguousFlags(HPyContext *ctx, HPy h_ap, PyArrayObject *ap)
 
 #define _define_get(UPPER, lower) \
     static HPy \
-    arrayflags_ ## lower ## _get_impl( \
+    arrayflags_ ## lower ## _get( \
             HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored)) \
     { \
         PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self); \
@@ -339,7 +339,7 @@ static char *msg = "future versions will not create a writeable "
 
 #define _define_get_warn(UPPER, lower) \
     static HPy \
-    arrayflags_ ## lower ## _get_impl( \
+    arrayflags_ ## lower ## _get( \
             HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored)) \
     { \
         PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self); \
@@ -352,48 +352,48 @@ static char *msg = "future versions will not create a writeable "
     }
 
 
-HPyDef_GET(arrayflags_contiguous_get, "contiguous", arrayflags_contiguous_get_impl)
+HPyDef_GET(arrayflags_contiguous, "contiguous")
 _define_get(NPY_ARRAY_C_CONTIGUOUS, contiguous)
 
-HPyDef_GET(arrayflags_fortran_get, "fortran", arrayflags_fortran_get_impl)
+HPyDef_GET(arrayflags_fortran, "fortran")
 _define_get(NPY_ARRAY_F_CONTIGUOUS, fortran)
 
-HPyDef_GET(arrayflags_owndata_get, "owndata", arrayflags_owndata_get_impl)
+HPyDef_GET(arrayflags_owndata, "owndata")
 _define_get(NPY_ARRAY_OWNDATA, owndata)
 
-HPyDef_GET(arrayflags_writeable_no_warn_get, "_writeable_no_warn", arrayflags_writeable_no_warn_get_impl)
+HPyDef_GET(arrayflags_writeable_no_warn, "_writeable_no_warn")
 _define_get(NPY_ARRAY_WRITEABLE, writeable_no_warn)
 
-HPyDef_GET(arrayflags_behaved_get, "behaved", arrayflags_behaved_get_impl)
+HPyDef_GET(arrayflags_behaved, "behaved")
 _define_get_warn(NPY_ARRAY_ALIGNED|
             NPY_ARRAY_WRITEABLE, behaved)
 
-HPyDef_GET(arrayflags_carray_get, "carray", arrayflags_carray_get_impl)
+HPyDef_GET(arrayflags_carray, "carray")
 _define_get_warn(NPY_ARRAY_ALIGNED|
             NPY_ARRAY_WRITEABLE|
             NPY_ARRAY_C_CONTIGUOUS, carray)
 
-HPyDef arrayflags_c_contiguous_get = {
+static HPyDef arrayflags_c_contiguous = {
         .kind = HPyDef_Kind_GetSet,
         .getset = {
             .name = "c_contiguous",
-            .getter_impl = (HPyCFunction)arrayflags_contiguous_get_impl,
-            .getter_cpy_trampoline = (cpy_getter)arrayflags_contiguous_get_get_trampoline,
+            .getter_impl = (HPyCFunction)arrayflags_contiguous_get,
+            .getter_cpy_trampoline = (cpy_getter)arrayflags_contiguous_get_trampoline,
         }
 };
 
-HPyDef arrayflags_f_contiguous_get = {
+static HPyDef arrayflags_f_contiguous = {
         .kind = HPyDef_Kind_GetSet,
         .getset = {
             .name = "f_contiguous",
-            .getter_impl = (HPyCFunction)arrayflags_fortran_get_impl,
-            .getter_cpy_trampoline = (cpy_getter)arrayflags_fortran_get_get_trampoline,
+            .getter_impl = (HPyCFunction)arrayflags_fortran_get,
+            .getter_cpy_trampoline = (cpy_getter)arrayflags_fortran_get_trampoline,
         }
 };
 
-HPyDef_GET(arrayflags_forc_get, "forc", arrayflags_forc_get_impl)
+HPyDef_GET(arrayflags_forc, "forc")
 static HPy
-arrayflags_forc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+arrayflags_forc_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
     HPy item;
@@ -408,9 +408,9 @@ arrayflags_forc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
     return HPy_Dup(ctx, item);
 }
 
-HPyDef_GET(arrayflags_fnc_get, "fnc", arrayflags_fnc_get_impl)
+HPyDef_GET(arrayflags_fnc, "fnc")
 static HPy
-arrayflags_fnc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+arrayflags_fnc_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
     HPy item;
@@ -425,9 +425,9 @@ arrayflags_fnc_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
     return HPy_Dup(ctx, item);
 }
 
-HPyDef_GET(arrayflags_farray_get, "farray", arrayflags_farray_get_impl)
+HPyDef_GET(arrayflags_farray, "farray")
 static HPy
-arrayflags_farray_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+arrayflags_farray_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
     HPy item;
@@ -444,19 +444,19 @@ arrayflags_farray_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
     return HPy_Dup(ctx, item);
 }
 
-HPyDef_GET(arrayflags_num_get, "num", arrayflags_num_get_impl)
+HPyDef_GET(arrayflags_num, "num")
 static HPy
-arrayflags_num_get_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+arrayflags_num_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyArrayFlagsObject *data = PyArrayFlagsObject_AsStruct(ctx, self);
     return HPyLong_FromLong(ctx, data->flags);
 }
 
 /* relies on setflags order being write, align, uic */
-HPyDef_GETSET(arrayflags_writebackifcopy_getset, "writebackifcopy", arrayflags_writebackifcopy_get_impl, arrayflags_writebackifcopy_set_impl)
+HPyDef_GETSET(arrayflags_writebackifcopy, "writebackifcopy")
 _define_get(NPY_ARRAY_WRITEBACKIFCOPY, writebackifcopy)
 static int
-arrayflags_writebackifcopy_set_impl(
+arrayflags_writebackifcopy_set(
         HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     HPy res;
@@ -492,10 +492,10 @@ arrayflags_writebackifcopy_set_impl(
     return 0;
 }
 
-HPyDef_GETSET(arrayflags_aligned_getset, "aligned", arrayflags_aligned_get_impl, arrayflags_aligned_set_impl)
+HPyDef_GETSET(arrayflags_aligned, "aligned")
 _define_get(NPY_ARRAY_ALIGNED, aligned)
 static int
-arrayflags_aligned_set_impl(
+arrayflags_aligned_set(
         HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     HPy res;
@@ -532,10 +532,10 @@ arrayflags_aligned_set_impl(
 }
 
 
-HPyDef_GETSET(arrayflags_writeable_getset, "writeable", arrayflags_writeable_get_impl, arrayflags_writeable_set_impl)
+HPyDef_GETSET(arrayflags_writeable, "writeable")
 _define_get_warn(NPY_ARRAY_WRITEABLE, writeable)
 static int
-arrayflags_writeable_set_impl(
+arrayflags_writeable_set(
         HPyContext *ctx, HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     HPy res;
@@ -568,9 +568,9 @@ arrayflags_writeable_set_impl(
     return 0;
 }
 
-HPyDef_SET(arrayflags_warn_on_write_set, "_warn_on_write", arrayflags_warn_on_write_set_impl)
+HPyDef_SET(arrayflags_warn_on_write, "_warn_on_write")
 static int
-arrayflags_warn_on_write_set_impl(HPyContext *ctx,
+arrayflags_warn_on_write_se(HPyContext *ctx,
         HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     /*
@@ -646,84 +646,84 @@ arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
     case 1:
         switch(key[0]) {
         case 'C':
-            return arrayflags_contiguous_get_impl(ctx, self, NULL);
+            return arrayflags_contiguous_get(ctx, self, NULL);
         case 'F':
-            return arrayflags_fortran_get_impl(ctx, self, NULL);
+            return arrayflags_fortran_get(ctx, self, NULL);
         case 'W':
-            return arrayflags_writeable_get_impl(ctx, self, NULL);
+            return arrayflags_writeable_get(ctx, self, NULL);
         case 'B':
-            return arrayflags_behaved_get_impl(ctx, self, NULL);
+            return arrayflags_behaved_get(ctx, self, NULL);
         case 'O':
-            return arrayflags_owndata_get_impl(ctx, self, NULL);
+            return arrayflags_owndata_get(ctx, self, NULL);
         case 'A':
-            return arrayflags_aligned_get_impl(ctx, self, NULL);
+            return arrayflags_aligned_get(ctx, self, NULL);
         case 'X':
-            return arrayflags_writebackifcopy_get_impl(ctx, self, NULL);
+            return arrayflags_writebackifcopy_get(ctx, self, NULL);
         default:
             goto fail;
         }
         break;
     case 2:
         if (strncmp(key, "CA", n) == 0) {
-            return arrayflags_carray_get_impl(ctx, self, NULL);
+            return arrayflags_carray_get(ctx, self, NULL);
         }
         if (strncmp(key, "FA", n) == 0) {
-            return arrayflags_farray_get_impl(ctx, self, NULL);
+            return arrayflags_farray_get(ctx, self, NULL);
         }
         break;
     case 3:
         if (strncmp(key, "FNC", n) == 0) {
-            return arrayflags_fnc_get_impl(ctx, self, NULL);
+            return arrayflags_fnc_get(ctx, self, NULL);
         }
         break;
     case 4:
         if (strncmp(key, "FORC", n) == 0) {
-            return arrayflags_forc_get_impl(ctx, self, NULL);
+            return arrayflags_forc_get(ctx, self, NULL);
         }
         break;
     case 6:
         if (strncmp(key, "CARRAY", n) == 0) {
-            return arrayflags_carray_get_impl(ctx, self, NULL);
+            return arrayflags_carray_get(ctx, self, NULL);
         }
         if (strncmp(key, "FARRAY", n) == 0) {
-            return arrayflags_farray_get_impl(ctx, self, NULL);
+            return arrayflags_farray_get(ctx, self, NULL);
         }
         break;
     case 7:
         if (strncmp(key,"FORTRAN",n) == 0) {
-            return arrayflags_fortran_get_impl(ctx, self, NULL);
+            return arrayflags_fortran_get(ctx, self, NULL);
         }
         if (strncmp(key,"BEHAVED",n) == 0) {
-            return arrayflags_behaved_get_impl(ctx, self, NULL);
+            return arrayflags_behaved_get(ctx, self, NULL);
         }
         if (strncmp(key,"OWNDATA",n) == 0) {
-            return arrayflags_owndata_get_impl(ctx, self, NULL);
+            return arrayflags_owndata_get(ctx, self, NULL);
         }
         if (strncmp(key,"ALIGNED",n) == 0) {
-            return arrayflags_aligned_get_impl(ctx, self, NULL);
+            return arrayflags_aligned_get(ctx, self, NULL);
         }
         break;
     case 9:
         if (strncmp(key,"WRITEABLE",n) == 0) {
-            return arrayflags_writeable_get_impl(ctx, self, NULL);
+            return arrayflags_writeable_get(ctx, self, NULL);
         }
         break;
     case 10:
         if (strncmp(key,"CONTIGUOUS",n) == 0) {
-            return arrayflags_contiguous_get_impl(ctx, self, NULL);
+            return arrayflags_contiguous_get(ctx, self, NULL);
         }
         break;
     case 12:
         if (strncmp(key, "C_CONTIGUOUS", n) == 0) {
-            return arrayflags_contiguous_get_impl(ctx, self, NULL);
+            return arrayflags_contiguous_get(ctx, self, NULL);
         }
         if (strncmp(key, "F_CONTIGUOUS", n) == 0) {
-            return arrayflags_fortran_get_impl(ctx, self, NULL);
+            return arrayflags_fortran_get(ctx, self, NULL);
         }
         break;
     case 15:
         if (strncmp(key, "WRITEBACKIFCOPY", n) == 0) {
-            return arrayflags_writebackifcopy_get_impl(ctx, self, NULL);
+            return arrayflags_writebackifcopy_get(ctx, self, NULL);
         }
         break;
     }
@@ -760,15 +760,15 @@ arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
     }
     if (((n==9) && (strncmp(key, "WRITEABLE", n) == 0)) ||
         ((n==1) && (strncmp(key, "W", n) == 0))) {
-        return arrayflags_writeable_set_impl(ctx, self, item, NULL);
+        return arrayflags_writeable_set(ctx, self, item, NULL);
     }
     else if (((n==7) && (strncmp(key, "ALIGNED", n) == 0)) ||
              ((n==1) && (strncmp(key, "A", n) == 0))) {
-        return arrayflags_aligned_set_impl(ctx, self, item, NULL);
+        return arrayflags_aligned_set(ctx, self, item, NULL);
     }
     else if (((n==15) && (strncmp(key, "WRITEBACKIFCOPY", n) == 0)) ||
              ((n==1) && (strncmp(key, "X", n) == 0))) {
-        return arrayflags_writebackifcopy_set_impl(ctx, self, item, NULL);
+        return arrayflags_writebackifcopy_set(ctx, self, item, NULL);
     }
 
  fail:
@@ -910,22 +910,22 @@ static HPyDef *arrayflags_defines[] = {
         &arrayflags_getitem,
         &arrayflags_setitem,
         &arrayflags_richcompare,
-        &arrayflags_contiguous_get,
-        &arrayflags_c_contiguous_get,
-        &arrayflags_fortran_get,
-        &arrayflags_f_contiguous_get,
-        &arrayflags_writebackifcopy_getset,
-        &arrayflags_owndata_get,
-        &arrayflags_aligned_getset,
-        &arrayflags_writeable_getset,
-        &arrayflags_writeable_no_warn_get,
-        &arrayflags_warn_on_write_set,
-        &arrayflags_fnc_get,
-        &arrayflags_forc_get,
-        &arrayflags_behaved_get,
-        &arrayflags_carray_get,
-        &arrayflags_farray_get,
-        &arrayflags_num_get,
+        &arrayflags_contiguous,
+        &arrayflags_c_contiguous,
+        &arrayflags_fortran,
+        &arrayflags_f_contiguous,
+        &arrayflags_writebackifcopy,
+        &arrayflags_owndata,
+        &arrayflags_aligned,
+        &arrayflags_writeable,
+        &arrayflags_writeable_no_warn,
+        &arrayflags_warn_on_write,
+        &arrayflags_fnc,
+        &arrayflags_forc,
+        &arrayflags_behaved,
+        &arrayflags_carray,
+        &arrayflags_farray,
+        &arrayflags_num,
         NULL
 };
 

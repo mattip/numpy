@@ -6893,9 +6893,9 @@ _typecharfromnum(int num) {
 }
 
 
-HPyDef_GET(ufunc_get_doc, "__doc__", ufunc_get_doc_impl)
+HPyDef_GET(ufunc_doc, "__doc__")
 static HPy
-ufunc_get_doc_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+ufunc_doc_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     static HPy _sig_formatter;
     HPy doc;
@@ -6939,17 +6939,17 @@ ufunc_get_doc_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 }
 
 
-HPyDef_GET(ufunc_get_nin, "nin", ufunc_get_nin_impl)
+HPyDef_GET(ufunc_nin, "nin")
 static HPy
-ufunc_get_nin_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+ufunc_nin_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     return HPyLong_FromLong(ctx, ufunc->nin);
 }
 
-HPyDef_GET(ufunc_get_nout, "nout", ufunc_get_nout_impl)
+HPyDef_GET(ufunc_nout, "nout")
 static HPy
-ufunc_get_nout_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+ufunc_nout_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     return HPyLong_FromLong(ctx, ufunc->nout);
@@ -7004,9 +7004,9 @@ ufunc_get_types(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
     return list;
 }
 
-HPyDef_GET(ufunc_get_name, "__name__", ufunc_get_name_impl)
+HPyDef_GET(ufunc_name, "__name__")
 static HPy
-ufunc_get_name_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+ufunc_name_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     return HPyUnicode_FromString(ctx, ufunc->name);
@@ -7020,9 +7020,9 @@ ufunc_get_identity(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
     return _get_identity(ufunc, &reorderable);
 }
 
-HPyDef_GET(ufunc_get_signature, "signature", ufunc_get_signature_impl)
+HPyDef_GET(ufunc_signature, "signature")
 static HPy
-ufunc_get_signature_impl(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+ufunc_signature_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 {
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     if (!ufunc->core_enabled) {
@@ -7103,11 +7103,11 @@ static PyType_Slot ufunc_slots[] = {
 static HPyDef *ufunc_defines[] = {
         &ufunc_traverse,
         &ufunc_destroy,
-        &ufunc_get_doc,
-        &ufunc_get_nin,
-        &ufunc_get_nout,
-        &ufunc_get_name,
-        &ufunc_get_signature,
+        &ufunc_doc,
+        &ufunc_nin,
+        &ufunc_nout,
+        &ufunc_name,
+        &ufunc_signature,
         &ufunc_call,
         NULL
 };

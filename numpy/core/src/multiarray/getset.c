@@ -27,17 +27,17 @@
 
 /*******************  array attribute get and set routines ******************/
 
-HPyDef_GET(array_ndim_get, "ndim", array_ndim_get_impl)
+HPyDef_GET(array_ndim, "ndim")
 static HPy
-array_ndim_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
+array_ndim_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     return HPyLong_FromLong(ctx, PyArray_NDIM(self));
 }
 
-HPyDef_GET(array_flags_get, "flags", array_flags_get_impl)
+HPyDef_GET(array_flags, "flags")
 static HPy
-array_flags_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
+array_flags_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     HPy h_flags_type = HPyGlobal_Load(ctx, HPyArrayFlags_Type);
@@ -46,7 +46,7 @@ array_flags_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UN
     return res;
 }
 
-HPyDef_GETSET(array_shape, "shape", array_shape_get, array_shape_set)
+HPyDef_GETSET(array_shape, "shape")
 static HPy
 array_shape_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
@@ -119,7 +119,7 @@ array_shape_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_val, void *
 }
 
 
-HPyDef_GETSET(array_strides, "strides", array_strides_get, array_strides_set)
+HPyDef_GETSET(array_strides, "strides")
 static HPy
 array_strides_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
@@ -203,9 +203,9 @@ array_strides_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_obj, void
 
 
 
-HPyDef_GET(array_priority_get, "__array_priority__", array_priority_get_impl)
+HPyDef_GET(array_priority, "__array_priority__")
 static HPy
-array_priority_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ NPY_UNUSED(self), void *NPY_UNUSED(ignored))
+array_priority_get(HPyContext *ctx, HPy /*PyArrayObject*/ NPY_UNUSED(self), void *NPY_UNUSED(ignored))
 {
     return HPyFloat_FromDouble(ctx, NPY_PRIORITY);
 }
@@ -222,7 +222,7 @@ array_typestr_get(PyArrayObject *self)
     return py_ret;
 }
 
-HPyDef_GETSET(array_descr_dtype, "dtype", array_descr_get, array_descr_set)
+HPyDef_GETSET(array_descr_dtype, "dtype")
 static HPy
 array_descr_get(HPyContext *ctx, HPy /* PyArrayObject * */ self, void *NPY_UNUSED(ignored))
 {
@@ -284,9 +284,9 @@ array_dataptr_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
                          Py_False : Py_True);
 }
 
-HPyDef_GET(array_ctypes_get, "ctypes", array_ctypes_get_impl)
+HPyDef_GET(array_ctypes, "ctypes")
 static HPy
-array_ctypes_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
+array_ctypes_get(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
 {
     HPy _numpy_internal;
     HPy ret;
@@ -470,9 +470,9 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
 }
 
 
-HPyDef_GET(array_itemsize_get, "itemsize", array_itemsize_get_impl)
+HPyDef_GET(array_itemsize, "itemsize")
 static HPy
-array_itemsize_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
+array_itemsize_get(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
 {
     HPy h_self_descr = HPyArray_GetDescr(ctx, h_self);
     long v = (long) PyArray_Descr_AsStruct(ctx, h_self_descr)->elsize;
@@ -480,17 +480,17 @@ array_itemsize_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void*
     return HPyLong_FromLong(ctx, v);
 }
 
-HPyDef_GET(array_size_get, "size", array_size_get_impl)
+HPyDef_GET(array_size, "size")
 static HPy
-array_size_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
+array_size_get(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void* NPY_UNUSED(ignored))
 {
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     return HPyArray_PyIntFromIntp(ctx, HPyArray_SIZE(self));
 }
 
-HPyDef_GET(array_nbytes_get, "nbytes", array_nbytes_get_impl)
+HPyDef_GET(array_nbytes, "nbytes")
 static HPy
-array_nbytes_get_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void *NPY_UNUSED(ignored))
+array_nbytes_get(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void *NPY_UNUSED(ignored))
 {
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     return HPyArray_PyIntFromIntp(ctx, HPyArray_NBYTES(ctx, h_self, self));
@@ -735,9 +735,9 @@ array_struct_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     return ret;
 }
 
-HPyDef_GET(array_base_get, "base", array_base_get_impl)
+HPyDef_GET(array_base, "base")
 static HPy
-array_base_get_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
+array_base_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
     HPy self_base = HPyArray_BASE(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self));
     if (HPy_IsNull(self_base)) {
@@ -1003,9 +1003,9 @@ array_flat_set(PyArrayObject *self, PyObject *val, void *NPY_UNUSED(ignored))
     return retval;
 }
 
-HPyDef_GET(array_transpose_get, "T", array_transpose_get_impl)
+HPyDef_GET(array_T, "T")
 static HPy
-array_transpose_get_impl(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
+array_T_get(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED(ignored))
 {
     return HPyArray_Transpose(ctx, h_self, PyArrayObject_AsStruct(ctx, h_self), NULL);
 }

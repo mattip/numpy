@@ -2126,9 +2126,9 @@ HPyDef_MEMBER(arraydescr_itemsize, "itemsize", HPyMember_INT, offsetof(PyArray_D
 HPyDef_MEMBER(arraydescr_alignment, "alignment", HPyMember_INT, offsetof(PyArray_Descr, alignment), .readonly=1)
 HPyDef_MEMBER(arraydescr_flags, "flags", HPyMember_BYTE, offsetof(PyArray_Descr, flags), .readonly=1)
 
-HPyDef_GET(arraydescr_subdescr_get, "subdtype", arraydescr_subdescr_get_impl)
+HPyDef_GET(arraydescr_subdescr, "subdtype")
 static HPy
-arraydescr_subdescr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_subdescr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (!PyDataType_HASSUBARRAY(self_struct)) {
@@ -2142,9 +2142,9 @@ arraydescr_subdescr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, vo
     return ret;
 }
 
-HPyDef_GET(arraydescr_str_get, "str", arraydescr_protocol_typestr_get_impl)
+HPyDef_GET(_arraydescr_protocol_typestr, "str")
 NPY_NO_EXPORT HPy
-arraydescr_protocol_typestr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+_arraydescr_protocol_typestr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     char basic_ = self_struct->kind;
@@ -2190,14 +2190,16 @@ arraydescr_protocol_typestr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ 
     return ret;
 }
 
+/* non-static variant of '_arraydescr_protocol_typestr_get' since it is used in
+   other files as well */
 NPY_NO_EXPORT HPy
 arraydescr_protocol_typestr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored)){
-    return arraydescr_protocol_typestr_get_impl(ctx, self, NULL);
+    return _arraydescr_protocol_typestr_get(ctx, self, NULL);
 }
 
-HPyDef_GET(arraydescr_name_get, "name", arraydescr_name_get_impl)
+HPyDef_GET(arraydescr_name, "name")
 static HPy
-arraydescr_name_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_name_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     /* let python handle this */
     HPy _numpy_dtype, args, meth;
@@ -2216,9 +2218,9 @@ arraydescr_name_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *
     return res;
 }
 
-HPyDef_GET(arraydescr_base_get, "base", arraydescr_base_get_impl)
+HPyDef_GET(arraydescr_base, "base")
 static HPy
-arraydescr_base_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_base_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (!PyDataType_HASSUBARRAY(self_struct)) {
@@ -2229,9 +2231,9 @@ arraydescr_base_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *
     return HPy_FromPyObject(ctx, self_struct->subarray->base);
 }
 
-HPyDef_GET(arraydescr_shape_get, "shape", arraydescr_shape_get_impl)
+HPyDef_GET(arraydescr_shape, "shape")
 static HPy
-arraydescr_shape_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_shape_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (!PyDataType_HASSUBARRAY(self_struct)) {
@@ -2242,9 +2244,9 @@ arraydescr_shape_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void 
     return HPy_FromPyObject(ctx, self_struct->subarray->shape);
 }
 
-HPyDef_GET(arraydescr_ndim_get, "ndim", arraydescr_ndim_get_impl)
+HPyDef_GET(arraydescr_ndim, "ndim")
 static HPy
-arraydescr_ndim_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_ndim_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     Py_ssize_t ndim;
 
@@ -2262,9 +2264,9 @@ arraydescr_ndim_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *
 }
 
 
-HPyDef_GET(arraydescr_descr_get, "descr", arraydescr_protocol_descr_get_impl)
+HPyDef_GET(arraydescr_descr, "descr")
 NPY_NO_EXPORT HPy
-arraydescr_protocol_descr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_descr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     HPy dobj, res;
     HPy _numpy_internal, args, meth;
@@ -2277,7 +2279,7 @@ arraydescr_protocol_descr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ se
             return HPy_NULL;
         }
         HPy item0 = HPyUnicode_FromString(ctx, "");
-        HPy item1 = arraydescr_protocol_typestr_get_impl(ctx, self, NULL);
+        HPy item1 = _arraydescr_protocol_typestr_get(ctx, self, NULL);
         HPyTupleBuilder_Set(ctx, dobj_tb, 0, item0);
         HPyTupleBuilder_Set(ctx, dobj_tb, 1, item1);
         HPy_Close(ctx, item0);
@@ -2307,8 +2309,9 @@ arraydescr_protocol_descr_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ se
 }
 
 NPY_NO_EXPORT HPy
-arraydescr_protocol_descr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored)) {
-    return arraydescr_protocol_descr_get_impl(ctx, self, NULL);
+arraydescr_protocol_descr_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
+{
+    return arraydescr_descr_get(ctx, self, NULL);
 }
 
 /*
@@ -2316,9 +2319,9 @@ arraydescr_protocol_descr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, v
  * and 2 for a user-defined data-type descriptor
  * return 0 if neither (i.e. it's a copy of one)
  */
-HPyDef_GET(arraydescr_isbuiltin_get, "isbuiltin", arraydescr_isbuiltin_get_impl)
+HPyDef_GET(arraydescr_isbuiltin, "isbuiltin")
 static HPy
-arraydescr_isbuiltin_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_isbuiltin_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     long val;
     val = 0;
@@ -2367,9 +2370,9 @@ _arraydescr_isnative(HPyContext *ctx, HPy /* PyArray_Descr * */ self)
  * or if all sub-fields have native-byteorder if
  * fields are defined
  */
-HPyDef_GET(arraydescr_isnative_get, "isnative", arraydescr_isnative_get_impl)
+HPyDef_GET(arraydescr_isnative, "isnative")
 static HPy
-arraydescr_isnative_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_isnative_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     HPy ret;
     int retval;
@@ -2382,9 +2385,9 @@ arraydescr_isnative_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, vo
     return ret;
 }
 
-HPyDef_GET(arraydescr_isalignedstruct_get, "isalignedstruct", arraydescr_isalignedstruct_get_impl)
+HPyDef_GET(arraydescr_isalignedstruct, "isalignedstruct")
 static HPy
-arraydescr_isalignedstruct_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_isalignedstruct_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     HPy ret;
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
@@ -2393,9 +2396,9 @@ arraydescr_isalignedstruct_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ s
     return ret;
 }
 
-HPyDef_GET(arraydescr_fields_get, "fields", arraydescr_fields_get_impl)
+HPyDef_GET(arraydescr_fields, "fields")
 static HPy
-arraydescr_fields_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_fields_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (!PyDataType_HASFIELDS(self_struct)) {
@@ -2408,9 +2411,9 @@ arraydescr_fields_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void
     return ret;
 }
 
-HPyDef_GET(arraydescr_metadata_get, "metadata", arraydescr_metadata_get_impl)
+HPyDef_GET(arraydescr_metadata, "metadata")
 static HPy
-arraydescr_metadata_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_metadata_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (self_struct->metadata == NULL) {
@@ -2423,9 +2426,9 @@ arraydescr_metadata_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, vo
     return ret;
 }
 
-HPyDef_GET(arraydescr_hasobject_get, "hasobject", arraydescr_hasobject_get_impl)
+HPyDef_GET(arraydescr_hasobject, "hasobject")
 static HPy
-arraydescr_hasobject_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_hasobject_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (PyDataType_FLAGCHK(self_struct, NPY_ITEM_HASOBJECT)) {
@@ -2436,9 +2439,9 @@ arraydescr_hasobject_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, v
     }
 }
 
-HPyDef_GETSET(arraydescr_names, "names", arraydescr_names_get_impl, arraydescr_names_set_impl)
+HPyDef_GETSET(arraydescr_names, "names")
 static HPy
-arraydescr_names_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
+arraydescr_names_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_UNUSED(ignored))
 {
     PyArray_Descr *self_struct = PyArray_Descr_AsStruct(ctx, self);
     if (!PyDataType_HASFIELDS(self_struct)) {
@@ -2448,7 +2451,7 @@ arraydescr_names_get_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void 
 }
 
 static int
-arraydescr_names_set_impl(
+arraydescr_names_set(
         HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy val, void *NPY_UNUSED(ignored))
 {
     int N = 0;
@@ -2850,7 +2853,7 @@ arraydescr_reduce_impl(HPyContext *ctx, HPy self)
     }
 
     HPy state_1 = HPyUnicode_FromFormat_p(ctx, "%c", endian);
-    HPy state_2 = arraydescr_subdescr_get_impl(ctx, self, NULL);
+    HPy state_2 = arraydescr_subdescr_get(ctx, self, NULL);
     HPy names;
     HPy fields;
     if (PyDataType_HASFIELDS(self_struct)) {
@@ -4164,20 +4167,20 @@ static HPyDef *PyArrayDescr_TypeFull_defines[] = {
     &arraydescr_flags,
 
     // getsets
-    &arraydescr_subdescr_get,
-    &arraydescr_descr_get,
-    &arraydescr_str_get,
-    &arraydescr_name_get,
-    &arraydescr_base_get,
-    &arraydescr_shape_get,
-    &arraydescr_ndim_get,
-    &arraydescr_isbuiltin_get,
-    &arraydescr_isnative_get,
-    &arraydescr_isalignedstruct_get,
-    &arraydescr_fields_get,
-    &arraydescr_metadata_get,
+    &arraydescr_subdescr,
+    &arraydescr_descr,
+    &_arraydescr_protocol_typestr,
+    &arraydescr_name,
+    &arraydescr_base,
+    &arraydescr_shape,
+    &arraydescr_ndim,
+    &arraydescr_isbuiltin,
+    &arraydescr_isnative,
+    &arraydescr_isalignedstruct,
+    &arraydescr_fields,
+    &arraydescr_metadata,
     &arraydescr_names,
-    &arraydescr_hasobject_get,
+    &arraydescr_hasobject,
 
     // methods
     /* for pickling */
