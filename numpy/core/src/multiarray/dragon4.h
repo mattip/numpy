@@ -41,6 +41,8 @@
 #include "npy_pycompat.h"
 #include "numpy/arrayscalars.h"
 
+#include "hpy_utils.h"
+
 /* Half binary format */
 #define NPY_HALF_BINFMT_NAME IEEE_binary16
 
