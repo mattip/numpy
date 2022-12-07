@@ -230,7 +230,7 @@ add_newdoc_ufunc_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     if (HPy_IsNull(tmp)) {
         return HPy_NULL;
     }
-    char *docstr = HPyBytes_AS_STRING(ctx, tmp);
+    const char *docstr = HPyBytes_AS_STRING(ctx, tmp);
 
     /*
      * This introduces a memory leak, as the memory allocated for the doc

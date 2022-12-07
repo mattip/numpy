@@ -3079,7 +3079,7 @@ arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *a
     /* Parse endian */
     if (HPyUnicode_Check(ctx, endian_obj) || HPyBytes_Check(ctx, endian_obj)) {
         HPy tmp = HPy_NULL;
-        char *str;
+        const char *str;
         HPy_ssize_t len;
 
         if (HPyUnicode_Check(ctx, endian_obj)) {

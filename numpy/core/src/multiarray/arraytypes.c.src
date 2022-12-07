@@ -613,8 +613,8 @@ string_to_long_double(PyObject*op)
 static NPY_INLINE npy_longdouble
 hpy_string_to_long_double(HPyContext *ctx, HPy op)
 {
-    char *s;
-    char *end;
+    const char *s;
+    const char *end;
     npy_longdouble temp;
     HPy b;
 

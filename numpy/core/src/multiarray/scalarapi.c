@@ -243,7 +243,7 @@ hpy_scalar_value(HPyContext *ctx, HPy scalar, PyArray_Descr *descr)
         CASE(TIMEDELTA, Timedelta);
 #undef CASE
         case NPY_STRING:
-            return HPyBytes_AsString(ctx, scalar);
+            return (void *)HPyBytes_AsString(ctx, scalar);
         case NPY_UNICODE:
             py_scalar = HPy_AsPyObject(ctx, scalar);
             /* lazy initialization, to reduce the memory used by string scalars */
@@ -1333,7 +1333,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     }
     if (PyTypeNum_ISFLEXIBLE(type_num)) {
         if (type_num == NPY_STRING) {
-            destptr = HPyBytes_AS_STRING(ctx, obj);
+            destptr = (void *)HPyBytes_AS_STRING(ctx, obj);
             ((PyBytesObject *)py_obj)->ob_shash = -1;
             Py_DECREF(py_obj);
             memcpy(destptr, data, itemsize);

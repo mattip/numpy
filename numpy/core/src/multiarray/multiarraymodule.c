@@ -3298,7 +3298,7 @@ array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
                 HPyTracker_Close(ctx, ht);
                 return HPy_NULL;
             }
-            dptr = HPyBytes_AS_STRING(ctx, obj);
+            dptr = (void *)HPyBytes_AS_STRING(ctx, obj);
         }
     }
     ret = HPyArray_Scalar(ctx, dptr, typecode, base, PyArrayObject_AsStruct(ctx, base));
@@ -3889,7 +3889,8 @@ hpy_einsum_sub_op_from_str(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy *s
         subscripts_str = *str_obj;
     }
 
-    *subscripts = HPyBytes_AsString(ctx, subscripts_str);
+    /* XXX: This cast seems to be a bit dangerous but is necessary */
+    *subscripts = (char *)HPyBytes_AsString(ctx, subscripts_str);
     if (*subscripts == NULL) {
         HPy_Close(ctx, *str_obj);
         *str_obj = HPy_NULL;
@@ -4158,7 +4159,7 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
             HPy key = HPy_GetItem_i(ctx, keys, i);
-            char *str = NULL;
+            const char *str = NULL;
 
             HPy_Close(ctx, str_key_obj);
             str_key_obj = HPyUnicode_AsASCIIString(ctx, key);

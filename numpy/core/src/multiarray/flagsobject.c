@@ -616,7 +616,7 @@ HPyDef_SLOT(arrayflags_getitem, HPy_mp_subscript)
 static HPy
 arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
 {
-    char *key = NULL;
+    const char *key = NULL;
     char buf[16];
     int n;
     if (HPyUnicode_Check(ctx, ind)) {
@@ -633,7 +633,7 @@ arrayflags_getitem_impl(HPyContext *ctx, HPy self, HPy ind)
         }
         memcpy(buf, key, n);
         HPy_Close(ctx, tmp_str);
-        key = buf;
+        key = (const char *)buf;
     }
     else if (HPyBytes_Check(ctx, ind)) {
         key = HPyBytes_AS_STRING(ctx, ind);
@@ -737,8 +737,8 @@ HPyDef_SLOT(arrayflags_setitem, HPy_mp_ass_subscript)
 static int
 arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
 {
-    char *key;
-    char buf[16];
+    const char *key;
+    const char buf[16];
     int n;
     if (HPyUnicode_Check(ctx, ind)) {
         HPy tmp_str;

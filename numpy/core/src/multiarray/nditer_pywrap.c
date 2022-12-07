@@ -119,7 +119,7 @@ HNpyIter_GlobalFlagsConverter(HPyContext *ctx, HPy flags_in, npy_uint32 *flags)
     int iflags, nflags;
 
     HPy f;
-    char *str = NULL;
+    const char *str = NULL;
     HPy_ssize_t length = 0;
     npy_uint32 flag;
 
@@ -267,7 +267,7 @@ HNpyIter_OpFlagsConverter(HPyContext *ctx, HPy op_flags_in,
     *op_flags = 0;
     for (iflags = 0; iflags < nflags; ++iflags) {
         HPy f;
-        char *str = NULL;
+        const char *str = NULL;
         Py_ssize_t length = 0;
 
         f = HPy_GetItem_i(ctx, op_flags_in, iflags);
