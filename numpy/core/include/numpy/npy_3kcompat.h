@@ -544,7 +544,7 @@ PyObject_Cmp(PyObject *i1, PyObject *i2, int *cmp)
  * of PyCapsules. It's a shame...
  */
 static NPY_INLINE HPy
-NhpyCapsule_FromVoidPtr(HPyContext *ctx, void *ptr, HPyCapsule_Destructor dtor)
+NhpyCapsule_FromVoidPtr(HPyContext *ctx, void *ptr, HPyCapsule_Destructor *dtor)
 {
     HPy ret = HPyCapsule_New(ctx, ptr, NULL, dtor);
     if (HPy_IsNull(ret)) {
