@@ -224,7 +224,7 @@ array_typestr_get(PyArrayObject *self)
 
 HPyDef_GETSET(array_descr_dtype, "dtype")
 static HPy
-array_descr_get(HPyContext *ctx, HPy /* PyArrayObject * */ self, void *NPY_UNUSED(ignored))
+array_descr_dtype_get(HPyContext *ctx, HPy /* PyArrayObject * */ self, void *NPY_UNUSED(ignored))
 {
     // Py_INCREF(PyArray_DESCR(self));
     return HPyArray_GetDescr(ctx, self);
@@ -508,7 +508,7 @@ array_nbytes_get(HPyContext *ctx, HPy /* PyArrayObject * */ h_self, void *NPY_UN
 NPY_NO_EXPORT HPyGlobal g_checkfunc;
 
 static int
-array_descr_set(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy arg, void *NPY_UNUSED(ignored))
+array_descr_dtype_set(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy arg, void *NPY_UNUSED(ignored))
 {
     HPy newtype = HPy_NULL; // PyArray_Descr *
 

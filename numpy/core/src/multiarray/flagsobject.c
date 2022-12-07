@@ -570,7 +570,7 @@ arrayflags_writeable_set(
 
 HPyDef_SET(arrayflags_warn_on_write, "_warn_on_write")
 static int
-arrayflags_warn_on_write_se(HPyContext *ctx,
+arrayflags_warn_on_write_set(HPyContext *ctx,
         HPy self, HPy obj, void *NPY_UNUSED(ignored))
 {
     /*
@@ -800,7 +800,7 @@ HPyDef arrayflags_str = {
 
 HPyDef_SLOT(arrayflags_repr, HPy_tp_repr)
 static HPy
-arrayflags_print_impl(HPyContext *ctx, HPy self)
+arrayflags_repr_impl(HPyContext *ctx, HPy self)
 {
     static const char *_warn_on_write_true = "  (with WARN_ON_WRITE=True)";
     static const char fmt_str[] = 

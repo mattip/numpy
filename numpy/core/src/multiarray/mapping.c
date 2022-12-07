@@ -2638,7 +2638,7 @@ array_subscript_asarray(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy op)
  */
 HPyDef_SLOT(array_assign_item_slot, HPy_sq_ass_item);
 NPY_NO_EXPORT int
-array_assign_item(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i, HPy op)
+array_assign_item_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i, HPy op)
 {
     npy_index_info indices[2];
 

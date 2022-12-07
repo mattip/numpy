@@ -1360,7 +1360,7 @@ npyiter_copy_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 
 HPyDef_METH(npyiter___copy__, "__copy__", HPyFunc_NOARGS)
 static HPy
-npyiter___copy__impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
+npyiter___copy___impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 {
     return npyiter_copy_impl(ctx, h_self);
 }
