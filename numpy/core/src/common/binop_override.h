@@ -273,7 +273,8 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
     do {                                                                \
         HPy __m2_type = HPy_Type(ctx, m2);                              \
         if (HPyType_CheckSlot(ctx, __m2_type, test_hpy_slot) &&         \
-            hpy_binop_should_defer(ctx, m1, m2, 0)) {    \
+            hpy_binop_should_defer(ctx, m1, m2, 0)) {                   \
+            HPy_Close(ctx, __m2_type);                                  \
             return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
         }                                                               \
         HPy_Close(ctx, __m2_type);                                      \
@@ -284,6 +285,7 @@ hpy_binop_should_defer(HPyContext *ctx, HPy self, HPy other, int inplace)
         HPy __m2_type = HPy_Type(ctx, m2);                              \
         if (HPyType_CheckSlot(ctx, __m2_type, test_hpy_slot) &&         \
             hpy_binop_should_defer(ctx, m1, m2, 1)) {    \
+            HPy_Close(ctx, __m2_type);                                  \
             return HPy_Dup(ctx, ctx->h_NotImplemented);                 \
         }                                                               \
         HPy_Close(ctx, __m2_type);                                      \
