@@ -118,7 +118,7 @@ arr_bincount_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     npy_intp minlength = 0;
     npy_intp i;
     double *weights , *dans;
-    static char *kwlist[] = {"list", "weights", "minlength", NULL};
+    static const char *kwlist[] = {"list", "weights", "minlength", NULL};
 
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OO:bincount",
@@ -245,7 +245,7 @@ HPyDef_METH(_monotonicity, "_monotonicity", HPyFunc_KEYWORDS)
 static HPy
 _monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    static char *kwlist[] = {"x", NULL};
+    static const char *kwlist[] = {"x", NULL};
     HPy obj_x = HPy_NULL;
     HPy arr_x = HPy_NULL; // PyArrayObject *
     long monotonic;
@@ -299,7 +299,7 @@ _insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs
     HPy array, mask, values; // PyArrayObject *
     npy_intp i, j, chunk, nm, ni, nv;
 
-    static char *kwlist[] = {"input", "mask", "vals", NULL};
+    static const char *kwlist[] = {"input", "mask", "vals", NULL};
     HPY_NPY_BEGIN_THREADS_DEF;
     values = mask = HPy_NULL;
 
@@ -544,7 +544,7 @@ arr_interp_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t na
     const npy_double *dy, *dx, *dz;
     npy_double *dres, *slopes = NULL;
 
-    static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+    static const char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
 
     HPY_NPY_BEGIN_THREADS_DEF;
     HPyTracker ht;
@@ -723,7 +723,7 @@ arr_interp_complex_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ss
     npy_cdouble lval, rval;
     npy_cdouble *dres, *slopes = NULL;
 
-    static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+    static const char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
 
     HPY_NPY_BEGIN_THREADS_DEF;
     HPyTracker ht;
@@ -1116,7 +1116,7 @@ arr_ravel_multi_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, 
 
     NpyIter *iter = NULL;
 
-    static char *kwlist[] = {"multi_index", "dims", "mode", "order", NULL};
+    static const char *kwlist[] = {"multi_index", "dims", "mode", "order", NULL};
 
     memset(op, 0, sizeof(op));
     dtype[0] = HPy_NULL;
@@ -1325,7 +1325,7 @@ arr_unravel_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_
     int i, ret_ndim;
     npy_intp ret_dims[NPY_MAXDIMS], ret_strides[NPY_MAXDIMS];
 
-    static char *kwlist[] = {"indices", "shape", "order", NULL};
+    static const char *kwlist[] = {"indices", "shape", "order", NULL};
 
     HPy h_dimensions = HPy_NULL, h_order = HPy_NULL;
     HPyTracker ht;
@@ -2080,7 +2080,7 @@ io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t na
 {
     HPy obj;
     int axis = NPY_MAXDIMS;
-    static char *kwlist[] = {"in", "axis", "bitorder", NULL};
+    static const char *kwlist[] = {"in", "axis", "bitorder", NULL};
     char c = 'b';
     const char * order_str = NULL;
 
@@ -2119,7 +2119,7 @@ io_unpack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t 
     HPy obj;
     int axis = NPY_MAXDIMS;
     HPy count = ctx->h_None;
-    static char *kwlist[] = {"in", "axis", "count", "bitorder", NULL};
+    static const char *kwlist[] = {"in", "axis", "count", "bitorder", NULL};
     const char * c = NULL;
 
     HPy h_axis = HPy_NULL;

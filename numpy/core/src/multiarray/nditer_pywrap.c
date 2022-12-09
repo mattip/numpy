@@ -706,7 +706,7 @@ static int
 npyiter_init_impl(HPyContext *ctx, HPy h_self,
         HPy *args, HPy_ssize_t len_args, HPy kwds)
 {
-    static char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
+    static const char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
                              "order", "casting", "op_axes", "itershape",
                              "buffersize",
                              NULL};
@@ -866,7 +866,7 @@ NPY_NO_EXPORT HPy
 NpyIter_NestedIters_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
         HPy *args, HPy_ssize_t len_args, HPy kwds)
 {
-    static char *kwlist[] = {"op", "axes", "flags", "op_flags",
+    static const char *kwlist[] = {"op", "axes", "flags", "op_flags",
                              "op_dtypes", "order",
                              "casting", "buffersize",
                              NULL};

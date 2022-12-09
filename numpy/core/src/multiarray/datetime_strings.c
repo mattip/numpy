@@ -1351,7 +1351,7 @@ datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy
     HPy op_dtypes[2] = {HPy_NULL, HPy_NULL}; // PyArray_Descr *
     npy_uint32 flags, op_flags[2];
 
-    static char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
+    static const char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
 
     HPy h_casting = HPy_NULL;
     HPyTracker ht;

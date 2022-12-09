@@ -104,7 +104,7 @@ frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t a
     void * ptr, **data;
     int offset[2];
     HPy identity = HPy_NULL;  /* note: not the same semantics as Py_None */
-    static char *kwlist[] = {"", "nin", "nout", "identity", NULL};
+    static const char *kwlist[] = {"", "nin", "nout", "identity", NULL};
 
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, args_len, kwds, "Oii|$O:frompyfunc", kwlist,

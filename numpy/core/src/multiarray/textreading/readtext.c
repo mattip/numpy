@@ -229,7 +229,7 @@ _load_from_filelike_impl(HPyContext *ctx, HPy NPY_UNUSED(mod),
 
     HPy arr = HPy_NULL;
 
-    static char *kwlist[] = {"file", "delimiter", "comment", "quote", "imaginary_unit",
+    static const char *kwlist[] = {"file", "delimiter", "comment", "quote", "imaginary_unit",
         "usecols", "skiplines", "max_rows", "converters", "dtype",
         "encoding", "filelike", "byte_converters", "c_byte_converters", NULL};
     HPy h_delimiter = HPy_NULL;

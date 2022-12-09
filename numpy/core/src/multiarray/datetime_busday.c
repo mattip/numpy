@@ -937,7 +937,7 @@ HPyDef_METH(array_busday_offset, "busday_offset", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_busday_offset_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    static char *kwlist[] = {"dates", "offsets", "roll",
+    static const char *kwlist[] = {"dates", "offsets", "roll",
                              "weekmask", "holidays", "busdaycal", "out", NULL};
 
     HPy dates_in = HPy_NULL, offsets_in = HPy_NULL, out_in = HPy_NULL;
@@ -1093,7 +1093,7 @@ HPyDef_METH(array_busday_count, "busday_count", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_busday_count_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    static char *kwlist[] = {"begindates", "enddates",
+    static const char *kwlist[] = {"begindates", "enddates",
                              "weekmask", "holidays", "busdaycal", "out", NULL};
 
     HPy dates_begin_in = HPy_NULL, dates_end_in = HPy_NULL, out_in = HPy_NULL;
@@ -1262,7 +1262,7 @@ HPyDef_METH(array_is_busday, "is_busday", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 array_is_busday_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    static char *kwlist[] = {"dates",
+    static const char *kwlist[] = {"dates",
                              "weekmask", "holidays", "busdaycal", "out", NULL};
 
     HPy dates_in = HPy_NULL, out_in = HPy_NULL;

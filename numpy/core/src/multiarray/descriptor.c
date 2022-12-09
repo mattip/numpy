@@ -2636,7 +2636,7 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
     npy_bool copy = NPY_FALSE;
     npy_bool copied = NPY_FALSE;
 
-    static char *kwlist[] = {"dtype", "align", "copy", "metadata", NULL};
+    static const char *kwlist[] = {"dtype", "align", "copy", "metadata", NULL};
     HPy h_align = HPy_NULL, h_copy = HPy_NULL;
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOO:dtype", kwlist,
