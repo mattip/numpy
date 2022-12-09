@@ -21,16 +21,6 @@
 
 #include <assert.h>
 
-HPyDef_SLOT(dtypemeta_new, HPy_tp_new)
-static HPy
-dtypemeta_new_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
-        HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
-{
-    HPyErr_SetString(ctx, ctx->h_TypeError,
-            "Preliminary-API: Cannot subclass DType.");
-    return HPy_NULL;
-}
-
 HPyDef_SLOT(dtypemeta_init, HPy_tp_init)
 static int
 dtypemeta_init_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
@@ -917,9 +907,11 @@ HPyDef_MEMBER(dtypemeta_member_type, "type", HPyMember_OBJECT, offsetof(PyArray_
 NPY_NO_EXPORT PyTypeObject *PyArrayDTypeMeta_Type;
 NPY_NO_EXPORT HPyGlobal HPyArrayDTypeMeta_Type;
 
+/* NOTE: Originally, DTypeMeta had a 'tp_new' slot (that would just prevent
+   subclassing by throwing an error) but metaclasses must not define a custom
+   constructor. */
 NPY_NO_EXPORT HPyDef *PyArrayDTypeMeta_Type_defines[] = {
     &dtypemeta_init,
-    &dtypemeta_new,
     &DTypeMeta_traverse,
     &DTypeMeta_destroy,
     &dtypemeta_get_abstract,
