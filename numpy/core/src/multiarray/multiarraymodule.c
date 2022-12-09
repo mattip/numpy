@@ -3152,21 +3152,17 @@ array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
     static const char *kwlist[] = {"prototype", "dtype", "order", "subok", "shape", NULL};
 
-    HPy h_prototype = HPy_NULL, prototype = HPy_NULL; // PyArrayObject *
+    HPy prototype = HPy_NULL; // PyArrayObject *
     HPy dtype = HPy_NULL; // PyArray_Descr *
     NPY_ORDER order = NPY_KEEPORDER;
     HPy ret = HPy_NULL; // PyArrayObject *
     int subok = 1;
     /* -1 is a special value meaning "not specified" */
     PyArray_Dims shape = {NULL, -1};
-    HPy h_type = HPy_NULL, h_order = HPy_NULL, h_shape = HPy_NULL;
+    HPy h_prototype = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL, h_shape = HPy_NULL;
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOiO:empty_like", kwlist,
-                &prototype,
-                &h_type,
-                &h_order,
-                &subok,
-                &PyArray_OptionalIntpConverter, &shape)) {
+                &h_prototype, &h_type, &h_order, &subok, &h_shape)) {
         goto fail;
     }
     if (HPyArray_Converter(ctx, h_prototype, &prototype) != NPY_SUCCEED ||
