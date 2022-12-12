@@ -14,7 +14,7 @@ USE_PYPERF = False
 
 
 if not USE_FULL_NUMPY:
-    sys.path.append(os.path.join(os.path.dirname(__file__), "numpy", "core"))
+    sys.path.append(os.path.join(os.path.dirname(__file__), "..", "numpy", "core"))
 
     # hack it so we can run this example with really minimal numpy import
     import struct
