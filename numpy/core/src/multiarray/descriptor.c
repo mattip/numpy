@@ -3643,7 +3643,7 @@ arraydescr_newbyteorder_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HP
 {
     char endian=NPY_SWAP;
     HPy h_endian = HPy_NULL;
-    if (!HPyArg_Parse(ctx, NULL, args, nargs, "|O&:newbyteorder", &h_endian)) {
+    if (!HPyArg_Parse(ctx, NULL, args, nargs, "|O:newbyteorder", &h_endian)) {
         return HPy_NULL;
     }
     if (HPyArray_ByteorderConverter(ctx, h_endian, &endian) != NPY_SUCCEED) {
