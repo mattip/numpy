@@ -807,7 +807,6 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
 {
     HPy res;
     PyUFuncObject *ufunc_data = PyUFuncObject_AsStruct(ctx, ufunc);
-    PyArray_DTypeMeta **py_op_dtypes = NULL;
     /*
      * Fetch the dispatching info which consists of the implementation and
      * the DType signature tuple.  There are three steps:
@@ -917,9 +916,6 @@ hpy_promote_and_get_info_and_ufuncimpl(HPyContext *ctx,
     }
     res = info;
 finish:
-    if (py_op_dtypes) {
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_op_dtypes, ufunc_data->nargs);
-    }
     HPy_Close(ctx, array_method_type);
     HPy_Close(ctx, info1);
     return res;
