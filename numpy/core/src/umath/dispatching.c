@@ -547,7 +547,9 @@ hpy_call_promoter_and_recurse(HPyContext *ctx,
     HPy new_op_dtypes[NPY_MAXARGS]; // PyArray_DTypeMeta *
 
     HPy promoter_type = HPy_Type(ctx, promoter);
-    if (HPy_Is(ctx, promoter_type, ctx->h_CapsuleType)) {
+    int promoter_is_capsule = HPy_Is(ctx, promoter_type, ctx->h_CapsuleType);
+    HPy_Close(ctx, promoter_type);
+    if (promoter_is_capsule) {
         /* We could also go the other way and wrap up the python function... */
         promoter_function *promoter_function = HPyCapsule_GetPointer(ctx, promoter,
                 "numpy._ufunc_promoter");
