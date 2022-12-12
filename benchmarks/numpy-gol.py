@@ -8,7 +8,7 @@ import time
 # multiplicator for the game of life matrix size
 SIZE = 5
 # use full numpy or just the multiarray_umath module directly
-USE_FULL_NUMPY = False
+USE_FULL_NUMPY = True
 # run with pyperf or just iterate a few times, printing the game of life to the terminal
 USE_PYPERF = False
 

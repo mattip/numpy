@@ -28,10 +28,13 @@ https://doi.org/10.1038/s41586-020-2649-2)
 This is a **highly experimental** branch migrating NumPy to the HPy C API.
 
 In order to run anything (or even load NumPy) you also need to use an
-experimental HPy branch: https://github.com/hpyproject/hpy/tree/graal-team/numpy-hpy-port
+experimental HPy branch: [graal-team/numpy-hpy-port-0.0.5](https://github.com/hpyproject/hpy/tree/graal-team/numpy-hpy-port-0.0.5)
 
 There's an example in the repo that runs and can be used to evaluate
 performance: [numpy-gol.py](https://github.com/hpyproject/numpy-hpy/blob/graal-team/hpy/benchmarks/numpy-gol.py)
+
+While we could previously just import the C extension module
+`_multiarray_umath`, we can now do the full `import numpy`.
 
 This work is sponsored by the HPy team.
 
