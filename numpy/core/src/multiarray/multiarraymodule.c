@@ -5187,14 +5187,14 @@ dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
                 &h_min_digits)) {
         return HPy_NULL;
     }
-    if (hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED|
-            HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_fractional, &fractional) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_pad_right, &pad_right) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED) {
+    if (hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED ||
+            (!HPy_IsNull(h_precision) && HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_unique) && HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_fractional) && HPyArray_PythonPyIntFromInt(ctx, h_fractional, &fractional) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_sign) && HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_pad_left) && HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_pad_right) && HPyArray_PythonPyIntFromInt(ctx, h_pad_right, &pad_right) != NPY_SUCCEED) ||
+            (!HPy_IsNull(h_min_digits) && HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED)) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "dragon4_positional: TODO");
         HPyTracker_Close(ctx, ht);
         return HPy_NULL;

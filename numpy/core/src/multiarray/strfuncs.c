@@ -61,8 +61,8 @@ array_repr_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self)
     if (PyArray_ReprFunction != NULL) {
         PyObject *ret = PyObject_CallFunctionObjArgs(PyArray_ReprFunction, self, NULL);
         HPy h_ret = HPy_FromPyObject(ctx, ret);
-        Py_DECREF(self);
-        Py_DECREF(ret);
+        Py_XDECREF(self);
+        Py_XDECREF(ret);
         return h_ret;
     }
 
@@ -78,8 +78,8 @@ array_repr_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ h_self)
     }
     PyObject *ret = PyObject_CallFunctionObjArgs(repr, self, NULL);
     HPy h_ret = HPy_FromPyObject(ctx, ret);
-    Py_DECREF(self);
-    Py_DECREF(ret);
+    Py_XDECREF(self);
+    Py_XDECREF(ret);
     return h_ret;
 }
 
