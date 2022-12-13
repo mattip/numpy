@@ -36,6 +36,16 @@ performance: [numpy-gol.py](https://github.com/hpyproject/numpy-hpy/blob/graal-t
 While we could previously just import the C extension module
 `_multiarray_umath`, we can now do the full `import numpy`.
 
+You can also run the benchmarks with:
+```
+# if built in-place, also add the current working dir to PYTHONPATH before
+cd benchmarks; asv run --python=python3 -v -e
+```
+You will see a lot of warnings where we are using the legacy API since
+migration is not yet finished. The warnings can be disabled using environment
+variable `CAPI_WARN=0`.
+More on that can be found at [this Wiki page](https://github.com/hpyproject/numpy-hpy/wiki/Numpy-Benchmarks-(Sept-25,-2022)).
+
 This work is sponsored by the HPy team.
 
 NumPy
