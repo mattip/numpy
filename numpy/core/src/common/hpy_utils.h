@@ -255,31 +255,26 @@ HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy value, HPy *v1, int *v2, HPy *v3) 
     if (len < 2) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
             "required positional argument missing");
-        HPy_Close(ctx, value);
         return 0;
     } else if (len > 3) {
         HPyErr_SetString(ctx, ctx->h_TypeError,
             "mismatched args (too many arguments for fmt)");
-        HPy_Close(ctx, value);
         return 0;
     }
 
     HPy h_v2 = HPy_GetItem_i(ctx, value, 1);
     long v = HPyLong_AsLong(ctx, h_v2);
     if (v == -1 && HPyErr_Occurred(ctx)) {
-        HPy_Close(ctx, value);
         return 0;
     }
     if (v > INT_MAX) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is greater than maximum");
-        HPy_Close(ctx, value);
         return 0;
     }
     if (v < INT_MIN) {
         HPyErr_SetString(ctx, ctx->h_OverflowError,
             "signed integer is less than minimum");
-        HPy_Close(ctx, value);
         return 0;
     }
     *v2 = (int)v;
@@ -287,7 +282,6 @@ HPy_ExtractDictItems_OiO(HPyContext *ctx, HPy value, HPy *v1, int *v2, HPy *v3) 
     if (v3) {
         *v3 = (len > 2) ? HPy_GetItem_i(ctx, value, 2) : HPy_NULL;
     }
-    HPy_Close(ctx, value);
     return 1;
 }
 
