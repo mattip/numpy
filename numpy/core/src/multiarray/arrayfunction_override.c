@@ -528,10 +528,9 @@ hpy_array_implement_array_function_internal(HPyContext *ctx,
     HPy result = HPy_NULL;
 
     // static PyObject *errmsg_formatter = NULL;
-
-    if (!HPySequence_Check(ctx, relevant_args)) {
-        HPyErr_SetString(ctx, ctx->h_TypeError, 
+    HPy rel_arg_seq = HPySequence_Fast(ctx, relevant_args,
                 "dispatcher for __array_function__ did not return an iterable");
+    if (HPy_IsNull(rel_arg_seq)) {
         return HPy_NULL;
     }
     // relevant_args = PySequence_Fast(
@@ -543,7 +542,8 @@ hpy_array_implement_array_function_internal(HPyContext *ctx,
 
     /* Collect __array_function__ implementations */
     int num_implementing_args = hpy_get_implementing_args_and_methods(ctx,
-        relevant_args, implementing_args, array_function_methods);
+        rel_arg_seq, implementing_args, array_function_methods);
+    HPy_Close(ctx, rel_arg_seq);
     if (num_implementing_args == -1) {
         goto cleanup;
     }
@@ -927,9 +927,9 @@ _get_implementing_args_impl(
         return HPy_NULL;
     }
 
-    if (!HPySequence_Check(ctx, relevant_args)) {
-        HPyErr_SetString(ctx, ctx->h_TypeError, 
+    HPy rel_arg_seq = HPySequence_Fast(ctx, relevant_args,
                 "dispatcher for __array_function__ did not return an iterable");
+    if (HPy_IsNull(rel_arg_seq)) {
         return HPy_NULL;
     }
     // relevant_args = PySequence_Fast(
@@ -940,7 +940,8 @@ _get_implementing_args_impl(
     // }
 
     int num_implementing_args = hpy_get_implementing_args_and_methods(ctx,
-        relevant_args, implementing_args, array_function_methods);
+        rel_arg_seq, implementing_args, array_function_methods);
+    HPy_Close(ctx, rel_arg_seq);
     if (num_implementing_args == -1) {
         goto cleanup;
     }
@@ -961,6 +962,5 @@ cleanup:
         HPy_Close(ctx, implementing_args[j]);
         HPy_Close(ctx, array_function_methods[j]);
     }
-    // HPy_Close(ctx, relevant_args); we don't support PySequence_Fast
     return result;
 }

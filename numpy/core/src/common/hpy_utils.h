@@ -301,4 +301,39 @@ HPyComplex_ImagAsDouble(HPyContext *ctx, HPy obj) {
     return val;
 }
 
+static NPY_INLINE HPy
+HPySequence_Fast(HPyContext *ctx, HPy v, const char *m)
+{
+    if (HPy_IsNull(v)) {
+        if (!HPyErr_Occurred(ctx))
+            HPyErr_SetString(ctx, ctx->h_SystemError,
+                            "null argument to internal routine");
+        return HPy_NULL;
+    }
+    HPy v_type = HPy_Type(ctx, v);
+    if (HPy_Is(ctx, v_type, ctx->h_ListType) || HPy_Is(ctx, v_type, ctx->h_ListType)) {
+        HPy_Close(ctx, v_type);
+        return HPy_Dup(ctx, v);
+    }
+    HPy_Close(ctx, v_type);
+
+    CAPI_WARN("missing PyObject_GetIter & PySequence_List");
+    PyObject *py_v = HPy_AsPyObject(ctx, v);
+    PyObject *it = PyObject_GetIter(py_v);
+    if (it == NULL) {
+        Py_DECREF(py_v);
+        if (HPyErr_ExceptionMatches(ctx, ctx->h_TypeError))
+            HPyErr_SetString(ctx, ctx->h_TypeError, m);
+        return HPy_NULL;
+    }
+
+    PyObject *l = PySequence_List(it);
+    HPy res = HPy_FromPyObject(ctx, l);
+    Py_XDECREF(py_v);
+    Py_XDECREF(it);
+    Py_XDECREF(l);
+
+    return res;
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
