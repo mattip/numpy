@@ -704,6 +704,7 @@ HPyArray_ConcatenateArrays(HPyContext *ctx, int narrays,
         if (HPy_IsNull(ret)) {
             return HPy_NULL;
         }
+        ret_struct = PyArrayObject_AsStruct(ctx, ret);
         // assert(PyArray_DESCR(ret) == descr); TODO
     }
 

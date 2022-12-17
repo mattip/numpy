@@ -1949,6 +1949,7 @@ _hpy_convert_from_str(HPyContext *ctx, HPy obj, int align)
         if (HPy_IsNull(ret)) {
             return HPy_NULL;
         }
+        ret_struct = PyArray_Descr_AsStruct(ctx, ret);
         ret_struct->elsize = elsize;
     }
     if (endian != '=' && PyArray_ISNBO(endian)) {
@@ -1959,6 +1960,7 @@ _hpy_convert_from_str(HPyContext *ctx, HPy obj, int align)
         if (HPy_IsNull(ret)) {
             return HPy_NULL;
         }
+        ret_struct = PyArray_Descr_AsStruct(ctx, ret);
         ret_struct->byteorder = endian;
     }
     return ret;
@@ -2669,6 +2671,7 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
         if (HPy_IsNull(conv)) {
             return HPy_NULL;
         }
+        conv_struct = PyArray_Descr_AsStruct(ctx, conv);
         copied = NPY_TRUE;
     }
 
@@ -2682,6 +2685,7 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
             if (HPy_IsNull(conv)) {
                 return HPy_NULL;
             }
+            conv_struct = PyArray_Descr_AsStruct(ctx, conv);
             copied = NPY_TRUE;
         }
         if ((conv_struct->metadata != NULL)) {
