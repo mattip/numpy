@@ -767,8 +767,6 @@ _hpy_convert_from_list(HPyContext *ctx, HPy obj, int align)
         if (HPy_IsNull(tup)) {
             goto fail;
         }
-        HPy_Close(ctx, size_obj);
-        HPy_Close(ctx, conv);
         HPy key = HPyUnicode_FromFormat_p(ctx, "f%d", i);
         if (HPy_IsNull(key)) {
             HPy_Close(ctx, tup);
