@@ -1182,8 +1182,6 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 {
     HPy arr = HPy_NULL; /* (PyArrayObject *) */
     HPy seq;
-    PyObject *py_obj;
-    PyObject *py_seq;
     /*
      * The first step is to find the DType class if it was not provided,
      * alternatively we have to find out that this is not a scalar at all
@@ -1389,11 +1387,9 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 
   force_sequence_due_to_char_dtype:
 
-    // TODO HPY LABS PORT: PySequence_Fast
     /* Ensure we have a sequence (required for PyPy) */
-    py_obj = HPy_AsPyObject(ctx, obj);
-    py_seq = PySequence_Fast(py_obj, "Could not convert object to sequence");
-    if (py_seq == NULL) {
+    seq = HPySequence_Fast(ctx, obj, "Could not convert object to sequence");
+    if (HPy_IsNull(seq)) {
         /*
             * Specifically do not fail on things that look like a dictionary,
             * instead treat them as scalar.
@@ -1406,33 +1402,24 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
             return max_dims;
         }
         return -1;
-    } else {
-        seq = HPy_FromPyObject(ctx, py_seq);
-        Py_DECREF(py_obj);
-        Py_DECREF(py_seq);
     }
-    seq = obj;
+    
     if (hnpy_new_coercion_cache(ctx, obj, seq, 1, coercion_cache_tail_ptr, curr_dims) < 0) {
+        HPy_Close(ctx, seq);
         return -1;
     }
 
-    npy_intp size;
-    HPy *seq_arr = NULL;
-    if (!HPySequence_Check(ctx, seq)) { // PySequence_Fast
-        npy_intp size = PySequence_Fast_GET_SIZE(py_seq);
-        PyObject **objects = PySequence_Fast_ITEMS(py_seq);
-        seq_arr = HPy_FromPyObjectArray(ctx, objects, size);
-    } else {
-        size = HPy_Length(ctx, seq);
-    }
-
+    npy_intp size = HPy_Length(ctx, seq);
+    
     if (update_shape(curr_dims, &max_dims,
                      out_shape, 1, &size, NPY_TRUE, flags) < 0) {
+        HPy_Close(ctx, seq);
         /* But do update, if there this is a ragged case */
         *flags |= FOUND_RAGGED_ARRAY;
         return max_dims;
     }
     if (size == 0) {
+        HPy_Close(ctx, seq);
         /* If the sequence is empty, this must be the last dimension */
         *flags |= MAX_DIMS_WAS_REACHED;
         return curr_dims + 1;
@@ -1446,13 +1433,9 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
 
     /* Recursive call for each sequence item */
     for (HPy_ssize_t i = 0; i < size; i++) {
-        HPy item;
-        if (seq_arr == NULL) {
-            item = HPy_GetItem_i(ctx, seq, i);
-        } else {
-            item = seq_arr[i];
-        }
+        HPy item = HPy_GetItem_i(ctx, seq, i);
         if (HPy_IsNull(item)) {
+            HPy_Close(ctx, seq);
             return -1;
         }
         max_dims = HPyArray_DiscoverDTypeAndShape_Recursive(ctx,
@@ -1462,9 +1445,11 @@ HPyArray_DiscoverDTypeAndShape_Recursive(
         HPy_Close(ctx, item);
 
         if (max_dims < 0) {
+            HPy_Close(ctx, seq);
             return -1;
         }
     }
+    HPy_Close(ctx, seq);
     return max_dims;
 }
 
