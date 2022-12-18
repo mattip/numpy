@@ -3568,8 +3568,8 @@ HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char
         HPy fields = HPy_FromPyObject(ctx, new_data->fields);
         HPy keys = HPyDict_Keys(ctx, fields);
         HPy_ssize_t keys_len = HPy_Length(ctx, keys);
-        for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            HPy h_key = HPy_GetItem_i(ctx, keys, i);
+        for (HPy_ssize_t i_key = 0; i_key < keys_len; i_key++) {
+            HPy h_key = HPy_GetItem_i(ctx, keys, i_key);
             HPy h_value = HPy_GetItem(ctx, fields, h_key);
             if (HNPY_TITLE_KEY(ctx, h_key, h_value)) {
                 HPy_Close(ctx, h_key);
