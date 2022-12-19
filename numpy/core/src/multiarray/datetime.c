@@ -3589,13 +3589,14 @@ hpy_is_any_numpy_datetime(HPyContext *ctx, HPy obj)
     if (ret) {
         return ret;
     }
-    HPy obj_descr = HPyArray_GetDescr(ctx, obj);
-    ret = HPyArray_Check(ctx, obj) && PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_DATETIME;
-    if (ret) {
+    if (HPyArray_Check(ctx, obj)) {
+        HPy obj_descr = HPyArray_GetDescr(ctx, obj);
+        ret = PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_DATETIME;
         HPy_Close(ctx, obj_descr);
-        return ret;
+        if (ret) {
+            return ret;
+        }
     }
-    HPy_Close(ctx, obj_descr);
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
     CAPI_WARN("missing PyDate_Check & PyDateTime_Check");
     ret = PyDate_Check(py_obj) || PyDateTime_Check(py_obj);
@@ -3623,13 +3624,14 @@ hpy_is_any_numpy_timedelta(HPyContext *ctx, HPy obj)
     if (ret) {
         return ret;
     }
-    HPy obj_descr = HPyArray_GetDescr(ctx, obj);
-    ret = HPyArray_Check(ctx, obj) && PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_TIMEDELTA;
-    if (ret) {
+    if (HPyArray_Check(ctx, obj)) {
+        HPy obj_descr = HPyArray_GetDescr(ctx, obj);
+        ret = PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_TIMEDELTA;
         HPy_Close(ctx, obj_descr);
-        return ret;
+        if (ret) {
+            return ret;
+        }
     }
-    HPy_Close(ctx, obj_descr);
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
     CAPI_WARN("missing PyDelta_Check");
     ret = PyDelta_Check(py_obj);
