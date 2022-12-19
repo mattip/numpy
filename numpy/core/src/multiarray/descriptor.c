@@ -581,7 +581,7 @@ _hpy_convert_from_array_descr(HPyContext *ctx, HPy obj, int align)
                     "Field elements must be tuples with at most 3 elements, got '%R'");
             goto fail;
         }
-        if ((HPyDict_GetItemWithError_IsNull(ctx, fields, name))
+        if (!(HPyDict_GetItemWithError_IsNull(ctx, fields, name))
              || (!HPy_IsNull(title)
                  && HPyUnicode_Check(ctx, title)
                  && !(HPyDict_GetItemWithError_IsNull(ctx, fields, title)))) {
@@ -2866,7 +2866,7 @@ arraydescr_reduce_impl(HPyContext *ctx, HPy self)
         fields = HPy_Dup(ctx, ctx->h_None);
     }
     HPy state_3 = names;
-    HPy state_4 = HPy_FromPyObject(ctx, self_struct->fields);
+    HPy state_4 = fields;
 
     /* for extended types it also includes elsize and alignment */
     if (PyTypeNum_ISEXTENDED(self_struct->type_num)) {
