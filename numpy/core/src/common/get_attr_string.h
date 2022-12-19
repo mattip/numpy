@@ -33,6 +33,49 @@ _is_basic_python_type(PyTypeObject *tp)
     );
 }
 
+static NPY_INLINE npy_bool
+_hpy_is_basic_python_type(HPyContext *ctx, HPy obj)
+{
+    if (HPy_Is(ctx, obj, ctx->h_None) ||
+            HPy_Is(ctx, obj, ctx->h_Ellipsis) ||
+            HPy_Is(ctx, obj, ctx->h_NotImplemented)) {
+        return NPY_TRUE;
+    }
+
+     HPy tp = HPy_Type(ctx, obj);
+
+    npy_bool ret = (
+        /* Basic number types */
+        HPy_Is(ctx, tp, ctx->h_BoolType) ||
+        HPy_Is(ctx, tp, ctx->h_LongType) ||
+        HPy_Is(ctx, tp, ctx->h_FloatType) ||
+        HPy_Is(ctx, tp, ctx->h_ComplexType) ||
+
+        /* Basic sequence types */
+        HPy_Is(ctx, tp, ctx->h_ListType) ||
+        HPy_Is(ctx, tp, ctx->h_TupleType) ||
+        // HPy_Is(ctx, tp, ctx->h_DictType) ||
+        // HPy_Is(ctx, tp, ctx->h_SetType) ||
+        // HPy_Is(ctx, tp, ctx->h_FrozenSetType) ||
+        HPy_Is(ctx, tp, ctx->h_UnicodeType) ||
+        HPy_Is(ctx, tp, ctx->h_BytesType) ||
+
+        /* other builtins */
+        HPy_Is(ctx, tp, ctx->h_SliceType) ||
+        // HPy_Is(ctx, tp, ctx->h_None) ||
+        // HPy_Is(ctx, tp, ctx->h_TYPE(Py_Ellipsis) ||
+        // HPy_Is(ctx, tp, ctx->h_TYPE(Py_NotImplemented) ||
+
+        /* TODO: ndarray, but we can't see PyArray_Type here */
+
+        /* sentinel to swallow trailing || */
+        NPY_FALSE
+    );
+    HPy_Close(ctx, tp);
+    return ret;
+}
+
+
 /*
  * Stripped down version of PyObject_GetAttrString(obj, name) that does not
  * raise PyExc_AttributeError.
@@ -136,9 +179,10 @@ HPyArray_LookupSpecial_OnInstance(HPyContext *ctx, HPy obj, char const *name)
 {
     // /* We do not need to check for special attributes on trivial types */
     // // In HPy this would mean multiple HPy_Is calls, so probably not faster than hpy_maybe_get_attr
-    // if (_is_basic_python_type(tp)) {
-    //     return NULL;
-    // }
+    // XXX: However, it breaks otherwise.
+    if (_hpy_is_basic_python_type(ctx, obj)) {
+        return HPy_NULL;
+    }
     return hpy_maybe_get_attr(ctx, obj, name);
 }
 
