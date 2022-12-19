@@ -3,7 +3,7 @@ on:
   pull_request_target:
     types: [created]
 
-permissions: {}
+permissions:
    contents: write  # to add labels
 
 jobs:
