@@ -457,7 +457,7 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
             /* No acceptable override found. */
             static HPyGlobal hg_errmsg_formatter;
             static int is_errmsg_formatter_set = 0;
-            HPy errmsg_formatter;
+            HPy errmsg_formatter = HPy_NULL;
             HPy errmsg;
             if (is_errmsg_formatter_set) {
                 errmsg_formatter = HPyGlobal_Load(ctx, hg_errmsg_formatter);

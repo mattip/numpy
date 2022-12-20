@@ -2978,9 +2978,8 @@ arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *a
     if (self_struct->fields == Py_None) {
         return HPy_Dup(ctx, ctx->h_None);
     }
-    if (PyTuple_GET_SIZE(args) != 1
-            || !(PyTuple_Check(PyTuple_GET_ITEM(args, 0)))) {
-        PyErr_BadInternalCall();
+    if (nargs != 1 || !(HPyTuple_Check(ctx, args[0]))) {
+        HPyErr_SetString(ctx, ctx->h_SystemError, "bad argument to internal function");
         return HPy_NULL;
     }
     HPy args_tuple = args[0];
@@ -3648,7 +3647,7 @@ arraydescr_newbyteorder_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HP
     if (!HPyArg_Parse(ctx, NULL, args, nargs, "|O:newbyteorder", &h_endian)) {
         return HPy_NULL;
     }
-    if (HPyArray_ByteorderConverter(ctx, h_endian, &endian) != NPY_SUCCEED) {
+    if (!HPy_IsNull(h_endian) && HPyArray_ByteorderConverter(ctx, h_endian, &endian) != NPY_SUCCEED) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "newbyteorder: TODO");
         return HPy_NULL;
     }

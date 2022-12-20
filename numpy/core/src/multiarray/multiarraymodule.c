@@ -4240,9 +4240,9 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
                                         order, casting, py_out);
     ret = HPy_FromPyObject(ctx, py_ret);
     HPy_DecrefAndFreeArray(ctx, py_op_in, nop);
-    Py_DECREF(py_dtype);
-    Py_DECREF(py_out);
-    Py_DECREF(py_ret);
+    Py_XDECREF(py_dtype);
+    Py_XDECREF(py_out);
+    Py_XDECREF(py_ret);
     /* If no output was supplied, possibly convert to a scalar */
     if (!HPy_IsNull(ret) && HPy_IsNull(out)) {
         ret = HPyArray_Return(ctx, ret);
@@ -4807,7 +4807,7 @@ array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, 
         goto finish;
     }
     if (HPyArray_DescrConverter2(ctx, h_d2, &d2) != NPY_SUCCEED ||
-            HPyArray_CastingConverter(ctx, h_casting, &casting) != NPY_SUCCEED) {
+            !HPy_IsNull(h_casting) && HPyArray_CastingConverter(ctx, h_casting, &casting) != NPY_SUCCEED) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "can_cast: TODO");
         HPyTracker_Close(ctx, ht);
         return HPy_NULL;
@@ -5097,7 +5097,7 @@ dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
     HPy h_exp_digits = HPy_NULL;
     HPy h_min_digits = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOOO:dragon4_scientific",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOO:dragon4_scientific",
                 kwlist,
                 &obj,
                 &h_precision,
@@ -5109,13 +5109,13 @@ dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
                 &h_min_digits)) {
         return HPy_NULL;
     }
-    if (hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_exp_digits, &exp_digits) != NPY_SUCCEED ||
-            HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED) {
+    if (!HPy_IsNull(h_precision) && hpy_trimmode_converter(ctx, h_trim, &trim) != NPY_SUCCEED ||
+            !HPy_IsNull(h_precision) && HPyArray_PythonPyIntFromInt(ctx, h_precision, &precision) != NPY_SUCCEED ||
+            !HPy_IsNull(h_unique) && HPyArray_PythonPyIntFromInt(ctx, h_unique, &unique) != NPY_SUCCEED ||
+            !HPy_IsNull(h_sign) && HPyArray_PythonPyIntFromInt(ctx, h_sign, &sign) != NPY_SUCCEED ||
+            !HPy_IsNull(h_pad_left) && HPyArray_PythonPyIntFromInt(ctx, h_pad_left, &pad_left) != NPY_SUCCEED ||
+            !HPy_IsNull(h_exp_digits) && HPyArray_PythonPyIntFromInt(ctx, h_exp_digits, &exp_digits) != NPY_SUCCEED ||
+            !HPy_IsNull(h_min_digits) && HPyArray_PythonPyIntFromInt(ctx, h_min_digits, &min_digits) != NPY_SUCCEED) {
         HPyErr_SetString(ctx, ctx->h_SystemError, "dragon4_scientific: TODO");
         HPyTracker_Close(ctx, ht);
         return HPy_NULL;
@@ -5772,7 +5772,7 @@ normalize_axis_index_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy
     HPy h_axis, h_ndim;
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "OO|O:normalize_axis_index", kwlist,
-            &axis, &ndim, &msg_prefix)) {
+            &h_axis, &h_ndim, &msg_prefix)) {
         return HPy_NULL;
     }
     if (HPyArray_PythonPyIntFromInt(ctx, h_axis, &axis) != NPY_SUCCEED ||
