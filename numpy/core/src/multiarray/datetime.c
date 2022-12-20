@@ -75,10 +75,12 @@ npy_int32 extract_unit_32(npy_int32 *d, npy_int32 unit) {
 NPY_NO_EXPORT void
 numpy_pydatetime_import(void)
 {
+#ifndef HPY_ABI_UNIVERSAL
     /* TODO HPY LABS PORT: Since we are still using legacy API like
        'PyDate_Check', we still must do the import. */
     CAPI_WARN("importing " PyDateTime_CAPSULE_NAME " capsule");
     PyDateTime_IMPORT;
+#endif
 }
 
 /* Exported as DATETIMEUNITS in multiarraymodule.c */
