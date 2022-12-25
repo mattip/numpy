@@ -198,6 +198,9 @@ def main(argv):
                 site_dir_noarch, 
                 os.environ.get('PYTHONPATH', '')
             ))
+    elif args.bench:
+        # No build needed
+        pass
     else:
         _temp = __import__(PROJECT_MODULE)
         site_dir = os.path.sep.join(_temp.__file__.split(os.path.sep)[:-2])
@@ -353,7 +356,9 @@ def main(argv):
             ]
             cmd = ['asv', 'continuous', '-e', '-f', '1.05',
                    commit_a, commit_b] + asv_cfpath + bench_args
-            ret = subprocess.call(cmd, cwd=os.path.join(ROOT_DIR, 'benchmarks'))
+            cwd = os.path.join(ROOT_DIR, 'benchmarks') 
+            print(f"running cmd\n    {' '.join(cmd)}\n in \n{cwd}")
+            ret = subprocess.call(cmd, cwd=cwd)
             sys.exit(ret)
 
     if args.build_only:
@@ -565,7 +570,6 @@ def asv_compare_config(bench_path, args, h_commits):
 
     is_cached = asv_substitute_config(conf_path, nconf_path,
         numpy_build_options = ' '.join([f'\\"{v}\\"' for v in build]),
-        numpy_global_options= ' '.join([f'--global-option=\\"{v}\\"' for v in ["build"] + build])
     )
     if not is_cached:
         asv_clear_cache(bench_path, h_commits)
