@@ -6331,6 +6331,10 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
                 fast_path = 0;
         }
     }
+    else {
+        /* Not a known loop function */
+        fast_path = 0;
+    }
     if (fast_path) {
         PyUFuncGenericFunction loop = get_inner_loop(auxdata);
         
