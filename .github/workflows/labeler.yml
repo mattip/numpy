@@ -7,12 +7,12 @@ permissions:
    contents: write  # to add labels
 
 jobs:
-  label_pull_request:
+  pr-labeler:
     runs-on: ubuntu-latest
     steps:
     - name: Label the PR
       uses: gerrymanoim/pr-prefix-labeler@v3
       continue-on-error: true
       with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # if: github.repository == 'numpy/numpy'
