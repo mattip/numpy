@@ -13,6 +13,6 @@ jobs:
     - name: Label the PR
       uses: gerrymanoim/pr-prefix-labeler@v3
       continue-on-error: true
-      with:
+      env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # if: github.repository == 'numpy/numpy'
