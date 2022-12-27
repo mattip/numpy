@@ -4,7 +4,8 @@ on:
     types: [opened]
 
 permissions:
-   contents: write  # to add labels
+   # contents: write  # to add labels
+   pull-requests: write  # to add labels
 
 jobs:
   pr-labeler:
