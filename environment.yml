@@ -14,7 +14,7 @@ dependencies:
   - nomkl
   - setuptools=59.2.0
   # For testing
-  - pytest
+  - pytest=6.2.5
   - pytest-cov
   - pytest-xdist
   - hypothesis
