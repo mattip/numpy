@@ -987,7 +987,7 @@ HPyArray_DescrFromScalar(HPyContext *ctx, HPy sc)
     }
     PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, descr);
     if (PyDataType_ISUNSIZED(descr_data)) {
-        HPyArray_DESCR_REPLACE(ctx, descr);
+        HPyArray_DESCR_REPLACE(ctx, descr, descr_data);
         if (HPy_IsNull(descr)) {
             return HPy_NULL;
         }

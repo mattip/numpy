@@ -558,7 +558,7 @@ array_descr_dtype_set(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy arg, 
     if (newtype_struct->type_num == NPY_VOID &&
             PyDataType_ISUNSIZED(newtype_struct) &&
             newtype_struct->elsize != self_descr_struct->elsize) {
-        HPyArray_DESCR_REPLACE(ctx, newtype);
+        HPyArray_DESCR_REPLACE(ctx, newtype, newtype_struct);
         if (HPy_IsNull(newtype)) {
             return -1;
         }

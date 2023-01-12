@@ -320,11 +320,10 @@ _hpy_convert_from_tuple(HPyContext *ctx, HPy obj, int align)
             HPy_Close(ctx, type);
             return HPy_NULL;
         }
-        HPyArray_DESCR_REPLACE(ctx, type);
+        HPyArray_DESCR_REPLACE(ctx, type, type_struct);
         if (HPy_IsNull(type)) {
             return HPy_NULL;
         }
-        type_struct = PyArray_Descr_AsStruct(ctx, type);
         if (type_struct->type_num == NPY_UNICODE) {
             type_struct->elsize = itemsize << 2;
         }
@@ -1943,18 +1942,17 @@ _hpy_convert_from_str(HPyContext *ctx, HPy obj, int align)
     PyArray_Descr *ret_struct = PyArray_Descr_AsStruct(ctx, ret);
 
     if (PyDataType_ISUNSIZED(ret_struct) && ret_struct->elsize != elsize) {
-        HPyArray_DESCR_REPLACE(ctx, ret);
+        HPyArray_DESCR_REPLACE(ctx, ret, ret_struct);
         if (HPy_IsNull(ret)) {
             return HPy_NULL;
         }
-        ret_struct = PyArray_Descr_AsStruct(ctx, ret);
         ret_struct->elsize = elsize;
     }
     if (endian != '=' && PyArray_ISNBO(endian)) {
         endian = '=';
     }
     if (endian != '=' && ret_struct->byteorder != '|' && ret_struct->byteorder != endian) {
-        HPyArray_DESCR_REPLACE(ctx, ret);
+        HPyArray_DESCR_REPLACE(ctx, ret, ret_struct);
         if (HPy_IsNull(ret)) {
             return HPy_NULL;
         }
@@ -2665,11 +2663,10 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
 
     /* Get a new copy of it unless it's already a copy */
     if (copy && conv_struct->fields == Py_None) {
-        HPyArray_DESCR_REPLACE(ctx, conv);
+        HPyArray_DESCR_REPLACE(ctx, conv, conv_struct);
         if (HPy_IsNull(conv)) {
             return HPy_NULL;
         }
-        conv_struct = PyArray_Descr_AsStruct(ctx, conv);
         copied = NPY_TRUE;
     }
 
@@ -2679,11 +2676,10 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
          * underlying dictionary
          */
         if (!copied) {
-            HPyArray_DESCR_REPLACE(ctx, conv);
+            HPyArray_DESCR_REPLACE(ctx, conv, conv_struct);
             if (HPy_IsNull(conv)) {
                 return HPy_NULL;
             }
-            conv_struct = PyArray_Descr_AsStruct(ctx, conv);
             copied = NPY_TRUE;
         }
         if ((conv_struct->metadata != NULL)) {

@@ -985,7 +985,7 @@ HPyArray_NewFromDescr_int(
         else if (PyDataType_ISSTRING(descr) && !allow_emptystring &&
                  data == NULL) {
             HPy dup_h_descr = HPy_Dup(ctx, h_descr); // duplicate before closing an arg
-            HPyArray_DESCR_REPLACE(ctx, dup_h_descr);
+            HPyArray_DESCR_REPLACE_WITHOUT_STRUCT(ctx, dup_h_descr);
             h_descr = dup_h_descr;
             if (HPy_IsNull(h_descr)) {
                 return HPy_NULL;
@@ -1656,7 +1656,7 @@ HPyArray_New(HPyContext *ctx,
             HPy_Close(ctx, descr);
             return HPy_NULL;
         }
-        HPyArray_DESCR_REPLACE(ctx, descr);
+        HPyArray_DESCR_REPLACE(ctx, descr, descr_struct);
         if (HPy_IsNull(descr)) {
             return HPy_NULL;
         }
@@ -2628,7 +2628,7 @@ HPyArray_CheckFromAny(HPyContext *ctx, HPy op, HPy descr, int min_depth,
             descr_data = PyArray_Descr_AsStruct(ctx, descr);
         }
         else if (!HPy_IsNull(descr) && !PyArray_ISNBO(descr_data->byteorder)) {
-            HPyArray_DESCR_REPLACE(ctx, descr);
+            HPyArray_DESCR_REPLACE(ctx, descr, descr_data);
         }
         if (!HPy_IsNull(descr) && descr_data->byteorder != NPY_IGNORE) {
             descr_data->byteorder = NPY_NATIVE;
@@ -2824,7 +2824,7 @@ HPyArray_FromArray(HPyContext *ctx,
         newtype = HPy_Dup(ctx, oldtype);
     }
     else if (PyDataType_ISUNSIZED(newtype_data)) {
-        HPyArray_DESCR_REPLACE(ctx, newtype);
+        HPyArray_DESCR_REPLACE(ctx, newtype, newtype_data);
         if (HPy_IsNull(newtype)) {
             return HPy_NULL;
         }

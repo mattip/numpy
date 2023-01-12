@@ -311,7 +311,7 @@ HPySequence_Fast(HPyContext *ctx, HPy v, const char *m)
         return HPy_NULL;
     }
     HPy v_type = HPy_Type(ctx, v);
-    if (HPy_Is(ctx, v_type, ctx->h_ListType) || HPy_Is(ctx, v_type, ctx->h_ListType)) {
+    if (HPy_Is(ctx, v_type, ctx->h_TupleType) || HPy_Is(ctx, v_type, ctx->h_ListType)) {
         HPy_Close(ctx, v_type);
         return HPy_Dup(ctx, v);
     }

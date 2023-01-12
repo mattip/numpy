@@ -300,7 +300,15 @@ HPyArray_DiscardWritebackIfCopy(HPyContext *ctx, HPy h_arr)
                 descr = _new_; \
         } while(0)
 
-#define HPyArray_DESCR_REPLACE(ctx, descr) do { \
+#define HPyArray_DESCR_REPLACE(ctx, descr, descr_struct) do { \
+                HPy _new_; \
+                _new_ = HPyArray_DescrNew(ctx, descr); \
+                descr_struct = PyArray_Descr_AsStruct(ctx, _new_); \
+                HPy_Close(ctx, descr); \
+                descr = _new_; \
+        } while(0)
+
+#define HPyArray_DESCR_REPLACE_WITHOUT_STRUCT(ctx, descr) do { \
                 HPy _new_; \
                 _new_ = HPyArray_DescrNew(ctx, descr); \
                 HPy_Close(ctx, descr); \

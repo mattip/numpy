@@ -3596,7 +3596,7 @@ hpy_is_any_numpy_datetime(HPyContext *ctx, HPy obj)
         ret = PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_DATETIME;
         HPy_Close(ctx, obj_descr);
         if (ret) {
-            return ret;
+            return NPY_TRUE;
         }
     }
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
@@ -3631,7 +3631,7 @@ hpy_is_any_numpy_timedelta(HPyContext *ctx, HPy obj)
         ret = PyArray_Descr_AsStruct(ctx, obj_descr)->type_num == NPY_TIMEDELTA;
         HPy_Close(ctx, obj_descr);
         if (ret) {
-            return ret;
+            return NPY_TRUE;
         }
     }
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
