@@ -743,29 +743,34 @@ NPY_NO_EXPORT int
 HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
         HPy h_from, HPy h_to, HPy h_to_dtype_in)
 {
+    HPyTracker ht = HPyTracker_New(ctx, 3);
     HPy h_to_dtype;
     if (HPy_IsNull(h_to)) {
         h_to_dtype = HPy_Type(ctx, h_to);
     } else {
         h_to_dtype = HPy_Dup(ctx, h_to_dtype_in);
     }
+    HPyTracker_Add(ctx, ht, h_to_dtype);
+
     HPy h_from_dtype = HPy_Type(ctx, h_from);
+    HPyTracker_Add(ctx, ht, h_from_dtype);
     PyArray_DTypeMeta *h_from_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_from_dtype);
     PyArray_DTypeMeta *h_to_dtype_data = PyArray_DTypeMeta_AsStruct(ctx, h_to_dtype);
     HPy meth = HPyArray_GetCastingImpl(ctx, h_from_dtype, h_from_dtype_data, h_to_dtype, h_to_dtype_data);
-    HPy_Close(ctx, h_from_dtype);
     if (HPy_IsNull(meth)) {
+        HPyTracker_Close(ctx, ht);
         return -1;
     }
+    HPyTracker_Add(ctx, ht, meth);
     if (HPy_Is(ctx, meth, ctx->h_None)) {
-        HPy_Close(ctx, meth);
+        HPyTracker_Close(ctx, ht);
         return -1;
     }
 
     PyArrayMethodObject *castingimpl = PyArrayMethodObject_AsStruct(ctx, meth);
     if (PyArray_MinCastSafety(castingimpl->casting, casting) == casting) {
         /* No need to check using `castingimpl.resolve_descriptors()` */
-        HPy_Close(ctx, meth);
+        HPyTracker_Close(ctx, ht);
         return 1;
     }
 
@@ -776,7 +781,7 @@ HPyArray_CheckCastSafety(HPyContext *ctx, NPY_CASTING casting,
     npy_intp view_offset;
     NPY_CASTING safety = _hget_cast_safety_from_castingimpl(ctx, meth,
             dtypes, h_from, h_to, &view_offset);
-    HPy_Close(ctx, meth);
+    HPyTracker_Close(ctx, ht);
     /* If casting is the smaller (or equal) safety we match */
     if (safety < 0) {
         return -1;
