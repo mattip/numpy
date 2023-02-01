@@ -2579,36 +2579,32 @@ static PyMethodDef Multiarray_TestsMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
+HPyDef_SLOT(mod_exec, HPy_mod_exec)
+static int mod_exec_impl(HPyContext *ctx, HPy spec)
+{
+    himport_array(ctx);
+    if (HPyErr_Occurred(ctx)) {
+        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+                        "cannot load _multiarray_tests module.");
+        return -1;
+    }
+    return 0;
+}
 
 static HPyDef *_multiarray_tests_hpy_methods[] = {
     &create_custom_field_dtype,
+    &mod_exec,
     NULL
 };
 
 static HPyModuleDef moduledef = {
-    .name = "numpy.core._multiarray_tests",
     .doc = NULL,
-    .size = -1,
     .legacy_methods = Multiarray_TestsMethods,
     .defines = _multiarray_tests_hpy_methods,
 };
 
 /* Initialization function for the module */
-HPy_MODINIT(_multiarray_tests)
-static HPy init__multiarray_tests_impl(HPyContext *ctx) {
-
-    HPy h_mod = HPyModule_Create(ctx, &moduledef);
-    if (HPy_IsNull(h_mod)) {
-        return HPy_NULL;
-    }
-
-    himport_array(ctx);
-    if (HPyErr_Occurred(ctx)) {
-        HPyErr_SetString(ctx, ctx->h_RuntimeError,
-                        "cannot load _multiarray_tests module.");
-    }
-    return h_mod;
-}
+HPy_MODINIT(_multiarray_tests, moduledef)
 
 NPY_NO_EXPORT int
 test_not_exported(void)

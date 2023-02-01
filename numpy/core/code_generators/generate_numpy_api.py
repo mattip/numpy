@@ -179,7 +179,7 @@ _import_array(void)
 #define import_array2(msg, ret) {if (_import_array() < 0) {PyErr_Print(); PyErr_SetString(PyExc_ImportError, msg); return ret; } }
 
 // HPy
-#define himport_array(ctx) {if (_import_array() < 0) {PyErr_Print(); HPyErr_SetString(ctx, ctx->h_ImportError, "numpy.core.multiarray failed to import"); return HPy_NULL; } }
+#define himport_array(ctx) {if (_import_array() < 0) {PyErr_Print(); HPyErr_SetString(ctx, ctx->h_ImportError, "numpy.core.multiarray failed to import"); return -1; } }
 
 #define himport_array1(ctx, ret) {if (_import_array() < 0) {PyErr_Print(); HPyErr_SetString(ctx, ctx->h_ImportError, "numpy.core.multiarray failed to import"); return ret; } }
 

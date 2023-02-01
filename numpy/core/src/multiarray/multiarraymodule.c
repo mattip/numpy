@@ -6323,244 +6323,11 @@ intern_strings(HPyContext *ctx)
     return 0;
 }
 
-static HPyDef *array_module_hpy_methods[] = {
-    &array_zeros,
-    &array_array,
-    &array_promote_types,
-    &array_min_scalar_type,
-    &_get_castingimpl,
-    &NpyIter_NestedIters,
-    &get_sfloat_dtype,
-    &hpy_add_docstring,
-    &implement_array_function,
-    &_get_implementing_args,
-    &_get_ndarray_c_version,
-    &_fastCopyAndTranspose,
-    &_from_dlpack,
-    &_insert,
-    &_reconstruct,
-    &_monotonicity,
-    &_set_madvise_hugepage,
-    &array_scalar,
-    &array_putmask,
-    &array_asarray,
-    &array_asanyarray,
-    &array_ascontiguousarray,
-    &array_asfortranarray,
-    &array_copyto,
-    &array_empty,
-    &array_empty_like,
-    &array_scalar,
-    &array_fromstring,
-    &array_fromfile,
-    &array_fromiter,
-    &array_frombuffer,
-    &array_concatenate,
-    &array_innerproduct,
-    &array_matrixproduct,
-    &array_vdot,
-    &array_arange,
-    &array_set_ops_function,
-    &array_where,
-    &array_lexsort,
-    &array_can_cast_safely,
-    &array_result_type,
-    &array_datetime_data,
-    &array_shares_memory,
-    &array_may_share_memory,
-    &datetime_as_string,
-    &ufunc_geterr,
-    &ufunc_seterr,
-    &array_is_busday,
-    &array_busday_offset,
-    &array_busday_count,
-    &arr_bincount,
-    &arr_ravel_multi_index,
-    &arr_unravel_index,
-    &io_pack,
-    &io_unpack,
-    &frompyfunc,
-    &add_newdoc_ufunc,
-    &array_set_typeDict,
-    &compare_chararrays,
-    &normalize_axis_index,
-    &dragon4_positional,
-    &dragon4_scientific,
-    &format_longfloat,
-    &set_legacy_print_mode,
-    &array_einsum,
-    &_load_from_filelike,
-    &arr_interp,
-    &arr_interp_complex,
-
-    // HPy Port TODO: implement them.
-    &_hpy_vec_string,
-    NULL
-};
-
-static HPyGlobal *module_globals[] = {
-    &HPyArrayDescr_Type,
-    &HPyArray_Type,
-    &HPyArrayDTypeMeta_Type,
-    &HPyArrayMethod_Type,
-    &HPyBoundArrayMethod_Type,
-    &HPyGenericArrType_Type,
-
-    // array_coercion:
-    &_global_pytype_to_type_dict,
-
-    // scalartypes:
-    &HPyGenericArrType_Type,
-    &HPyGenericArrType_Type,
-    &HPyBoolArrType_Type,
-    &HPyNumberArrType_Type,
-    &HPyIntegerArrType_Type,
-    &HPySignedIntegerArrType_Type,
-    &HPyUnsignedIntegerArrType_Type,
-    &HPyInexactArrType_Type,
-    &HPyFloatingArrType_Type,
-    &HPyComplexFloatingArrType_Type,
-    &HPyFlexibleArrType_Type,
-    &HPyCharacterArrType_Type,
-    &HPyByteArrType_Type,
-    &HPyShortArrType_Type,
-    &HPyIntArrType_Type,
-    &HPyLongArrType_Type,
-    &HPyLongLongArrType_Type,
-    &HPyUByteArrType_Type,
-    &HPyUShortArrType_Type,
-    &HPyUIntArrType_Type,
-    &HPyULongArrType_Type,
-    &HPyULongLongArrType_Type,
-    &HPyFloatArrType_Type,
-    &HPyDoubleArrType_Type,
-    &HPyLongDoubleArrType_Type,
-    &HPyCFloatArrType_Type,
-    &HPyCDoubleArrType_Type,
-    &HPyCLongDoubleArrType_Type,
-    &HPyObjectArrType_Type,
-    &HPyStringArrType_Type,
-    &HPyUnicodeArrType_Type,
-    &HPyVoidArrType_Type,
-    &HPyDatetimeArrType_Type,
-    &HPyTimedeltaArrType_Type,
-    &HPyHalfArrType_Type,
-
-    &_HPyArrayScalar_BoolValues[0],
-    &_HPyArrayScalar_BoolValues[1],
-
-    // arraytypes
-    &_hpy_builtin_descrs[NPY_VOID],
-    &_hpy_builtin_descrs[NPY_STRING],
-    &_hpy_builtin_descrs[NPY_UNICODE],
-    &_hpy_builtin_descrs[NPY_BOOL],
-    &_hpy_builtin_descrs[NPY_BYTE],
-    &_hpy_builtin_descrs[NPY_UBYTE],
-    &_hpy_builtin_descrs[NPY_SHORT],
-    &_hpy_builtin_descrs[NPY_USHORT],
-    &_hpy_builtin_descrs[NPY_INT],
-    &_hpy_builtin_descrs[NPY_UINT],
-    &_hpy_builtin_descrs[NPY_LONG],
-    &_hpy_builtin_descrs[NPY_ULONG],
-    &_hpy_builtin_descrs[NPY_LONGLONG],
-    &_hpy_builtin_descrs[NPY_ULONGLONG],
-    &_hpy_builtin_descrs[NPY_HALF],
-    &_hpy_builtin_descrs[NPY_FLOAT],
-    &_hpy_builtin_descrs[NPY_DOUBLE],
-    &_hpy_builtin_descrs[NPY_LONGDOUBLE],
-    &_hpy_builtin_descrs[NPY_CFLOAT],
-    &_hpy_builtin_descrs[NPY_CDOUBLE],
-    &_hpy_builtin_descrs[NPY_CLONGDOUBLE],
-    &_hpy_builtin_descrs[NPY_OBJECT],
-    &_hpy_builtin_descrs[NPY_DATETIME],
-    &_hpy_builtin_descrs[NPY_TIMEDELTA],
-
-    // abstract dtypes
-    &HPyArray_PyIntAbstractDType,
-    &HPyArray_PyFloatAbstractDType,
-    &HPyArray_PyComplexAbstractDType,
-
-    // hpy_n_ops struct/cache:
-    &hpy_n_ops.add,
-    &hpy_n_ops.subtract,
-    &hpy_n_ops.multiply,
-    &hpy_n_ops.divide,
-    &hpy_n_ops.remainder,
-    &hpy_n_ops.divmod,
-    &hpy_n_ops.power,
-    &hpy_n_ops.square,
-    &hpy_n_ops.reciprocal,
-    &hpy_n_ops._ones_like,
-    &hpy_n_ops.sqrt,
-    &hpy_n_ops.cbrt,
-    &hpy_n_ops.negative,
-    &hpy_n_ops.positive,
-    &hpy_n_ops.absolute,
-    &hpy_n_ops.invert,
-    &hpy_n_ops.left_shift,
-    &hpy_n_ops.right_shift,
-    &hpy_n_ops.bitwise_and,
-    &hpy_n_ops.bitwise_or,
-    &hpy_n_ops.bitwise_xor,
-    &hpy_n_ops.less,
-    &hpy_n_ops.less_equal,
-    &hpy_n_ops.equal,
-    &hpy_n_ops.not_equal,
-    &hpy_n_ops.greater,
-    &hpy_n_ops.greater_equal,
-    &hpy_n_ops.floor_divide,
-    &hpy_n_ops.true_divide,
-    &hpy_n_ops.logical_or,
-    &hpy_n_ops.logical_and,
-    &hpy_n_ops.floor,
-    &hpy_n_ops.ceil,
-    &hpy_n_ops.maximum,
-    &hpy_n_ops.minimum,
-    &hpy_n_ops.rint,
-    &hpy_n_ops.conjugate,
-    &hpy_n_ops.matmul,
-    &hpy_n_ops.clip,
-    &current_handler,
-
-    // interned strings
-    &npy_ma_str_array_wrap,
-    &npy_ma_str_array_finalize,
-    &npy_ma_str_implementation,
-    &npy_ma_str_axis1,
-    &npy_ma_str_axis2,
-    &npy_ma_str_like,
-    &npy_ma_str_numpy,
-
-    &g_dummy_arr,
-
-    &HPyArray_SFloatDType,
-    &SFloatSingleton,
-
-    &descr_typeDict,
-    &g_checkfunc,
-    &g_AxisError_cls,
-    NULL
-};
-
-static HPyModuleDef moduledef = {
-    /* HPY TODO: Unclear if a dotted name is legit in .m_name, but universal
-     * mode requires it.
-     */
-    .name = "numpy.core._multiarray_umath",
-    .doc = NULL,
-    .size = -1,
-#ifndef GRAALVM_PYTHON
-    .legacy_methods = array_module_methods,
-#endif
-    .defines = array_module_hpy_methods,
-    .globals = module_globals,
-};
-
 /* Initialization function for the module */
-HPy_MODINIT(_multiarray_umath)
-static HPy init__multiarray_umath_impl(HPyContext *ctx) {
-    HPy h_mod, h_d = HPy_NULL, h_s;
-    HPy result = HPy_NULL;
+HPyDef_SLOT(_multiarray_umath, HPy_mod_exec)
+static int _multiarray_umath_impl(HPyContext *ctx, HPy h_mod) {
+    HPy h_d = HPy_NULL, h_s;
+    int result = 0;
     HPy h_array_type = HPy_NULL;
     HPy h_arrayIterType = HPy_NULL;
     HPy h_npyiter_type = HPy_NULL;
@@ -6569,11 +6336,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy h_arrayFlagsType = HPy_NULL;
     HPy local_PyDataMem_DefaultHandler = HPy_NULL;
 
-    /* Create the module and add the functions */
-    h_mod = HPyModule_Create(ctx, &moduledef);
-    if (HPy_IsNull(h_mod)) {
-        return HPy_NULL;
-    }
+    /* Add the functions to the module */
 
     /* Initialize CPU features */
     if (npy_cpu_init() < 0) {
@@ -6914,7 +6677,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     HPy_Close(ctx, h_current_handler);
 #endif
 
-    result = h_mod;
+    result = 0;
 
  cleanup:
     HPy_Close(ctx, h_d);
@@ -6932,7 +6695,237 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         HPyErr_SetString(ctx, ctx->h_RuntimeError,
                         "cannot load multiarray module.");
     }
-    HPy_Close(ctx, h_mod);
-    result = HPy_NULL;
+    result = -1;
     goto cleanup;
 }
+
+static HPyDef *array_module_hpy_methods[] = {
+    &_multiarray_umath,
+    &array_zeros,
+    &array_array,
+    &array_promote_types,
+    &array_min_scalar_type,
+    &_get_castingimpl,
+    &NpyIter_NestedIters,
+    &get_sfloat_dtype,
+    &hpy_add_docstring,
+    &implement_array_function,
+    &_get_implementing_args,
+    &_get_ndarray_c_version,
+    &_fastCopyAndTranspose,
+    &_from_dlpack,
+    &_insert,
+    &_reconstruct,
+    &_monotonicity,
+    &_set_madvise_hugepage,
+    &array_scalar,
+    &array_putmask,
+    &array_asarray,
+    &array_asanyarray,
+    &array_ascontiguousarray,
+    &array_asfortranarray,
+    &array_copyto,
+    &array_empty,
+    &array_empty_like,
+    &array_scalar,
+    &array_fromstring,
+    &array_fromfile,
+    &array_fromiter,
+    &array_frombuffer,
+    &array_concatenate,
+    &array_innerproduct,
+    &array_matrixproduct,
+    &array_vdot,
+    &array_arange,
+    &array_set_ops_function,
+    &array_where,
+    &array_lexsort,
+    &array_can_cast_safely,
+    &array_result_type,
+    &array_datetime_data,
+    &array_shares_memory,
+    &array_may_share_memory,
+    &datetime_as_string,
+    &ufunc_geterr,
+    &ufunc_seterr,
+    &array_is_busday,
+    &array_busday_offset,
+    &array_busday_count,
+    &arr_bincount,
+    &arr_ravel_multi_index,
+    &arr_unravel_index,
+    &io_pack,
+    &io_unpack,
+    &frompyfunc,
+    &add_newdoc_ufunc,
+    &array_set_typeDict,
+    &compare_chararrays,
+    &normalize_axis_index,
+    &dragon4_positional,
+    &dragon4_scientific,
+    &format_longfloat,
+    &set_legacy_print_mode,
+    &array_einsum,
+    &_load_from_filelike,
+    &arr_interp,
+    &arr_interp_complex,
+
+    // HPy Port TODO: implement them.
+    &_hpy_vec_string,
+    NULL
+};
+
+static HPyGlobal *module_globals[] = {
+    &HPyArrayDescr_Type,
+    &HPyArray_Type,
+    &HPyArrayDTypeMeta_Type,
+    &HPyArrayMethod_Type,
+    &HPyBoundArrayMethod_Type,
+    &HPyGenericArrType_Type,
+
+    // array_coercion:
+    &_global_pytype_to_type_dict,
+
+    // scalartypes:
+    &HPyGenericArrType_Type,
+    &HPyGenericArrType_Type,
+    &HPyBoolArrType_Type,
+    &HPyNumberArrType_Type,
+    &HPyIntegerArrType_Type,
+    &HPySignedIntegerArrType_Type,
+    &HPyUnsignedIntegerArrType_Type,
+    &HPyInexactArrType_Type,
+    &HPyFloatingArrType_Type,
+    &HPyComplexFloatingArrType_Type,
+    &HPyFlexibleArrType_Type,
+    &HPyCharacterArrType_Type,
+    &HPyByteArrType_Type,
+    &HPyShortArrType_Type,
+    &HPyIntArrType_Type,
+    &HPyLongArrType_Type,
+    &HPyLongLongArrType_Type,
+    &HPyUByteArrType_Type,
+    &HPyUShortArrType_Type,
+    &HPyUIntArrType_Type,
+    &HPyULongArrType_Type,
+    &HPyULongLongArrType_Type,
+    &HPyFloatArrType_Type,
+    &HPyDoubleArrType_Type,
+    &HPyLongDoubleArrType_Type,
+    &HPyCFloatArrType_Type,
+    &HPyCDoubleArrType_Type,
+    &HPyCLongDoubleArrType_Type,
+    &HPyObjectArrType_Type,
+    &HPyStringArrType_Type,
+    &HPyUnicodeArrType_Type,
+    &HPyVoidArrType_Type,
+    &HPyDatetimeArrType_Type,
+    &HPyTimedeltaArrType_Type,
+    &HPyHalfArrType_Type,
+
+    &_HPyArrayScalar_BoolValues[0],
+    &_HPyArrayScalar_BoolValues[1],
+
+    // arraytypes
+    &_hpy_builtin_descrs[NPY_VOID],
+    &_hpy_builtin_descrs[NPY_STRING],
+    &_hpy_builtin_descrs[NPY_UNICODE],
+    &_hpy_builtin_descrs[NPY_BOOL],
+    &_hpy_builtin_descrs[NPY_BYTE],
+    &_hpy_builtin_descrs[NPY_UBYTE],
+    &_hpy_builtin_descrs[NPY_SHORT],
+    &_hpy_builtin_descrs[NPY_USHORT],
+    &_hpy_builtin_descrs[NPY_INT],
+    &_hpy_builtin_descrs[NPY_UINT],
+    &_hpy_builtin_descrs[NPY_LONG],
+    &_hpy_builtin_descrs[NPY_ULONG],
+    &_hpy_builtin_descrs[NPY_LONGLONG],
+    &_hpy_builtin_descrs[NPY_ULONGLONG],
+    &_hpy_builtin_descrs[NPY_HALF],
+    &_hpy_builtin_descrs[NPY_FLOAT],
+    &_hpy_builtin_descrs[NPY_DOUBLE],
+    &_hpy_builtin_descrs[NPY_LONGDOUBLE],
+    &_hpy_builtin_descrs[NPY_CFLOAT],
+    &_hpy_builtin_descrs[NPY_CDOUBLE],
+    &_hpy_builtin_descrs[NPY_CLONGDOUBLE],
+    &_hpy_builtin_descrs[NPY_OBJECT],
+    &_hpy_builtin_descrs[NPY_DATETIME],
+    &_hpy_builtin_descrs[NPY_TIMEDELTA],
+
+    // abstract dtypes
+    &HPyArray_PyIntAbstractDType,
+    &HPyArray_PyFloatAbstractDType,
+    &HPyArray_PyComplexAbstractDType,
+
+    // hpy_n_ops struct/cache:
+    &hpy_n_ops.add,
+    &hpy_n_ops.subtract,
+    &hpy_n_ops.multiply,
+    &hpy_n_ops.divide,
+    &hpy_n_ops.remainder,
+    &hpy_n_ops.divmod,
+    &hpy_n_ops.power,
+    &hpy_n_ops.square,
+    &hpy_n_ops.reciprocal,
+    &hpy_n_ops._ones_like,
+    &hpy_n_ops.sqrt,
+    &hpy_n_ops.cbrt,
+    &hpy_n_ops.negative,
+    &hpy_n_ops.positive,
+    &hpy_n_ops.absolute,
+    &hpy_n_ops.invert,
+    &hpy_n_ops.left_shift,
+    &hpy_n_ops.right_shift,
+    &hpy_n_ops.bitwise_and,
+    &hpy_n_ops.bitwise_or,
+    &hpy_n_ops.bitwise_xor,
+    &hpy_n_ops.less,
+    &hpy_n_ops.less_equal,
+    &hpy_n_ops.equal,
+    &hpy_n_ops.not_equal,
+    &hpy_n_ops.greater,
+    &hpy_n_ops.greater_equal,
+    &hpy_n_ops.floor_divide,
+    &hpy_n_ops.true_divide,
+    &hpy_n_ops.logical_or,
+    &hpy_n_ops.logical_and,
+    &hpy_n_ops.floor,
+    &hpy_n_ops.ceil,
+    &hpy_n_ops.maximum,
+    &hpy_n_ops.minimum,
+    &hpy_n_ops.rint,
+    &hpy_n_ops.conjugate,
+    &hpy_n_ops.matmul,
+    &hpy_n_ops.clip,
+    &current_handler,
+
+    // interned strings
+    &npy_ma_str_array_wrap,
+    &npy_ma_str_array_finalize,
+    &npy_ma_str_implementation,
+    &npy_ma_str_axis1,
+    &npy_ma_str_axis2,
+    &npy_ma_str_like,
+    &npy_ma_str_numpy,
+
+    &g_dummy_arr,
+
+    &HPyArray_SFloatDType,
+    &SFloatSingleton,
+
+    &descr_typeDict,
+    &g_checkfunc,
+    &g_AxisError_cls,
+    NULL
+};
+
+static HPyModuleDef moduledef = {
+    .doc = NULL,
+#ifndef GRAALVM_PYTHON
+    .legacy_methods = array_module_methods,
+#endif
+    .defines = array_module_hpy_methods,
+    .globals = module_globals,
+};
+
+HPy_MODINIT(_multiarray_umath, moduledef)
