@@ -221,10 +221,12 @@ _bad_strides(PyArrayObject *ap)
  */
 NPY_NO_EXPORT HPy
 hpy_cblas_matrixproduct(HPyContext *ctx, int typenum, 
-                    HPy /* PyArrayObject * */ ap1, PyArrayObject *ap1_struct,
-                    HPy /* PyArrayObject * */ ap2, PyArrayObject *ap2_struct,
+                    HPy /* PyArrayObject * */ ap1_in, PyArrayObject *ap1_struct_in,
+                    HPy /* PyArrayObject * */ ap2_in, PyArrayObject *ap2_struct_in,
                     HPy /* PyArrayObject * */ out, PyArrayObject *out_struct)
 {
+    HPy ap1 = HPy_NULL, ap2 = HPy_NULL;
+    PyArrayObject *ap1_struct, *ap2_struct;
     HPy result = HPy_NULL, out_buf = HPy_NULL; // PyArrayObject *
     npy_intp j, lda, ldb;
     npy_intp l;
@@ -234,24 +236,26 @@ hpy_cblas_matrixproduct(HPyContext *ctx, int typenum,
     npy_intp numbytes;
     MatrixShape ap1shape, ap2shape;
 
-    if (_bad_strides(ap1_struct)) {
-            HPy op1 = HPyArray_NewCopy(ctx, ap1, NPY_ANYORDER);
-
-            HPy_Close(ctx, ap1);
-            ap1 = op1;
-            if (HPy_IsNull(ap1)) {
-                goto fail;
-            }
+    if (_bad_strides(ap1_struct_in)) {
+        ap1 = HPyArray_NewCopy(ctx, ap1_in, NPY_ANYORDER);
+        if (HPy_IsNull(ap1)) {
+            goto fail;
+        }
+    } else {
+        ap1 = HPy_Dup(ctx, ap1_in);
     }
-    if (_bad_strides(ap2_struct)) {
-            HPy op2 = HPyArray_NewCopy(ctx, ap2, NPY_ANYORDER);
+    ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
 
-            HPy_Close(ctx, ap2);
-            ap2 = op2;
-            if (HPy_IsNull(ap2)) {
-                goto fail;
-            }
+    if (_bad_strides(ap2_struct_in)) {
+        ap2 = HPyArray_NewCopy(ctx, ap2_in, NPY_ANYORDER);
+        if (HPy_IsNull(ap2)) {
+            goto fail;
+        }
+    } else {
+        ap2 = HPy_Dup(ctx, ap2_in);
     }
+    ap2_struct = PyArrayObject_AsStruct(ctx, ap2);
+
     ap1shape = _select_matrix_shape(ap1_struct);
     ap2shape = _select_matrix_shape(ap1_struct);
 
@@ -714,9 +718,9 @@ fail:
 NPY_NO_EXPORT PyObject *
 cblas_matrixproduct(int typenum, PyArrayObject *ap1, PyArrayObject *ap2, PyArrayObject *out) {
     HPyContext *ctx = npy_get_context();
-    HPy h_ap1 = HPy_FromPyObject(ctx, ap1);
-    HPy h_ap2 = HPy_FromPyObject(ctx, ap2);
-    HPy h_out = HPy_FromPyObject(ctx, out);
+    HPy h_ap1 = HPy_FromPyObject(ctx, (PyObject *)ap1);
+    HPy h_ap2 = HPy_FromPyObject(ctx, (PyObject *)ap2);
+    HPy h_out = HPy_FromPyObject(ctx, (PyObject *)out);
     HPy h_ret = hpy_cblas_matrixproduct(ctx, typenum, h_ap1, ap1, h_ap2, ap2, h_out, out);
     PyObject *ret = HPy_AsPyObject(ctx, h_ret);
     HPy_Close(ctx, h_ap1);
