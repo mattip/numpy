@@ -1291,7 +1291,6 @@ check_for_trivial_loop(HPyContext *ctx, PyArrayMethodObject * ufuncimpl_data,
     int i, nin = ufuncimpl_data->nin, nop = nin + ufuncimpl_data->nout;
 
     for (i = 0; i < nop; ++i) {
-        PyArrayObject *op_i_data = PyArrayObject_AsStruct(ctx, op[i]);
         /*
          * If the dtype doesn't match, or the array isn't aligned,
          * indicate that the trivial loop can't be done.
@@ -1299,6 +1298,7 @@ check_for_trivial_loop(HPyContext *ctx, PyArrayMethodObject * ufuncimpl_data,
         if (HPy_IsNull(op[i])) {
             continue;
         }
+        PyArrayObject *op_i_data = PyArrayObject_AsStruct(ctx, op[i]);
         int must_copy = !PyArray_ISALIGNED(op_i_data);
 
         HPy op_descr = HPyArray_DESCR(ctx, op[i], op_i_data);

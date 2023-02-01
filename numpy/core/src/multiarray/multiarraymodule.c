@@ -2600,7 +2600,7 @@ _hpy_array_fromobject_generic(
     HPy ret = HPy_NULL;
     HPy oldtype = HPy_NULL;
     PyArray_Descr *oldtype_data;
-    PyArray_Descr *type_data = PyArray_Descr_AsStruct(ctx, type);
+    PyArray_Descr *type_data;
     int nd, flags = 0;
 
     if (ndmin > NPY_MAXDIMS) {
@@ -2635,6 +2635,7 @@ _hpy_array_fromobject_generic(
                 goto finish;
             }
         }
+        type_data = PyArray_Descr_AsStruct(ctx, type);
         /* One more chance */
         oldtype = HPyArray_DESCR(ctx, op, oparr);
         oldtype_data = PyArray_Descr_AsStruct(ctx, oldtype);

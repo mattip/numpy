@@ -1734,13 +1734,13 @@ hnpyiter_fill_axisdata(HPyContext *ctx, NpyIter *iter, npy_uint32 flags, npyiter
 
         for (iop = 0; iop < nop; ++iop) {
             op_cur = op[iop];
-            PyArrayObject *op_cur_data = PyArrayObject_AsStruct(ctx, op_cur);
 
             if (op_axes == NULL || op_axes[iop] == NULL) {
                 if (HPy_IsNull(op_cur)) {
                     strides[iop] = 0;
                 }
                 else {
+                    PyArrayObject *op_cur_data = PyArrayObject_AsStruct(ctx, op_cur);
                     ondim = PyArray_NDIM(op_cur_data);
                     if (bshape == 1) {
                         strides[iop] = 0;
@@ -1811,14 +1811,16 @@ hnpyiter_fill_axisdata(HPyContext *ctx, NpyIter *iter, npy_uint32 flags, npyiter
                     NIT_ITFLAGS(iter) |= NPY_ITFLAG_REDUCE;
                     op_itflags[iop] |= NPY_OP_ITFLAG_REDUCE;
 
-                    if (NPY_UNLIKELY((i >= 0) && !HPy_IsNull(op_cur) &&
-                            (PyArray_DIM(op_cur_data, i) != 1))) {
-                        HPyErr_Format_p(ctx, ctx->h_ValueError,
+                    if (NPY_UNLIKELY((i >= 0) && !HPy_IsNull(op_cur))) {
+                        PyArrayObject *op_cur_data = PyArrayObject_AsStruct(ctx, op_cur);
+                        if (NPY_UNLIKELY(PyArray_DIM(op_cur_data, i) != 1)) {
+                            HPyErr_Format_p(ctx, ctx->h_ValueError,
                                 "operand was set up as a reduction along axis "
                                 "%d, but the length of the axis is %zd "
                                 "(it has to be 1)",
                                 i, (Py_ssize_t)PyArray_DIM(op_cur_data, i));
-                        return 0;
+                            return 0;
+                        }
                     }
                 }
                 else if (bshape == 1) {
@@ -1830,11 +1832,12 @@ hnpyiter_fill_axisdata(HPyContext *ctx, NpyIter *iter, npy_uint32 flags, npyiter
                     strides[iop] = 0;
                 }
                 else if (i >= 0) {
+                    PyArrayObject *op_cur_data;
                     if (HPy_IsNull(op_cur)) {
                         /* stride is filled later, shape will match `bshape` */
                         strides[iop] = 0;
                     }
-                    else if (PyArray_DIM(op_cur_data, i) == 1) {
+                    else if (PyArray_DIM((op_cur_data = PyArrayObject_AsStruct(ctx, op_cur)), i) == 1) {
                         strides[iop] = 0;
                         if (op_flags[iop] & NPY_ITER_NO_BROADCAST) {
                             goto operand_different_than_broadcast;

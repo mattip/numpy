@@ -651,10 +651,10 @@ HPyArray_AssignArray(HPyContext *ctx, /*PyArrayObject*/HPy h_dst, /*PyArrayObjec
         }
     }
 
-    PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
+    PyArrayObject *wheremask;
     /* optimization: scalar boolean mask */
     if (!HPy_IsNull(h_wheremask) &&
-            PyArray_NDIM(wheremask) == 0 &&
+            PyArray_NDIM((wheremask = PyArrayObject_AsStruct(ctx, h_wheremask))) == 0 &&
             PyArray_Descr_AsStruct(ctx, HPyArray_DESCR(ctx, h_wheremask, wheremask))->type_num == NPY_BOOL) {
         npy_bool value = *(npy_bool *)PyArray_DATA(wheremask);
         if (value) {

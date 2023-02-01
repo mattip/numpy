@@ -300,7 +300,6 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
         h_src_dtype = updated_src_dtype;
     }
 
-    PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
     if (HPy_IsNull(h_wheremask)) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
@@ -312,6 +311,7 @@ HPyArray_AssignRawScalar(HPyContext *ctx, /*PyArrayObject*/HPy h_dst,
     }
     else {
         CAPI_WARN("non-straightforward value assignment");
+        PyArrayObject *wheremask = PyArrayObject_AsStruct(ctx, h_wheremask);
         npy_intp wheremask_strides[NPY_MAXDIMS];
 
         /* Broadcast the wheremask to 'dst' for raw iteration */

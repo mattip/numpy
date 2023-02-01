@@ -4845,9 +4845,9 @@ HPyArray_ArangeObj(HPyContext *ctx, HPy start, HPy stop, HPy step, HPy /* PyArra
     int swap;
     HPY_NPY_BEGIN_THREADS_DEF;
 
-    PyArray_Descr *dtype_struct = PyArray_Descr_AsStruct(ctx, dtype);
     /* Datetime arange is handled specially */
-    if ((!HPy_IsNull(dtype) && (dtype_struct->type_num == NPY_DATETIME ||
+    PyArray_Descr *dtype_struct;
+    if ((!HPy_IsNull(dtype) && ((dtype_struct = PyArray_Descr_AsStruct(ctx, dtype))->type_num == NPY_DATETIME ||
                            dtype_struct->type_num == NPY_TIMEDELTA)) ||
             (HPy_IsNull(dtype) && (hpy_is_any_numpy_datetime_or_timedelta(ctx, start) ||
                               hpy_is_any_numpy_datetime_or_timedelta(ctx, stop) ||
