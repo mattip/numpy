@@ -6344,7 +6344,7 @@ static int _multiarray_umath_impl(HPyContext *ctx, HPy h_mod) {
     }
 
 #if defined(MS_WIN64) && defined(__GNUC__)
-  PyErr_WarnEx(PyExc_Warning,
+    HPyErr_WarnEx(ctx, ctx->h_Warning,
         "Numpy built with MINGW-W64 on Windows 64 bits is experimental, " \
         "and only available for \n" \
         "testing. You are advised not to use it for production. \n\n" \
