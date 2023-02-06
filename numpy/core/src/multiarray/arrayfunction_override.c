@@ -674,12 +674,7 @@ implement_array_function_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args,
                 return HPy_NULL;
             }
             HPy_Close(ctx, tmp_has_override);
-            CAPI_WARN("missing PyDict_DelItem");
-            PyObject *py_kwargs = HPy_AsPyObject(ctx, kwargs);
-            PyObject *py_tmp = HPy_AsPyObject(ctx, tmp);
-            PyDict_DelItem(py_kwargs, py_tmp);
-            Py_DECREF(py_kwargs);
-            Py_DECREF(py_tmp);
+            HPyDict_DelItem(ctx, kwargs, tmp);
         }
     }
     HPy_Close(ctx, tmp);

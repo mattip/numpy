@@ -336,4 +336,14 @@ HPySequence_Fast(HPyContext *ctx, HPy v, const char *m)
     return res;
 }
 
+/**
+ * Delegates to HPy_DelItem but just to keep track of where 'PyDict_DelItem'
+ * was used.
+ */
+static NPY_INLINE int
+HPyDict_DelItem(HPyContext *ctx, HPy mp, HPy key)
+{
+    return HPy_DelItem(ctx, mp, key);
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
