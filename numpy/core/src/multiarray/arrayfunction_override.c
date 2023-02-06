@@ -225,21 +225,16 @@ hpy_get_implementing_args_and_methods(HPyContext *ctx, HPy relevant_args,
                 }
 
                 /* "subclasses before superclasses, otherwise left to right" */
-                PyObject *py_argument = HPy_AsPyObject(ctx, argument);
                 arg_index = num_implementing_args;
-                CAPI_WARN("calling PyObject_IsInstance");
                 for (int j = 0; j < num_implementing_args; j++) {
                     HPy other_type = HPy_Type(ctx, implementing_args[j]);
-                    PyObject *py_other_type = HPy_AsPyObject(ctx, other_type);
+                    int is_instance = HPy_IsInstance(ctx, argument, other_type);
                     HPy_Close(ctx, other_type);
-                    int is_instance = PyObject_IsInstance(py_argument, py_other_type);
-                    Py_DECREF(py_other_type);
                     if (is_instance) {
                         arg_index = j;
                         break;
                     }
                 }
-                Py_DECREF(py_argument);
                 hpy_array_insert(implementing_args, num_implementing_args,
                                       arg_index, HPy_Dup(ctx, argument));
                 // HPy_Close(ctx, argument);
