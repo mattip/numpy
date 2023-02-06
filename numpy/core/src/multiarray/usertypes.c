@@ -44,7 +44,7 @@ maintainer email:  oliphant.travis@ieee.org
 #include "legacy_dtype_implementation.h"
 
 
-NPY_NO_EXPORT PyArray_Descr **userdescrs=NULL;
+NPY_NO_EXPORT HPyGlobal *userdescrs=NULL;
 
 static int
 _append_new(int **p_types, int insert)
@@ -197,22 +197,18 @@ PyArray_RegisterDataType(PyArray_Descr *descr)
 
 /*HPY_NUMPY_API
   HPy Register Data type
-  Does not change the reference count of descr
 */
 NPY_NO_EXPORT int
 HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
 {
     PyArray_Descr *s_descr = PyArray_Descr_AsStruct(ctx, h_descr);
-    PyArray_Descr *descr = (PyArray_Descr *)HPy_AsPyObject(ctx, h_descr);
-    PyArray_Descr *descr2;
     int typenum;
     int i;
     PyArray_ArrFuncs *f;
 
     /* See if this type is already registered */
     for (i = 0; i < NPY_NUMUSERTYPES; i++) {
-        descr2 = userdescrs[i];
-        if (descr2 == descr) {
+        if (HPyGlobal_Is(ctx, h_descr, userdescrs[i])) {
             return s_descr->type_num;
         }
     }
@@ -266,14 +262,14 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
         return -1;
     }
 
-    userdescrs = realloc(userdescrs,
-                         (NPY_NUMUSERTYPES+1)*sizeof(void *));
+    userdescrs = (HPyGlobal *)realloc(userdescrs,
+            (NPY_NUMUSERTYPES+1)*sizeof(HPyGlobal));
     if (userdescrs == NULL) {
         HPyErr_SetString(ctx, ctx->h_MemoryError, "RegisterDataType");
         return -1;
     }
 
-    userdescrs[NPY_NUMUSERTYPES++] = descr;
+    HPyGlobal_Store(ctx, &userdescrs[NPY_NUMUSERTYPES++], h_descr);
 
     s_descr->type_num = typenum;
     if (dtypemeta_wrap_legacy_descriptor(ctx, h_descr, s_descr) < 0) {

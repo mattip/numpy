@@ -4591,7 +4591,10 @@ hpy_is_type_anyscalar_exact(HPyContext *ctx, HPy type)
 NPY_NO_EXPORT int
 _typenum_fromtypeobj(PyObject *type, int user)
 {
-    int typenum, i;
+    HPyContext *ctx;
+    HPy h_descr_typeobj;
+    PyObject *descr_typeobj;
+    int typenum, i, same;
 
     typenum = NPY_NOTYPE;
     i = get_typeobj_idx((PyTypeObject*)type);
@@ -4603,9 +4606,15 @@ _typenum_fromtypeobj(PyObject *type, int user)
         return typenum;
     }
     /* Search any registered types */
+    ctx = npy_get_context();
     i = 0;
     while (i < NPY_NUMUSERTYPES) {
-        if (type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
+        h_descr_typeobj = HPyArray_Descr_typeobj_g(ctx, userdescrs[i]);
+        descr_typeobj = HPy_AsPyObject(ctx, h_descr_typeobj);
+        HPy_Close(ctx, h_descr_typeobj);
+        same = (type == descr_typeobj);
+        Py_DECREF(descr_typeobj);
+        if (same) {
             typenum = i + NPY_USERDEF;
             break;
         }
@@ -4617,7 +4626,8 @@ _typenum_fromtypeobj(PyObject *type, int user)
 NPY_NO_EXPORT int
 _hpy_typenum_fromtypeobj(HPyContext *ctx, HPy type, int user)
 {
-    int typenum, i;
+    HPy descr_typeobj;
+    int typenum, i, same;
 
     typenum = NPY_NOTYPE;
     i = hpy_get_typeobj_idx(ctx, type);
@@ -4630,10 +4640,11 @@ _hpy_typenum_fromtypeobj(HPyContext *ctx, HPy type, int user)
     }
     /* Search any registered types */
     i = 0;
-    PyObject *py_type = HPy_AsPyObject(ctx, type);
-    CAPI_WARN("calling PyArray_Descr_typeobj(userdescrs[i]))");
     while (i < NPY_NUMUSERTYPES) {
-        if (py_type == (PyObject *)(PyArray_Descr_typeobj(userdescrs[i]))) {
+        descr_typeobj = HPyArray_Descr_typeobj_g(ctx, userdescrs[i]);
+        same = HPy_Is(ctx, type, descr_typeobj);
+        HPy_Close(ctx, descr_typeobj);
+        if (same) {
             typenum = i + NPY_USERDEF;
             break;
         }

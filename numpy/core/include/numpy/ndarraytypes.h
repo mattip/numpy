@@ -737,6 +737,14 @@ typedef struct _PyArray_Descr {
 
 HPyType_LEGACY_HELPERS(PyArray_Descr)
 
+static inline HPy HPyArray_Descr_typeobj_g(HPyContext *ctx, HPyGlobal hg_owner) {
+    HPy owner = HPyGlobal_Load(ctx, hg_owner);
+    PyArray_Descr *descr_data = PyArray_Descr_AsStruct(ctx, owner);
+    HPy res = HPyField_Load(ctx, owner, descr_data->typeobj);
+    HPy_Close(ctx, owner);
+    return res;
+}
+
 static inline PyTypeObject *PyArray_Descr_typeobj(PyArray_Descr *pyobj) {
     HPyContext *ctx = npy_get_context();
     HPy owner = HPy_FromPyObject(ctx, (PyObject*) pyobj);

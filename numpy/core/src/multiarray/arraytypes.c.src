@@ -5001,8 +5001,7 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
         return h_ret;
     }
     else if (PyTypeNum_ISUSERDEF(type)) {
-        CAPI_WARN("userdescrs is of type PyArray_Descr");
-        h_ret = HPy_FromPyObject(ctx, (PyObject *)userdescrs[type - NPY_USERDEF]);
+        h_ret = HPyGlobal_Load(ctx, userdescrs[type - NPY_USERDEF]);
     }
     else {
         int num = NPY_NTYPES;

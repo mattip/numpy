@@ -607,10 +607,12 @@ PyArray_TypeNumFromName(char const *str)
     PyArray_Descr *descr;
 
     for (i = 0; i < NPY_NUMUSERTYPES; i++) {
-        descr = userdescrs[i];
+        descr = (PyArray_Descr *)HPyGlobal_LoadPyObj(userdescrs[i]);
         if (strcmp(PyArray_Descr_typeobj(descr)->tp_name, str) == 0) {
+            Py_DECREF(descr);
             return descr->type_num;
         }
+        Py_DECREF(descr);
     }
     return NPY_NOTYPE;
 }
