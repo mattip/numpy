@@ -1121,7 +1121,7 @@ can_cast_scalar_to(HPyContext *ctx, HPy /* (PyArray_Descr *) */ scal_type, char 
     npy_longlong value[4];
 
     int swap = !PyArray_ISNBO(scal_type_data->byteorder);
-    scal_type_data->f->copyswap(&value, scal_data, swap, NULL);
+    scal_type_data->f->copyswap(ctx, &value, scal_data, swap, HPy_NULL);
 
     type_num = min_scalar_type_num((char *)&value, scal_type_data->type_num,
                                     &is_small_unsigned);
@@ -1198,8 +1198,7 @@ hpy_can_cast_scalar_to(HPyContext *ctx, HPy scal_type, char *scal_data,
     npy_longlong value[4];
 
     int swap = !PyArray_ISNBO(scal_type_data->byteorder);
-    CAPI_WARN("Not clear what scal_type_data->f->copyswap may call...");
-    scal_type_data->f->copyswap(&value, scal_data, swap, NULL);
+    scal_type_data->f->copyswap(ctx, &value, scal_data, swap, HPy_NULL);
 
     type_num = min_scalar_type_num((char *)&value, scal_type_data->type_num,
                                     &is_small_unsigned);
@@ -2072,7 +2071,7 @@ HPyArray_MinScalarType_internal(HPyContext *ctx, HPy h_arr, int *is_small_unsign
         int swap = !PyArray_ISNBO(dtype->byteorder);
         /* An aligned memory buffer large enough to hold any type */
         npy_longlong value[4];
-        dtype->f->copyswap(&value, data, swap, NULL);
+        dtype->f->copyswap(ctx, &value, data, swap, HPy_NULL);
 
         HPy ret = HPyArray_DescrFromType(ctx,
                         min_scalar_type_num((char *)&value,
@@ -2290,8 +2289,8 @@ PyArray_ResultType(
         npy_intp ndtypes, PyArray_Descr *descrs[])
 {
     HPyContext *ctx = npy_get_context();
-    HPy *h_arrs = HPy_FromPyObjectArray(ctx, arrs, narrs);
-    HPy *h_descrs = HPy_FromPyObjectArray(ctx, descrs, ndtypes);
+    HPy *h_arrs = HPy_FromPyObjectArray(ctx, (PyObject **)arrs, narrs);
+    HPy *h_descrs = HPy_FromPyObjectArray(ctx, (PyObject **)descrs, ndtypes);
     HPy h_result = HPyArray_ResultType(ctx,
             narrs, h_arrs, ndtypes, h_descrs);
     PyArray_Descr *result = (PyArray_Descr *)HPy_AsPyObject(ctx, h_result);

@@ -2114,7 +2114,7 @@ _pyarray_revert(PyArrayObject *ret)
 
     if (PyArray_ISNUMBER(ret) && !PyArray_ISCOMPLEX(ret)) {
         /* Optimization for unstructured dtypes */
-        PyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(ret)->f->copyswapn;
+        HPyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(ret)->f->copyswapn;
         sw2 = op + length * os - 1;
         /* First reverse the whole array byte by byte... */
         while(sw1 < sw2) {
@@ -2123,7 +2123,7 @@ _pyarray_revert(PyArrayObject *ret)
             *sw2-- = tmp;
         }
         /* ...then swap in place every item */
-        copyswapn(op, os, NULL, 0, length, 1, NULL);
+        cpy_copyswapn(copyswapn, op, os, NULL, 0, length, 1, NULL);
     }
     else {
         char *tmp = PyArray_malloc(PyArray_DESCR(ret)->elsize);
@@ -4583,7 +4583,7 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
 {
     HPy h_arr, h_ax, h_ay;
     HPy h_ret = HPy_NULL;
-    PyObject *ret = NULL;
+    HPy ret;
 
     h_arr = HPyArray_FROM_O(ctx, condition);
     if (HPy_IsNull(h_arr)) {
@@ -4623,7 +4623,7 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
                           h_common_dt, h_common_dt};
         NpyIter * iter;
         int needs_api;
-        NPY_BEGIN_THREADS_DEF;
+        HPY_NPY_BEGIN_THREADS_DEF;
 
         if (HPy_IsNull(h_common_dt) || HPy_IsNull(h_op_dt[1])) {
             HPy_Close(ctx, h_op_dt[1]);
@@ -4641,10 +4641,10 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
         needs_api = NpyIter_IterationNeedsAPI(iter);
 
         /* Get the result from the iterator object array */
-        ret = (PyObject*)NpyIter_GetOperandArray(iter)[0];
+        // ret = (PyObject*)NpyIter_GetOperandArray(iter)[0];
+        ret = HNpyIter_GetOperandArray(iter)[0];
 
-        CAPI_WARN("NPY_BEGIN_THREADS_NDITER and other NpyIter_*");
-        NPY_BEGIN_THREADS_NDITER(iter);
+        HPY_NPY_BEGIN_THREADS_NDITER(ctx, iter);
 
         if (NpyIter_GetIterSize(iter) != 0) {
             NpyIter_IterNextFunc *iternext = HNpyIter_GetIterNext(ctx, iter, NULL);
@@ -4652,12 +4652,14 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
             char **dataptrarray = NpyIter_GetDataPtrArray(iter);
 
             do {
-                PyArray_Descr * dtx = NpyIter_GetDescrArray(iter)[2];
-                PyArray_Descr * dty = NpyIter_GetDescrArray(iter)[3];
-                int axswap = PyDataType_ISBYTESWAPPED(dtx);
-                int ayswap = PyDataType_ISBYTESWAPPED(dty);
-                PyArray_CopySwapFunc *copyswapx = dtx->f->copyswap;
-                PyArray_CopySwapFunc *copyswapy = dty->f->copyswap;
+                HPy /* (PyArray_Descr *) */ dtx = HNpyIter_GetDescrArray(iter)[2];
+                HPy /* (PyArray_Descr *) */ dty = HNpyIter_GetDescrArray(iter)[3];
+                PyArray_Descr *dtx_data = PyArray_Descr_AsStruct(ctx, dtx);
+                PyArray_Descr *dty_data = PyArray_Descr_AsStruct(ctx, dty);
+                int axswap = PyDataType_ISBYTESWAPPED(dtx_data);
+                int ayswap = PyDataType_ISBYTESWAPPED(dty_data);
+                HPyArray_CopySwapFunc *copyswapx = dtx_data->f->copyswap;
+                HPyArray_CopySwapFunc *copyswapy = dty_data->f->copyswap;
                 int native = (axswap == ayswap) && (axswap == 0) && !needs_api;
                 npy_intp n = (*innersizeptr);
                 npy_intp itemsize = NpyIter_GetDescrArray(iter)[0]->elsize;
@@ -4689,12 +4691,11 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
                     /* copyswap is faster than memcpy even if we are native */
                     npy_intp i;
                     for (i = 0; i < n; i++) {
-                        CAPI_WARN("Not clear what dtx/y->f->copyswap may call...");
                         if (*csrc) {
-                            copyswapx(dst, xsrc, axswap, ret);
+                            copyswapx(ctx, dst, xsrc, axswap, ret);
                         }
                         else {
-                            copyswapy(dst, ysrc, ayswap, ret);
+                            copyswapy(ctx, dst, ysrc, ayswap, ret);
                         }
                         dst += itemsize;
                         xsrc += xstride;
@@ -4705,19 +4706,18 @@ HPyArray_Where(HPyContext *ctx, HPy condition, HPy x, HPy y)
             } while (iternext(ctx, iter));
         }
 
-        NPY_END_THREADS;
+        HPY_NPY_END_THREADS(ctx);
 
-        Py_INCREF(ret);
         HPy_Close(ctx, h_arr);
         HPy_Close(ctx, h_ax);
         HPy_Close(ctx, h_ay);
 
         if (NpyIter_Deallocate(iter) != NPY_SUCCEED) {
-            Py_DECREF(ret);
+            HPy_Close(ctx, ret);
             return HPy_NULL;
         }
 
-        return HPy_FromPyObject(ctx, ret);
+        return ret;
     }
 
 fail:

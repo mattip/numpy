@@ -274,6 +274,8 @@ MyHPyLong_AsUnsigned@Type@ (HPyContext *ctx, HPy obj)
 static PyObject *
 @TYPE@_getitem(void *input, void *vap)
 {
+    HPyContext *ctx;
+    HPy h_ap;
     PyArrayObject *ap = vap;
     char *ip = input;
     @type@ t1;
@@ -283,7 +285,11 @@ static PyObject *
         return @func1@((@type1@)t1);
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(&t1, ip, PyArray_ISBYTESWAPPED(ap), ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, &t1, ip, PyArray_ISBYTESWAPPED(ap),
+                                       h_ap);
+        HPy_Close(ctx, h_ap);
         return @func1@((@type1@)t1);
     }
 }
@@ -291,6 +297,8 @@ static PyObject *
 static int
 @TYPE@_setitem(PyObject *op, void *ov, void *vap)
 {
+    HPyContext *ctx;
+    HPy h_ap;
     PyArrayObject *ap = vap;
     @type@ temp;  /* ensures alignment */
 
@@ -318,8 +326,11 @@ static int
         *((@type@ *)ov)=temp;
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(ov, &temp, PyArray_ISBYTESWAPPED(ap),
-                                       ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, ov, &temp,
+                                       PyArray_ISBYTESWAPPED(ap), h_ap);
+        HPy_Close(ctx, h_ap);
     }
     return 0;
 }
@@ -348,6 +359,8 @@ static int
 static HPy
 @TYPE@_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap)
 {
+    HPy descr;
+    PyArray_Descr *descr_data;
     char *ip = input;
     @type@ t1;
 
@@ -356,8 +369,10 @@ static HPy
         return @func1@(ctx, (@type1@)t1);
     }
     else {
-        CAPI_WARN("PyArray_DESCR(ap)->f->copyswap");
-        PyArray_DESCR(ap)->f->copyswap(&t1, ip, PyArray_ISBYTESWAPPED(ap), ap);
+        descr = HPyArray_DESCR(ctx, h_vap, ap);
+        descr_data = PyArray_Descr_AsStruct(ctx, descr);
+        descr_data->f->copyswap(ctx, &t1, ip, PyDataType_ISNOTSWAPPED(descr_data), h_vap);
+        HPy_Close(ctx, descr);
         return @func1@(ctx, (@type1@)t1);
     }
 }
@@ -393,11 +408,12 @@ static int
         *((@type@ *)ov)=temp;
     }
     else {
-        PyArrayObject *ap_data = (PyArrayObject *)PyArrayObject_AsStruct(ctx, ap);
+        PyArrayObject *ap_data = PyArrayObject_AsStruct(ctx, ap);
         HPy ret = HPyArray_DESCR(ctx, ap, ap_data);
-        PyArray_Descr *ret_data = (PyArray_Descr *)PyArray_Descr_AsStruct(ctx, ret);
-        ret_data->f->copyswap(ov, &temp, 
-            HPyArray_ISBYTESWAPPED(ctx, ap, ap_data), ap_data); // copyswap might be expecting a PyObject?
+        PyArray_Descr *ret_data = PyArray_Descr_AsStruct(ctx, ret);
+        HPy_Close(ctx, ret);
+        ret_data->f->copyswap(ctx, ov, &temp, 
+            HPyArray_ISBYTESWAPPED(ctx, ap, ap_data), ap);
     }
     return 0;
 }
@@ -1272,6 +1288,8 @@ _copy_and_return_void_setitem(PyArray_Descr *dstdescr, char *dstdata,
     npy_intp offset;
     npy_int i;
     int ret;
+    HPyContext *ctx;
+    HPy h_dummy_arr;
     
     Py_DECREF(names);
 
@@ -1283,14 +1301,17 @@ _copy_and_return_void_setitem(PyArray_Descr *dstdescr, char *dstdata,
                 &PyArray_Type, dstdescr, 1,
                 &shape, NULL, NULL,
                 0, NULL, NULL, 0, 1);
+        ctx = npy_get_context();
+        h_dummy_arr = HPy_FromPyObject(ctx, (PyObject *)dummy_arr);
         for (i = 0; i < names_size; i++) {
             /* neither line can ever fail, in principle */
             if (_setup_field(i, dstdescr, dummy_arr, &offset, dstdata)) {
                 return -1;
             }
-            PyArray_DESCR(dummy_arr)->f->copyswap(dstdata + offset,
-                    srcdata + offset, 0, dummy_arr);
+            PyArray_DESCR(dummy_arr)->f->copyswap(ctx, dstdata + offset,
+                    srcdata + offset, 0, h_dummy_arr);
         }
+        HPy_Close(ctx, h_dummy_arr);
         Py_DECREF(dummy_arr);
         return 0;
     }
@@ -1486,6 +1507,8 @@ DATETIME_getitem(void *ip, void *vap)
     PyArrayObject *ap = vap;
     npy_datetime dt;
     PyArray_DatetimeMetaData *meta = NULL;
+    HPyContext *ctx;
+    HPy h_ap;
 
     /* Get the datetime units metadata */
     meta = get_datetime_metadata_from_dtype(PyArray_DESCR(ap));
@@ -1497,7 +1520,10 @@ DATETIME_getitem(void *ip, void *vap)
         dt = *((npy_datetime *)ip);
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(&dt, ip, PyArray_ISBYTESWAPPED(ap), ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, &dt, ip, PyArray_ISBYTESWAPPED(ap), h_ap);
+        HPy_Close(ctx, h_ap);
     }
 
     return convert_datetime_to_pyobject(dt, meta);
@@ -1510,6 +1536,8 @@ TIMEDELTA_getitem(void *ip, void *vap)
     PyArrayObject *ap = vap;
     npy_timedelta td;
     PyArray_DatetimeMetaData *meta = NULL;
+    HPyContext *ctx;
+    HPy h_ap;
 
     /* Get the datetime units metadata */
     meta = get_datetime_metadata_from_dtype(PyArray_DESCR(ap));
@@ -1521,7 +1549,10 @@ TIMEDELTA_getitem(void *ip, void *vap)
         td = *((npy_timedelta *)ip);
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(&td, ip, PyArray_ISBYTESWAPPED(ap), ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, &td, ip, PyArray_ISBYTESWAPPED(ap), h_ap);
+        HPy_Close(ctx, h_ap);
     }
 
     return convert_timedelta_to_pyobject(td, meta);
@@ -1534,6 +1565,8 @@ DATETIME_setitem(PyObject *op, void *ov, void *vap)
     /* ensure alignment */
     npy_datetime temp = 0;
     PyArray_DatetimeMetaData *meta = NULL;
+    HPyContext *ctx;
+    HPy h_ap;
 
     /* Get the datetime units metadata */
     meta = get_datetime_metadata_from_dtype(PyArray_DESCR(ap));
@@ -1552,8 +1585,11 @@ DATETIME_setitem(PyObject *op, void *ov, void *vap)
         *((npy_datetime *)ov)=temp;
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(ov, &temp, PyArray_ISBYTESWAPPED(ap),
-                                       ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, ov, &temp,
+                                       PyArray_ISBYTESWAPPED(ap), h_ap);
+        HPy_Close(ctx, h_ap);
     }
 
     return 0;
@@ -1599,6 +1635,8 @@ TIMEDELTA_hpy_getitem(HPyContext *ctx, void *input, HPy h_vap, PyArrayObject *ap
 static int
 TIMEDELTA_setitem(PyObject *op, void *ov, void *vap)
 {
+    HPyContext *ctx;
+    HPy h_ap;
     PyArrayObject *ap = vap;
     /* ensure alignment */
     npy_timedelta temp = 0;
@@ -1621,8 +1659,11 @@ TIMEDELTA_setitem(PyObject *op, void *ov, void *vap)
         *((npy_timedelta *)ov)=temp;
     }
     else {
-        PyArray_DESCR(ap)->f->copyswap(ov, &temp, PyArray_ISBYTESWAPPED(ap),
-                                       ap);
+        ctx = npy_get_context();
+        h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, ov, &temp, PyArray_ISBYTESWAPPED(ap),
+                                       h_ap);
+        HPy_Close(ctx, h_ap);
     }
 
     return 0;
@@ -2546,8 +2587,8 @@ _basic_copy(void *dst, void *src, int elsize) {
  *         npy_datetime, npy_timedelta#
  */
 static void
-@fname@_copyswapn (void *dst, npy_intp dstride, void *src, npy_intp sstride,
-                   npy_intp n, int swap, void *NPY_UNUSED(arr))
+@fname@_copyswapn (HPyContext *ctx, void *dst, npy_intp dstride, void *src, npy_intp sstride,
+                   npy_intp n, int swap, HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copyn(dst, dstride, src, sstride, n, sizeof(@type@));
@@ -2557,7 +2598,7 @@ static void
 }
 
 static void
-@fname@_copyswap (void *dst, void *src, int swap, void *NPY_UNUSED(arr))
+@fname@_copyswap (HPyContext *ctx, void *dst, void *src, int swap, HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copy(dst, src, sizeof(@type@));
@@ -2630,8 +2671,8 @@ static void
  *         npy_byte, npy_ubyte#
  */
 static void
-@fname@_copyswapn (void *dst, npy_intp dstride, void *src, npy_intp sstride,
-        npy_intp n, int NPY_UNUSED(swap), void *NPY_UNUSED(arr))
+@fname@_copyswapn (HPyContext *ctx, void *dst, npy_intp dstride, void *src, npy_intp sstride,
+        npy_intp n, int NPY_UNUSED(swap), HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copyn(dst, dstride, src, sstride, n, sizeof(@type@));
@@ -2639,8 +2680,8 @@ static void
 }
 
 static void
-@fname@_copyswap (void *dst, void *src, int NPY_UNUSED(swap),
-        void *NPY_UNUSED(arr))
+@fname@_copyswap (HPyContext *ctx, void *dst, void *src, int NPY_UNUSED(swap),
+        HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copy(dst, src, sizeof(@type@));
@@ -2658,8 +2699,8 @@ static void
  * #type = npy_cfloat, npy_cdouble, npy_clongdouble#
 */
 static void
-@fname@_copyswapn (void *dst, npy_intp dstride, void *src, npy_intp sstride,
-        npy_intp n, int swap, void *NPY_UNUSED(arr))
+@fname@_copyswapn (HPyContext *ctx, void *dst, npy_intp dstride, void *src, npy_intp sstride,
+        npy_intp n, int swap, HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copyn(dst, dstride, src, sstride, n, sizeof(@type@));
@@ -2672,7 +2713,7 @@ static void
 }
 
 static void
-@fname@_copyswap (void *dst, void *src, int swap, void *NPY_UNUSED(arr))
+@fname@_copyswap (HPyContext *ctx, void *dst, void *src, int swap, HPy NPY_UNUSED(arr))
 {
     /* copy first if needed */
     _basic_copy(dst, src, sizeof(@type@));
@@ -2776,10 +2817,13 @@ static void
 /**end repeat**/
 
 static void
-OBJECT_copyswapn(PyObject **dst, npy_intp dstride, PyObject **src,
+OBJECT_copyswapn(HPyContext *ctx, void /* (PyObject *) */ *dst, npy_intp dstride, void /* (PyObject *) */ *src,
         npy_intp sstride, npy_intp n, int NPY_UNUSED(swap),
-        void *NPY_UNUSED(arr))
+        HPy NPY_UNUSED(arr))
 {
+    // TODO HPY LABS PORT: migrate OBJECT_copyswapn
+    hpy_abort_not_implemented("OBJECT_copyswapn");
+    /*
     npy_intp i;
     if (src != NULL) {
         if (__ALIGNED(dst, sizeof(PyObject **))
@@ -2812,15 +2856,20 @@ OBJECT_copyswapn(PyObject **dst, npy_intp dstride, PyObject **src,
             }
         }
     }
+    */
     /* ignore swap */
     return;
 }
 
+// OBJECT_copyswap(HPyContext *ctx, PyObject **dst, PyObject **src, int NPY_UNUSED(swap),
+//         HPy NPY_UNUSED(arr))
 static void
-OBJECT_copyswap(PyObject **dst, PyObject **src, int NPY_UNUSED(swap),
-        void *NPY_UNUSED(arr))
+OBJECT_copyswap(HPyContext *ctx, void *dst, void *src, int NPY_UNUSED(swap),
+        HPy NPY_UNUSED(arr))
 {
-
+    // TODO HPY LABS PORT: migrate OBJECT_copyswap
+    hpy_abort_not_implemented("OBJECT_copyswap");
+    /*
     if (src != NULL) {
         if (__ALIGNED(dst,sizeof(PyObject **)) &&
                 __ALIGNED(src,sizeof(PyObject **))) {
@@ -2837,64 +2886,80 @@ OBJECT_copyswap(PyObject **dst, PyObject **src, int NPY_UNUSED(swap),
             memcpy(dst, src, sizeof(tmp));
         }
     }
+    */
 }
 
 /* ignore swap */
 static void
-STRING_copyswapn (char *dst, npy_intp dstride, char *src, npy_intp sstride,
-                  npy_intp n, int NPY_UNUSED(swap), PyArrayObject *arr)
+STRING_copyswapn (HPyContext *ctx, char *dst, npy_intp dstride, char *src, npy_intp sstride,
+                  npy_intp n, int NPY_UNUSED(swap), HPy arr)
 {
-    assert(arr != NULL);
-    if (arr == NULL) {
+    HPy descr;
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
-    _basic_copyn(dst, dstride, src, sstride, n, PyArray_DESCR(arr)->elsize);
+    descr = HPyArray_GetDescr(ctx, arr);
+    _basic_copyn(dst, dstride, src, sstride, n, PyArray_Descr_AsStruct(ctx, descr)->elsize);
+    HPy_Close(ctx, descr);
     return;
 }
 
 
 /* */
 static void
-VOID_copyswapn (char *dst, npy_intp dstride, char *src, npy_intp sstride,
-                npy_intp n, int swap, PyArrayObject *arr)
+VOID_copyswapn (HPyContext *ctx, char *dst, npy_intp dstride, char *src, npy_intp sstride,
+                npy_intp n, int swap, HPy arr)
 {
-    PyArray_Descr *descr;
+    PyArrayObject *arr_data;
+    HPy descr;
+    PyArray_Descr *descr_data;
 
-    assert(arr != NULL);
-    if (arr == NULL) {
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
 
-    descr = PyArray_DESCR(arr);
+    arr_data = PyArrayObject_AsStruct(ctx, arr);
+    descr = HPyArray_DESCR(ctx, arr, arr_data);
+    descr_data = PyArray_Descr_AsStruct(ctx, descr);
 
-    if (PyArray_HASFIELDS(arr)) {
+    if (PyDataType_HASFIELDS(descr_data)) {
         PyObject *key, *value;
         Py_ssize_t pos = 0;
 
-        PyArrayObject *dummy_arr = get_tmp_array(arr);
-        if (dummy_arr == NULL) {
+        HPy dummy_arr = hpy_get_tmp_array(ctx, arr, arr_data);
+        if (HPy_IsNull(dummy_arr)) {
             return;
         }
 
-        while (PyDict_Next(descr->fields, &pos, &key, &value)) {
+        CAPI_WARN("VOID_copyswapn: accessing PyArrayDescr.fields");
+        while (PyDict_Next(descr_data->fields, &pos, &key, &value)) {
             npy_intp offset;
-            PyArray_Descr *new;
+            HPy new;
+            HPy h_value;
+            PyArray_Descr *new_data;
             if (NPY_TITLE_KEY(key, value)) {
                 continue;
             }
-            if (_unpack_field(value, &new, &offset) < 0) {
+            h_value = HPy_FromPyObject(ctx, value);
+            if (_hunpack_field(ctx, h_value, &new, &offset) < 0) {
+                HPy_Close(ctx, h_value);
+                HPy_Close(ctx, dummy_arr);
                 return;
             }
-
-            _set_descr(dummy_arr, new);
-            new->f->copyswapn(dst+offset, dstride,
+            HPy_Close(ctx, h_value);
+            _hpy_set_descr(ctx, dummy_arr, PyArrayObject_AsStruct(ctx, dummy_arr), new);
+            new_data = PyArray_Descr_AsStruct(ctx, new);
+            new_data->f->copyswap(ctx, dst+offset,
                     (src != NULL ? src+offset : NULL),
-                    sstride, n, swap, dummy_arr);
+                    swap, dummy_arr);
         }
         return;
     }
-    if (PyDataType_HASSUBARRAY(descr)) {
-        PyArray_Descr *new;
+    if (PyDataType_HASSUBARRAY(descr_data)) {
+        HPy new;
+        PyArray_Descr *new_data;
         npy_intp num;
         npy_intp i;
         int subitemsize;
@@ -2904,145 +2969,168 @@ VOID_copyswapn (char *dst, npy_intp dstride, char *src, npy_intp sstride,
          * swapping is unnecessary and the subarrays data type can certainly
          * be simply copied (no object, fields, subarray, and not a user dtype).
          */
+        CAPI_WARN("VOID_copyswapn: accessing PyArrayDescr.subarray");
         npy_bool can_optimize_subarray = (!swap &&
-                !PyDataType_HASFIELDS(descr->subarray->base) &&
-                !PyDataType_HASSUBARRAY(descr->subarray->base) &&
-                !PyDataType_REFCHK(descr->subarray->base) &&
-                (descr->subarray->base->type_num < NPY_NTYPES));
+                !PyDataType_HASFIELDS(descr_data->subarray->base) &&
+                !PyDataType_HASSUBARRAY(descr_data->subarray->base) &&
+                !PyDataType_REFCHK(descr_data->subarray->base) &&
+                (descr_data->subarray->base->type_num < NPY_NTYPES));
 
         if (can_optimize_subarray) {
-            _basic_copyn(dst, dstride, src, sstride, n, descr->elsize);
+            _basic_copyn(dst, dstride, src, sstride, n, descr_data->elsize);
             return;
         }
 
-        new = descr->subarray->base;
+        new = HPy_FromPyObject(ctx, (PyObject *)descr_data->subarray->base);
+        new_data = PyArray_Descr_AsStruct(ctx, new);
         dstptr = dst;
         srcptr = src;
-        subitemsize = new->elsize;
+        subitemsize = new_data->elsize;
         if (subitemsize == 0) {
             /* There cannot be any elements, so return */
             return;
         }
 
-        PyArrayObject *dummy_arr = get_tmp_array(arr);
-        if (dummy_arr == NULL) {
+        HPy dummy_arr = hpy_get_tmp_array(ctx, arr, arr_data);
+        if (HPy_IsNull(dummy_arr)) {
+            HPy_Close(ctx, new);
             return;
         }
-        _set_descr(dummy_arr, new);
+        _hpy_set_descr(ctx, dummy_arr, PyArrayObject_AsStruct(ctx, dummy_arr), new);
 
-        num = descr->elsize / subitemsize;
+        num = descr_data->elsize / subitemsize;
         for (i = 0; i < n; i++) {
-            new->f->copyswapn(dstptr, subitemsize, srcptr,
+            new_data->f->copyswapn(ctx, dstptr, subitemsize, srcptr,
                     subitemsize, num, swap, dummy_arr);
             dstptr += dstride;
             if (srcptr) {
                 srcptr += sstride;
             }
         }
-        Py_DECREF(dummy_arr);
+        HPy_Close(ctx, new);
+        HPy_Close(ctx, dummy_arr);
         return;
     }
     /* Must be a naive Void type (e.g. a "V8") so simple copy is sufficient. */
-    _basic_copyn(dst, dstride, src, sstride, n, descr->elsize);
+    _basic_copyn(dst, dstride, src, sstride, n, descr_data->elsize);
     return;
 }
 
 static void
-VOID_copyswap (char *dst, char *src, int swap, PyArrayObject *arr)
+VOID_copyswap (HPyContext *ctx, char *dst, char *src, int swap, HPy /* (PyArrayObject *) */ arr)
 {
-    PyArray_Descr *descr;
+    PyArrayObject *arr_data;
+    HPy descr;
+    PyArray_Descr *descr_data;
 
-    assert(arr != NULL);
-    if (arr == NULL) {
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
 
-    descr = PyArray_DESCR(arr);
+    arr_data = PyArrayObject_AsStruct(ctx, arr);
+    descr = HPyArray_DESCR(ctx, arr, arr_data);
+    descr_data = PyArray_Descr_AsStruct(ctx, descr);
 
-    if (PyArray_HASFIELDS(arr)) {
+    if (HPyArray_HASFIELDS(ctx, arr, arr_data)) {
         PyObject *key, *value;
+        HPy h_value;
         Py_ssize_t pos = 0;
 
-        PyArrayObject *dummy_arr = get_tmp_array(arr);
-        if (dummy_arr == NULL) {
+        HPy dummy_arr = hpy_get_tmp_array(ctx, arr, arr_data);
+        if (HPy_IsNull(dummy_arr)) {
             return;
         }
 
-        while (PyDict_Next(descr->fields, &pos, &key, &value)) {
+        CAPI_WARN("VOID_copyswap: accessing PyArrayDescr.fields");
+        while (PyDict_Next(descr_data->fields, &pos, &key, &value)) {
             npy_intp offset;
 
-            PyArray_Descr * new;
+            HPy new;
+            PyArray_Descr *new_data;
             if (NPY_TITLE_KEY(key, value)) {
                 continue;
             }
-            if (_unpack_field(value, &new, &offset) < 0) {
-                Py_DECREF(dummy_arr);
+            h_value = HPy_FromPyObject(ctx, value);
+            if (_hunpack_field(ctx, h_value, &new, &offset) < 0) {
+                HPy_Close(ctx, h_value);
+                HPy_Close(ctx, dummy_arr);
                 return;
             }
-            _set_descr(dummy_arr, new);
-            new->f->copyswap(dst+offset,
+            HPy_Close(ctx, h_value);
+            _hpy_set_descr(ctx, dummy_arr, PyArrayObject_AsStruct(ctx, dummy_arr), new);
+            new_data = PyArray_Descr_AsStruct(ctx, new);
+            new_data->f->copyswap(ctx, dst+offset,
                     (src != NULL ? src+offset : NULL),
                     swap, dummy_arr);
         }
-        Py_DECREF(dummy_arr);
+        HPy_Close(ctx, dummy_arr);
         return;
     }
-    if (PyDataType_HASSUBARRAY(descr)) {
-        PyArray_Descr *new;
+    if (PyDataType_HASSUBARRAY(descr_data)) {
+        HPy new;
+        PyArray_Descr *new_data;
         npy_intp num;
+        npy_intp i;
         int subitemsize;
         /*
          * In certain cases subarray copy can be optimized. This is when
          * swapping is unnecessary and the subarrays data type can certainly
          * be simply copied (no object, fields, subarray, and not a user dtype).
          */
+        CAPI_WARN("VOID_copyswap: accessing PyArrayDescr.subarray");
         npy_bool can_optimize_subarray = (!swap &&
-                !PyDataType_HASFIELDS(descr->subarray->base) &&
-                !PyDataType_HASSUBARRAY(descr->subarray->base) &&
-                !PyDataType_REFCHK(descr->subarray->base) &&
-                (descr->subarray->base->type_num < NPY_NTYPES));
+                !PyDataType_HASFIELDS(descr_data->subarray->base) &&
+                !PyDataType_HASSUBARRAY(descr_data->subarray->base) &&
+                !PyDataType_REFCHK(descr_data->subarray->base) &&
+                (descr_data->subarray->base->type_num < NPY_NTYPES));
 
         if (can_optimize_subarray) {
-            _basic_copy(dst, src, descr->elsize);
+            _basic_copy(dst, src, descr_data->elsize);
             return;
         }
 
-        new = descr->subarray->base;
-        subitemsize = new->elsize;
+        new = HPy_FromPyObject(ctx, (PyObject *)descr_data->subarray->base);
+        new_data = PyArray_Descr_AsStruct(ctx, new);
+        subitemsize = new_data->elsize;
         if (subitemsize == 0) {
             /* There cannot be any elements, so return */
             return;
         }
 
-        PyArrayObject *dummy_arr = get_tmp_array(arr);
-        if (dummy_arr == NULL) {
+        HPy dummy_arr = hpy_get_tmp_array(ctx, arr, arr_data);
+        if (HPy_IsNull(dummy_arr)) {
             return;
         }
-        _set_descr(dummy_arr, new);
+        _hpy_set_descr(ctx, dummy_arr, PyArrayObject_AsStruct(ctx, dummy_arr), new);
+        HPy_Close(ctx, new);
 
-        num = descr->elsize / subitemsize;
-        new->f->copyswapn(dst, subitemsize, src,
+        num = descr_data->elsize / subitemsize;
+        new_data->f->copyswapn(ctx, dst, subitemsize, src,
                 subitemsize, num, swap, dummy_arr);
-        Py_DECREF(dummy_arr);
+        HPy_Close(ctx, dummy_arr);
         return;
     }
     /* Must be a naive Void type (e.g. a "V8") so simple copy is sufficient. */
-    _basic_copy(dst, src, descr->elsize);
+    _basic_copy(dst, src, descr_data->elsize);
     return;
 }
 
 
 static void
-UNICODE_copyswapn (char *dst, npy_intp dstride, char *src, npy_intp sstride,
-                   npy_intp n, int swap, PyArrayObject *arr)
+UNICODE_copyswapn (HPyContext *ctx, char *dst, npy_intp dstride, char *src, npy_intp sstride,
+                   npy_intp n, int swap, HPy arr)
 {
     int itemsize;
+    HPy descr;
 
-    assert(arr != NULL);
-    if (arr == NULL) {
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
-    itemsize = PyArray_DESCR(arr)->elsize;
+    descr = HPyArray_GetDescr(ctx, arr);
+    itemsize = PyArray_Descr_AsStruct(ctx, descr)->elsize;
+    HPy_Close(ctx, descr);
     _basic_copyn(dst, dstride, src, sstride, n, itemsize);
 
     if (swap) {
@@ -3064,26 +3152,36 @@ UNICODE_copyswapn (char *dst, npy_intp dstride, char *src, npy_intp sstride,
 
 
 static void
-STRING_copyswap(char *dst, char *src, int NPY_UNUSED(swap), PyArrayObject *arr)
+STRING_copyswap(HPyContext *ctx, char *dst, char *src, int NPY_UNUSED(swap), HPy arr)
 {
-    assert(arr != NULL);
-    if (arr == NULL) {
+    int itemsize;
+    HPy descr;
+
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
+    descr = HPyArray_GetDescr(ctx, arr);
+    itemsize = PyArray_Descr_AsStruct(ctx, descr)->elsize;
+    HPy_Close(ctx, descr);
+
     /* copy first if needed */
-    _basic_copy(dst, src, PyArray_DESCR(arr)->elsize);
+    _basic_copy(dst, src, itemsize);
 }
 
 static void
-UNICODE_copyswap (char *dst, char *src, int swap, PyArrayObject *arr)
+UNICODE_copyswap (HPyContext *ctx, char *dst, char *src, int swap, HPy arr)
 {
     int itemsize;
+    HPy descr;
 
-    assert(arr != NULL);
-    if (arr == NULL) {
+    assert(!HPy_IsNull(arr));
+    if (HPy_IsNull(arr)) {
         return;
     }
-    itemsize = PyArray_DESCR(arr)->elsize;
+    descr = HPyArray_GetDescr(ctx, arr);
+    itemsize = PyArray_Descr_AsStruct(ctx, descr)->elsize;
+    HPy_Close(ctx, descr);
     _basic_copy(dst, src, itemsize);
 
     if (swap) {
@@ -3138,8 +3236,11 @@ static npy_bool
          */
         @type@ tmp;
 #if @isfloat@
-        PyArray_DESCR(ap)->f->copyswap(&tmp, ip, PyArray_ISBYTESWAPPED(ap),
-                                       ap);
+        HPyContext *ctx = npy_get_context();
+        HPy h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, &tmp, ip, PyArray_ISBYTESWAPPED(ap),
+                                       h_ap);
+        HPy_Close(ctx, h_ap);
 #else
         memcpy(&tmp, ip, sizeof(@type@));
 #endif
@@ -3162,8 +3263,11 @@ static npy_bool
     }
     else {
         @type@ tmp;
-        PyArray_DESCR(ap)->f->copyswap(&tmp, ip, PyArray_ISBYTESWAPPED(ap),
-                                       ap);
+        HPyContext *ctx = npy_get_context();
+        HPy h_ap = HPy_FromPyObject(ctx, (PyObject *)ap);
+        PyArray_DESCR(ap)->f->copyswap(ctx, &tmp, ip, PyArray_ISBYTESWAPPED(ap),
+                                       h_ap);
+        HPy_Close(ctx, h_ap);
         return (npy_bool) ((tmp.real != 0) || (tmp.imag != 0));
     }
 }
@@ -3672,8 +3776,12 @@ VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
                     goto finish;
                 }
                 memcpy(nip1, ip1 + offset, new->elsize);
-                if (swap)
-                    new->f->copyswap(nip1, NULL, swap, dummy);
+                if (swap) {
+                    HPyContext *ctx = npy_get_context();
+                    HPy h_dummy = HPy_FromPyObject(ctx, (PyObject *)dummy);
+                    new->f->copyswap(ctx, nip1, NULL, swap, h_dummy);
+                    HPy_Close(ctx, h_dummy);
+                }
             }
             if (swap || !npy_is_aligned(nip2, new->alignment)) {
                 /*
@@ -3689,8 +3797,12 @@ VOID_compare(char *ip1, char *ip2, PyArrayObject *ap)
                     goto finish;
                 }
                 memcpy(nip2, ip2 + offset, new->elsize);
-                if (swap)
-                    new->f->copyswap(nip2, NULL, swap, dummy);
+                if (swap) {
+                    HPyContext *ctx = npy_get_context();
+                    HPy h_dummy = HPy_FromPyObject(ctx, (PyObject *)dummy);
+                    new->f->copyswap(ctx, nip2, NULL, swap, h_dummy);
+                    HPy_Close(ctx, h_dummy);
+                }
             }
         }
         res = new->f->compare(nip1, nip2, dummy);
@@ -4685,10 +4797,10 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         @from@_to_UNICODE,
         @from@_to_VOID
     },
-    @from@_hpy_getitem,
-    @from@_hpy_setitem,
-    (PyArray_CopySwapNFunc*)@from@_copyswapn,
-    (PyArray_CopySwapFunc*)@from@_copyswap,
+    (PyArray_GetItemFunc*)@from@_hpy_getitem,
+    (PyArray_SetItemFunc*)@from@_hpy_setitem,
+    (HPyArray_CopySwapNFunc*)@from@_copyswapn,
+    (HPyArray_CopySwapFunc*)@from@_copyswap,
     (PyArray_CompareFunc*)@from@_compare,
     (PyArray_ArgFunc*)@from@_argmax,
     (PyArray_DotFunc*)NULL,
@@ -4817,10 +4929,10 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         @from@_to_UNICODE,
         @from@_to_VOID
     },
-    @from@_hpy_getitem,
-    @from@_hpy_setitem,
-    (PyArray_CopySwapNFunc*)@from@_copyswapn,
-    (PyArray_CopySwapFunc*)@from@_copyswap,
+    (PyArray_GetItemFunc*)@from@_hpy_getitem,
+    (PyArray_SetItemFunc*)@from@_hpy_setitem,
+    (HPyArray_CopySwapNFunc*)@from@_copyswapn,
+    (HPyArray_CopySwapFunc*)@from@_copyswap,
     (PyArray_CompareFunc*)@from@_compare,
     (PyArray_ArgFunc*)@from@_argmax,
     (PyArray_DotFunc*)@from@_dot,

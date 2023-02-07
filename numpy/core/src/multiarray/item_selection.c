@@ -1106,7 +1106,7 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
     int needcopy = !IsAligned(op) || swap || astride != elsize;
     int hasrefs = PyDataType_REFCHK(PyArray_DESCR(op));
 
-    PyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(op)->f->copyswapn;
+    HPyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(op)->f->copyswapn;
     char *buffer = NULL;
 
     PyArrayIterObject *it;
@@ -1131,6 +1131,9 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
         return -1;
     }
     size = it->size;
+
+    HPyContext *ctx = npy_get_context();
+    HPy h_op = HPy_FromPyObject(ctx, op);
 
     if (needcopy) {
         buffer = PyDataMem_UserNEW(N * elsize, mem_handler);
@@ -1159,11 +1162,11 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
                                              it->dataptr, astride, N, elsize);
                 /* ...then swap in-place if needed */
                 if (swap) {
-                    copyswapn(buffer, elsize, NULL, 0, N, swap, op);
+                    copyswapn(ctx, buffer, elsize, NULL, 0, N, swap, h_op);
                 }
             }
             else {
-                copyswapn(buffer, elsize, it->dataptr, astride, N, swap, op);
+                copyswapn(ctx, buffer, elsize, it->dataptr, astride, N, swap, h_op);
             }
             bufptr = buffer;
         }
@@ -1202,13 +1205,14 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
         if (needcopy) {
             if (hasrefs) {
                 if (swap) {
-                    copyswapn(buffer, elsize, NULL, 0, N, swap, op);
+                    HPy h_op = HPy_FromPyObject(ctx, op);
+                    copyswapn(ctx, buffer, elsize, NULL, 0, N, swap, h_op);
                 }
                 _unaligned_strided_byte_copy(it->dataptr, astride,
                                              buffer, elsize, N, elsize);
             }
             else {
-                copyswapn(it->dataptr, astride, buffer, elsize, N, swap, op);
+                copyswapn(ctx, it->dataptr, astride, buffer, elsize, N, swap, h_op);
             }
         }
 
@@ -1225,6 +1229,7 @@ fail:
     }
     Py_DECREF(it);
     Py_DECREF(mem_handler);
+    HPy_Close(ctx, h_op);
 
     return ret;
 }
@@ -1242,7 +1247,7 @@ _new_argsortlike(PyArrayObject *op, int axis, PyArray_ArgSortFunc *argsort,
     int hasrefs = PyDataType_REFCHK(PyArray_DESCR(op));
     int needidxbuffer;
 
-    PyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(op)->f->copyswapn;
+    HPyArray_CopySwapNFunc *copyswapn = PyArray_DESCR(op)->f->copyswapn;
     char *valbuffer = NULL;
     npy_intp *idxbuffer = NULL;
 
@@ -1324,11 +1329,11 @@ _new_argsortlike(PyArrayObject *op, int axis, PyArray_ArgSortFunc *argsort,
                                               it->dataptr, astride, N, elsize);
                 /* ...then swap in-place if needed */
                 if (swap) {
-                    copyswapn(valbuffer, elsize, NULL, 0, N, swap, op);
+                    cpy_copyswapn(copyswapn, valbuffer, elsize, NULL, 0, N, swap, op);
                 }
             }
             else {
-                copyswapn(valbuffer, elsize,
+                cpy_copyswapn(copyswapn, valbuffer, elsize,
                           it->dataptr, astride, N, swap, op);
             }
             valptr = valbuffer;

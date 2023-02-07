@@ -1053,7 +1053,7 @@ PyArray_Scalar(void *data, PyArray_Descr *descr, PyObject *base)
     PyTypeObject *type;
     PyObject *obj;
     void *destptr;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
     int type_num;
     int itemsize;
     int swap;
@@ -1105,7 +1105,7 @@ PyArray_Scalar(void *data, PyArray_Descr *descr, PyObject *base)
                     &shape, NULL, NULL,
                     0, NULL, NULL, 0, 1);
         }
-        copyswap(buff, data, swap, base);
+        cpy_copyswap(copyswap, buff, data, swap, base);
         if (fake_base) {
             Py_CLEAR(base);
         }
@@ -1198,7 +1198,7 @@ PyArray_Scalar(void *data, PyArray_Descr *descr, PyObject *base)
         destptr = scalar_value(obj, descr);
     }
     /* copyswap for OBJECT increments the reference count */
-    copyswap(destptr, data, swap, base);
+    cpy_copyswap(copyswap, destptr, data, swap, base);
     return obj;
 }
 
@@ -1213,7 +1213,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
     PyTypeObject *py_type;
     HPy obj;
     void *destptr;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
     int type_num;
     int itemsize;
     int swap;
@@ -1269,10 +1269,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
                     0, HPy_NULL, HPy_NULL, 0, 1);
             HPy_Close(ctx, array_type);
         }
-        PyObject *py_base = HPy_AsPyObject(ctx, base);
-        CAPI_WARN("calling copyswap");
-        copyswap(buff, data, swap, py_base); // see VOID_copyswap and UNICODE_copyswapn
-        Py_DECREF(py_base);
+        copyswap(ctx, buff, data, swap, base); // see VOID_copyswap and UNICODE_copyswapn
         if (fake_base && !HPy_IsNull(base)) {
             HPy_Close(ctx, base);
             base = HPy_NULL;
@@ -1385,10 +1382,7 @@ HPyArray_Scalar(HPyContext *ctx, void *data, /*PyArray_Descr*/ HPy h_descr, HPy 
         destptr = hpy_scalar_value(ctx, obj, descr);
     }
     /* copyswap for OBJECT increments the reference count */
-    CAPI_WARN("calling copyswap");
-    PyObject *py_base = HPy_AsPyObject(ctx, base);
-    copyswap(destptr, data, swap, py_base);
-    Py_DECREF(py_base);
+    copyswap(ctx, destptr, data, swap, base);
     return obj;
 }
 

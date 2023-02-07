@@ -430,7 +430,7 @@ dummy_array_new(HPyContext *ctx, HPy /* (PyArray_Descr *) */ descr, npy_intp fla
     }
     data->f_descr = HPyField_NULL;
     if (!HPy_IsNull(descr)) {
-        _hpy_set_descr(ctx, fa, data, descr);
+        _hpy_set_descr(ctx, fa, (PyArrayObject *)data, descr);
     }
     data->flags = flags;
     if (!HPy_IsNull(base)) {
@@ -466,7 +466,7 @@ hpy_get_tmp_array(HPyContext *ctx, HPy orig, PyArrayObject *orig_data)
 {
     HPy dtype = HPyArray_DESCR(ctx, orig, orig_data);
     npy_intp shape = 1;
-    HPy h_array_type = HPyGlobal_Load(ctx, &HPyArray_Type);
+    HPy h_array_type = HPyGlobal_Load(ctx, HPyArray_Type);
     HPy ret = HPyArray_NewFromDescr_int(ctx,
             h_array_type, dtype, 1,
             &shape, NULL, NULL,

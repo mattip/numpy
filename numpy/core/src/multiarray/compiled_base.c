@@ -294,7 +294,7 @@ _insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs
     char *src, *dest;
     npy_bool *mask_data;
     HPy dtype; // PyArray_Descr *
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
     HPy array0, mask0, values0;
     HPy array, mask, values; // PyArrayObject *
     npy_intp i, j, chunk, nm, ni, nv;
@@ -394,7 +394,7 @@ _insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs
                 j = 0;
             }
 
-            copyswap(dest + i*chunk, src + j*chunk, 0, array_descr_struct);
+            copyswap(ctx, dest + i*chunk, src + j*chunk, 0, array_descr);
             j++;
         }
     }

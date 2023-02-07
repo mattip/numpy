@@ -532,7 +532,7 @@ PyArray_Byteswap(PyArrayObject *self, npy_bool inplace)
 {
     PyArrayObject *ret;
     npy_intp size;
-    PyArray_CopySwapNFunc *copyswapn;
+    HPyArray_CopySwapNFunc *copyswapn;
     PyArrayIterObject *it;
 
     copyswapn = PyArray_DESCR(self)->f->copyswapn;
@@ -542,7 +542,7 @@ PyArray_Byteswap(PyArrayObject *self, npy_bool inplace)
         }
         size = PyArray_SIZE(self);
         if (PyArray_ISONESEGMENT(self)) {
-            copyswapn(PyArray_DATA(self), PyArray_DESCR(self)->elsize, NULL, -1, size, 1, self);
+            cpy_copyswapn(copyswapn, PyArray_DATA(self), PyArray_DESCR(self)->elsize, NULL, -1, size, 1, self);
         }
         else { /* Use iterator */
             int axis = -1;
@@ -552,7 +552,7 @@ PyArray_Byteswap(PyArrayObject *self, npy_bool inplace)
             stride = PyArray_STRIDES(self)[axis];
             size = PyArray_DIMS(self)[axis];
             while (it->index < it->size) {
-                copyswapn(it->dataptr, stride, NULL, -1, size, 1, self);
+                cpy_copyswapn(copyswapn, it->dataptr, stride, NULL, -1, size, 1, self);
                 PyArray_ITER_NEXT(it);
             }
             Py_DECREF(it);
@@ -2209,10 +2209,12 @@ array_setstate(PyArrayObject *self, PyObject *args)
             if (swap) {
                 /* byte-swap on pickle-read */
                 npy_intp numels = PyArray_SIZE(self);
-                PyArray_DESCR(self)->f->copyswapn(PyArray_DATA(self),
+                HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+                PyArray_DESCR(self)->f->copyswapn(ctx, PyArray_DATA(self),
                                         PyArray_DESCR(self)->elsize,
                                         datastr, PyArray_DESCR(self)->elsize,
-                                        numels, 1, self);
+                                        numels, 1, h_self);
+                HPy_Close(ctx, h_self);
                 PyArray_Descr *new_descr;
                 if (!(PyArray_ISEXTENDED(self) ||
                       PyArray_DESCR(self)->metadata ||

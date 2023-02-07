@@ -1575,7 +1575,7 @@ gentype_byteswap(PyObject *self, PyObject *args, PyObject *kwds)
             return PyErr_NoMemory();
         }
         else {
-            descr->f->copyswap(newmem, data, 1, NULL);
+            descr->f->copyswap(npy_get_context(), newmem, data, 1, HPy_NULL);
         }
         new = PyArray_Scalar(newmem, descr, NULL);
         PyObject_Free(newmem);

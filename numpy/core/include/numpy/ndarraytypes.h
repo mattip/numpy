@@ -460,11 +460,28 @@ struct _PyArray_Descr;
 typedef HPy (PyArray_GetItemFunc) (HPyContext *, void *, HPy, void *);
 typedef int (PyArray_SetItemFunc)(HPyContext *ctx, HPy, void *, HPy);
 
-typedef void (PyArray_CopySwapNFunc)(void *, npy_intp, void *, npy_intp,
-                                     npy_intp, int, void *);
+typedef void (HPyArray_CopySwapNFunc)(HPyContext *, void *, npy_intp, void *,
+                                      npy_intp, npy_intp, int, HPy);
 
-typedef void (PyArray_CopySwapFunc)(void *, void *, int, void *);
+typedef void (HPyArray_CopySwapFunc)(HPyContext *, void *, void *, int, HPy);
 typedef npy_bool (PyArray_NonzeroFunc)(void *, void *);
+
+static inline void cpy_copyswapn(HPyArray_CopySwapNFunc *copyswapn, char *dst, npy_intp dstride, char *src, npy_intp sstride,
+                   npy_intp n, int swap, void *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    copyswapn(ctx, dst, dstride, src, sstride, n, swap, h_arr);
+    HPy_Close(ctx, h_arr);
+}
+
+static inline void cpy_copyswap(HPyArray_CopySwapFunc *copyswap, void *dst, void *src, int swap, void *arr)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    copyswap(ctx, dst, src, swap, h_arr);
+    HPy_Close(ctx, h_arr);
+}
 
 
 /*
@@ -541,8 +558,8 @@ typedef struct {
          * Copy and/or swap data.  Memory areas may not overlap
          * Use memmove first if they might
          */
-        PyArray_CopySwapNFunc *copyswapn;
-        PyArray_CopySwapFunc *copyswap;
+        HPyArray_CopySwapNFunc *copyswapn;
+        HPyArray_CopySwapFunc *copyswap;
 
         /*
          * Function to compare items

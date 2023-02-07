@@ -939,7 +939,7 @@ array_flat_set(PyArrayObject *self, PyObject *val, void *NPY_UNUSED(ignored))
     PyArrayIterObject *selfit = NULL, *arrit = NULL;
     PyArray_Descr *typecode;
     int swap;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
     if (val == NULL) {
         PyErr_SetString(PyExc_AttributeError,
@@ -974,7 +974,7 @@ array_flat_set(PyArrayObject *self, PyObject *val, void *NPY_UNUSED(ignored))
             PyArray_Item_INCREF(arrit->dataptr, PyArray_DESCR(arr));
             memmove(selfit->dataptr, arrit->dataptr, sizeof(PyObject **));
             if (swap) {
-                copyswap(selfit->dataptr, NULL, swap, self);
+                cpy_copyswap(copyswap, selfit->dataptr, NULL, swap, self);
             }
             PyArray_ITER_NEXT(selfit);
             PyArray_ITER_NEXT(arrit);
@@ -987,7 +987,7 @@ array_flat_set(PyArrayObject *self, PyObject *val, void *NPY_UNUSED(ignored))
     }
 
     while(selfit->index < selfit->size) {
-        copyswap(selfit->dataptr, arrit->dataptr, swap, self);
+        cpy_copyswap(copyswap, selfit->dataptr, arrit->dataptr, swap, self);
         PyArray_ITER_NEXT(selfit);
         PyArray_ITER_NEXT(arrit);
         if (arrit->index == arrit->size) {

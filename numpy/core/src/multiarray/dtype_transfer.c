@@ -524,7 +524,7 @@ PyArray_GetStridedZeroPadCopyFn(int aligned, int unicode_swap,
 /* Wraps the dtype copy swap function */
 typedef struct {
     NpyAuxData base;
-    PyArray_CopySwapNFunc *copyswapn;
+    HPyArray_CopySwapNFunc *copyswapn;
     int swap;
     PyArrayObject *arr;
 } _wrap_copy_swap_data;
@@ -566,7 +566,9 @@ _strided_to_strided_wrap_copy_swap(HPyContext *ctx,
     _wrap_copy_swap_data *d = (_wrap_copy_swap_data *)auxdata;
 
     /* We assume that d->copyswapn should not be able to error. */
-    d->copyswapn(dst, dst_stride, src, src_stride, N, d->swap, d->arr);
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)d->arr);
+    d->copyswapn(ctx, dst, dst_stride, src, src_stride, N, d->swap, h_arr);
+    HPy_Close(ctx, h_arr);
     return 0;
 }
 

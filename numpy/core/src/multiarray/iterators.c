@@ -486,7 +486,7 @@ iter_subscript_Bool(PyArrayIterObject *self, PyArrayObject *ind)
     char *dptr, *optr;
     PyArrayObject *ret;
     int swap;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
 
     if (PyArray_NDIM(ind) != 1) {
@@ -528,7 +528,7 @@ iter_subscript_Bool(PyArrayIterObject *self, PyArrayObject *ind)
     swap = (PyArray_ISNOTSWAPPED(self->ao) != PyArray_ISNOTSWAPPED(ret));
     while (counter--) {
         if (*((npy_bool *)dptr) != 0) {
-            copyswap(optr, self->dataptr, swap, self->ao);
+            cpy_copyswap(copyswap, optr, self->dataptr, swap, self->ao);
             optr += itemsize;
         }
         dptr += strides;
@@ -548,7 +548,7 @@ iter_subscript_int(PyArrayIterObject *self, PyArrayObject *ind)
     int swap;
     char *optr;
     npy_intp counter;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
     itemsize = PyArray_DESCR(self->ao)->elsize;
     if (PyArray_NDIM(ind) == 0) {
@@ -594,7 +594,7 @@ iter_subscript_int(PyArrayIterObject *self, PyArrayObject *ind)
             return NULL;
         }
         PyArray_ITER_GOTO1D(self, num);
-        copyswap(optr, self->dataptr, swap, ret);
+        cpy_copyswap(copyswap, optr, self->dataptr, swap, ret);
         optr += itemsize;
         PyArray_ITER_NEXT(ind_it);
     }
@@ -616,7 +616,7 @@ iter_subscript(PyArrayIterObject *self, PyObject *ind)
     int size;
     PyObject *obj = NULL;
     PyObject *new;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
     if (ind == Py_Ellipsis) {
         ind = PySlice_New(NULL, NULL, NULL);
@@ -694,7 +694,7 @@ iter_subscript(PyArrayIterObject *self, PyObject *ind)
         dptr = PyArray_DATA(ret);
         copyswap = PyArray_DESCR(ret)->f->copyswap;
         while (n_steps--) {
-            copyswap(dptr, self->dataptr, 0, ret);
+            cpy_copyswap(copyswap, dptr, self->dataptr, 0, ret);
             start += step_size;
             PyArray_ITER_GOTO1D(self, start);
             dptr += size;
@@ -765,7 +765,7 @@ iter_ass_sub_Bool(PyArrayIterObject *self, PyArrayObject *ind,
 {
     npy_intp counter, strides;
     char *dptr;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
     if (PyArray_NDIM(ind) != 1) {
         PyErr_SetString(PyExc_ValueError,
@@ -787,7 +787,7 @@ iter_ass_sub_Bool(PyArrayIterObject *self, PyArrayObject *ind,
     copyswap = PyArray_DESCR(self->ao)->f->copyswap;
     while (counter--) {
         if (*((npy_bool *)dptr) != 0) {
-            copyswap(self->dataptr, val->dataptr, swap, self->ao);
+            cpy_copyswap(copyswap, self->dataptr, val->dataptr, swap, self->ao);
             PyArray_ITER_NEXT(val);
             if (val->index == val->size) {
                 PyArray_ITER_RESET(val);
@@ -807,7 +807,7 @@ iter_ass_sub_int(PyArrayIterObject *self, PyArrayObject *ind,
     npy_intp num;
     PyArrayIterObject *ind_it;
     npy_intp counter;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
     copyswap = PyArray_DESCR(self->ao)->f->copyswap;
     if (PyArray_NDIM(ind) == 0) {
@@ -816,7 +816,7 @@ iter_ass_sub_int(PyArrayIterObject *self, PyArrayObject *ind,
             return -1;
         }
         PyArray_ITER_GOTO1D(self, num);
-        copyswap(self->dataptr, val->dataptr, swap, self->ao);
+        cpy_copyswap(copyswap, self->dataptr, val->dataptr, swap, self->ao);
         return 0;
     }
     ind_it = (PyArrayIterObject *)PyArray_IterNew((PyObject *)ind);
@@ -831,7 +831,7 @@ iter_ass_sub_int(PyArrayIterObject *self, PyArrayObject *ind,
             return -1;
         }
         PyArray_ITER_GOTO1D(self, num);
-        copyswap(self->dataptr, val->dataptr, swap, self->ao);
+        cpy_copyswap(copyswap, self->dataptr, val->dataptr, swap, self->ao);
         PyArray_ITER_NEXT(ind_it);
         PyArray_ITER_NEXT(val);
         if (val->index == val->size) {
@@ -853,7 +853,7 @@ iter_ass_subscript(PyArrayIterObject *self, PyObject *ind, PyObject *val)
     npy_intp start, step_size;
     npy_intp n_steps;
     PyObject *obj = NULL;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
 
 
     if (val == NULL) {
@@ -949,13 +949,13 @@ iter_ass_subscript(PyArrayIterObject *self, PyObject *ind, PyObject *val)
         PyArray_ITER_GOTO1D(self, start);
         if (n_steps == SINGLE_INDEX) {
             /* Integer */
-            copyswap(self->dataptr, PyArray_DATA(arrval), swap, arrval);
+            cpy_copyswap(copyswap, self->dataptr, PyArray_DATA(arrval), swap, arrval);
             PyArray_ITER_RESET(self);
             retval = 0;
             goto finish;
         }
         while (n_steps--) {
-            copyswap(self->dataptr, val_it->dataptr, swap, arrval);
+            cpy_copyswap(copyswap, self->dataptr, val_it->dataptr, swap, arrval);
             start += step_size;
             PyArray_ITER_GOTO1D(self, start);
             PyArray_ITER_NEXT(val_it);

@@ -1471,7 +1471,7 @@ mapiter_trivial_@name@(PyArrayObject *self, PyArrayObject *ind,
     // XXX: sadness
     needs_api = 1;
 
-    PyArray_CopySwapFunc *copyswap = PyArray_DESCR(self)->f->copyswap;
+    HPyArray_CopySwapFunc *copyswap = PyArray_DESCR(self)->f->copyswap;
     NPY_BEGIN_THREADS_DEF;
 
     base_ptr = PyArray_BYTES(self);
@@ -1536,7 +1536,7 @@ mapiter_trivial_@name@(PyArrayObject *self, PyArrayObject *ind,
             assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
             *(@copytype@ *)result_ptr = *(@copytype@ *)self_ptr;
 #else
-            copyswap(result_ptr, self_ptr, 0, self);
+            cpy_copyswap(copyswap, result_ptr, self_ptr, 0, self);
 #endif
 
 #else /* !@isget@ */
@@ -1545,7 +1545,7 @@ mapiter_trivial_@name@(PyArrayObject *self, PyArrayObject *ind,
             assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
             *(@copytype@ *)self_ptr = *(@copytype@ *)result_ptr;
 #else
-            copyswap(self_ptr, result_ptr, 0, self);
+            cpy_copyswap(copyswap, self_ptr, result_ptr, 0, self);
 #endif
 #endif
 
@@ -1582,7 +1582,7 @@ hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy
     // HPy: well, keeping this to be faithful to the original...
     needs_api = 1;
 
-    PyArray_CopySwapFunc *copyswap = self_descr->f->copyswap;
+    HPyArray_CopySwapFunc *copyswap = self_descr->f->copyswap;
     // TODO HPY LABS PORT: NPY_BEGIN_THREADS_DEF;
     // ATTENTION: check_and_adjust_index takes the GIL again if it needs to report an error
 
@@ -1649,7 +1649,7 @@ hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy
             assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
             *(@copytype@ *)result_ptr = *(@copytype@ *)self_ptr;
 #else
-            copyswap(result_ptr, self_ptr, 0, self);
+            copyswap(ctx, result_ptr, self_ptr, 0, h_self);
 #endif
 
 #else /* !@isget@ */
@@ -1658,7 +1658,7 @@ hpy_mapiter_trivial_@name@(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy
             assert(npy_is_aligned(self_ptr, _UINT_ALIGN(@copytype@)));
             *(@copytype@ *)self_ptr = *(@copytype@ *)result_ptr;
 #else
-            copyswap(self_ptr, result_ptr, 0, self);
+            copyswap(ctx, self_ptr, result_ptr, 0, h_self);
 #endif
 #endif
 
@@ -1725,7 +1725,9 @@ mapiter_@name@(PyArrayMapIterObject *mit)
          * Item by item copy situation, the operand is buffered
          * so use copyswap.
          */
-         PyArray_CopySwapFunc *copyswap = PyArray_DESCR(array)->f->copyswap;
+         HPyArray_CopySwapFunc *copyswap = PyArray_DESCR(array)->f->copyswap;
+         HPyContext *ctx = npy_get_context();
+         HPy h_array = HPy_FromPyObject(ctx, (PyObject *)array);
 
         /* We have only one iterator handling everything */
         counter = NpyIter_GetInnerLoopSizePtr(mit->outer);
@@ -1768,6 +1770,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                      * TODO: (only if buffering is enabled).
                      */
                     if (needs_api && PyErr_Occurred()) {
+                        HPy_Close(ctx, h_array);
                         return -1;
                     }
 #endif
@@ -1782,6 +1785,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
 #if @isget@ && @one_iter@
                             if (check_and_adjust_index(&indval, fancy_dims[i],
                                                        iteraxis, _save) < 0 ) {
+                                HPy_Close(ctx, h_array);
                                 return -1;
                             }
 #else
@@ -1803,7 +1807,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                                               _UINT_ALIGN(@copytype@)));
                         *(@copytype@ *)(outer_ptrs[i]) = *(@copytype@ *)self_ptr;
 #else
-                        copyswap(outer_ptrs[i], self_ptr, 0, array);
+                        copyswap(ctx, outer_ptrs[i], self_ptr, 0, h_array);
 #endif
 #else /* !@isget@ */
 #if @elsize@
@@ -1813,7 +1817,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                                _UINT_ALIGN(@copytype@)));
                         *(@copytype@ *)self_ptr = *(@copytype@ *)(outer_ptrs[i]);
 #else
-                        copyswap(self_ptr, outer_ptrs[i], 0, array);
+                        copyswap(ctx, self_ptr, outer_ptrs[i], 0, h_array);
 #endif
 #endif
                         /* advance extra operand */
@@ -1828,6 +1832,7 @@ mapiter_@name@(PyArrayMapIterObject *mit)
             NPY_END_THREADS;
         }
 /**end repeat1**/
+        HPy_Close(ctx, h_array);
     }
 
     /******************* Nested Iteration Situation *******************/

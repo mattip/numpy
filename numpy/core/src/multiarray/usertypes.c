@@ -87,14 +87,14 @@ _default_copyswapn(void *dst, npy_intp dstride, void *src,
                    npy_intp sstride, npy_intp n, int swap, void *arr)
 {
     npy_intp i;
-    PyArray_CopySwapFunc *copyswap;
+    HPyArray_CopySwapFunc *copyswap;
     char *dstptr = dst;
     char *srcptr = src;
 
     copyswap = PyArray_DESCR(arr)->f->copyswap;
 
     for (i = 0; i < n; i++) {
-        copyswap(dstptr, srcptr, swap, arr);
+        cpy_copyswap(copyswap, dstptr, srcptr, swap, arr);
         dstptr += dstride;
         srcptr += sstride;
     }

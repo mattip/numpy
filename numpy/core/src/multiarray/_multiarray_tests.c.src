@@ -128,7 +128,7 @@ static int copy_object(PyArrayIterObject *itx, PyArrayNeighborhoodIterObject *ni
     npy_intp i, j;
     npy_intp odims[NPY_MAXDIMS];
     PyArrayObject *aout;
-    PyArray_CopySwapFunc *copyswap = PyArray_DESCR(itx->ao)->f->copyswap;
+    HPyArray_CopySwapFunc *copyswap = PyArray_DESCR(itx->ao)->f->copyswap;
     npy_int itemsize = PyArray_ITEMSIZE(itx->ao);
 
     /*
@@ -147,7 +147,7 @@ static int copy_object(PyArrayIterObject *itx, PyArrayNeighborhoodIterObject *ni
         }
 
         for (j = 0; j < niterx->size; ++j) {
-            copyswap(PyArray_BYTES(aout) + j * itemsize, niterx->dataptr, 0, NULL);
+            copyswap(npy_get_context(), PyArray_BYTES(aout) + j * itemsize, niterx->dataptr, 0, HPy_NULL);
             PyArrayNeighborhoodIter_Next(niterx);
         }
 

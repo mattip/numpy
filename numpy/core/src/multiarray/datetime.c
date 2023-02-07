@@ -2903,15 +2903,20 @@ convert_pyobject_to_datetime(PyArray_DatetimeMetaData *meta, PyObject *obj,
         PyArrayObject *arr = (PyArrayObject *)obj;
         PyArray_DatetimeMetaData *arr_meta;
         npy_datetime dt = 0;
+        HPyContext *ctx;
+        HPy h_obj;
 
         arr_meta = get_datetime_metadata_from_dtype(PyArray_DESCR(arr));
         if (arr_meta == NULL) {
             return -1;
         }
-        PyArray_DESCR(arr)->f->copyswap(&dt,
+        ctx = npy_get_context();
+        h_obj = HPy_FromPyObject(ctx, obj);
+        PyArray_DESCR(arr)->f->copyswap(ctx, &dt,
                                 PyArray_DATA(arr),
                                 PyArray_ISBYTESWAPPED(arr),
-                                obj);
+                                h_obj);
+        HPy_Close(ctx, h_obj);
 
         /* Copy the value directly if units weren't specified */
         if (meta->base == NPY_FR_ERROR) {
@@ -3120,10 +3125,13 @@ convert_pyobject_to_timedelta(PyArray_DatetimeMetaData *meta, PyObject *obj,
         if (arr_meta == NULL) {
             return -1;
         }
-        PyArray_DESCR(arr)->f->copyswap(&dt,
+        HPyContext *ctx = npy_get_context();
+        HPy h_obj = HPy_FromPyObject(ctx, obj);
+        PyArray_DESCR(arr)->f->copyswap(ctx, &dt,
                                 PyArray_DATA(arr),
                                 PyArray_ISBYTESWAPPED(arr),
-                                obj);
+                                h_obj);
+        HPy_Close(ctx, h_obj);
 
         /* Copy the value directly if units weren't specified */
         if (meta->base == NPY_FR_ERROR) {
