@@ -461,6 +461,20 @@ get_tmp_array(PyArrayObject *orig)
     return (PyArrayObject *)ret;
 }
 
+NPY_NO_EXPORT HPy
+hpy_get_tmp_array(HPyContext *ctx, HPy orig, PyArrayObject *orig_data)
+{
+    HPy dtype = HPyArray_DESCR(ctx, orig, orig_data);
+    npy_intp shape = 1;
+    HPy h_array_type = HPyGlobal_Load(ctx, &HPyArray_Type);
+    HPy ret = HPyArray_NewFromDescr_int(ctx,
+            h_array_type, dtype, 1,
+            &shape, NULL, NULL,
+            PyArray_FLAGS(orig_data), HPy_NULL, orig, 0, 1);
+    HPy_Close(ctx, h_array_type);
+    return ret;
+}
+
 /**
  * unpack tuple of dtype->fields (descr, offset, title[not-needed])
  *

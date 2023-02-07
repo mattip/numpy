@@ -96,6 +96,9 @@ dummy_array_new(HPyContext *ctx, HPy descr, npy_intp flags, HPy base);
 NPY_NO_EXPORT PyArrayObject *
 get_tmp_array(PyArrayObject *orig);
 
+NPY_NO_EXPORT HPy
+hpy_get_tmp_array(HPyContext *ctx, HPy orig, PyArrayObject *orig_data);
+
 /* Replace tmp_array->descr with new_descr */
 static NPY_INLINE void
 _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
