@@ -58,22 +58,23 @@ get_array_function(PyObject *obj)
     return array_function;
 }
 
+NPY_NO_EXPORT HPyGlobal hg_ndarray_array_function;
+static bool hg_ndarray_array_function_initialized = false;
 
 static HPy
 hpy_get_array_function(HPyContext *ctx, HPy obj)
 {
-    CAPI_WARN("should use HPyGlobal ndarray_array_function");
-    // static PyObject *ndarray_array_function = NULL;
-
-    // if (ndarray_array_function == NULL) {
-    //     ndarray_array_function = get_ndarray_array_function();
-    // }
-
+    HPy h_ndarray_array_function;
     /* Fast return for ndarray */
     if (HPyArray_CheckExact(ctx, obj)) {
-        // Py_INCREF(ndarray_array_function);
-        // return ndarray_array_function;
-        return hpy_get_ndarray_array_function(ctx);
+        if (hg_ndarray_array_function_initialized) {
+            h_ndarray_array_function = HPyGlobal_Load(ctx, hg_ndarray_array_function);
+        } else {
+            h_ndarray_array_function = hpy_get_ndarray_array_function(ctx);
+            HPyGlobal_Store(ctx, &hg_ndarray_array_function, h_ndarray_array_function);
+            hg_ndarray_array_function_initialized = true;
+        }
+        return h_ndarray_array_function;
     }
     HPy obj_type = HPy_Type(ctx, obj);
     HPy array_function = HPyArray_LookupSpecial_OnType(ctx, obj_type, "__array_function__");
@@ -271,12 +272,12 @@ is_default_array_function(PyObject *obj)
 static int
 hpy_is_default_array_function(HPyContext *ctx, HPy obj)
 {
-    // static PyObject *ndarray_array_function = NULL;
-
-    // if (ndarray_array_function == NULL) {
-        HPy ndarray_array_function = hpy_get_ndarray_array_function(ctx);
-    // }
-    return HPy_Is(ctx, obj, ndarray_array_function);
+    HPy h_ndarray_array_function = HPyGlobal_Load(ctx, hg_ndarray_array_function);
+    if (HPy_IsNull(h_ndarray_array_function)) {
+        h_ndarray_array_function = hpy_get_ndarray_array_function(ctx);
+        HPyGlobal_Store(ctx, &hg_ndarray_array_function, h_ndarray_array_function);
+    }
+    return HPy_Is(ctx, obj, h_ndarray_array_function);
 }
 
 /*

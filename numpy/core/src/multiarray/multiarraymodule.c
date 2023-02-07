@@ -6917,6 +6917,10 @@ static HPyGlobal *module_globals[] = {
     &descr_typeDict,
     &g_checkfunc,
     &g_AxisError_cls,
+
+    // arrayfunction_override.c
+    &hg_ndarray_array_function,
+
     NULL
 };
 
