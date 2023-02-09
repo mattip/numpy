@@ -175,14 +175,7 @@ hreduce_dtypes_to_most_knowledgeable(HPyContext *ctx,
                 dtypes[high] = tmp;
             }
 
-            CAPI_WARN("hreduce_dtypes_to_most_knowledgeable: NPY_DT_CALL_common_dtype");
-            PyArray_DTypeMeta *py_dtypes_high = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[high]);
-            PyArray_DTypeMeta *py_dtypes_low = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[low]);
-            PyArray_DTypeMeta *py_res = NPY_DT_CALL_common_dtype(py_dtypes_low, py_dtypes_high);
-            res = HPy_FromPyObject(ctx, (PyObject *)py_res);
-            Py_XDECREF(py_dtypes_high);
-            Py_XDECREF(py_dtypes_low);
-            Py_XDECREF(py_res);
+            res = HNPY_DT_CALL_common_dtype(ctx, dtypes[low], dtypes[high]);
             if (HPy_IsNull(res)) {
                 return HPy_NULL;
             }
