@@ -1793,6 +1793,8 @@ PyArray_NDIM(const PyArrayObject *arr)
     return ((PyArrayObject_fields *)arr)->nd;
 }
 
+#define HPyArray_NDIM PyArray_NDIM
+
 static NPY_INLINE int
 HPyArray_GetNDim(HPyContext *ctx, HPy arr)
 {
@@ -1804,6 +1806,8 @@ PyArray_DATA(PyArrayObject *arr)
 {
     return ((PyArrayObject_fields *)arr)->data;
 }
+
+#define HPyArray_DATA PyArray_DATA
 
 static NPY_INLINE char *
 PyArray_BYTES(PyArrayObject *arr)
@@ -1823,6 +1827,8 @@ PyArray_DIMS(PyArrayObject *arr)
     return ((PyArrayObject_fields *)arr)->dimensions;
 }
 
+#define HPyArray_DIMS PyArray_DIMS
+
 static NPY_INLINE npy_intp *
 HPyArray_GetDims(HPyContext *ctx, HPy arr)
 {
@@ -1834,6 +1840,8 @@ PyArray_STRIDES(PyArrayObject *arr)
 {
     return ((PyArrayObject_fields *)arr)->strides;
 }
+
+#define HPyArray_STRIDES PyArray_STRIDES
 
 static NPY_INLINE npy_intp
 PyArray_DIM(const PyArrayObject *arr, int idim)
