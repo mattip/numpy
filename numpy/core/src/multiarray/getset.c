@@ -39,7 +39,6 @@ HPyDef_GET(array_flags, "flags")
 static HPy
 array_flags_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(ignored))
 {
-    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
     HPy h_flags_type = HPyGlobal_Load(ctx, HPyArrayFlags_Type);
     HPy res = HPyArray_NewFlagsObject(ctx, h_flags_type, h_self);
     HPy_Close(ctx, h_flags_type);
@@ -127,9 +126,9 @@ array_strides_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSE
 static int
 array_strides_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_obj, void *NPY_UNUSED(ignored))
 {
-    PyArrayObject *self = HPy_AsPyObject(ctx, h_self);
-    PyObject *obj = HPy_AsPyObject(ctx, h_obj);
     CAPI_WARN("calling array_strides_set");
+    PyArrayObject *self = (PyArrayObject *)HPy_AsPyObject(ctx, h_self);
+    PyObject *obj = HPy_AsPyObject(ctx, h_obj);
     PyArray_Dims newstrides = {NULL, -1};
     PyArrayObject *new;
     npy_intp numbytes = 0;
@@ -211,7 +210,7 @@ static PyObject *
 array_typestr_get(PyArrayObject *self)
 {
     HPyContext *ctx = npy_get_context();
-    HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy obj = HPy_FromPyObject(ctx, (PyObject *)PyArray_DESCR(self));
     HPy ret = arraydescr_protocol_typestr_get(ctx, obj, NULL);
     PyObject *py_ret = HPy_AsPyObject(ctx, ret);
     HPy_Close(ctx, obj);
@@ -234,7 +233,7 @@ array_protocol_descr_get(PyArrayObject *self)
     PyObject *dobj;
 
     HPyContext *ctx = npy_get_context();
-    HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy obj = HPy_FromPyObject(ctx, (PyObject *)PyArray_DESCR(self));
     HPy h_res = arraydescr_protocol_descr_get(ctx, obj, NULL);
     res = HPy_AsPyObject(ctx, h_res);
     HPy_Close(ctx, obj);
@@ -341,7 +340,7 @@ array_interface_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     }
 
     HPyContext *ctx = npy_get_context();
-    HPy h_obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+    HPy h_obj = HPy_FromPyObject(ctx, (PyObject *)PyArray_DESCR(self));
     HPy h_ret = arraydescr_protocol_typestr_get(ctx, h_obj, NULL);
     obj = HPy_AsPyObject(ctx, h_ret);
     HPy_Close(ctx, h_obj);
@@ -705,7 +704,7 @@ array_struct_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
     inter->data = PyArray_DATA(self);
     if (PyDataType_HASFIELDS(PyArray_DESCR(self))) {
         HPyContext *ctx = npy_get_context();
-        HPy obj = HPy_FromPyObject(ctx, PyArray_DESCR(self));
+        HPy obj = HPy_FromPyObject(ctx, (PyObject *)PyArray_DESCR(self));
         HPy h_res = arraydescr_protocol_descr_get(ctx, obj, NULL);
         inter->descr = HPy_AsPyObject(ctx, h_res);
         HPy_Close(ctx, obj);
