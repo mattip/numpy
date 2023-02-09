@@ -431,6 +431,23 @@ PyArray_Reshape(PyArrayObject *self, PyObject *shape)
     return ret;
 }
 
+/*HPY_NUMPY_API
+ * Reshape
+ */
+NPY_NO_EXPORT HPy
+HPyArray_Reshape(HPyContext *ctx, HPy self, PyArrayObject *self_data, HPy shape)
+{
+    HPy ret;
+    PyArray_Dims newdims;
+
+    if (!HPyArray_IntpConverter(ctx, shape, &newdims)) {
+        return HPy_NULL;
+    }
+    ret = HPyArray_Newshape(ctx, self, self_data, &newdims, NPY_CORDER);
+    npy_free_cache_dim_obj(newdims);
+    return ret;
+}
+
 
 static void
 _putzero(char *optr, PyObject *zero, PyArray_Descr *dtype)

@@ -516,7 +516,7 @@ hpy_multiarray_funcs_api = {
     # 'HPyArray_SearchSorted':                 (131,),
     # 'HPyArray_ArgMax':                       (132,),
     # 'HPyArray_ArgMin':                       (133,),
-    # 'HPyArray_Reshape':                      (134,),
+    'HPyArray_Reshape':                      (134,),
     'HPyArray_Newshape':                     (135,),
     # 'HPyArray_Squeeze':                      (136,),
     'HPyArray_View':                         (137,),
