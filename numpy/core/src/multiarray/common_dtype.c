@@ -326,21 +326,12 @@ HPyArray_PromoteDTypeSequence(HPyContext *ctx,
          * a higher category). We assume that the result is not in a lower
          * category.
          */
-        CAPI_WARN("HPyArray_PromoteDTypeSequence: call to NPY_DT_CALL_common_dtype");
-        PyArray_DTypeMeta *py_main_dtype = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, main_dtype);
-        PyArray_DTypeMeta *py_dtypes_i = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, dtypes[i]);
-        PyArray_DTypeMeta *promotion = NPY_DT_CALL_common_dtype(
-                py_main_dtype, py_dtypes_i);
-        HPy h_promotion = HPy_FromPyObject(ctx, (PyObject *)promotion);
-        Py_DECREF(py_main_dtype);
-        Py_DECREF(py_dtypes_i);
-
+        HPy h_promotion = HNPY_DT_CALL_common_dtype(ctx, main_dtype, dtypes[i]);
         if (HPy_IsNull(h_promotion)) {
             HPy_SETREF(ctx, result, HPy_NULL);
             goto finish;
         }
         else if (HPy_Is(ctx, h_promotion, ctx->h_NotImplemented)) {
-            Py_DECREF(promotion);
             HPy_Close(ctx, h_promotion);
             HPy_SETREF(ctx, result, HPy_NULL);
             HPyTupleBuilder dtypes_in_tuple = HPyTupleBuilder_New(ctx, length);
@@ -370,12 +361,8 @@ HPyArray_PromoteDTypeSequence(HPyContext *ctx,
          * The above promoted, now "reduce" with the current result; note that
          * in the typical cases we expect this step to be a no-op.
          */
-        CAPI_WARN("HPyArray_PromoteDTypeSequence: call to PyArray_CommonDType");
-        PyArray_DTypeMeta *Py_result = (PyArray_DTypeMeta *)HPy_AsPyObject(ctx, result);
-        PyArray_DTypeMeta *py_common = PyArray_CommonDType(Py_result, promotion);
-        Py_DECREF(Py_result);
-        HPy_SETREF(ctx, result, HPy_FromPyObject(ctx, (PyObject *)py_common));
-        Py_DECREF(promotion);
+        HPy common = HPyArray_CommonDType(ctx, result, h_promotion);
+        HPy_SETREF(ctx, result, common);
         HPy_Close(ctx, h_promotion);
         if (HPy_IsNull(result)) {
             goto finish;
