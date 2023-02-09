@@ -55,66 +55,63 @@ array_shape_get(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, void *NPY_UNUSED(
 }
 
 static int
-array_shape_set(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy h_val, void *NPY_UNUSED(ignored))
+array_shape_set(HPyContext *ctx, /*PyArrayObject*/ HPy self, HPy val, void *NPY_UNUSED(ignored))
 {
     int nd;
-    PyArrayObject *ret;
+    HPy ret;
+    PyArrayObject *ret_data;
 
-    if (HPy_IsNull(h_val)) {
+    if (HPy_IsNull(val)) {
         HPyErr_SetString(ctx, ctx->h_AttributeError,
                 "Cannot delete array shape");
         return -1;
     }
-    CAPI_WARN("array_shape_set");
-    PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
-    PyObject *val = HPy_AsPyObject(ctx, h_val);
+    PyArrayObject *self_data = PyArrayObject_AsStruct(ctx, self);
 
     /* Assumes C-order */
-    ret = (PyArrayObject *)PyArray_Reshape(self, val);
-    if (ret == NULL) {
-        Py_DECREF(val);
+    ret = HPyArray_Reshape(ctx, self, self_data, val);
+    if (HPy_IsNull(ret)) {
         return -1;
     }
-    if (PyArray_DATA(ret) != PyArray_DATA(self)) {
-        Py_DECREF(ret);
-        PyErr_SetString(PyExc_AttributeError,
+    ret_data = PyArrayObject_AsStruct(ctx, ret);
+    if (HPyArray_DATA(ret_data) != HPyArray_DATA(self_data)) {
+        HPy_Close(ctx, ret);
+        HPyErr_SetString(ctx, ctx->h_AttributeError,
                         "Incompatible shape for in-place modification. Use "
                         "`.reshape()` to make a copy with the desired shape.");
-        Py_DECREF(val);
         return -1;
     }
 
-    nd = PyArray_NDIM(ret);
+    nd = PyArray_NDIM(ret_data);
     if (nd > 0) {
         /* create new dimensions and strides */
         npy_intp *_dimensions = npy_alloc_cache_dim(2 * nd);
         if (_dimensions == NULL) {
-            Py_DECREF(ret);
-            PyErr_NoMemory();
-            Py_DECREF(val);
+            HPy_Close(ctx, ret);
+            HPyErr_NoMemory(ctx);
             return -1;
         }
         /* Free old dimensions and strides */
-        npy_free_cache_dim_array(self);
-        ((PyArrayObject_fields *)self)->nd = nd;
-        ((PyArrayObject_fields *)self)->dimensions = _dimensions; 
-        ((PyArrayObject_fields *)self)->strides = _dimensions + nd;
+        npy_free_cache_dim_array(self_data);
+        ((PyArrayObject_fields *)self_data)->nd = nd;
+        ((PyArrayObject_fields *)self_data)->dimensions = _dimensions; 
+        ((PyArrayObject_fields *)self_data)->strides = _dimensions + nd;
 
         if (nd) {
-            memcpy(PyArray_DIMS(self), PyArray_DIMS(ret), nd*sizeof(npy_intp));
-            memcpy(PyArray_STRIDES(self), PyArray_STRIDES(ret), nd*sizeof(npy_intp));
+            memcpy(PyArray_DIMS(self_data), PyArray_DIMS(ret_data), nd*sizeof(npy_intp));
+            memcpy(PyArray_STRIDES(self_data), PyArray_STRIDES(ret_data), nd*sizeof(npy_intp));
         }
     }
     else {
         /* Free old dimensions and strides */
-        npy_free_cache_dim_array(self);        
-        ((PyArrayObject_fields *)self)->nd = 0;
-        ((PyArrayObject_fields *)self)->dimensions = NULL;
-        ((PyArrayObject_fields *)self)->strides = NULL;
+        npy_free_cache_dim_array(self_data);        
+        ((PyArrayObject_fields *)self_data)->nd = 0;
+        ((PyArrayObject_fields *)self_data)->dimensions = NULL;
+        ((PyArrayObject_fields *)self_data)->strides = NULL;
     }
 
-    Py_DECREF(ret);
-    PyArray_UpdateFlags(self, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_F_CONTIGUOUS);
+    HPy_Close(ctx, ret);
+    HPyArray_UpdateFlags(ctx, self, self_data, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_F_CONTIGUOUS);
     return 0;
 }
 
