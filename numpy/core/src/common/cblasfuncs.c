@@ -185,14 +185,14 @@ _select_matrix_shape(PyArrayObject *array)
  * an itemsize address as well by returning one if not true.
  */
 NPY_NO_EXPORT int
-_bad_strides(PyArrayObject *ap)
+_bad_strides(HPyContext *ctx, HPy ap, PyArrayObject *ap_data)
 {
-    int itemsize = PyArray_ITEMSIZE(ap);
-    int i, N=PyArray_NDIM(ap);
-    npy_intp *strides = PyArray_STRIDES(ap);
-    npy_intp *dims = PyArray_DIMS(ap);
+    int itemsize = HPyArray_ITEMSIZE(ctx, ap, ap_data);
+    int i, N=HPyArray_NDIM(ap_data);
+    npy_intp *strides = HPyArray_STRIDES(ap_data);
+    npy_intp *dims = HPyArray_DIMS(ap_data);
 
-    if (((npy_intp)(PyArray_DATA(ap)) % itemsize) != 0) {
+    if (((npy_intp)(HPyArray_DATA(ap_data)) % itemsize) != 0) {
         return 1;
     }
     for (i = 0; i < N; i++) {
@@ -236,7 +236,7 @@ hpy_cblas_matrixproduct(HPyContext *ctx, int typenum,
     npy_intp numbytes;
     MatrixShape ap1shape, ap2shape;
 
-    if (_bad_strides(ap1_struct_in)) {
+    if (_bad_strides(ctx, ap1_in, ap1_struct_in)) {
         ap1 = HPyArray_NewCopy(ctx, ap1_in, NPY_ANYORDER);
         if (HPy_IsNull(ap1)) {
             goto fail;
@@ -246,7 +246,7 @@ hpy_cblas_matrixproduct(HPyContext *ctx, int typenum,
     }
     ap1_struct = PyArrayObject_AsStruct(ctx, ap1);
 
-    if (_bad_strides(ap2_struct_in)) {
+    if (_bad_strides(ctx, ap2_in, ap2_struct_in)) {
         ap2 = HPyArray_NewCopy(ctx, ap2_in, NPY_ANYORDER);
         if (HPy_IsNull(ap2)) {
             goto fail;
