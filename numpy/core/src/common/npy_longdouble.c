@@ -3,6 +3,8 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include "hpy.h"
+#include "hpy_utils.h"
 
 #include "numpy/ndarraytypes.h"
 #include "numpy/npy_math.h"
@@ -110,6 +112,18 @@ _PyLong_Bytes(PyObject *long_obj) {
     return bytes;
 }
 
+static HPy
+_HPyLong_Bytes(HPyContext *ctx, HPy long_obj) {
+    HPy bytes;
+    HPy unicode = HPy_Str(ctx, long_obj);
+    if (HPy_IsNull(unicode)) {
+        return HPy_NULL;
+    }
+    bytes = HPyUnicode_AsUTF8String(ctx, unicode);
+    HPy_Close(ctx, unicode);
+    return bytes;
+}
+
 
 /**
  * TODO: currently a hack that converts the long through a string. This is
@@ -171,5 +185,59 @@ npy_longdouble_from_PyLong(PyObject *long_obj) {
 
 fail:
     Py_DECREF(bytes);
+    return -1;
+}
+
+NPY_VISIBILITY_HIDDEN npy_longdouble
+hpy_npy_longdouble_from_PyLong(HPyContext *ctx, HPy long_obj) {
+    npy_longdouble result = 1234;
+    char *end;
+    const char *cstr;
+    HPy bytes;
+
+    /* convert the long to a string */
+    bytes = _HPyLong_Bytes(ctx, long_obj);
+    if (HPy_IsNull(bytes)) {
+        return -1;
+    }
+
+    cstr = HPyBytes_AsString(ctx, bytes);
+    if (cstr == NULL) {
+        goto fail;
+    }
+    end = NULL;
+
+    /* convert the string to a long double and capture errors */
+    errno = 0;
+    result = NumPyOS_ascii_strtold(cstr, &end);
+    if (errno == ERANGE) {
+        /* strtold returns INFINITY of the correct sign. */
+        if (HPyErr_WarnEx(ctx, ctx->h_RuntimeWarning,
+                "overflow encountered in conversion from python long", 1) < 0) {
+            goto fail;
+        }
+    }
+    else if (errno) {
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError,
+                     "Could not parse python long as longdouble: %s (%s)",
+                     cstr,
+                     strerror(errno));
+        goto fail;
+    }
+
+    /* Extra characters at the end of the string, or nothing parsed */
+    if (end == cstr || *end != '\0') {
+        HPyErr_Format_p(ctx, ctx->h_RuntimeError,
+                     "Could not parse long as longdouble: %s",
+                     cstr);
+        goto fail;
+    }
+
+    /* finally safe to decref now that we're done with `end` */
+    HPy_Close(ctx, bytes);
+    return result;
+
+fail:
+    HPy_Close(ctx, bytes);
     return -1;
 }

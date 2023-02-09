@@ -24,4 +24,7 @@ npy_longdouble_to_PyLong(npy_longdouble ldval);
 NPY_VISIBILITY_HIDDEN npy_longdouble
 npy_longdouble_from_PyLong(PyObject *long_obj);
 
+NPY_VISIBILITY_HIDDEN npy_longdouble
+hpy_npy_longdouble_from_PyLong(HPyContext *ctx, HPy long_obj);
+
 #endif  /* NUMPY_CORE_SRC_COMMON_NPY_LONGDOUBLE_H_ */

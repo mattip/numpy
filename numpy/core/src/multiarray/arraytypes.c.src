@@ -638,11 +638,7 @@ hpy_string_to_long_double(HPyContext *ctx, HPy op)
      * loss via a double.
      */
     if ((HPy_TypeCheck(ctx, op, ctx->h_LongType) && !HPyBool_Check(ctx, op))) {
-        CAPI_WARN("hpy_string_to_long_double: call to npy_longdouble_from_PyLong");
-        PyObject *py_op = HPy_AsPyObject(ctx, op);
-        temp = npy_longdouble_from_PyLong(py_op);
-        Py_DECREF(py_op);
-        return temp;
+        return hpy_npy_longdouble_from_PyLong(ctx, op);
     }
 
     if (HPyUnicode_Check(ctx, op)) {
