@@ -2971,76 +2971,88 @@ unicode_arrtype_dealloc(PyObject *v)
 /* used as a pattern for testing token equality */
 #define _@TYPE@_IS_@TYPE@
 
-static PyObject *
-@name@_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+HPyDef_SLOT(@name@_arrtype_new, HPy_tp_new)
+static HPy
+@name@_arrtype_new_impl(HPyContext *ctx, HPy type, HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     /* allow base-class (if any) to do conversion */
-#if defined(_@TYPE@_IS_UNICODE)
-    PyObject *from_superclass = PyUnicode_Type.tp_new(type, args, kwds);
-#elif defined(_@TYPE@_IS_STRING)
-    PyObject *from_superclass = PyBytes_Type.tp_new(type, args, kwds);
-#elif defined(_@TYPE@_IS_DOUBLE)
-    PyObject *from_superclass = PyFloat_Type.tp_new(type, args, kwds);
-#endif
+    void *data;
 #if defined(_@TYPE@_IS_UNICODE) || defined(_@TYPE@_IS_STRING) || defined(_@TYPE@_IS_DOUBLE)
-    if (from_superclass == NULL) {
+    // TODO HPY LABS PORT: use some better calling API as soon as available
+    HPy targs = HPyTuple_FromArray(ctx, args, nargs);
+#endif
+
+#if defined(_@TYPE@_IS_UNICODE)
+    HPy from_superclass = HPy_CallTupleDict(ctx, ctx->h_UnicodeType, targs, kwds);
+#elif defined(_@TYPE@_IS_STRING)
+    HPy from_superclass = HPy_CallTupleDict(ctx, ctx->h_BytesType, targs, kwds);
+#elif defined(_@TYPE@_IS_DOUBLE)
+    HPy from_superclass = HPy_CallTupleDict(ctx, ctx->h_FloatType, targs, kwds);
+#endif
+
+#if defined(_@TYPE@_IS_UNICODE) || defined(_@TYPE@_IS_STRING) || defined(_@TYPE@_IS_DOUBLE)
+    HPy_Close(ctx, targs);
+    if (HPy_IsNull(from_superclass)) {
         /* don't clear the exception unless numpy can handle the arguments */
-        if (PyTuple_GET_SIZE(args) != 1 || (kwds && PyDict_Size(kwds) != 0)) {
-            return NULL;
+        if (nargs != 1 || (!HPy_IsNull(kwds) && HPy_Length(ctx, kwds) != 0)) {
+            return HPy_NULL;
         }
-        PyErr_Clear();
+        HPyErr_Clear(ctx);
     }
     else {
 #if defined(_@TYPE@_IS_UNICODE)
-        PyArrayScalar_VAL(from_superclass, Unicode) = NULL;
+        HPyArrayScalar_VAL(ctx, from_superclass, Unicode) = NULL;
 #endif
         return from_superclass;
     }
 #endif
 
     /* TODO: include type name in error message, which is not @name@ */
-    PyObject *obj = NULL;
-    static char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O", kwnames, &obj)) {
-        return NULL;
+    HPy obj = HPy_NULL;
+    HPyTracker ht;
+    static const char *kwnames[] = {"", NULL};  /* positional-only */
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
+        return HPy_NULL;
     }
-    PyArray_Descr *typecode = PyArray_DescrFromType(NPY_@TYPE@);
-    if (typecode == NULL) {
-        return NULL;
+    HPy typecode = HPyArray_DescrFromType(ctx, NPY_@TYPE@);
+    if (HPy_IsNull(typecode)) {
+        return HPy_NULL;
     }
-    if (obj == NULL) {
-        PyObject *robj = PyArray_Scalar(NULL, typecode, NULL);
-        Py_DECREF(typecode);
-        if (robj == NULL) {
-            return NULL;
+    if (HPy_IsNull(obj)) {
+        HPy robj = HPyArray_Scalar(ctx, NULL, typecode, HPy_NULL, NULL);
+        HPy_Close(ctx, typecode);
+        if (HPy_IsNull(robj)) {
+            return HPy_NULL;
         }
 #if !defined(_@TYPE@_IS_STRING) && !defined(_@TYPE@_IS_UNICODE)
-        memset(&PyArrayScalar_VAL(robj, @Name@), 0, sizeof(npy_@name@));
+        memset(&HPyArrayScalar_VAL(ctx, robj, @Name@), 0, sizeof(npy_@name@));
 #endif
         return robj;
     }
 
-    /* PyArray_FromAny steals a reference, reclaim it before it's gone */
-    Py_INCREF(typecode);
-    PyArrayObject *arr = (PyArrayObject *)PyArray_FromAny(
-            obj, typecode, 0, 0, NPY_ARRAY_FORCECAST, NULL);
-    if (arr == NULL) {
-        Py_DECREF(typecode);
-        return NULL;
+    HPy /* (PyArrayObject *) */ arr = HPyArray_FromAny(ctx,
+            obj, typecode, 0, 0, NPY_ARRAY_FORCECAST, HPy_NULL);
+    if (HPy_IsNull(arr)) {
+        HPy_Close(ctx, typecode);
+        return HPy_NULL;
     }
-    if (PyArray_NDIM(arr) > 0) {
-        Py_DECREF(typecode);
-        return (PyObject *)arr;
+    PyArrayObject *arr_data = PyArrayObject_AsStruct(ctx, arr);
+    if (HPyArray_NDIM(arr_data) > 0) {
+        HPy_Close(ctx, typecode);
+        return arr;
     }
 
     /* Convert the 0-d array to a scalar*/
-    PyObject *robj = PyArray_ToScalar(PyArray_DATA(arr), arr);
-    Py_DECREF(arr);
+    HPy robj = HPyArray_ToScalar(ctx, HPyArray_DATA(arr_data), arr, arr_data);
+    HPy_Close(ctx, arr);
 
-    if (robj == NULL || Py_TYPE(robj) == type) {
-        Py_DECREF(typecode);
+    HPy robj_type = HPy_NULL;
+    if (HPy_IsNull(robj) || HPy_Is(ctx, (robj_type = HPy_Type(ctx, robj)), type)) {
+        HPy_Close(ctx, robj_type);
+        HPy_Close(ctx, typecode);
         return robj;
     }
+    HPy_Close(ctx, robj_type);
 
     /*
      * `typecode` does not contain any subclass information, as it was thrown
@@ -3053,52 +3065,90 @@ static PyObject *
      */
 
     /* Need to allocate new type and copy data-area over */
+    // int itemsize;
+    // if (type->tp_itemsize) {
+    //     itemsize = HPyBytes_GET_SIZE(ctx, robj);
+    // }
+    // else {
+    //     itemsize = 0;
+    // }
+    // PyObject *new_obj = type->tp_alloc(type, itemsize);
+    // if (new_obj == NULL) {
+    //     Py_DECREF(robj);
+    //     Py_DECREF(typecode);
+    //     return NULL;
+    // }
+    void *dummy = NULL;
+    HPy new_obj = HPy_New(ctx, type, dummy);
+    if (HPy_IsNull(new_obj)) {
+        HPy_Close(ctx, robj);
+        HPy_Close(ctx, typecode);
+        return HPy_NULL;
+    }
+    PyArray_Descr *typecode_data = PyArray_Descr_AsStruct(ctx, typecode);
+    void *dest = hpy_scalar_value(ctx, new_obj, typecode_data);
+    void *src = hpy_scalar_value(ctx, robj, typecode_data);
+    HPy_Close(ctx, typecode);
+#if defined(_@TYPE@_IS_STRING) || defined(_@TYPE@_IS_UNICODE)
+    // TODO HPY LABS PORT: copy contents ??
     int itemsize;
-    if (type->tp_itemsize) {
-        itemsize = PyBytes_GET_SIZE(robj);
+    long tp_itemsize;
+    // TODO HPY LABS PORT: not sure what itemsize is needed for
+    HPy h_itemsize = HPy_GetAttr_s(ctx, type, "__itemsize__");
+    if (!HPy_IsNull(h_itemsize)) {
+        tp_itemsize = (int) HPyLong_AsLong(ctx, h_itemsize);
+        HPy_Close(ctx, h_itemsize);
+    } else {
+        HPyErr_Clear(ctx);
+        tp_itemsize = 0;
+    }
+    if (tp_itemsize) {
+        itemsize = (int)HPyBytes_GET_SIZE(ctx, robj);
     }
     else {
         itemsize = 0;
     }
-    PyObject *new_obj = type->tp_alloc(type, itemsize);
-    if (new_obj == NULL) {
-        Py_DECREF(robj);
-        Py_DECREF(typecode);
-        return NULL;
-    }
-    void *dest = scalar_value(new_obj, typecode);
-    void *src = scalar_value(robj, typecode);
-    Py_DECREF(typecode);
-#if defined(_@TYPE@_IS_STRING) || defined(_@TYPE@_IS_UNICODE)
     if (itemsize == 0) { /* unicode */
-        itemsize = PyUnicode_GetLength(robj) * PyUnicode_KIND(robj);
+        /* TODO HPY LABS PORT: there is no HPyUnicode_KIND or equivalent since
+           the internal storage of a unicode object should be opaque. Numpy
+           used to use the UCS4 data. Not sure how we should solve that. We
+           could use UTF-8 data and manually transcode to UCS4. */
+        CAPI_WARN("@name@_arrtype_new: missing PyUnicode_KIND");
+        // itemsize = HPy_Length(ctx, robj) * PyUnicode_KIND(robj);
+        itemsize = HPy_Length(ctx, robj) * 4;
     }
     memcpy(dest, src, itemsize);
 #else
     *((npy_@name@ *)dest) = *((npy_@name@ *)src);
 #endif
-    Py_DECREF(robj);
+    HPy_Close(ctx, robj);
     return new_obj;
 }
 #undef _@TYPE@_IS_@TYPE@
 
 /**end repeat**/
 
-static PyObject *
-object_arrtype_new(PyTypeObject *NPY_UNUSED(type), PyObject *args, PyObject *kwds)
+HPyDef_SLOT(object_arrtype_new, HPy_tp_new)
+static HPy
+object_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj = Py_None;
-    static char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O:object_", kwnames, &obj)) {
-        return NULL;
+    HPyTracker ht;
+    HPy ret;
+    HPy obj = ctx->h_None;
+    static const char *kwnames[] = {"", NULL};  /* positional-only */
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
+        return HPy_NULL;
     }
-    PyArray_Descr *typecode = PyArray_DescrFromType(NPY_OBJECT);
-    if (typecode == NULL) {
-        return NULL;
+    HPy typecode = HPyArray_DescrFromType(ctx, NPY_OBJECT);
+    if (HPy_IsNull(typecode)) {
+        return HPy_NULL;
     }
-    PyArrayObject *arr = (PyArrayObject *)PyArray_FromAny(obj, typecode,
-                                    0, 0, NPY_ARRAY_FORCECAST, NULL);
-    return PyArray_Return(arr);
+    HPy arr = HPyArray_FromAny(ctx, obj, typecode,
+                               0, 0, NPY_ARRAY_FORCECAST, HPy_NULL);
+    HPy_Close(ctx, typecode);
+    ret = HPyArray_Return(ctx, arr);
+    HPy_Close(ctx, arr);
+    return ret;
 }
 
 /**begin repeat
@@ -3167,33 +3217,39 @@ static PyObject *
 /**end repeat**/
 
 /* bool->tp_new only returns Py_True or Py_False */
-static PyObject *
-bool_arrtype_new(PyTypeObject *NPY_UNUSED(type), PyObject *args, PyObject *kwds)
+HPyDef_SLOT(bool_arrtype_new, HPy_tp_new)
+static HPy
+bool_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj = NULL;
-    PyArrayObject *arr;
+    HPyTracker ht;
+    HPy obj = HPy_NULL;
+    HPy arr, ret;
+    PyArrayObject *arr_data;
 
-    static char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O:bool_", kwnames, &obj)) {
-        return NULL;
+    static const char *kwnames[] = {"", NULL};  /* positional-only */
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O:bool_", kwnames, &obj)) {
+        return HPy_NULL;
     }
-    if (obj == NULL) {
-        PyArrayScalar_RETURN_FALSE;
+    if (HPy_IsNull(obj)) {
+        HPyArrayScalar_RETURN_FALSE;
     }
-    if (obj == Py_False) {
-        PyArrayScalar_RETURN_FALSE;
+    if (HPy_Is(ctx, obj, ctx->h_False)) {
+        HPyArrayScalar_RETURN_FALSE;
     }
-    if (obj == Py_True) {
-        PyArrayScalar_RETURN_TRUE;
+    if (HPy_Is(ctx, obj, ctx->h_True)) {
+        HPyArrayScalar_RETURN_TRUE;
     }
-    arr = (PyArrayObject *)PyArray_FROM_OTF(obj,
-                                NPY_BOOL, NPY_ARRAY_FORCECAST);
-    if (arr && 0 == PyArray_NDIM(arr)) {
-        npy_bool val = *((npy_bool *)PyArray_DATA(arr));
-        Py_DECREF(arr);
-        PyArrayScalar_RETURN_BOOL_FROM_LONG(val);
+    HPy type_descr = HPyArray_DescrFromType(ctx, NPY_BOOL);
+    arr = HPyArray_FROM_OTF(ctx, obj, type_descr, NPY_ARRAY_FORCECAST);
+    HPy_Close(ctx, type_descr);
+    if (!HPy_IsNull(arr) && 0 == HPyArray_NDIM(arr_data = PyArrayObject_AsStruct(ctx, arr))) {
+        npy_bool val = *((npy_bool *)HPyArray_DATA(arr_data));
+        HPy_Close(ctx, arr);
+        HPyArrayScalar_RETURN_BOOL_FROM_LONG(val);
     }
-    return PyArray_Return((PyArrayObject *)arr);
+    ret = HPyArray_Return(ctx, arr);
+    HPy_Close(ctx, arr);
+    return ret;
 }
 
 static PyObject *
@@ -3278,51 +3334,63 @@ NPY_NO_EXPORT PyNumberMethods bool_arrtype_as_number = {
     .nb_or = (binaryfunc)bool_arrtype_or,
 };
 
-static PyObject *
-void_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+HPyDef_SLOT(void_arrtype_new, HPy_tp_new)
+static HPy
+void_arrtype_new_impl(HPyContext *ctx, HPy type, HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
-    PyObject *obj, *arr;
-    PyObject *new = NULL;
+    HPyTracker ht;
+    HPy obj, arr;
+    HPy new = HPy_NULL;
+    PyArrayObject *obj_data;
 
-    static char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O:void", kwnames, &obj)) {
-        return NULL;
+    static const char *kwnames[] = {"", NULL};  /* positional-only */
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O:void", kwnames, &obj)) {
+        return HPy_NULL;
     }
     /*
      * For a VOID scalar first see if obj is an integer or long
      * and create new memory of that size (filled with 0) for the scalar
      */
-    if (PyLong_Check(obj) ||
-            PyArray_IsScalar(obj, Integer) ||
-            (PyArray_Check(obj) &&
-                     PyArray_NDIM((PyArrayObject *)obj)==0 &&
-                     PyArray_ISINTEGER((PyArrayObject *)obj))) {
-        new = Py_TYPE(obj)->tp_as_number->nb_int(obj);
+    if (HPyLong_Check(ctx, obj) ||
+            HPyArray_IsScalar(ctx, obj, Integer) ||
+            (HPyArray_Check(ctx, obj) &&
+                     HPyArray_NDIM(obj_data = PyArrayObject_AsStruct(ctx, obj))==0 &&
+                     PyArray_ISINTEGER(obj_data))) {
+        CAPI_WARN("void_arrtype_new_impl: direct slot access");
+        PyObject *py_obj = HPy_AsPyObject(ctx, obj);
+        PyObject *py_new = Py_TYPE(py_obj)->tp_as_number->nb_int(py_obj);
+        Py_DECREF(py_obj);
+
+        new = HPy_FromPyObject(ctx, py_new);
+        Py_DECREF(py_new);
     }
-    if (new && PyLong_Check(new)) {
-        PyObject *ret;
+    if (!HPy_IsNull(new) && HPyLong_Check(ctx, new)) {
+        HPy h_ret;
         char *destptr;
-        npy_ulonglong memu = PyLong_AsUnsignedLongLong(new);
-        Py_DECREF(new);
-        if (PyErr_Occurred() || (memu > NPY_MAX_INT)) {
-            PyErr_Clear();
-            PyErr_Format(PyExc_OverflowError,
+        npy_ulonglong memu = HPyLong_AsUnsignedLongLong(ctx, new);
+        HPy_Close(ctx, new);
+        if (HPyErr_Occurred(ctx) || (memu > NPY_MAX_INT)) {
+            HPyErr_Clear(ctx);
+            HPyErr_Format_p(ctx, ctx->h_OverflowError,
                     "size must be non-negative and not greater than %d",
                     (int) NPY_MAX_INT);
-            return NULL;
+            return HPy_NULL;
         }
         if (memu == 0) {
             memu = 1;
         }
         destptr = npy_alloc_cache_zero(memu, 1);
         if (destptr == NULL) {
-            return PyErr_NoMemory();
+            return HPyErr_NoMemory(ctx);
         }
-        ret = type->tp_alloc(type, 0);
-        if (ret == NULL) {
+        void *dummy;
+        h_ret = HPy_New(ctx, type, &dummy);
+        if (HPy_IsNull(h_ret)) {
             npy_free_cache(destptr, memu);
-            return PyErr_NoMemory();
+            return HPyErr_NoMemory(ctx);
         }
+        CAPI_WARN("void_arrtype_new_impl: using legacy type PyVoidScalarObject");
+        PyObject *ret = HPy_AsPyObject(ctx, h_ret);
         ((PyVoidScalarObject *)ret)->obval = destptr;
         Py_SET_SIZE((PyVoidScalarObject *)ret, (int) memu);
         ((PyVoidScalarObject *)ret)->flags = NPY_ARRAY_BEHAVED |
@@ -3332,14 +3400,20 @@ void_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             PyArray_DescrNewFromType(NPY_VOID);
         if (((PyVoidScalarObject *)ret)->descr == NULL) {
             Py_DECREF(ret);
-            return NULL;
+            HPy_Close(ctx, h_ret);
+            return HPy_NULL;
         }
         ((PyVoidScalarObject *)ret)->descr->elsize = (int) memu;
-        return ret;
+        Py_DECREF(ret);
+        return h_ret;
     }
 
-    arr = PyArray_FROM_OTF(obj, NPY_VOID, NPY_ARRAY_FORCECAST);
-    return PyArray_Return((PyArrayObject *)arr);
+    HPy type_descr = HPyArray_DescrFromType(ctx, NPY_VOID);
+    arr = HPyArray_FROM_OTF(ctx, obj, type_descr, NPY_ARRAY_FORCECAST);
+    HPy_Close(ctx, type_descr);
+    HPy ret = HPyArray_Return(ctx, arr);
+    HPy_Close(ctx, arr);
+    return ret;
 }
 
 
@@ -3659,6 +3733,11 @@ object_arrtype_call(PyObjectScalarObject *obj, PyObject *args, PyObject *kwds)
 NPY_NO_EXPORT PyTypeObject *_PyObjectArrType_Type_p;
 NPY_NO_EXPORT HPyGlobal HPyObjectArrType_Type;
 
+static HPyDef *HPyObjectArrType_Type_defines[] = {
+    &object_arrtype_new,
+    NULL
+};
+
 static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
     {Py_tp_alloc, object_arrtype_alloc},
     {Py_tp_dealloc, object_arrtype_dealloc},
@@ -3674,7 +3753,7 @@ static PyType_Slot PyObjectArrType_Type_slots_legacy[] = {
     {Py_tp_call, object_arrtype_call},
     {Py_tp_getattro, object_arrtype_getattro},
     {Py_tp_setattro, object_arrtype_setattro},
-    {Py_tp_new, object_arrtype_new},
+    // {Py_tp_new, object_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, object_arrtype_as_buffer},
     {Py_tp_hash, object_arrtype_hash},
@@ -3686,6 +3765,7 @@ NPY_NO_EXPORT HPyType_Spec PyObjectArrType_Type_spec = {
     .basicsize = sizeof(PyObjectScalarObject),
     .builtin_shape = HPyType_BuiltinShape_Legacy,
     .legacy_slots = PyObjectArrType_Type_slots_legacy,
+    .defines = HPyObjectArrType_Type_defines,
 };
 
 static PyObject *
@@ -3710,126 +3790,6 @@ gen_arrtype_subscript(PyObject *self, PyObject *key)
     }
     return ret;
 }
-
-
-#define NAME_bool "bool"
-#define NAME_void "void"
-#define NAME_string "bytes"
-#define NAME_unicode "str"
-
-/**begin repeat
- * #name = bool, string, unicode, void#
- * #NAME = Bool, String, Unicode, Void#
- * #ex = _,_,_,#
- */
-NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
-NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
-
-// HACK HACK HACK: size 100 so that we can have a forward
-// declaration and not worry about the actual length
-static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
-
-NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
-    .name = "numpy." NAME_@name@ "@ex@",
-    .basicsize = sizeof(Py@NAME@ScalarObject),
-    .builtin_shape = HPyType_BuiltinShape_Legacy,
-    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-    .flags = HPY_BASEFLAGS,
-};
-
-/**end repeat**/
-
-#undef NAME_bool
-#undef NAME_void
-#undef NAME_string
-#undef NAME_unicode
-
-/**begin repeat
- * #NAME = Byte, Short, Int, Long, LongLong, UByte, UShort, UInt, ULong,
- *         ULongLong, Half, Float, Double, LongDouble, Datetime, Timedelta#
- * #name = int*5, uint*5, float*4, datetime, timedelta#
- * #CNAME = (CHAR, SHORT, INT, LONG, LONGLONG)*2, HALF, FLOAT, DOUBLE,
- *          LONGDOUBLE, DATETIME, TIMEDELTA#
- */
-#if NPY_BITSOF_@CNAME@ == 8
-#define _THIS_SIZE "8"
-#elif NPY_BITSOF_@CNAME@ == 16
-#define _THIS_SIZE "16"
-#elif NPY_BITSOF_@CNAME@ == 32
-#define _THIS_SIZE "32"
-#elif NPY_BITSOF_@CNAME@ == 64
-#define _THIS_SIZE "64"
-#elif NPY_BITSOF_@CNAME@ == 80
-#define _THIS_SIZE "80"
-#elif NPY_BITSOF_@CNAME@ == 96
-#define _THIS_SIZE "96"
-#elif NPY_BITSOF_@CNAME@ == 128
-#define _THIS_SIZE "128"
-#elif NPY_BITSOF_@CNAME@ == 256
-#define _THIS_SIZE "256"
-#endif
-NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
-NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
-
-static PyObject *
-@name@_arrtype_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-
-static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
-static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
-
-NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
-    .name = "numpy.@name@" _THIS_SIZE,
-    .basicsize = sizeof(Py@NAME@ScalarObject),
-    .builtin_shape = HPyType_BuiltinShape_Legacy,
-    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-    .flags = HPY_BASEFLAGS,
-    .defines = Py@NAME@ArrType_Type_hpy_defines,
-};
-
-#undef _THIS_SIZE
-/**end repeat**/
-
-
-
-/**begin repeat
- * #NAME = CFloat, CDouble, CLongDouble#
- * #name = complex*3#
- * #CNAME = FLOAT, DOUBLE, LONGDOUBLE#
- */
-#if NPY_BITSOF_@CNAME@ == 16
-#define _THIS_SIZE "32"
-#elif NPY_BITSOF_@CNAME@ == 32
-#define _THIS_SIZE "64"
-#elif NPY_BITSOF_@CNAME@ == 64
-#define _THIS_SIZE "128"
-#elif NPY_BITSOF_@CNAME@ == 80
-#define _THIS_SIZE "160"
-#elif NPY_BITSOF_@CNAME@ == 96
-#define _THIS_SIZE "192"
-#elif NPY_BITSOF_@CNAME@ == 128
-#define _THIS_SIZE "256"
-#elif NPY_BITSOF_@CNAME@ == 256
-#define _THIS_SIZE "512"
-#endif
-
-NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
-NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
-
-static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
-static HPyDef *Py@NAME@ArrType_Type_hpy_defines[100];
-
-NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
-    .name = "numpy.@name@" _THIS_SIZE,
-    .basicsize = sizeof(Py@NAME@ScalarObject),
-    .flags = HPy_TPFLAGS_DEFAULT,
-    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
-    .builtin_shape = HPyType_BuiltinShape_Legacy,
-    .defines = Py@NAME@ArrType_Type_hpy_defines,
-};
-
-#undef _THIS_SIZE
-
-/**end repeat**/
 
 /*
  * This table maps the built-in type numbers to their scalar
@@ -4242,7 +4202,7 @@ initialize_numeric_types(void)
      *         Timedelta#
      */
 
-    Py@NAME@ArrType_Type.tp_new = @name@_arrtype_new;
+    // Py@NAME@ArrType_Type.tp_new = @name@_arrtype_new;
     if (hpy_todo_ignore) {
         Py@NAME@ArrType_Type.tp_richcompare = gentype_richcompare;
 
@@ -4667,7 +4627,6 @@ static PyType_Slot PyBoolArrType_Type_slots_legacy[] = {
     {Py_nb_and, bool_arrtype_and},
     {Py_nb_xor, bool_arrtype_xor},
     {Py_nb_or, bool_arrtype_or},
-    {Py_tp_new, bool_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, bool_arrtype_as_buffer},
     {Py_tp_hash, bool_arrtype_hash},
@@ -4676,15 +4635,13 @@ static PyType_Slot PyBoolArrType_Type_slots_legacy[] = {
     {0},
 };
 
-/* Not used yet:
 static HPyDef *PyBoolArrType_Type_hpy_defines[] = {
+    &bool_arrtype_new,
     0
 };
-*/
 
 static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, byte_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, byte_arrtype_as_buffer},
     {Py_tp_hash, byte_arrtype_hash},
@@ -4696,12 +4653,12 @@ static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyByteArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &byte_arrtype_new,
     0
 };
 
 static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, short_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, short_arrtype_as_buffer},
     {Py_tp_hash, short_arrtype_hash},
@@ -4713,12 +4670,12 @@ static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyShortArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &short_arrtype_new,
     0
 };
 
 static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, int_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, int_arrtype_as_buffer},
     {Py_tp_methods, inttype_methods},
@@ -4730,12 +4687,12 @@ static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyIntArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &int_arrtype_new,
     0
 };
 
 static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, long_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, long_arrtype_as_buffer},
     {Py_tp_methods, longtype_methods},
@@ -4747,12 +4704,12 @@ static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &long_arrtype_new,
     0
 };
 
 static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, longlong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, longlong_arrtype_as_buffer},
     {Py_tp_methods, longlongtype_methods},
@@ -4762,16 +4719,14 @@ static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
     {0},
 };
 
-/* Not used yet?:
-static HPyDef *PyLongLongtArrType_Type_hpy_defines[] = {
+static HPyDef *PyLongLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &longlong_arrtype_new,
     0
 };
-*/
 
 static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, ubyte_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ubyte_arrtype_as_buffer},
     {Py_tp_hash, ubyte_arrtype_hash},
@@ -4783,12 +4738,12 @@ static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyUByteArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &ubyte_arrtype_new,
     0
 };
 
 static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, ushort_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ushort_arrtype_as_buffer},
     {Py_tp_hash, ushort_arrtype_hash},
@@ -4800,12 +4755,12 @@ static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyUShortArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &ushort_arrtype_new,
     0
 };
 
 static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, uint_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, uint_arrtype_as_buffer},
     {Py_tp_hash, uint_arrtype_hash},
@@ -4817,12 +4772,12 @@ static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyUIntArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &uint_arrtype_new,
     0
 };
 
 static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, ulong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ulong_arrtype_as_buffer},
     {Py_tp_hash, ulong_arrtype_hash},
@@ -4834,12 +4789,12 @@ static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyULongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &ulong_arrtype_new,
     0
 };
 
 static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, ulonglong_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, ulonglong_arrtype_as_buffer},
     {Py_tp_hash, ulonglong_arrtype_hash},
@@ -4851,12 +4806,12 @@ static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyULongLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &ulonglong_arrtype_new,
     0
 };
 
 static PyType_Slot PyHalfArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, half_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, half_arrtype_as_buffer},
     {Py_tp_hash, half_arrtype_hash},
@@ -4868,12 +4823,12 @@ static PyType_Slot PyHalfArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyHalfArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &half_arrtype_new,
     0
 };
 
 static PyType_Slot PyFloatArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, float_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, float_arrtype_as_buffer},
     {Py_tp_hash, float_arrtype_hash},
@@ -4885,12 +4840,12 @@ static PyType_Slot PyFloatArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyFloatArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &float_arrtype_new,
     0
 };
 
 static PyType_Slot PyDoubleArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, double_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, double_arrtype_as_buffer},
     {Py_tp_methods, doubletype_methods},
@@ -4901,12 +4856,12 @@ static PyType_Slot PyDoubleArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyDoubleArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &double_arrtype_new,
     0
 };
 
 static PyType_Slot PyLongDoubleArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, longdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, longdouble_arrtype_as_buffer},
     {Py_tp_hash, longdouble_arrtype_hash},
@@ -4922,12 +4877,12 @@ static PyType_Slot PyLongDoubleArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyLongDoubleArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &longdouble_arrtype_new,
     0
 };
 
 static PyType_Slot PyCFloatArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, cfloat_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, cfloat_arrtype_as_buffer},
     {Py_tp_hash, cfloat_arrtype_hash},
@@ -4939,12 +4894,12 @@ static PyType_Slot PyCFloatArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyCFloatArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &cfloat_arrtype_new,
     0
 };
 
 static PyType_Slot PyCDoubleArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, cdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, cdouble_arrtype_as_buffer},
     {Py_tp_methods, cdoubletype_methods},
@@ -4953,12 +4908,12 @@ static PyType_Slot PyCDoubleArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyCDoubleArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &cdouble_arrtype_new,
     0
 };
 
 static PyType_Slot PyCLongDoubleArrType_Type_slots_legacy[] = {
     GENTYPE_AS_NUMBER_SLOTS2,
-    {Py_tp_new, clongdouble_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, clongdouble_arrtype_as_buffer},
     {Py_tp_hash, clongdouble_arrtype_hash},
@@ -4972,6 +4927,7 @@ static PyType_Slot PyCLongDoubleArrType_Type_slots_legacy[] = {
 
 static HPyDef *PyCLongDoubleArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
+    &clongdouble_arrtype_new,
     0
 };
 
@@ -4980,21 +4936,29 @@ static PyType_Slot PyStringArrType_Type_slots_legacy[] = {
     {Py_tp_free, NULL},
     {Py_tp_repr, stringtype_repr},
     {Py_tp_str, stringtype_str},
-    {Py_tp_new, string_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, string_arrtype_as_buffer},
     // HPY TODO: {Py_tp_itemsize, sizeof(char)},
     {0},
 };
 
+static HPyDef *PyStringArrType_Type_hpy_defines[] = {
+    &string_arrtype_new,
+    0
+};
+
 static PyType_Slot PyUnicodeArrType_Type_slots_legacy[] = {
     {Py_tp_repr, unicodetype_repr},
     {Py_tp_str, unicodetype_str},
-    {Py_tp_new, unicode_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, unicode_arrtype_as_buffer},
     {Py_tp_dealloc, unicode_arrtype_dealloc},
     {0},
+};
+
+static HPyDef *PyUnicodeArrType_Type_hpy_defines[] = {
+    &unicode_arrtype_new,
+    0
 };
 
 static PyType_Slot PyVoidArrType_Type_slots_legacy[] = {
@@ -5011,12 +4975,16 @@ static PyType_Slot PyVoidArrType_Type_slots_legacy[] = {
     // rest:
     {Py_tp_repr, voidtype_repr},
     {Py_tp_str, voidtype_str},
-    {Py_tp_new, void_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, void_arrtype_as_buffer},
     {Py_tp_hash, void_arrtype_hash},
     {Py_tp_dealloc, (destructor) void_dealloc},
     {0},
+};
+
+static HPyDef *PyVoidArrType_Type_hpy_defines[] = {
+    &void_arrtype_new,
+    0
 };
 
 static PyType_Slot PyIntegerArrType_Type_slots_legacy[] = {
@@ -5040,6 +5008,10 @@ static PyType_Slot PyDatetimeArrType_Type_slots_legacy[] = {
     {0},
 };
 
+static HPyDef *PyDatetimeArrType_Type_hpy_defines[] = {
+    0
+};
+
 static PyType_Slot PyTimedeltaArrType_Type_slots_legacy[] = {
     {Py_tp_new, timedelta_arrtype_new},
     {Py_tp_richcompare, gentype_richcompare},
@@ -5050,6 +5022,11 @@ static PyType_Slot PyTimedeltaArrType_Type_slots_legacy[] = {
     {Py_tp_str, timedeltatype_str},
     {0},
 };
+
+static HPyDef *PyTimedeltaArrType_Type_hpy_defines[] = {
+    0
+};
+
 
 static PyType_Slot PyFloatingArrType_Type_slots_legacy[] = {
     {Py_tp_methods, floatingtype_methods},
@@ -5073,3 +5050,117 @@ static PyType_Slot PyArrayMapIter_Type_slots_legacy[] = {
     {0},
 };
 */
+
+
+#define NAME_bool "bool"
+#define NAME_void "void"
+#define NAME_string "bytes"
+#define NAME_unicode "str"
+
+/**begin repeat
+ * #name = bool, string, unicode, void#
+ * #NAME = Bool, String, Unicode, Void#
+ * #ex = _,_,_,#
+ */
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
+
+// HACK HACK HACK: size 100 so that we can have a forward
+// declaration and not worry about the actual length
+//static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy." NAME_@name@ "@ex@",
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .flags = HPY_BASEFLAGS,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
+    .defines = Py@NAME@ArrType_Type_hpy_defines,
+};
+
+/**end repeat**/
+
+#undef NAME_bool
+#undef NAME_void
+#undef NAME_string
+#undef NAME_unicode
+
+/**begin repeat
+ * #NAME = Byte, Short, Int, Long, LongLong, UByte, UShort, UInt, ULong,
+ *         ULongLong, Half, Float, Double, LongDouble, Datetime, Timedelta#
+ * #name = int*5, uint*5, float*4, datetime, timedelta#
+ * #CNAME = (CHAR, SHORT, INT, LONG, LONGLONG)*2, HALF, FLOAT, DOUBLE,
+ *          LONGDOUBLE, DATETIME, TIMEDELTA#
+ */
+#if NPY_BITSOF_@CNAME@ == 8
+#define _THIS_SIZE "8"
+#elif NPY_BITSOF_@CNAME@ == 16
+#define _THIS_SIZE "16"
+#elif NPY_BITSOF_@CNAME@ == 32
+#define _THIS_SIZE "32"
+#elif NPY_BITSOF_@CNAME@ == 64
+#define _THIS_SIZE "64"
+#elif NPY_BITSOF_@CNAME@ == 80
+#define _THIS_SIZE "80"
+#elif NPY_BITSOF_@CNAME@ == 96
+#define _THIS_SIZE "96"
+#elif NPY_BITSOF_@CNAME@ == 128
+#define _THIS_SIZE "128"
+#elif NPY_BITSOF_@CNAME@ == 256
+#define _THIS_SIZE "256"
+#endif
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
+
+// static PyType_Slot Py@NAME@ArrType_Type_slots_legacy[100];
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy.@name@" _THIS_SIZE,
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
+    .flags = HPY_BASEFLAGS,
+    .defines = Py@NAME@ArrType_Type_hpy_defines,
+};
+
+#undef _THIS_SIZE
+/**end repeat**/
+
+
+
+/**begin repeat
+ * #NAME = CFloat, CDouble, CLongDouble#
+ * #name = complex*3#
+ * #CNAME = FLOAT, DOUBLE, LONGDOUBLE#
+ */
+#if NPY_BITSOF_@CNAME@ == 16
+#define _THIS_SIZE "32"
+#elif NPY_BITSOF_@CNAME@ == 32
+#define _THIS_SIZE "64"
+#elif NPY_BITSOF_@CNAME@ == 64
+#define _THIS_SIZE "128"
+#elif NPY_BITSOF_@CNAME@ == 80
+#define _THIS_SIZE "160"
+#elif NPY_BITSOF_@CNAME@ == 96
+#define _THIS_SIZE "192"
+#elif NPY_BITSOF_@CNAME@ == 128
+#define _THIS_SIZE "256"
+#elif NPY_BITSOF_@CNAME@ == 256
+#define _THIS_SIZE "512"
+#endif
+
+NPY_NO_EXPORT PyTypeObject *_Py@NAME@ArrType_Type_p;
+NPY_NO_EXPORT HPyGlobal HPy@NAME@ArrType_Type;
+
+NPY_NO_EXPORT HPyType_Spec Py@NAME@ArrType_Type_spec = {
+    .name = "numpy.@name@" _THIS_SIZE,
+    .basicsize = sizeof(Py@NAME@ScalarObject),
+    .flags = HPy_TPFLAGS_DEFAULT,
+    .legacy_slots = Py@NAME@ArrType_Type_slots_legacy,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
+    .defines = Py@NAME@ArrType_Type_hpy_defines,
+};
+
+#undef _THIS_SIZE
+
+/**end repeat**/
