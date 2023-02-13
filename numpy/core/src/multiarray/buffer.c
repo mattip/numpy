@@ -758,38 +758,36 @@ _buffer_get_info(void **buffer_info_cache_ptr, PyObject *obj, int flags)
  */
 HPyDef_SLOT(array_getbuffer, HPy_bf_getbuffer)
 static int
-array_getbuffer_impl(HPyContext *ctx, HPy h_obj, HPy_buffer *view, int flags)
+array_getbuffer_impl(HPyContext *ctx, HPy self, HPy_buffer *view, int flags)
 {
-    PyArrayObject *self;
     _buffer_info_t *info = NULL;
-
-    PyObject *obj = HPy_AsPyObject(ctx, h_obj);
-    self = (PyArrayObject*)obj;
+    PyObject *py_self;
+    PyArrayObject *self_data = PyArrayObject_AsStruct(ctx, self);
 
     /* Check whether we can provide the wanted properties */
     if ((flags & PyBUF_C_CONTIGUOUS) == PyBUF_C_CONTIGUOUS &&
-            !PyArray_CHKFLAGS(self, NPY_ARRAY_C_CONTIGUOUS)) {
+            !HPyArray_CHKFLAGS(self_data, NPY_ARRAY_C_CONTIGUOUS)) {
         HPyErr_SetString(ctx, ctx->h_ValueError, "ndarray is not C-contiguous");
         goto fail;
     }
     if ((flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS &&
-            !PyArray_CHKFLAGS(self, NPY_ARRAY_F_CONTIGUOUS)) {
+            !HPyArray_CHKFLAGS(self_data, NPY_ARRAY_F_CONTIGUOUS)) {
         HPyErr_SetString(ctx, ctx->h_ValueError, "ndarray is not Fortran contiguous");
         goto fail;
     }
     if ((flags & PyBUF_ANY_CONTIGUOUS) == PyBUF_ANY_CONTIGUOUS
-            && !PyArray_ISONESEGMENT(self)) {
+            && !PyArray_ISONESEGMENT(self_data)) {
         HPyErr_SetString(ctx, ctx->h_ValueError, "ndarray is not contiguous");
         goto fail;
     }
     if ((flags & PyBUF_STRIDES) != PyBUF_STRIDES &&
-            !PyArray_CHKFLAGS(self, NPY_ARRAY_C_CONTIGUOUS)) {
+            !HPyArray_CHKFLAGS(self_data, NPY_ARRAY_C_CONTIGUOUS)) {
         /* Non-strided N-dim buffers must be C-contiguous */
         HPyErr_SetString(ctx, ctx->h_ValueError, "ndarray is not C-contiguous");
         goto fail;
     }
     if ((flags & PyBUF_WRITEABLE) == PyBUF_WRITEABLE) {
-        if (PyArray_FailUnlessWriteable(self, "buffer source array") < 0) {
+        if (HPyArray_FailUnlessWriteable(ctx, self, "buffer source array") < 0) {
             goto fail;
         }
     }
@@ -800,15 +798,18 @@ array_getbuffer_impl(HPyContext *ctx, HPy h_obj, HPy_buffer *view, int flags)
     }
 
     /* Fill in information (and add it to _buffer_info if necessary) */
+    CAPI_WARN("array_getbuffer_impl: calling _buffer_get_info");
+    py_self = HPy_AsPyObject(ctx, self);
     info = _buffer_get_info(
-            &((PyArrayObject_fields *)self)->_buffer_info, obj, flags);
+            &((PyArrayObject_fields *)self_data)->_buffer_info, py_self, flags);
+    Py_DECREF(py_self);
     if (info == NULL) {
         goto fail;
     }
 
-    view->buf = PyArray_DATA(self);
+    view->buf = HPyArray_DATA(self_data);
     view->suboffsets = NULL;
-    view->itemsize = PyArray_ITEMSIZE(self);
+    view->itemsize = HPyArray_ITEMSIZE(ctx, self, self_data);
     /*
      * If a read-only buffer is requested on a read-write array, we return a
      * read-write buffer as per buffer protocol.
@@ -818,10 +819,10 @@ array_getbuffer_impl(HPyContext *ctx, HPy h_obj, HPy_buffer *view, int flags)
      * buffer is requested since `PyArray_FailUnlessWriteable` is called above
      * (and clears the `NPY_ARRAY_WARN_ON_WRITE` flag).
      */
-    view->readonly = (!PyArray_ISWRITEABLE(self) ||
-                      PyArray_CHKFLAGS(self, NPY_ARRAY_WARN_ON_WRITE));
+    view->readonly = (!PyArray_ISWRITEABLE(self_data) ||
+                      PyArray_CHKFLAGS(self_data, NPY_ARRAY_WARN_ON_WRITE));
     view->internal = NULL;
-    view->len = PyArray_NBYTES(self);
+    view->len = HPyArray_NBYTES(ctx, self, self_data);
     if ((flags & PyBUF_FORMAT) == PyBUF_FORMAT) {
         view->format = info->format;
     } else {
@@ -841,13 +842,11 @@ array_getbuffer_impl(HPyContext *ctx, HPy h_obj, HPy_buffer *view, int flags)
     else {
         view->strides = NULL;
     }
-    view->obj = HPy_Dup(ctx, h_obj);
-    Py_DECREF(obj);
+    view->obj = HPy_Dup(ctx, self);
 
     return 0;
 
 fail:
-    Py_DECREF(obj);
     return -1;
 }
 

@@ -1914,6 +1914,12 @@ PyArray_CHKFLAGS(const PyArrayObject *arr, int flags)
     return (PyArray_FLAGS(arr) & flags) == flags;
 }
 
+static NPY_INLINE int
+HPyArray_CHKFLAGS(const PyArrayObject *arr, int flags)
+{
+    return (PyArray_FLAGS(arr) & flags) == flags;
+}
+
 static NPY_INLINE PyObject *
 PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
 {
