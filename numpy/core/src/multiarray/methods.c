@@ -1207,20 +1207,34 @@ array_function(PyArrayObject *NPY_UNUSED(self), PyObject *c_args, PyObject *c_kw
     return result;
 }
 
-static PyObject *
-array_copy(PyArrayObject *self,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_copy, "copy", HPyFunc_KEYWORDS)
+static HPy
+array_copy_impl(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, HPy *args,
+        HPy_ssize_t len_args, HPy kw)
 {
     NPY_ORDER order = NPY_CORDER;
-    NPY_PREPARE_ARGPARSER;
 
-    if (npy_parse_arguments("copy", args, len_args, kwnames,
-            "|order", PyArray_OrderConverter, &order,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    // TODO HPY LABS PORT: npy_parse_arguments
+    // NPY_PREPARE_ARGPARSER;
+    // if (npy_parse_arguments("copy", args, len_args, kwnames,
+    //         "|order", PyArray_OrderConverter, &order,
+    //         NULL, NULL, NULL) < 0) {
+    //     return NULL;
+    // }
+
+    HPyTracker ht;
+    static const char *kwlist[] = {"order", NULL};
+    HPy h_order = HPy_NULL;
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &h_order)) {
+        return HPy_NULL;
     }
+    if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        HPyTracker_Close(ctx, ht);
+        return HPy_NULL;
+    }
+    HPyTracker_Close(ctx, ht);
 
-    return PyArray_NewCopy(self, order);
+    return HPyArray_NewCopy(ctx, self, order);
 }
 
 /* Separate from array_copy to make __copy__ preserve Fortran contiguity. */
@@ -2997,9 +3011,9 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"conjugate",
         (PyCFunction)array_conjugate,
         METH_VARARGS, NULL},
-    {"copy",
-        (PyCFunction)array_copy,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
+    // {"copy",
+    //    (PyCFunction)array_copy,
+    //    METH_FASTCALL | METH_KEYWORDS, NULL},
     {"cumprod",
         (PyCFunction)array_cumprod,
         METH_VARARGS | METH_KEYWORDS, NULL},
