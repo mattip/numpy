@@ -160,3 +160,39 @@ HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type)
     HPy_Close(ctx, h_type);
     return res;
 }
+
+NPY_NO_EXPORT HPy
+HPyFastcallToDict(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy kwnames)
+{
+    HPy kw, kwname;
+    HPy_ssize_t nkw, i;
+
+    if (HPy_IsNull(kwnames))
+        return HPy_NULL;
+
+    kw = HPyDict_New(ctx);
+    if (HPy_IsNull(kw))
+        return HPy_NULL;
+
+    nkw = HPy_Length(ctx, kwnames);
+    if (nkw < 0)
+        return HPy_NULL;
+
+    for (i=0; i < nkw; i++)
+    {
+        kwname = HPy_GetItem_i(ctx, kwnames, i);
+        if (HPy_IsNull(kwname))
+        {
+            HPy_Close(ctx, kw);
+            return HPy_NULL;
+        }
+        if (HPy_SetItem(ctx, kw, kwname, args[nargs + i]) < 0)
+        {
+            HPy_Close(ctx, kwname);
+            HPy_Close(ctx, kw);
+            return HPy_NULL;
+        }
+        HPy_Close(ctx, kwname);
+    }
+    return kw;
+}

@@ -54,6 +54,15 @@ HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected);
 NPY_NO_EXPORT int
 HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type);
 
+/**
+ * Converts the vectorcall calling convention (i.e. the argument array contains
+ * 'nargs' positional arguments and after that, the keyword argument values) to
+ * HPy's calling convention (i.e. positional arguments in an array and keywords
+ * in a dict). It returns a the keywords dict.
+ */
+NPY_NO_EXPORT HPy
+HPyFastcallToDict(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy kwnames);
+
 static NPY_INLINE HPy *
 HPy_FromPyObjectArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)
 {
