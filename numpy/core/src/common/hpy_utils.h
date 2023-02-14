@@ -29,6 +29,15 @@
     #define MEM_FREE free
 #endif
 
+#if defined(_MSC_VER) && defined(__cplusplus) // MSVC C4576
+#  define _htconv(h) {h}
+#else
+#  define _htconv(h) ((HPyTracker){h})
+#endif
+
+#define HPyTracker_NULL _htconv(0)
+#define HPyTracker_IsNull(f) ((f)._i == 0)
+
 // #define GRAALVM_PYTHON 1
 
 #define HPy_SETREF(ctx, op, op2) \
