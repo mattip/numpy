@@ -5130,6 +5130,7 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
         HPy const *args, HPy_ssize_t len_args, HPy kwnames,
         npy_bool outer)
 {
+    HPyTracker ht = HPyTracker_NULL;
     PyUFuncObject *ufunc = PyUFuncObject_AsStruct(ctx, self);
     int errval;
     int nin = ufunc->nin, nout = ufunc->nout, nop = ufunc->nargs;
@@ -5226,86 +5227,46 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
 
     /* Skip parsing if there are no keyword arguments, nothing left to do */
     if (!HPy_IsNull(kwnames)) {
-        CAPI_WARN("ufunc_generic_fastcall: call to npy_parse_arguments");
-        PyObject *py_out_obj = NULL, *py_where_obj = NULL;
-        PyObject *py_axes_obj = NULL, *py_axis_obj = NULL;
-        PyObject *py_keepdims_obj = NULL, *py_casting_obj = NULL, *py_order_obj = NULL;
-        PyObject *py_subok_obj = NULL, *py_signature_obj = NULL, *py_sig_obj = NULL;
-        PyObject *py_dtype_obj = NULL, *py_extobj = NULL;
-
-        PyObject *py_kwnames = HPy_AsPyObject(ctx, kwnames);
-        Py_ssize_t nkw = PyTuple_GET_SIZE(py_kwnames);
-        /* The args array also contains the keyword args after 'len_args' ! */
-        PyObject *const *py_args = (PyObject *const *) HPy_AsPyObjectArray(ctx, (HPy *)args, len_args + nkw);
+        HPY_PERFORMANCE_WARNING("converting vectorcall to object call convention");
+        HPy kw = HPyFastcallToDict(ctx, args, len_args, kwnames);
+        if (HPy_IsNull(kw))
+            goto fail;
 
         if (!ufunc->core_enabled) {
-            NPY_PREPARE_ARGPARSER;
-
-            if (npy_parse_arguments(ufunc->name, py_args + len_args, 0, py_kwnames,
-                    "$out", NULL, &py_out_obj,
-                    "$where", NULL, &py_where_obj,
-                    "$casting", NULL, &py_casting_obj,
-                    "$order", NULL, &py_order_obj,
-                    "$subok", NULL, &py_subok_obj,
-                    "$dtype", NULL, &py_dtype_obj,
-                    "$signature", NULL, &py_signature_obj,
-                    "$sig", NULL, &py_sig_obj,
-                    "$extobj", NULL, &py_extobj,
-                    NULL, NULL, NULL) < 0) {
+            static const char *kwlist0[] = { "out", "where", "casting", "order",
+                    "subok", "dtype", "signature", "sig", "extobj", NULL };
+            if (!HPyArg_ParseKeywords(ctx, &ht, NULL, 0, kw, "|$OOOOOOOOO", kwlist0,
+                    &out_obj, &where_obj, &casting_obj, &order_obj, &subok_obj,
+                    &dtype_obj, &signature_obj, &sig_obj, &extobj)) {
+                HPy_Close(ctx, kw);
+                /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
+                   to HPy_NULL to avoid double-free. */
+                ht = HPyTracker_NULL;
                 goto fail;
             }
+            HPy_Close(ctx, kw);
         }
         else {
-            NPY_PREPARE_ARGPARSER;
-
-            if (npy_parse_arguments(ufunc->name, py_args + len_args, 0, py_kwnames,
-                    "$out", NULL, &py_out_obj,
-                    "$axes", NULL, &py_axes_obj,
-                    "$axis", NULL, &py_axis_obj,
-                    "$keepdims", NULL, &py_keepdims_obj,
-                    "$casting", NULL, &py_casting_obj,
-                    "$order", NULL, &py_order_obj,
-                    "$subok", NULL, &py_subok_obj,
-                    "$dtype", NULL, &py_dtype_obj,
-                    "$signature", NULL, &py_signature_obj,
-                    "$sig", NULL, &py_sig_obj,
-                    "$extobj", NULL, &py_extobj,
-                    NULL, NULL, NULL) < 0) {
+            static const char *kwlist1[] = { "out", "axes", "axis", "keepdims",
+                    "casting", "order", "subok", "dtype", "signature", "sig",
+                    "extobj", NULL };
+            if (!HPyArg_ParseKeywords(ctx, &ht, NULL, 0, kw, "|$OOOOOOOOOOO", kwlist1,
+                    &out_obj, &axes_obj, &axis_obj, &keepdims_obj, &casting_obj,
+                    &order_obj, &subok_obj, &dtype_obj, &signature_obj,
+                    &sig_obj, &extobj)) {
+                HPy_Close(ctx, kw);
+                /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
+                   to HPy_NULL to avoid double-free. */
+                ht = HPyTracker_NULL;
                 goto fail;
             }
-            if (NPY_UNLIKELY((py_axes_obj != NULL) && (py_axis_obj != NULL))) {
+            HPy_Close(ctx, kw);
+            if (NPY_UNLIKELY(!HPy_IsNull(axes_obj) && !HPy_IsNull(axis_obj))) {
                 HPyErr_SetString(ctx, ctx->h_TypeError,
                         "cannot specify both 'axis' and 'axes'");
                 goto fail;
             }
         }
-        out_obj = HPy_FromPyObject(ctx, py_out_obj);
-        where_obj = HPy_FromPyObject(ctx, py_where_obj);
-        axes_obj = HPy_FromPyObject(ctx, py_axes_obj);
-        axis_obj = HPy_FromPyObject(ctx, py_axis_obj);
-        keepdims_obj = HPy_FromPyObject(ctx, py_keepdims_obj);
-        casting_obj = HPy_FromPyObject(ctx, py_casting_obj);
-        order_obj = HPy_FromPyObject(ctx, py_order_obj);
-        subok_obj = HPy_FromPyObject(ctx, py_subok_obj);
-        signature_obj = HPy_FromPyObject(ctx, py_signature_obj);
-        sig_obj = HPy_FromPyObject(ctx, py_sig_obj);
-        dtype_obj = HPy_FromPyObject(ctx, py_dtype_obj);
-        extobj = HPy_FromPyObject(ctx, py_extobj);
-
-        Py_XDECREF(py_out_obj);
-        Py_XDECREF(py_where_obj);
-        Py_XDECREF(py_axes_obj);
-        Py_XDECREF(py_axis_obj);
-        Py_XDECREF(py_keepdims_obj);
-        Py_XDECREF(py_casting_obj);
-        Py_XDECREF(py_order_obj);
-        Py_XDECREF(py_subok_obj);
-        Py_XDECREF(py_signature_obj);
-        Py_XDECREF(py_sig_obj);
-        Py_XDECREF(py_dtype_obj);
-        Py_XDECREF(py_extobj);
-        Py_DECREF(py_kwnames);
-        HPy_DecrefAndFreeArray(ctx, (PyObject **)py_args, len_args + nkw);
 
         /* Handle `out` arguments passed by keyword */
         if (!HPy_IsNull(out_obj)) {
@@ -5347,6 +5308,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
     else if (!HPy_IsNull(override)) {
         HPy_Close(ctx, full_args.in);
         HPy_Close(ctx, full_args.out);
+        if (!HPyTracker_IsNull(ht))
+            HPyTracker_Close(ctx, ht);
         return override;
     }
 
@@ -5471,6 +5434,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
             full_args, subok, operands+nin);
     HPy_Close(ctx, full_args.in);
     HPy_Close(ctx, full_args.out);
+    if (!HPyTracker_IsNull(ht))
+        HPyTracker_Close(ctx, ht);
 
     return result;
 
@@ -5487,6 +5452,8 @@ fail:
             HPy_Close(ctx, output_array_prepare[i]);
         }
     }
+    if (!HPyTracker_IsNull(ht))
+        HPyTracker_Close(ctx, ht);
     return HPy_NULL;
 }
 
