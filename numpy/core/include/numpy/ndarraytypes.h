@@ -72,7 +72,17 @@ void capi_warn0(const char *caller_name, const char *file, int lineno) {
     }
 }
 
+static NPY_INLINE
+void perf_warn(const char *msg, const char *file, int lineno) {
+    if (capi_warn_level() > 0) {
+        printf("PERFORMANCE WARNING: (%s:%d) %s\n", file, lineno, msg);
+        _print_stack();
+    }
+}
+
 #define CAPI_WARN(_x) capi_warn0(_x, __FILE__, __LINE__)
+
+#define HPY_PERFORMANCE_WARNING(_x) perf_warn(_x, __FILE__, __LINE__)
 
 static __attribute__ ((noreturn)) NPY_INLINE
 void hpy_abort_not_implemented(const char *where) {
