@@ -145,35 +145,65 @@ gentype_power(PyObject *m1, PyObject *m2, PyObject *modulo)
     return PyArray_Type.tp_as_number->nb_power(m1, m2, Py_None);
 }
 
-static PyObject *
-gentype_generic_method(PyObject *self, PyObject *args, PyObject *kwds,
+static HPy
+hpy_gentype_generic_method(HPyContext *ctx, HPy self, HPy args, HPy kwds,
         char *str)
 {
-    PyObject *arr, *meth, *ret;
+    HPy arr, meth, tmp, ret;
 
-    arr = PyArray_FromScalar(self, NULL);
-    if (arr == NULL) {
-        return NULL;
+    arr = HPyArray_FromScalar(ctx, self, HPy_NULL);
+    if (HPy_IsNull(arr)) {
+        return HPy_NULL;
     }
-    meth = PyObject_GetAttrString(arr, str);
-    if (meth == NULL) {
-        Py_DECREF(arr);
-        return NULL;
+    meth = HPy_GetAttr_s(ctx, arr, str);
+    if (HPy_IsNull(meth)) {
+        HPy_Close(ctx, arr);
+        return HPy_NULL;
     }
-    if (kwds == NULL) {
-        ret = PyObject_CallObject(meth, args);
-    }
-    else {
-        ret = PyObject_Call(meth, args, kwds);
-    }
-    Py_DECREF(meth);
-    Py_DECREF(arr);
-    if (ret && PyArray_Check(ret)) {
-        return PyArray_Return((PyArrayObject *)ret);
+    ret = HPy_CallTupleDict(ctx, meth, args, kwds);
+    HPy_Close(ctx, meth);
+    HPy_Close(ctx, arr);
+    if (!HPy_IsNull(ret) && HPyArray_Check(ctx, ret)) {
+        tmp = HPyArray_Return(ctx, ret);
+        HPy_Close(ctx, ret);
+        return tmp;
     }
     else {
         return ret;
     }
+}
+
+static PyObject *
+gentype_generic_method(PyObject *self, PyObject *args, PyObject *kwds,
+        char *str)
+{
+    HPyContext *ctx = npy_get_context();
+    HPy h_self, h_args, h_kwds;
+    PyObject *res;
+    
+    h_self = HPy_FromPyObject(ctx, self);
+    
+    if (args) {
+        h_args = HPy_FromPyObject(ctx, args);
+    } else {
+        h_args = HPy_NULL;
+    }
+    
+    if (kwds != NULL) {
+        h_kwds = HPy_FromPyObject(ctx, kwds);
+    } else {
+        h_kwds = HPy_NULL;
+    }
+    
+    HPy h_res = hpy_gentype_generic_method(ctx, h_self, h_args, h_kwds, str);
+    HPy_Close(ctx, h_kwds);
+    HPy_Close(ctx, h_args);
+    HPy_Close(ctx, h_self);
+
+    res = HPy_AsPyObject(ctx, h_res);
+    HPy_Close(ctx, h_res);
+    
+    return res;
 }
 
 static PyObject *
@@ -321,17 +351,26 @@ gentype_nonzero_number(PyObject *m1)
     return ret;
 }
 
-static PyObject *
-genint_type_str(PyObject *self)
+HPyDef_SLOT(genint_type_str, HPy_tp_str)
+HPyDef genint_type_repr = {
+    .kind = HPyDef_Kind_Slot,
+    .slot = {
+        .slot = HPy_tp_repr,
+        .impl = (HPyCFunction)genint_type_str_impl,
+        .cpy_trampoline = (cpy_PyCFunction)genint_type_str_trampoline
+    }
+};
+static HPy
+genint_type_str_impl(HPyContext *ctx, HPy self)
 {
-    PyObject  *item, *item_str;
-    item = gentype_generic_method(self, NULL, NULL, "item");
-    if (item == NULL) {
-        return NULL;
+    HPy item, item_str;
+    item = hpy_gentype_generic_method(ctx, self, HPy_NULL, HPy_NULL, "item");
+    if (HPy_IsNull(item)) {
+        return HPy_NULL;
     }
 
-    item_str = PyObject_Str(item);
-    Py_DECREF(item);
+    item_str = HPy_Str(ctx, item);
+    HPy_Close(ctx, item);
     return item_str;
 }
 
@@ -4306,8 +4345,8 @@ initialize_numeric_types(void)
      */
 
     /* both str/repr use genint_type_str to avoid trailing "L" of longs */
-    Py@Type@ArrType_Type.tp_str = genint_type_str;
-    Py@Type@ArrType_Type.tp_repr = genint_type_str;
+    // Py@Type@ArrType_Type.tp_str = genint_type_str;
+    // Py@Type@ArrType_Type.tp_repr = genint_type_str;
 
     /**end repeat**/
 
@@ -4630,13 +4669,13 @@ static PyType_Slot PyBoolArrType_Type_slots_legacy[] = {
     {Py_tp_richcompare, gentype_richcompare},
     // HPY TODO: {Py_tp_as_buffer, bool_arrtype_as_buffer},
     {Py_tp_hash, bool_arrtype_hash},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyBoolArrType_Type_hpy_defines[] = {
     &bool_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4646,14 +4685,14 @@ static PyType_Slot PyByteArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, byte_arrtype_as_buffer},
     {Py_tp_hash, byte_arrtype_hash},
     {Py_tp_methods, bytetype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyByteArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &byte_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4663,14 +4702,14 @@ static PyType_Slot PyShortArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, short_arrtype_as_buffer},
     {Py_tp_hash, short_arrtype_hash},
     {Py_tp_methods, shorttype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyShortArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &short_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4680,14 +4719,14 @@ static PyType_Slot PyIntArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, int_arrtype_as_buffer},
     {Py_tp_methods, inttype_methods},
     {Py_tp_hash, int_arrtype_hash},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyIntArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &int_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4697,14 +4736,14 @@ static PyType_Slot PyLongArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, long_arrtype_as_buffer},
     {Py_tp_methods, longtype_methods},
     {Py_tp_hash, long_arrtype_hash},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &long_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4714,14 +4753,14 @@ static PyType_Slot PyLongLongArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, longlong_arrtype_as_buffer},
     {Py_tp_methods, longlongtype_methods},
     {Py_tp_hash, longlong_arrtype_hash},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyLongLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &longlong_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4731,14 +4770,14 @@ static PyType_Slot PyUByteArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, ubyte_arrtype_as_buffer},
     {Py_tp_hash, ubyte_arrtype_hash},
     {Py_tp_methods, ubytetype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyUByteArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &ubyte_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4748,14 +4787,14 @@ static PyType_Slot PyUShortArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, ushort_arrtype_as_buffer},
     {Py_tp_hash, ushort_arrtype_hash},
     {Py_tp_methods, ushorttype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyUShortArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &ushort_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4765,14 +4804,14 @@ static PyType_Slot PyUIntArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, uint_arrtype_as_buffer},
     {Py_tp_hash, uint_arrtype_hash},
     {Py_tp_methods, uinttype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyUIntArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &uint_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4782,14 +4821,14 @@ static PyType_Slot PyULongArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, ulong_arrtype_as_buffer},
     {Py_tp_hash, ulong_arrtype_hash},
     {Py_tp_methods, ulongtype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyULongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &ulong_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
@@ -4799,14 +4838,14 @@ static PyType_Slot PyULongLongArrType_Type_slots_legacy[] = {
     // HPY TODO: {Py_tp_as_buffer, ulonglong_arrtype_as_buffer},
     {Py_tp_hash, ulonglong_arrtype_hash},
     {Py_tp_methods, ulonglongtype_methods},
-    {Py_tp_str, genint_type_str},
-    {Py_tp_repr, genint_type_str},
     {0},
 };
 
 static HPyDef *PyULongLongArrType_Type_hpy_defines[] = {
     GENTYPE_AS_NUMBER_HPY_SLOTS,
     &ulonglong_arrtype_new,
+    &genint_type_str,
+    &genint_type_repr,
     0
 };
 
