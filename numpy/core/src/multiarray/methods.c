@@ -2695,10 +2695,9 @@ array_ravel_impl(HPyContext *ctx, HPy self,
         HPy *args, HPy_ssize_t len_args, HPy kw)
 {
     NPY_ORDER order = NPY_CORDER;
-    NPY_PREPARE_ARGPARSER;
 
     HPyTracker ht;
-    static const char *kwlist[] = {{ "order", NULL }};
+    static const char *kwlist[] = {"order", NULL};
     HPy h_order = HPy_NULL;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &h_order)) {
         return HPy_NULL;
