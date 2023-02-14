@@ -12,6 +12,7 @@ extern NPY_NO_EXPORT HPyDef array_nonzero;
 extern NPY_NO_EXPORT HPyDef array_min_scalar_type;
 extern NPY_NO_EXPORT HPyDef array_promote_types;
 extern NPY_NO_EXPORT HPyDef array_copy;
+extern NPY_NO_EXPORT HPyDef array_dot;
 
 /*
  * Pathlib support, takes a borrowed reference and returns a new one.

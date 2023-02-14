@@ -2478,33 +2478,46 @@ array_cumprod(PyArrayObject *self, PyObject *args, PyObject *kwds)
 }
 
 
-static PyObject *
-array_dot(PyArrayObject *self,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_dot, "dot", HPyFunc_KEYWORDS)
+static HPy
+array_dot_impl(HPyContext *ctx, HPy self,
+        HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    PyObject *a = (PyObject *)self, *b, *o = NULL;
-    PyArrayObject *ret;
-    NPY_PREPARE_ARGPARSER;
+    HPy a = self, b, o = HPy_NULL;
+    PyArrayObject *o_data = NULL;
+    HPy tmp, ret;
 
-    if (npy_parse_arguments("dot", args, len_args, kwnames,
-            "b", NULL, &b,
-            "|out", NULL, &o,
-            NULL, NULL, NULL) < 0) {
-        return NULL;
+    // TODO HPY LABS PORT: npy_parse_arguments
+//    NPY_PREPARE_ARGPARSER;
+//    if (npy_parse_arguments("dot", args, len_args, kwnames,
+//            "b", NULL, &b,
+//            "|out", NULL, &o,
+//            NULL, NULL, NULL) < 0) {
+//        return NULL;
+//    }
+
+    HPyTracker ht;
+    static const char *kwlist[] = {"b", "out", NULL};
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|O", kwlist, &b, &o)) {
+        return HPy_NULL;
     }
 
-    if (o != NULL) {
-        if (o == Py_None) {
-            o = NULL;
+    if (!HPy_IsNull(o)) {
+        if (HPy_Is(ctx, o, ctx->h_None)) {
+            o = HPy_NULL;
         }
-        else if (!PyArray_Check(o)) {
-            PyErr_SetString(PyExc_TypeError,
+        else if (!HPyArray_Check(ctx, o)) {
+            HPyErr_SetString(ctx, ctx->h_TypeError,
                             "'out' must be an array");
-            return NULL;
+            return HPy_NULL;
         }
+        o_data = PyArrayObject_AsStruct(ctx, o);
     }
-    ret = (PyArrayObject *)PyArray_MatrixProduct2(a, b, (PyArrayObject *)o);
-    return PyArray_Return(ret);
+    tmp = HPyArray_MatrixProduct2(ctx, a, b, o, o_data);
+    HPyTracker_Close(ctx, ht);
+    ret = HPyArray_Return(ctx, tmp);
+    HPy_Close(ctx, tmp);
+    return ret;
 }
 
 
@@ -3023,9 +3036,9 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"diagonal",
         (PyCFunction)array_diagonal,
         METH_VARARGS | METH_KEYWORDS, NULL},
-    {"dot",
-        (PyCFunction)array_dot,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
+    // {"dot",
+    //     (PyCFunction)array_dot,
+    //     METH_FASTCALL | METH_KEYWORDS, NULL},
     {"fill",
         (PyCFunction)array_fill,
         METH_VARARGS, NULL},

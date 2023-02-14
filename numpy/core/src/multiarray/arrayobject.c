@@ -2346,6 +2346,7 @@ static HPyDef *array_defines[] = {
     &array_min_scalar_type,
     &array_promote_types,
     &array_copy,
+    &array_dot,
     NULL,
 };
 
