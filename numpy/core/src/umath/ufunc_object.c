@@ -4268,7 +4268,7 @@ static HPy _hpy_get_dtype(HPyContext *ctx, HPy dtype_obj);
  */
 static HPy
 HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
-        HPy const *args, HPy_ssize_t len_args, HPy kwnames, int operation)
+        HPy const *args, HPy_ssize_t len_args, HPy kw, int operation)
 {
     HPyTracker ht;
     PyUFuncObject *ufunc_data;
@@ -4326,9 +4326,9 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
     HPy keepdims_obj = HPy_NULL, wheremask_obj = HPy_NULL;
     HPY_PERFORMANCE_WARNING("converting vectorcall to object call convention");
 
-    HPy kw = HPyFastcallToDict(ctx, (HPy *)args, len_args, kwnames);
-    if (!HPy_IsNull(kwnames) && HPy_IsNull(kw))
-        goto fail;
+    // HPy kw = HPyFastcallToDict(ctx, (HPy *)args, len_args, kwnames);
+    // if (!HPy_IsNull(kwnames) && HPy_IsNull(kw))
+    //     goto fail;
 
     if (operation == UFUNC_REDUCEAT) {
         static const char *kwlist0[] = {"array", "indices", "axis", "dtype", "out", NULL};
@@ -4414,7 +4414,7 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
     /* We now have all the information required to check for Overrides */
     HPy override = HPy_NULL;
     int errval = HPyUFunc_CheckOverride(ctx, ufunc, _reduce_type[operation],
-            full_args.in, full_args.out, args, len_args, kwnames, &override);
+            full_args.in, full_args.out, args, len_args, kw, &override);
     if (errval) {
         goto fail;
     }
@@ -5395,8 +5395,19 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
     }
     /* We now have all the information required to check for Overrides */
     HPy override = HPy_NULL;
+    HPy kw;
+    if (!HPy_IsNull(kwnames)) {
+        HPY_PERFORMANCE_WARNING("ufunc_hpy_generic_fastcall");
+        kw = HPyFastcallToDict(ctx, args, len_args, kwnames);
+        if (HPy_IsNull(kw)) {
+            goto fail;
+        }
+    } else {
+        kw = HPy_NULL;
+    }
     errval = HPyUFunc_CheckOverride(ctx, self, method, full_args.in,
-            full_args.out, args, len_args, kwnames, &override);
+            full_args.out, args, len_args, kw, &override);
+    HPy_Close(ctx, kw);
     if (errval) {
         goto fail;
     }
@@ -6494,28 +6505,31 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
 }
 
 
-static PyObject *
-ufunc_reduce(PyUFuncObject *ufunc,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(ufunc_reduce, "reduce", HPyFunc_KEYWORDS)
+static HPy
+ufunc_reduce_impl(HPyContext *ctx, HPy ufunc,
+        HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    return PyUFunc_GenericReduction(
-            ufunc, args, len_args, kwnames, UFUNC_REDUCE);
+    return HPyUFunc_GenericReduction(ctx,
+            ufunc, args, len_args, kw, UFUNC_REDUCE);
 }
 
-static PyObject *
-ufunc_accumulate(PyUFuncObject *ufunc,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(ufunc_accumulate, "accumulate", HPyFunc_KEYWORDS)
+static HPy
+ufunc_accumulate_impl(HPyContext *ctx, HPy ufunc,
+        HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    return PyUFunc_GenericReduction(
-            ufunc, args, len_args, kwnames, UFUNC_ACCUMULATE);
+    return HPyUFunc_GenericReduction(ctx,
+            ufunc, args, len_args, kw, UFUNC_ACCUMULATE);
 }
 
-static PyObject *
-ufunc_reduceat(PyUFuncObject *ufunc,
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(ufunc_reduceat, "reduceat", HPyFunc_KEYWORDS)
+static HPy
+ufunc_reduceat_impl(HPyContext *ctx, HPy ufunc,
+        HPy *args, HPy_ssize_t len_args, HPy kw)
 {
-    return PyUFunc_GenericReduction(
-            ufunc, args, len_args, kwnames, UFUNC_REDUCEAT);
+    return HPyUFunc_GenericReduction(ctx,
+            ufunc, args, len_args, kw, UFUNC_REDUCEAT);
 }
 
 /* Helper for ufunc_at, below */
@@ -6919,6 +6933,7 @@ fail:
 
 
 static struct PyMethodDef ufunc_methods[] = {
+    /*
     {"reduce",
         (PyCFunction)ufunc_reduce,
         METH_FASTCALL | METH_KEYWORDS, NULL },
@@ -6928,6 +6943,7 @@ static struct PyMethodDef ufunc_methods[] = {
     {"reduceat",
         (PyCFunction)ufunc_reduceat,
         METH_FASTCALL | METH_KEYWORDS, NULL },
+    */
     {"outer",
         (PyCFunction)ufunc_outer,
         METH_FASTCALL | METH_KEYWORDS, NULL},
@@ -7171,6 +7187,9 @@ static HPyDef *ufunc_defines[] = {
         &ufunc_name,
         &ufunc_signature,
         &ufunc_call,
+        &ufunc_reduce,
+        &ufunc_accumulate,
+        &ufunc_reduceat,
         NULL
 };
 

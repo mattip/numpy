@@ -261,11 +261,14 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
     HPy h_kwnames = HPy_FromPyObject(ctx, kwnames);
     HPy h_result;
 
-    int res = HPyUFunc_CheckOverride(ctx, h_ufunc, method, h_in_args, h_out_args, h_args, (HPy_ssize_t)len_args, h_kwnames, &h_result);
+    HPy h_kw = HPyFastcallToDict(ctx, (HPy *)h_args, len_args, h_kwnames);
+    HPy_Close(ctx, h_kwnames);
+
+    int res = HPyUFunc_CheckOverride(ctx, h_ufunc, method, h_in_args, h_out_args, h_args, (HPy_ssize_t)len_args, h_kw, &h_result);
     *result = HPy_AsPyObject(ctx, h_result);
 
     HPy_Close(ctx, h_result);
-    HPy_Close(ctx, h_kwnames);
+    HPy_Close(ctx, h_kw);
     HPy_CloseAndFreeArray(ctx, (HPy *)h_args, (HPy_ssize_t)len_args);
     HPy_Close(ctx, h_out_args);
     HPy_Close(ctx, h_in_args);
@@ -274,10 +277,14 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
     return res;
 }
 
+/**
+ * Attention: in contrast to 'PyUFunc_CheckOverride', this function expects a
+ * keyword dict and *NOT* a tuple of keyword names.
+ */
 NPY_NO_EXPORT int
 HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         HPy in_args, HPy out_args,
-        HPy const *args, HPy_ssize_t len_args, HPy kwnames,
+        HPy const *args, HPy_ssize_t len_args, HPy kw,
         HPy *result)
 {
     int status;
@@ -307,16 +314,23 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         return 0;
     }
 
+    if (!HPyDict_Check(ctx, kw)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "expected keyword dict");
+        goto fail;
+    }
+
     /*
      * Normalize ufunc arguments, note that any input and output arguments
      * have already been stored in `in_args` and `out_args`.
      */
-    normal_kwds = HPyDict_New(ctx);
+    normal_kwds = HPyDict_Copy(ctx, kw);
     if (HPy_IsNull(normal_kwds)) {
         goto fail;
     }
+    /* NOTE: we pass 'HPy_NULL' for 'kwnames' since we already have a keywords
+       dict. */
     if (initialize_normal_kwds(ctx, out_args,
-            args, len_args, kwnames, normal_kwds) < 0) {
+            args, len_args, HPy_NULL, normal_kwds) < 0) {
         goto fail;
     }
 

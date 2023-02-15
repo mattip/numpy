@@ -13,7 +13,7 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
 NPY_NO_EXPORT int
 HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         HPy in_args, HPy out_args,
-        HPy const *args, HPy_ssize_t len_args, HPy kwnames,
+        HPy const *args, HPy_ssize_t len_args, HPy kw,
         HPy *result);
 
 #endif
