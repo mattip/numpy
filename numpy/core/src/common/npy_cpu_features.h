@@ -1,8 +1,18 @@
 #ifndef NUMPY_CORE_SRC_COMMON_NPY_CPU_FEATURES_H_
 #define NUMPY_CORE_SRC_COMMON_NPY_CPU_FEATURES_H_
 
+#if defined(HPY) && (defined(HPY_ABI_UNIVERSAL) || defined(HPY_ABI_HYBRID) || defined(HPY_ABI_CPYTHON))
+#define HAS_HPY 1
+#else
+#define HAS_HPY 0
+typedef int HPy;
+typedef int HPyContext;
+#endif
+
 #include <Python.h> // for PyObject
+#if HAS_HPY
 #include "hpy.h"
+#endif
 #include "numpy/numpyconfig.h" // for NPY_VISIBILITY_HIDDEN
 
 #ifdef __cplusplus
@@ -177,6 +187,8 @@ npy_cpu_baseline_list(HPyContext *);
  */
 NPY_VISIBILITY_HIDDEN HPy
 npy_cpu_dispatch_list(HPyContext *);
+
+#undef HAS_HPY
 
 #ifdef __cplusplus
 }

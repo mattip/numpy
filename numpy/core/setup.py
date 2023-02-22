@@ -747,7 +747,7 @@ def configuration(parent_package='', top_path=None):
                     get_hpy_includes("")
                 ],
                 'extra_compiler_args': [gl_if_msvc],
-                'macros': [('HPY_ABI_HYBRID', None)],
+                #'macros': [('HPY_ABI_HYBRID', None)],
             })
     config.add_npy_pkg_config("npymath.ini.in", "lib/npy-pkg-config",
             subst_dict)
@@ -758,7 +758,7 @@ def configuration(parent_package='', top_path=None):
     #                     multiarray_tests module                         #
     #######################################################################
 
-    config.add_extension('_multiarray_tests',
+    config.add_hpy_extension('_multiarray_tests',
                     sources=[join('src', 'multiarray', '_multiarray_tests.c.src'),
                              join('src', 'common', 'mem_overlap.c'),
                              join('src', 'common', 'npy_argparse.c'),
@@ -1085,7 +1085,9 @@ def configuration(parent_package='', top_path=None):
         join('src', 'umath', '_umath_tests.c.src'),
         join('src', 'umath', '_umath_tests.dispatch.c'),
         join('src', 'common', 'npy_cpu_features.c.src'),
-    ])
+    ]
+                         #, define_macros=[('HPY_ABI_CPYTHON', None)]
+                         )
 
     #######################################################################
     #                   custom rational dtype module                      #
@@ -1129,7 +1131,9 @@ def configuration(parent_package='', top_path=None):
         join('src', '_simd', '_simd_convert.inc'),
         join('src', '_simd', '_simd_easyintrin.inc'),
         join('src', '_simd', '_simd_vector.inc'),
-    ])
+    ]
+                         #, define_macros=[('HPY_ABI_CPYTHON', None)]
+                         )
 
     config.add_subpackage('tests')
     config.add_data_dir('tests/data')

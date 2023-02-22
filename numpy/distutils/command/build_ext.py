@@ -86,6 +86,7 @@ class build_ext (old_build_ext):
         print(f'{hpy_abi=}')
         for ext in self.distribution.ext_modules:
             if not hasattr(ext, 'hpy_abi'):
+                print(f'Configuring non-hpy ext {ext} of distribution {self.distribution}')
                 ext.hpy_abi = hpy_abi
                 ext.include_dirs.extend(get_hpy_includes(hpy_abi))
                 ext.sources.extend(get_hpy_src(hpy_abi))
@@ -94,6 +95,10 @@ class build_ext (old_build_ext):
                     ext.define_macros.append(('HPY_ABI_HYBRID', None))
                 elif hpy_abi == 'universal':
                     ext.define_macros.append(('HPY_ABI_UNIVERSAL', None))
+                elif hpy_abi == 'cpython':
+                    ext.define_macros.append(('HPY_ABI_CPYTHON', None))
+                else:
+                    raise RuntimeError('unknown HPy ABI')
 
         old_build_ext.finalize_options(self)
         self.set_undefined_options('build',
