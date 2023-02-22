@@ -747,7 +747,7 @@ def configuration(parent_package='', top_path=None):
                     get_hpy_includes("")
                 ],
                 'extra_compiler_args': [gl_if_msvc],
-                'macros': [('HPY_ABI_HYBRID', None)],
+                'macros': [('HPY_ABI_CPYTHON', None)],
             })
     config.add_npy_pkg_config("npymath.ini.in", "lib/npy-pkg-config",
             subst_dict)
@@ -758,7 +758,7 @@ def configuration(parent_package='', top_path=None):
     #                     multiarray_tests module                         #
     #######################################################################
 
-    config.add_extension('_multiarray_tests',
+    config.add_hpy_extension('_multiarray_tests',
                     sources=[join('src', 'multiarray', '_multiarray_tests.c.src'),
                              join('src', 'common', 'mem_overlap.c'),
                              join('src', 'common', 'npy_argparse.c'),
@@ -1081,7 +1081,7 @@ def configuration(parent_package='', top_path=None):
     #                        umath_tests module                           #
     #######################################################################
 
-    config.add_extension('_umath_tests', sources=[
+    config.add_hpy_extension('_umath_tests', sources=[
         join('src', 'umath', '_umath_tests.c.src'),
         join('src', 'umath', '_umath_tests.dispatch.c'),
         join('src', 'common', 'npy_cpu_features.c.src'),
@@ -1091,14 +1091,14 @@ def configuration(parent_package='', top_path=None):
     #                   custom rational dtype module                      #
     #######################################################################
 
-    config.add_extension('_rational_tests',
+    config.add_hpy_extension('_rational_tests',
                     sources=[join('src', 'umath', '_rational_tests.c.src')])
 
     #######################################################################
     #                        struct_ufunc_test module                     #
     #######################################################################
 
-    config.add_extension('_struct_ufunc_tests',
+    config.add_hpy_extension('_struct_ufunc_tests',
                     sources=[join('src', 'umath', '_struct_ufunc_tests.c.src')])
 
 
@@ -1106,14 +1106,14 @@ def configuration(parent_package='', top_path=None):
     #                        operand_flag_tests module                    #
     #######################################################################
 
-    config.add_extension('_operand_flag_tests',
+    config.add_hpy_extension('_operand_flag_tests',
                     sources=[join('src', 'umath', '_operand_flag_tests.c')])
 
     #######################################################################
     #                        SIMD module                                  #
     #######################################################################
 
-    config.add_extension('_simd', sources=[
+    config.add_hpy_extension('_simd', sources=[
         join('src', 'common', 'npy_cpu_features.c.src'),
         join('src', '_simd', '_simd.c'),
         join('src', '_simd', '_simd_inc.h.src'),

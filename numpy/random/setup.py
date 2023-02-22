@@ -96,7 +96,7 @@ def configuration(parent_package='', top_path=None):
 
     for gen in ['mt19937']:
         # gen.pyx, src/gen/gen.c, src/gen/gen-jump.c
-        config.add_extension(f'_{gen}',
+        config.add_hpy_extension(f'_{gen}',
                              sources=[f'_{gen}.c',
                                       f'src/{gen}/{gen}.c',
                                       f'src/{gen}/{gen}-jump.c'],
@@ -110,7 +110,7 @@ def configuration(parent_package='', top_path=None):
     for gen in ['philox', 'pcg64', 'sfc64']:
         # gen.pyx, src/gen/gen.c
         _defs = defs + PCG64_DEFS if gen == 'pcg64' else defs
-        config.add_extension(f'_{gen}',
+        config.add_hpy_extension(f'_{gen}',
                              sources=[f'_{gen}.c',
                                       f'src/{gen}/{gen}.c'],
                              include_dirs=['.', 'src', join('src', gen)],
@@ -123,7 +123,7 @@ def configuration(parent_package='', top_path=None):
                              )
     for gen in ['_common', 'bit_generator']:
         # gen.pyx
-        config.add_extension(gen,
+        config.add_hpy_extension(gen,
                              sources=[f'{gen}.c'],
                              libraries=EXTRA_LIBRARIES,
                              extra_compile_args=EXTRA_COMPILE_ARGS,

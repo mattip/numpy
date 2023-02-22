@@ -9,7 +9,7 @@ def configuration(parent_package='',top_path=None):
     # AIX needs to be told to use large file support - at all times
     defs = [('_LARGE_FILES', None)] if sys.platform[:3] == "aix" else []
     # Configure pocketfft_internal
-    config.add_extension('_pocketfft_internal',
+    config.add_hpy_extension('_pocketfft_internal',
                          sources=['_pocketfft.c'],
                          define_macros=defs,
                          )
