@@ -4,6 +4,11 @@ import operator
 import warnings
 from collections.abc import Sequence
 
+cdef extern from *:
+    """
+    #define NP_RANDOM_LEGACY
+    """
+
 import numpy as np
 
 from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer

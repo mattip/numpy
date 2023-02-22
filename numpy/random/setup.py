@@ -47,8 +47,6 @@ def configuration(parent_package='', top_path=None):
         # import modules.
         EXTRA_LINK_ARGS += ['-Wl,--export-all-symbols']
 
-    # Use legacy integer variable sizes
-    LEGACY_DEFS = [('NP_RANDOM_LEGACY', '1')]
     PCG64_DEFS = []
     # One can force emulated 128-bit arithmetic if one wants.
     #PCG64_DEFS += [('PCG_FORCE_EMULATED_128BIT_MATH', '1')]
@@ -146,7 +144,7 @@ def configuration(parent_package='', top_path=None):
                          extra_compile_args=EXTRA_COMPILE_ARGS,
                          extra_link_args=EXTRA_LINK_ARGS,
                          depends=depends + ['mtrand.pyx'],
-                         define_macros=defs + LEGACY_DEFS,
+                         define_macros=defs,
                          )
     config.add_data_files(*depends)
     config.add_data_files('*.pyi')
