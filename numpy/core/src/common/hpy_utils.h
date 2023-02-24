@@ -47,12 +47,8 @@
         HPy_Close(ctx, _h_tmp);  \
     } while (0)
 
-/* Set an error with a format string; it will use 'vsnprintf' for formatting. */
-NPY_NO_EXPORT void
-HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...);
-
-NPY_NO_EXPORT HPy
-HPyUnicode_FromFormat_p(HPyContext *ctx, const char *fmt, ...);
+#define HPyErr_Format_p HPyErr_Format
+#define HPyUnicode_FromFormat_p HPyUnicode_FromFormat
 
 NPY_NO_EXPORT HPy
 HPyUnicode_Concat_t(HPyContext *ctx, HPy s1, HPy s2);

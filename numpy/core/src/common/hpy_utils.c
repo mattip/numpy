@@ -3,65 +3,6 @@
 
 #include "hpy_utils.h"
 
-#define NBUF 256
-
-NPY_NO_EXPORT void
-HPyErr_Format_p(HPyContext *ctx, HPy h_type, const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    char buf[NBUF];
-    char *buf_extended = NULL;
-
-    int nprinted = vsnprintf(buf, NBUF, fmt, ap);
-    if (nprinted >= NBUF)
-    {
-        buf_extended = (char *) calloc(nprinted, sizeof(char));
-        vsnprintf(buf, nprinted*sizeof(char), fmt, ap);
-    }
-    va_end(ap);
-
-    if (buf_extended)
-    {
-        HPyErr_SetString(ctx, h_type, buf_extended);
-        free(buf_extended);
-    }
-    else
-    {
-        HPyErr_SetString(ctx, h_type, buf);
-
-    }
-}
-
-NPY_NO_EXPORT HPy
-HPyUnicode_FromFormat_p(HPyContext *ctx, const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    char buf[NBUF];
-    char *buf_extended = NULL;
-    HPy ret = HPy_NULL;
-    
-    int nprinted = vsnprintf(buf, NBUF, fmt, ap);
-    if (nprinted >= NBUF)
-    {
-        buf_extended = (char *) calloc(nprinted, sizeof(char));
-        vsnprintf(buf, nprinted*sizeof(char), fmt, ap);
-    }
-    va_end(ap);
-
-    if (buf_extended)
-    {
-        ret = HPyUnicode_FromString(ctx, buf_extended);
-        free(buf_extended);
-    }
-    else
-    {
-        ret = HPyUnicode_FromString(ctx, buf);
-    }
-    return ret;
-}
-
 /*
     XXX: not sure if we can support this
 */
