@@ -59,7 +59,7 @@ def configuration(parent_package='', top_path=None):
                 return []
             return [all_sources[0]]
 
-    config.add_extension(
+    config.add_hpy_extension(
         'lapack_lite',
         sources=['lapack_litemodule.c', get_lapack_lite_sources],
         depends=['lapack_lite/f2c.h'],
@@ -67,7 +67,7 @@ def configuration(parent_package='', top_path=None):
     )
 
     # umath_linalg module
-    config.add_extension(
+    config.add_hpy_extension(
         '_umath_linalg',
         sources=['umath_linalg.c.src', get_lapack_lite_sources],
         depends=['lapack_lite/f2c.h'],
