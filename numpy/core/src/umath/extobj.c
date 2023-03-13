@@ -291,7 +291,9 @@ _hpy_extract_pyvals(HPyContext *ctx, HPy h_ref, const char *name, int *bufsize,
             *errmask = UFUNC_ERR_DEFAULT;
         }
         if (errobj) {
-            *errobj = HPy_BuildValue(ctx, "NO", HPyBytes_FromString(ctx, name), ctx->h_None);
+            HPy h_name = HPyBytes_FromString(ctx, name);
+            *errobj = HPy_BuildValue(ctx, "OO", h_name, ctx->h_None);
+            HPy_Close(ctx, h_name);
         }
         if (bufsize) {
             *bufsize = NPY_BUFSIZE;
@@ -305,13 +307,12 @@ _hpy_extract_pyvals(HPyContext *ctx, HPy h_ref, const char *name, int *bufsize,
     if (errobj) {
         PyObject *py_errobj = NULL;
         result = _extract_pyvals(py_ref, name, bufsize, errmask, &py_errobj);
-        Py_DECREF(py_ref);
         *errobj = HPy_FromPyObject(ctx, py_errobj);
-        Py_DECREF(py_errobj);
+        Py_XDECREF(py_errobj);
     } else {
         result = _extract_pyvals(py_ref, name, bufsize, errmask, NULL);
-        Py_DECREF(py_ref);
     }
+    Py_DECREF(py_ref);
     return result;
 }
 
@@ -334,7 +335,7 @@ _check_ufunc_fperr(int errmask, PyObject *extobj, const char *ufunc_name) {
 NPY_NO_EXPORT int
 _hpy_check_ufunc_fperr(HPyContext *ctx, int errmask, HPy extobj, const char *ufunc_name) {
     int fperr;
-    // HPy errobj = HPy_NULL;
+    HPy errobj = HPy_NULL;
     int ret;
     int first = 1;
     int close_extobj = 0;
@@ -347,28 +348,25 @@ _hpy_check_ufunc_fperr(HPyContext *ctx, int errmask, HPy extobj, const char *ufu
         return 0;
     }
 
-    CAPI_WARN("_hpy_check_ufunc_fperr");
-
     /* Get error object globals */
     if (HPy_IsNull(extobj)) {
-        extobj = HPy_FromPyObject(ctx, get_global_ext_obj());
+        extobj = hpy_get_global_ext_obj(ctx);
         if (HPy_IsNull(extobj) && HPyErr_Occurred(ctx)) {
             return -1;
         }
         close_extobj = 1;
     }
-    PyObject *py_extobj = HPy_AsPyObject(ctx, extobj);
-    PyObject *py_errobj = NULL;
-    int r = _extract_pyvals(py_extobj, ufunc_name, NULL, NULL, &py_errobj);
+    int r = _hpy_extract_pyvals(ctx, extobj, ufunc_name, NULL, NULL, &errobj);
     if (close_extobj) {
         HPy_Close(ctx, extobj);
     }
     if (r < 0) {
-        // HPy_Close(ctx, errobj);
-        Py_XDECREF(py_errobj);
+        HPy_Close(ctx, errobj);
         return -1;
     }
 
+    CAPI_WARN("_hpy_check_ufunc_fperr");
+    PyObject *py_errobj = HPy_IsNull(errobj) ? NULL : HPy_AsPyObject(ctx, errobj);
     ret = PyUFunc_handlefperr(errmask, py_errobj, fperr, &first);
     // HPy_Close(ctx, errobj);
     Py_XDECREF(py_errobj);
