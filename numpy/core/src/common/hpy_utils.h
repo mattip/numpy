@@ -360,4 +360,16 @@ HPyDict_DelItem(HPyContext *ctx, HPy mp, HPy key)
     return HPy_DelItem(ctx, mp, key);
 }
 
+static NPY_INLINE HPy
+HPyUnicode_InternFromString(HPyContext *ctx, const char *s)
+{
+    return HPyUnicode_FromString(ctx, s);
+}
+
+static NPY_INLINE int
+HPy_IsInstance(HPyContext *ctx, HPy obj, HPy type)
+{
+    return HPy_TypeCheck(ctx, obj, type);
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
