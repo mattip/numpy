@@ -4497,9 +4497,9 @@ NPY_NO_EXPORT int init_scalartypes_basetypes(HPyContext *ctx)
     size_t i = 0;
 
     #define ADD_TYPE_OBJ(global) \
-        tmp = HPyGlobal_Load(ctx, global);                     \
-        name = HPyType_GetName(ctx, tmp);                      \
-        hpy_typeobjects[i++].name = name;                      \
+        tmp = HPyGlobal_Load(ctx, global);                      \
+        name = HPyType_GetName(ctx, tmp);                       \
+        hpy_typeobjects[i++].name = (const char *)strdup(name); \
         HPy_Close(ctx, tmp);
 
     ADD_TYPE_OBJ(HPyBoolArrType_Type);
