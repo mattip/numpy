@@ -48,10 +48,12 @@ void _print_stack() {
 static NPY_INLINE HPyContext *
 npy_get_context(void)
 {
+#ifndef NDEBUG
     if (capi_warn_level() > 1) {
         printf("DEBUG WARNING: HPy context lookup (set CAPI_WARN_STACKTRACE=<limit> to show stack trace)\n");
         _print_stack();
     }
+#endif
     assert(numpy_global_ctx != NULL);
     return numpy_global_ctx;
 }
@@ -80,9 +82,14 @@ void perf_warn(const char *msg, const char *file, int lineno) {
     }
 }
 
+#ifndef NDEBUG
 #define CAPI_WARN(_x) capi_warn0(_x, __FILE__, __LINE__)
-
 #define HPY_PERFORMANCE_WARNING(_x) perf_warn(_x, __FILE__, __LINE__)
+#else
+#define CAPI_WARN(_x)
+#define HPY_PERFORMANCE_WARNING(_x)
+#endif
+
 
 static __attribute__ ((noreturn)) NPY_INLINE
 void hpy_abort_not_implemented(const char *where) {
