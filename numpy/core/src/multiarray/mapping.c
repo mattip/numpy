@@ -1765,7 +1765,7 @@ hpy_get_view_from_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy *v
                 if (HPySlice_Unpack(ctx, indices[i].object, &start, &stop, &step) < 0) {
                     return -1;
                 }
-                n_steps = HPySlice_AdjustIndices(PyArray_DIMS(self)[orig_dim], &start, &stop, step);
+                n_steps = HPySlice_AdjustIndices(ctx, PyArray_DIMS(self)[orig_dim], &start, &stop, step);
                 if (n_steps <= 0) {
                     /* TODO: Always points to start then, could change that */
                     n_steps = 0;
