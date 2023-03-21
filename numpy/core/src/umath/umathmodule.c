@@ -93,7 +93,7 @@ object_ufunc_loop_selector(HPyContext *ctx,
 
 HPyDef_METH(frompyfunc, "frompyfunc", HPyFunc_KEYWORDS)
 HPy
-frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t args_len, HPy kwds) {
+frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t args_len, HPy kwnames) {
     HPy function, pyname = HPy_NULL;
     int nin, nout, i, nargs;
     PyUFunc_PyFuncData *fdata;
@@ -107,7 +107,7 @@ frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t a
     static const char *kwlist[] = {"", "nin", "nout", "identity", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, args_len, kwds, "Oii|$O:frompyfunc", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, args_len, kwnames, "Oii|$O:frompyfunc", kwlist,
                 &function, &nin, &nout, &identity)) {
         return HPy_NULL;
     }

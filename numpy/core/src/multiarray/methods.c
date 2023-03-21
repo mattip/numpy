@@ -1209,8 +1209,8 @@ array_function(PyArrayObject *NPY_UNUSED(self), PyObject *c_args, PyObject *c_kw
 
 HPyDef_METH(array_copy, "copy", HPyFunc_KEYWORDS)
 static HPy
-array_copy_impl(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, HPy *args,
-        HPy_ssize_t len_args, HPy kw)
+array_copy_impl(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, const HPy *args,
+        size_t len_args, HPy kwnames)
 {
     NPY_ORDER order = NPY_CORDER;
 
@@ -1225,7 +1225,7 @@ array_copy_impl(HPyContext *ctx, HPy /* (PyArrayObject *) */ self, HPy *args,
     HPyTracker ht;
     static const char *kwlist[] = {"order", NULL};
     HPy h_order = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &h_order)) {
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "|O", kwlist, &h_order)) {
         return HPy_NULL;
     }
     if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
@@ -2481,7 +2481,7 @@ array_cumprod(PyArrayObject *self, PyObject *args, PyObject *kwds)
 HPyDef_METH(array_dot, "dot", HPyFunc_KEYWORDS)
 static HPy
 array_dot_impl(HPyContext *ctx, HPy self,
-        HPy *args, HPy_ssize_t len_args, HPy kw)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     HPy a = self, b, o = HPy_NULL;
     PyArrayObject *o_data = NULL;
@@ -2498,7 +2498,7 @@ array_dot_impl(HPyContext *ctx, HPy self,
 
     HPyTracker ht;
     static const char *kwlist[] = {"b", "out", NULL};
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|O", kwlist, &b, &o)) {
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|O", kwlist, &b, &o)) {
         return HPy_NULL;
     }
 
@@ -2548,7 +2548,7 @@ array_variance(PyArrayObject *self, PyObject *args, PyObject *kwds)
 
 HPyDef_METH(array_compress, "compress", HPyFunc_KEYWORDS)
 static HPy
-array_compress_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_compress_impl(HPyContext *ctx, HPy h_self, const HPy *args, size_t nargs, HPy kwnames)
 {
     int axis = NPY_MAXDIMS;
     HPy condition;
@@ -2558,7 +2558,7 @@ array_compress_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs, H
     static const char *kwlist[] = {"condition", "axis", "out", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OO:compress", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OO:compress", kwlist,
                                      &condition,
                                      &h_axis,
                                      &h_out)) {
@@ -2692,14 +2692,14 @@ array_flatten(PyArrayObject *self,
 HPyDef_METH(array_ravel, "ravel", HPyFunc_KEYWORDS)
 static HPy 
 array_ravel_impl(HPyContext *ctx, HPy self,
-        HPy *args, HPy_ssize_t len_args, HPy kw)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     NPY_ORDER order = NPY_CORDER;
 
     HPyTracker ht;
     static const char *kwlist[] = {"order", NULL};
     HPy h_order = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "|O", kwlist, &h_order)) {
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "|O", kwlist, &h_order)) {
         return HPy_NULL;
     }
     if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {

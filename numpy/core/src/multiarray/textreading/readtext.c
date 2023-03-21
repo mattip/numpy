@@ -203,7 +203,7 @@ hpy_error_if_matching_control_characters(HPyContext *ctx,
 HPyDef_METH(_load_from_filelike, "_load_from_filelike", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 _load_from_filelike_impl(HPyContext *ctx, HPy NPY_UNUSED(mod),
-                            HPy *args, HPy_ssize_t nargs, HPy kwds)
+                            const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy file;
     HPy_ssize_t skiplines = 0;
@@ -242,7 +242,7 @@ _load_from_filelike_impl(HPyContext *ctx, HPy NPY_UNUSED(mod),
     HPy h_python_byte_converters = HPy_NULL;
     HPy h_c_byte_converters = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOOOOOOOO:_load_from_filelike",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOOOOOOOOOOOO:_load_from_filelike",
                 kwlist,
                 &file,
                 &h_delimiter,

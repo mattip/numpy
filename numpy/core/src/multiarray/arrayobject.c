@@ -2090,7 +2090,7 @@ PyArray_CheckStrides(int elsize, int nd, npy_intp numbytes, npy_intp offset,
 
 
 HPyDef_SLOT(array_new, HPy_tp_new)
-static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
+static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, const HPy *args_h,
                           HPy_ssize_t nargs, HPy h_kwds)
 {
     static const char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
@@ -2116,8 +2116,9 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
      * empty, contiguous array of a specific type and shape.
      */
     buffer.ptr = NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args_h, nargs, h_kwds, "O|OOLOO", kwlist,
-            &h_dims, &h_descr_in, &h_buffer, &offset, &h_strides, &h_order)) {
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args_h, nargs, h_kwds, "O|OOLOO",
+            kwlist, &h_dims, &h_descr_in, &h_buffer, &offset, &h_strides,
+            &h_order)) {
         return HPy_NULL;
     }
 

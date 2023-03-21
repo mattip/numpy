@@ -3012,7 +3012,7 @@ unicode_arrtype_dealloc(PyObject *v)
 
 HPyDef_SLOT(@name@_arrtype_new, HPy_tp_new)
 static HPy
-@name@_arrtype_new_impl(HPyContext *ctx, HPy type, HPy *args, HPy_ssize_t nargs, HPy kwds)
+@name@_arrtype_new_impl(HPyContext *ctx, HPy type, const HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     /* allow base-class (if any) to do conversion */
     void *data;
@@ -3050,7 +3050,7 @@ static HPy
     HPy obj = HPy_NULL;
     HPyTracker ht;
     static const char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
         return HPy_NULL;
     }
     HPy typecode = HPyArray_DescrFromType(ctx, NPY_@TYPE@);
@@ -3169,13 +3169,13 @@ static HPy
 
 HPyDef_SLOT(object_arrtype_new, HPy_tp_new)
 static HPy
-object_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), HPy *args, HPy_ssize_t nargs, HPy kwds)
+object_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), const HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     HPyTracker ht;
     HPy ret;
     HPy obj = ctx->h_None;
     static const char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, nargs, kwds, "|O", kwnames, &obj)) {
         return HPy_NULL;
     }
     HPy typecode = HPyArray_DescrFromType(ctx, NPY_OBJECT);
@@ -3258,7 +3258,7 @@ static PyObject *
 /* bool->tp_new only returns Py_True or Py_False */
 HPyDef_SLOT(bool_arrtype_new, HPy_tp_new)
 static HPy
-bool_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), HPy *args, HPy_ssize_t nargs, HPy kwds)
+bool_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), const HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     HPyTracker ht;
     HPy obj = HPy_NULL;
@@ -3266,7 +3266,7 @@ bool_arrtype_new_impl(HPyContext *ctx, HPy NPY_UNUSED(type), HPy *args, HPy_ssiz
     PyArrayObject *arr_data;
 
     static const char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O:bool_", kwnames, &obj)) {
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, nargs, kwds, "|O:bool_", kwnames, &obj)) {
         return HPy_NULL;
     }
     if (HPy_IsNull(obj)) {
@@ -3375,7 +3375,7 @@ NPY_NO_EXPORT PyNumberMethods bool_arrtype_as_number = {
 
 HPyDef_SLOT(void_arrtype_new, HPy_tp_new)
 static HPy
-void_arrtype_new_impl(HPyContext *ctx, HPy type, HPy *args, HPy_ssize_t nargs, HPy kwds)
+void_arrtype_new_impl(HPyContext *ctx, HPy type, const HPy *args, HPy_ssize_t nargs, HPy kwds)
 {
     HPyTracker ht;
     HPy obj, arr;
@@ -3383,7 +3383,7 @@ void_arrtype_new_impl(HPyContext *ctx, HPy type, HPy *args, HPy_ssize_t nargs, H
     PyArrayObject *obj_data;
 
     static const char *kwnames[] = {"", NULL};  /* positional-only */
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "|O:void", kwnames, &obj)) {
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, nargs, kwds, "|O:void", kwnames, &obj)) {
         return HPy_NULL;
     }
     /*

@@ -110,7 +110,7 @@ minmax(const npy_intp *data, npy_intp data_len, npy_intp *mn, npy_intp *mx)
  */
 HPyDef_METH(arr_bincount, "bincount", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
-arr_bincount_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+arr_bincount_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy list = HPy_NULL, weight = ctx->h_None, mlength = HPy_NULL;
     HPy lst = HPy_NULL, ans = HPy_NULL, wts = HPy_NULL; // PyArrayObject *
@@ -121,7 +121,7 @@ arr_bincount_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     static const char *kwlist[] = {"list", "weights", "minlength", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OO:bincount",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OO:bincount",
                 kwlist, &list, &weight, &mlength)) {
         return HPy_NULL;
     }
@@ -243,7 +243,7 @@ fail:
 /* Internal function to expose check_array_monotonic to python */
 HPyDef_METH(_monotonicity, "_monotonicity", HPyFunc_KEYWORDS)
 static HPy
-_monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwds)
+_monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_t nargs, HPy kwnames)
 {
     static const char *kwlist[] = {"x", NULL};
     HPy obj_x = HPy_NULL;
@@ -253,7 +253,7 @@ _monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t
     HPY_NPY_BEGIN_THREADS_DEF(ctx);
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|_monotonicity", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|_monotonicity", kwlist,
                                      &obj_x)) {
         return HPy_NULL;
     }
@@ -289,7 +289,7 @@ _monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t
  */
 HPyDef_METH(_insert, "_insert", HPyFunc_KEYWORDS)
 static HPy
-_insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
+_insert_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_t nargs, HPy kwdict)
 {
     char *src, *dest;
     npy_bool *mask_data;
@@ -533,7 +533,7 @@ binary_search_with_guess(const npy_double key, const npy_double *arr,
 
 HPyDef_METH(arr_interp, "interp", HPyFunc_KEYWORDS)
 static HPy
-arr_interp_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
+arr_interp_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_t nargs, HPy kwdict)
 {
 
     HPy fp, xp, x;
@@ -710,7 +710,7 @@ fail:
 /* As for arr_interp but for complex fp values */
 HPyDef_METH(arr_interp_complex, "interp_complex", HPyFunc_KEYWORDS)
 static HPy
-arr_interp_complex_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs, HPy kwdict)
+arr_interp_complex_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_t nargs, HPy kwdict)
 {
 
     HPy fp, xp, x;
@@ -1100,7 +1100,7 @@ end_while:
 /* ravel_multi_index implementation - see add_newdocs.py */
 HPyDef_METH(arr_ravel_multi_index, "ravel_multi_index", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
-arr_ravel_multi_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+arr_ravel_multi_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     int i;
     HPy mode0 = HPy_NULL, coords0 = HPy_NULL;
@@ -1123,7 +1123,7 @@ arr_ravel_multi_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, 
 
     HPyTracker ht;
     HPy h_dimensions = HPy_NULL, h_order = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                         "OO|OO:ravel_multi_index", kwlist,
                      &coords0,
                      &h_dimensions,
@@ -1309,7 +1309,7 @@ unravel_index_loop(HPyContext *ctx, int unravel_ndim, npy_intp const *unravel_di
 /* unravel_index implementation - see add_newdocs.py */
 HPyDef_METH(arr_unravel_index, "unravel_index", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
-arr_unravel_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+arr_unravel_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy indices0 = HPy_NULL;
     HPyTupleBuilder ret_tuple;
@@ -1329,7 +1329,7 @@ arr_unravel_index_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_
 
     HPy h_dimensions = HPy_NULL, h_order = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:unravel_index",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OO|O:unravel_index",
                     kwlist,
                     &indices0,
                     &h_dimensions,
@@ -2076,7 +2076,7 @@ fail:
 
 HPyDef_METH(io_pack, "packbits", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
-io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj;
     int axis = NPY_MAXDIMS;
@@ -2086,7 +2086,7 @@ io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t na
 
     HPy h_axis = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|O&s:pack" , kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|O&s:pack" , kwlist,
                 &obj, &h_axis, &order_str)) {
         return HPy_NULL;
     }
@@ -2114,7 +2114,7 @@ io_pack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t na
 
 HPyDef_METH(io_unpack, "unpackbits", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
-io_unpack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+io_unpack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj;
     int axis = NPY_MAXDIMS;
@@ -2124,7 +2124,7 @@ io_unpack_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t 
 
     HPy h_axis = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|O&Os:unpack" , kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|O&Os:unpack" , kwlist,
                 &obj,  &h_axis, &count, &c)) {
         return HPy_NULL;
     }

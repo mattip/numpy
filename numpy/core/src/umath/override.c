@@ -148,14 +148,7 @@ initialize_normal_kwds(HPyContext *ctx, HPy out_args,
             return -1;
         }
         if (res) {
-            CAPI_WARN("missing PyDict_DelItem");
-            PyObject *py_normal_kwds = HPy_AsPyObject(ctx, normal_kwds);
-            PyObject *py_out_str = HPy_AsPyObject(ctx, out_str);
-            HPy_Close(ctx, out_str);
-            int res = PyDict_DelItem(py_normal_kwds, py_out_str);
-            Py_DECREF(py_normal_kwds);
-            Py_DECREF(py_out_str);
-            return res;
+            return HPy_DelItem(ctx, normal_kwds, out_str);
         }
         HPy_Close(ctx, out_str);
     }
@@ -277,14 +270,10 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
     return res;
 }
 
-/**
- * Attention: in contrast to 'PyUFunc_CheckOverride', this function expects a
- * keyword dict and *NOT* a tuple of keyword names.
- */
 NPY_NO_EXPORT int
 HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         HPy in_args, HPy out_args,
-        HPy const *args, HPy_ssize_t len_args, HPy kw,
+        const HPy *args, size_t len_args, HPy kwnames,
         HPy *result)
 {
     int status;
@@ -314,8 +303,8 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
         return 0;
     }
 
-    if (!HPyDict_Check(ctx, kw)) {
-        HPyErr_SetString(ctx, ctx->h_TypeError, "expected keyword dict");
+    if (!HPy_IsNull(kwnames) && !HPyTuple_Check(ctx, kwnames)) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "expected tuple of keyword names");
         goto fail;
     }
 
@@ -323,14 +312,12 @@ HPyUFunc_CheckOverride(HPyContext *ctx, HPy ufunc, char *method,
      * Normalize ufunc arguments, note that any input and output arguments
      * have already been stored in `in_args` and `out_args`.
      */
-    normal_kwds = HPyDict_Copy(ctx, kw);
+    normal_kwds = HPyDict_New(ctx);
     if (HPy_IsNull(normal_kwds)) {
         goto fail;
     }
-    /* NOTE: we pass 'HPy_NULL' for 'kwnames' since we already have a keywords
-       dict. */
     if (initialize_normal_kwds(ctx, out_args,
-            args, len_args, HPy_NULL, normal_kwds) < 0) {
+            args, len_args, kwnames, normal_kwds) < 0) {
         goto fail;
     }
 

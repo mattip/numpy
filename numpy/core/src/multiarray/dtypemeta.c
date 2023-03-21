@@ -24,7 +24,7 @@
 HPyDef_SLOT(dtypemeta_init, HPy_tp_init)
 static int
 dtypemeta_init_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
-        HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
+        const HPy *NPY_UNUSED(args), HPy_ssize_t NPY_UNUSED(n), HPy NPY_UNUSED(kw))
 {
     HPyErr_SetString(ctx, ctx->h_TypeError,
             "Preliminary-API: Cannot __init__ DType class.");
@@ -85,7 +85,7 @@ static void DTypeMeta_destroy_impl(void *self) {
 HPyDef_SLOT(legacy_dtype_default_new, HPy_tp_new)
 static HPy
 legacy_dtype_default_new_impl(HPyContext *ctx, HPy h_self,
-        HPy *args, HPy_ssize_t nargs, HPy kwargs)
+        const HPy *args, HPy_ssize_t nargs, HPy kwargs)
 {
     /* TODO: This should allow endianness and possibly metadata */
     PyArray_DTypeMeta *self = PyArray_DTypeMeta_AsStruct(ctx, h_self);

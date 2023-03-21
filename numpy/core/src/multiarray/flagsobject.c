@@ -878,7 +878,7 @@ arrayflags_richcompare_impl(HPyContext *ctx, HPy self, HPy other, HPy_RichCmpOp 
 
 HPyDef_SLOT(arrayflags_new, HPy_tp_new)
 static HPy
-arrayflags_new_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy NPY_UNUSED(kw))
+arrayflags_new_impl(HPyContext *ctx, HPy self, const HPy *args, HPy_ssize_t nargs, HPy NPY_UNUSED(kw))
 {
     HPy arg = HPy_NULL;
     HPy array_type = HPy_FromPyObject(ctx, (PyObject *) &PyArray_Type);

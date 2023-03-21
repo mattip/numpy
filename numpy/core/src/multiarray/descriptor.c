@@ -2574,7 +2574,7 @@ arraydescr_names_set(
 
 HPyDef_SLOT(arraydescr_new, HPy_tp_new)
 static HPy
-arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
+arraydescr_new_impl(HPyContext *ctx, HPy subtype, const HPy *args,
                            HPy_ssize_t nargs, HPy kwds)
 {
     if (!HPyGlobal_Is(ctx, subtype, HPyArrayDescr_Type)) {
@@ -2637,7 +2637,7 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, HPy *args,
     static const char *kwlist[] = {"dtype", "align", "copy", "metadata", NULL};
     HPy h_align = HPy_NULL, h_copy = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOO:dtype", kwlist,
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, nargs, kwds, "O|OOO:dtype", kwlist,
                 &odescr,
                 &h_align,
                 &h_copy,

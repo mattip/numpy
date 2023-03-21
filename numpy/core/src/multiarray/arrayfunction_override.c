@@ -793,8 +793,7 @@ array_implement_c_array_function_creation(
 NPY_NO_EXPORT HPy
 hpy_array_implement_c_array_function_creation(HPyContext *ctx,
     const char *function_name, HPy like,
-    /* HPy args, */ HPy kwargs,
-    HPy *fast_args, Py_ssize_t len_args) //, HPy kwnames)
+    const HPy *fast_args, size_t len_args, HPy kwnames)
 {
     HPy relevant_args = HPy_NULL;
     PyObject *numpy_module = NULL;
@@ -810,42 +809,18 @@ hpy_array_implement_c_array_function_creation(HPyContext *ctx,
     }
     HPy_Close(ctx, tmp_has_override);
 
-    HPy args = HPy_NULL;
+    HPy args, kwargs;
     if (fast_args != NULL) {
         /*
          * Convert from vectorcall convention, since the protocol requires
          * the normal convention.  We have to do this late to ensure the
          * normal path where NotImplemented is returned is fast.
          */
-        // assert(HPy_IsNull(args));
-        assert(HPy_IsNull(kwargs));
-        HPyTupleBuilder tb_args = HPyTupleBuilder_New(ctx, len_args);
-        if (HPyTupleBuilder_IsNull(tb_args)) {
-            return HPy_NULL;
-        }
-        for (HPy_ssize_t i = 0; i < len_args; i++) {
-            // Py_INCREF(fast_args[i]);
-            HPyTupleBuilder_Set(ctx, tb_args, i, fast_args[i]);
-        }
-        // HPy: this is not possible as METH_FASTCALL is not supported
-        // if (!HPy_IsNull(kwnames)) {
-        //     kwargs = HPyDict_New(ctx);
-        //     if (HPy_IsNull(kwargs)) {
-        //         HPyTupleBuilder_Cancel(ctx, tb_args);
-        //         return HPy_NULL;
-        //     }
-        //     HPy_ssize_t nkwargs = HPy_Length(ctx, kwnames);
-        //     for (HPy_ssize_t i = 0; i < nkwargs; i++) {
-        //         HPy key = HPy_GetItem_i(ctx, kwnames, i);
-        //         HPy value = fast_args[i+len_args];
-        //         if (HPy_SetItem(ctx, kwargs, key, value) < 0) {
-        //             HPyTupleBuilder_Cancel(ctx, tb_args);
-        //             HPy_Close(ctx, kwargs);
-        //             return HPy_NULL;
-        //         }
-        //     }
-        // }
-        args = HPyTupleBuilder_Build(ctx, tb_args);
+        if (!HPyHelpers_PackArgsAndKeywords(ctx, fast_args, len_args, kwnames, &args, &kwargs))
+            goto finish;
+    } else {
+        args = HPy_NULL;
+        kwargs = HPy_NULL;
     }
 
     relevant_args = HPyTuple_Pack(ctx, 1, like);

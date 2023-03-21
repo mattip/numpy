@@ -4268,7 +4268,7 @@ static HPy _hpy_get_dtype(HPyContext *ctx, HPy dtype_obj);
  */
 static HPy
 HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
-        HPy const *args, HPy_ssize_t len_args, HPy kw, int operation)
+        const HPy *args, size_t len_args, HPy kwnames, int operation)
 {
     HPyTracker ht;
     PyUFuncObject *ufunc_data;
@@ -4324,23 +4324,16 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
      */
     HPy otype_obj = HPy_NULL, out_obj = HPy_NULL, indices_obj = HPy_NULL;
     HPy keepdims_obj = HPy_NULL, wheremask_obj = HPy_NULL;
-    HPY_PERFORMANCE_WARNING("converting vectorcall to object call convention");
-
-    // HPy kw = HPyFastcallToDict(ctx, (HPy *)args, len_args, kwnames);
-    // if (!HPy_IsNull(kwnames) && HPy_IsNull(kw))
-    //     goto fail;
 
     if (operation == UFUNC_REDUCEAT) {
         static const char *kwlist0[] = {"array", "indices", "axis", "dtype", "out", NULL};
-        if (!HPyArg_ParseKeywords(ctx, &ht, (HPy *)args, len_args, kw, "OO|OOO:reduceat", kwlist0,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "OO|OOO:reduceat", kwlist0,
                 &op, &indices_obj, &axes_obj, &otype_obj, &out_obj)) {
-            HPy_Close(ctx, kw);
             /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
                to HPy_NULL to avoid double-free. */
             ht = HPyTracker_NULL;
             goto fail;
         }
-        HPy_Close(ctx, kw);
         /* Prepare inputs for PyUfunc_CheckOverride */
         full_args.in = HPyTuple_Pack(ctx, 2, op, indices_obj);
         if (HPy_IsNull(full_args.in)) {
@@ -4350,9 +4343,8 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
     }
     else if (operation == UFUNC_ACCUMULATE) {
         static const char *kwlist1[] = {"array", "axis", "dtype", "out", NULL};
-        if (!HPyArg_ParseKeywords(ctx, &ht, (HPy *)args, len_args, kw, "O|OOO:accumulate", kwlist1,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO:accumulate", kwlist1,
                 &op, &axes_obj, &otype_obj, &out_obj)) {
-            HPy_Close(ctx, kw);
             /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
                to HPy_NULL to avoid double-free. */
             ht = HPyTracker_NULL;
@@ -4367,9 +4359,8 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
     }
     else {
         static const char *kwlist2[] = {"array", "axis", "dtype", "out", "keepdims", "initial", "where", NULL};
-        if (!HPyArg_ParseKeywords(ctx, &ht, (HPy *)args, len_args, kw, "O|OOOOOO:reduce", kwlist2,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOOOOO:reduce", kwlist2,
                 &op, &axes_obj, &otype_obj, &out_obj, &keepdims_obj, &initial_arg, &wheremask_obj)) {
-            HPy_Close(ctx, kw);
             /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
                to HPy_NULL to avoid double-free. */
             ht = HPyTracker_NULL;
@@ -4414,7 +4405,7 @@ HPyUFunc_GenericReduction(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc,
     /* We now have all the information required to check for Overrides */
     HPy override = HPy_NULL;
     int errval = HPyUFunc_CheckOverride(ctx, ufunc, _reduce_type[operation],
-            full_args.in, full_args.out, args, len_args, kw, &override);
+            full_args.in, full_args.out, args, len_args, kwnames, &override);
     if (errval) {
         goto fail;
     }
@@ -5222,7 +5213,7 @@ hreplace_with_wrapped_result_and_return(HPyContext *ctx, HPy ufunc,
  */
 static HPy
 ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
-        HPy const *args, HPy_ssize_t len_args, HPy kwnames,
+        const HPy *args, HPy_ssize_t len_args, HPy kwnames,
         npy_bool outer)
 {
     HPyTracker ht = HPyTracker_NULL;
@@ -5322,40 +5313,31 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
 
     /* Skip parsing if there are no keyword arguments, nothing left to do */
     if (!HPy_IsNull(kwnames)) {
-        HPY_PERFORMANCE_WARNING("converting vectorcall to object call convention");
-        HPy kw = HPyFastcallToDict(ctx, args, len_args, kwnames);
-        if (HPy_IsNull(kw))
-            goto fail;
-
         if (!ufunc->core_enabled) {
             static const char *kwlist0[] = { "out", "where", "casting", "order",
                     "subok", "dtype", "signature", "sig", "extobj", NULL };
-            if (!HPyArg_ParseKeywords(ctx, &ht, NULL, 0, kw, "|$OOOOOOOOO", kwlist0,
+            if (!HPyArg_ParseKeywords(ctx, &ht, args + len_args, 0, kwnames, "|$OOOOOOOOO", kwlist0,
                     &out_obj, &where_obj, &casting_obj, &order_obj, &subok_obj,
                     &dtype_obj, &signature_obj, &sig_obj, &extobj)) {
-                HPy_Close(ctx, kw);
                 /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
                    to HPy_NULL to avoid double-free. */
                 ht = HPyTracker_NULL;
                 goto fail;
             }
-            HPy_Close(ctx, kw);
         }
         else {
             static const char *kwlist1[] = { "out", "axes", "axis", "keepdims",
                     "casting", "order", "subok", "dtype", "signature", "sig",
                     "extobj", NULL };
-            if (!HPyArg_ParseKeywords(ctx, &ht, NULL, 0, kw, "|$OOOOOOOOOOO", kwlist1,
+            if (!HPyArg_ParseKeywords(ctx, &ht, args + len_args, 0, kwnames, "|$OOOOOOOOOOO", kwlist1,
                     &out_obj, &axes_obj, &axis_obj, &keepdims_obj, &casting_obj,
                     &order_obj, &subok_obj, &dtype_obj, &signature_obj,
                     &sig_obj, &extobj)) {
-                HPy_Close(ctx, kw);
                 /* tracker was already closed by 'HPyArg_ParseKeywords'; so set
                    to HPy_NULL to avoid double-free. */
                 ht = HPyTracker_NULL;
                 goto fail;
             }
-            HPy_Close(ctx, kw);
             if (NPY_UNLIKELY(!HPy_IsNull(axes_obj) && !HPy_IsNull(axis_obj))) {
                 HPyErr_SetString(ctx, ctx->h_TypeError,
                         "cannot specify both 'axis' and 'axes'");
@@ -5395,19 +5377,8 @@ ufunc_hpy_generic_fastcall(HPyContext *ctx, HPy self,
     }
     /* We now have all the information required to check for Overrides */
     HPy override = HPy_NULL;
-    HPy kw;
-    if (!HPy_IsNull(kwnames)) {
-        HPY_PERFORMANCE_WARNING("ufunc_hpy_generic_fastcall");
-        kw = HPyFastcallToDict(ctx, args, len_args, kwnames);
-        if (HPy_IsNull(kw)) {
-            goto fail;
-        }
-    } else {
-        kw = HPy_NULL;
-    }
     errval = HPyUFunc_CheckOverride(ctx, self, method, full_args.in,
-            full_args.out, args, len_args, kw, &override);
-    HPy_Close(ctx, kw);
+            full_args.out, args, len_args, kwnames, &override);
     if (errval) {
         goto fail;
     }
@@ -6508,28 +6479,28 @@ prepare_input_arguments_for_outer(HPyContext *ctx, HPy args, HPy h_ufunc)
 HPyDef_METH(ufunc_reduce, "reduce", HPyFunc_KEYWORDS)
 static HPy
 ufunc_reduce_impl(HPyContext *ctx, HPy ufunc,
-        HPy *args, HPy_ssize_t len_args, HPy kw)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     return HPyUFunc_GenericReduction(ctx,
-            ufunc, args, len_args, kw, UFUNC_REDUCE);
+            ufunc, args, len_args, kwnames, UFUNC_REDUCE);
 }
 
 HPyDef_METH(ufunc_accumulate, "accumulate", HPyFunc_KEYWORDS)
 static HPy
 ufunc_accumulate_impl(HPyContext *ctx, HPy ufunc,
-        HPy *args, HPy_ssize_t len_args, HPy kw)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     return HPyUFunc_GenericReduction(ctx,
-            ufunc, args, len_args, kw, UFUNC_ACCUMULATE);
+            ufunc, args, len_args, kwnames, UFUNC_ACCUMULATE);
 }
 
 HPyDef_METH(ufunc_reduceat, "reduceat", HPyFunc_KEYWORDS)
 static HPy
 ufunc_reduceat_impl(HPyContext *ctx, HPy ufunc,
-        HPy *args, HPy_ssize_t len_args, HPy kw)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     return HPyUFunc_GenericReduction(ctx,
-            ufunc, args, len_args, kw, UFUNC_REDUCEAT);
+            ufunc, args, len_args, kwnames, UFUNC_REDUCEAT);
 }
 
 /* Helper for ufunc_at, below */
@@ -7113,41 +7084,9 @@ ufunc_signature_get(HPyContext *ctx, HPy self, void *NPY_UNUSED(ignored))
 
 HPyDef_SLOT(ufunc_call, HPy_tp_call)
 static HPy
-ufunc_call_impl(HPyContext *ctx, HPy self, HPy *args, HPy_ssize_t nargs, HPy kw)
+ufunc_call_impl(HPyContext *ctx, HPy self, const HPy *args, size_t nargs, HPy kwnames)
 {
-    HPy_ssize_t nkw = 0;
-    HPy *full_args;
-    HPy kwnames;
-    if (!HPy_IsNull(kw)) {
-        nkw = HPy_Length(ctx, kw);
-        HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, nkw);
-        full_args = (HPy *) calloc(nargs + nkw, sizeof(HPy));
-        memcpy(full_args, args, nargs * sizeof(HPy));
-        HPy keys = HPyDict_Keys(ctx, kw); /* list */
-        assert(HPy_Length(ctx, keys) == nkw);
-        for (HPy_ssize_t i=0; i < nkw; i++) {
-            HPy key = HPy_GetItem_i(ctx, keys, i);
-            HPyTupleBuilder_Set(ctx, builder, i, key);
-            full_args[nargs + i] = HPy_GetItem(ctx, kw, key);
-            HPy_Close(ctx, key);
-        }
-        HPy_Close(ctx, keys);
-        kwnames = HPyTupleBuilder_Build(ctx, builder);
-    } else {
-        full_args = args;
-        kwnames = HPy_NULL;
-    }
-
-    HPy res = ufunc_hpy_generic_fastcall(ctx, self, full_args, nargs, kwnames, NPY_FALSE);
-
-    HPy_Close(ctx, kwnames);
-    if (!HPy_IsNull(kw)) {
-        for (HPy_ssize_t i=0; i < nkw; i++) {
-            HPy_Close(ctx, full_args[nargs + i]);
-        }
-        free(full_args);
-    }
-    return res;
+    return ufunc_hpy_generic_fastcall(ctx, self, args, nargs, kwnames, NPY_FALSE);
 }
 
 /*
@@ -7206,7 +7145,6 @@ NPY_NO_EXPORT HPyType_Spec PyUFunc_Type_Spec = {
     .basicsize = sizeof(PyUFuncObject),
     .flags = HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_HAVE_GC,
     .defines = ufunc_defines,
-    // .tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall),
     .builtin_shape = SHAPE(PyUFuncObject),
     .legacy_slots = ufunc_slots
 };

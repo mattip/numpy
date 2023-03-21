@@ -2262,7 +2262,7 @@ fail:
 
 HPyDef_METH(array_putmask, "putmask", HPyFunc_KEYWORDS)
 static HPy
-array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy mask, values;
     HPy array;
@@ -2270,7 +2270,7 @@ array_putmask_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
     static const char *kwlist[] = {"arr", "mask", "values", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OOO:putmask", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OOO:putmask", kwlist,
                 &array, &mask, &values)) {
         return HPy_NULL;
     }
@@ -2721,7 +2721,7 @@ fail:
 
 HPyDef_METH(array_array, "array", HPyFunc_KEYWORDS)
 static HPy
-array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
+array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     static const char *kwlist[] = {"object", "dtype", "copy", "order", "subok", "ndmin", "like", NULL};
 
@@ -2733,10 +2733,10 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     NPY_ORDER order = NPY_KEEPORDER;
     HPyTracker tracker;
 
-    if (nargs != 1 || !HPy_IsNull(kw)) {
+    if (nargs != 1 || !HPy_IsNull(kwnames)) {
         HPy h_type_in = HPy_NULL, h_copy = HPy_NULL, h_order = HPy_NULL;
         HPy h_subok = HPy_NULL, h_ndmin = HPy_NULL, h_like = HPy_NULL;
-        if (!HPyArg_ParseKeywords(ctx, &tracker, args, nargs, kw, "O|OOOOOO", kwlist,
+        if (!HPyArg_ParseKeywords(ctx, &tracker, args, nargs, kwnames, "O|OOOOOO", kwlist,
             &op, &h_type_in, &h_copy, &h_order, &h_subok, &h_ndmin, &h_like)) {
             HPyTracker_Close(ctx, tracker);
             return HPy_NULL;
@@ -2764,7 +2764,7 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
         }
         if (!HPy_IsNull(h_like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "array", h_like, kw, args, nargs);
+                    "array", h_like, args, nargs, kwnames);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, h_type);
                 return deferred;
@@ -2785,7 +2785,7 @@ array_array_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
 
 HPyDef_METH(array_asarray, "asarray", HPyFunc_KEYWORDS)
 static HPy
-array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
+array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"a", "dtype", "order", "like", NULL};
 
@@ -2796,12 +2796,12 @@ array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
     // NPY_PREPARE_ARGPARSER;
 
 
-    if (len_args != 1 || !HPy_IsNull(kw)) {
+    if (len_args != 1 || !HPy_IsNull(kwnames)) {
         HPyTracker ht;
         HPy h_type = HPy_NULL, h_order = HPy_NULL;
         // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
         // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO", kwlist,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO", kwlist,
                 &op, &h_type, &h_order, &like)) {
             return HPy_NULL;
         }
@@ -2822,7 +2822,7 @@ array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
         }
         if (!HPy_IsNull(like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "asarray", like, kw, args, len_args);
+                    "asarray", like, args, len_args, kwnames);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, type);
                 HPyTracker_Close(ctx, ht);
@@ -2844,7 +2844,7 @@ array_asarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
 
 HPyDef_METH(array_asanyarray, "asanyarray", HPyFunc_KEYWORDS)
 static HPy
-array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
+array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"a", "dtype", "order", "like", NULL};
 
@@ -2854,12 +2854,12 @@ array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     HPy like = HPy_NULL;
     // NPY_PREPARE_ARGPARSER;
 
-    if (len_args != 1 || !HPy_IsNull(kw)) {
+    if (len_args != 1 || !HPy_IsNull(kwnames)) {
         HPyTracker ht;
         HPy h_type = HPy_NULL, h_order = HPy_NULL;
         // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
         // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:asanyarray", kwlist,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO:asanyarray", kwlist,
                 &op, &h_type, &h_order, &like)) {
             return HPy_NULL;
         }
@@ -2880,7 +2880,7 @@ array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
         }
         if (!HPy_IsNull(like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "asanyarray", like, kw, args, len_args);
+                    "asanyarray", like, args, len_args, kwnames);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, type);
                 HPyTracker_Close(ctx, ht);
@@ -2903,7 +2903,7 @@ array_asanyarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
 HPyDef_METH(array_ascontiguousarray, "ascontiguousarray", HPyFunc_KEYWORDS)
 static HPy
-array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
+array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"a", "dtype", "like", NULL};
 
@@ -2912,12 +2912,12 @@ array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args
     HPy like = HPy_NULL;
     // NPY_PREPARE_ARGPARSER;
 
-    if (len_args != 1 || !HPy_IsNull(kw)) {
+    if (len_args != 1 || !HPy_IsNull(kwnames)) {
         HPyTracker ht;
         HPy h_type = HPy_NULL;
         // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
         // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:ascontiguousarray", kwlist,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO:ascontiguousarray", kwlist,
                 &op, &h_type, &like)) {
             return HPy_NULL;
         }
@@ -2936,7 +2936,7 @@ array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args
         }
         if (!HPy_IsNull(like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "ascontiguousarray", like, kw, args, len_args);
+                    "ascontiguousarray", like, args, len_args, kwnames);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, type);
                 HPyTracker_Close(ctx, ht);
@@ -2958,7 +2958,7 @@ array_ascontiguousarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args
 
 HPyDef_METH(array_asfortranarray, "asfortranarray", HPyFunc_KEYWORDS)
 static HPy
-array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
+array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"a", "dtype", "like", NULL};
 
@@ -2967,12 +2967,12 @@ array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, H
     HPy like = HPy_NULL;
     // NPY_PREPARE_ARGPARSER;
 
-    if (len_args != 1 || !HPy_IsNull(kw)) {
+    if (len_args != 1 || !HPy_IsNull(kwnames)) {
         HPyTracker ht;
         HPy h_type = HPy_NULL;
         // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
         // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:asfortranarray", kwlist,
+        if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO:asfortranarray", kwlist,
                 &op, &h_type, &like)) {
             return HPy_NULL;
         }
@@ -2991,7 +2991,7 @@ array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, H
         }
         if (!HPy_IsNull(like)) {
             HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                    "asfortranarray", like, kw, args, len_args);
+                    "asfortranarray", like, args, len_args, kwnames);
             if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
                 HPy_Close(ctx, type);
                 HPyTracker_Close(ctx, ht);
@@ -3014,7 +3014,7 @@ array_asfortranarray_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, H
 
 HPyDef_METH(array_copyto, "copyto", HPyFunc_KEYWORDS)
 static HPy
-array_copyto_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_copyto_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     static const char *kwlist[] = {"dst", "src", "casting", "where", NULL};
 
@@ -3024,7 +3024,7 @@ array_copyto_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
 
     HPyTracker ht;
 
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|OO:copyto", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OO|OO:copyto", kwlist,
             &dst, &h_src, &h_casting, &wheremask_in)) {
         goto fail;
     }
@@ -3073,7 +3073,7 @@ fail:
 
 HPyDef_METH(array_empty, "empty", HPyFunc_KEYWORDS)
 static HPy
-array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t len_args, HPy kw)
+array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
 
@@ -3089,7 +3089,7 @@ array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
     HPy h_shape = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL;
     // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kw, "O|OOO:empty", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "O|OOO:empty", kwlist,
             &h_shape, &h_type, &h_order, &like)) {
         return HPy_NULL;
     }
@@ -3111,7 +3111,7 @@ array_empty_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_
 
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "empty", like, kw, args, len_args);
+                "empty", like, args, len_args, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPy_Close(ctx, typecode);
             HPyTracker_Close(ctx, ht);
@@ -3149,7 +3149,7 @@ fail:
 
 HPyDef_METH(array_empty_like, "empty_like", HPyFunc_KEYWORDS)
 static HPy
-array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
 
     static const char *kwlist[] = {"prototype", "dtype", "order", "subok", "shape", NULL};
@@ -3163,7 +3163,7 @@ array_empty_like_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     PyArray_Dims shape = {NULL, -1};
     HPy h_prototype = HPy_NULL, h_type = HPy_NULL, h_order = HPy_NULL, h_shape = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOiO:empty_like", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOiO:empty_like", kwlist,
                 &h_prototype, &h_type, &h_order, &subok, &h_shape)) {
         goto fail;
     }
@@ -3198,7 +3198,7 @@ fail:
  */
 HPyDef_METH(array_scalar, "scalar", HPyFunc_KEYWORDS)
 static HPy
-array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
 
     static const char *kwlist[] = {"dtype", "obj", NULL};
@@ -3211,7 +3211,7 @@ array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     HPy base = HPy_NULL;
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|O:scalar", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|O:scalar", kwlist,
                 &typecode, &obj)) {
         return HPy_NULL;
     }
@@ -3321,7 +3321,7 @@ array_scalar_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
 
 HPyDef_METH(array_zeros, "zeros", HPyFunc_KEYWORDS)
 static HPy
-array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
+array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kw)
 {
     static const char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
 
@@ -3404,7 +3404,7 @@ array_count_nonzero(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
 
 HPyDef_METH(array_fromstring, "fromstring", HPyFunc_KEYWORDS)
 static HPy
-array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
+array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     char *data;
     HPy_ssize_t nin = -1;
@@ -3415,7 +3415,7 @@ array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     HPy h_descr = HPy_NULL, descr = HPy_NULL; // PyArray_Descr *
     HPyTracker ht;
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                 "s|O" NPY_SSIZE_T_PYFMT "sO:fromstring", kwlist,
                 &data, &s, &h_descr, &nin, &sep, &like)) {
         return HPy_NULL;
@@ -3428,7 +3428,7 @@ array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
     }
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "fromstring", like, keywds, args, nargs);
+                "fromstring", like, args, nargs, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPyTracker_Close(ctx, ht);
             return deferred;
@@ -3454,7 +3454,7 @@ array_fromstring_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
 HPyDef_METH(array_fromfile, "fromfile", HPyFunc_KEYWORDS)
 static HPy
-array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
+array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy file = HPy_NULL, ret = HPy_NULL;
     PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
@@ -3469,7 +3469,7 @@ array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
 
     HPyTracker ht;
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                 "O|O" NPY_SSIZE_T_PYFMT "s" NPY_OFF_T_PYFMT "O:fromfile", kwlist,
                 &file, &h_type, &nin, &sep, &offset, &like)) {
         return HPy_NULL;
@@ -3482,7 +3482,7 @@ array_fromfile_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
 
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "fromfile", like, keywds, args, nargs);
+                "fromfile", like, args, nargs, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPyTracker_Close(ctx, ht);
             return deferred;
@@ -3569,7 +3569,7 @@ fail:
 
 HPyDef_METH(array_fromiter, "fromiter", HPyFunc_KEYWORDS)
 static HPy
-array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
+array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy iter = HPy_NULL;
     HPy_ssize_t nin = -1;
@@ -3579,7 +3579,7 @@ array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
 
     HPyTracker ht;
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                 "OO|" NPY_SSIZE_T_PYFMT "O:fromiter", kwlist,
                 &iter, &h_descr, &nin, &like)) {
         HPy_Close(ctx, descr);
@@ -3594,7 +3594,7 @@ array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
 
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "fromiter", like, keywds, args, nargs);
+                "fromiter", like, args, nargs, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPyTracker_Close(ctx, ht);
             return deferred;
@@ -3607,7 +3607,7 @@ array_fromiter_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssi
 
 HPyDef_METH(array_frombuffer, "frombuffer", HPyFunc_KEYWORDS)
 static HPy
-array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy keywds)
+array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj = HPy_NULL;
     Py_ssize_t nin = -1, offset = 0;
@@ -3617,7 +3617,7 @@ array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
     HPyTracker ht;
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, keywds,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                 "O|O" NPY_SSIZE_T_PYFMT NPY_SSIZE_T_PYFMT "$O:frombuffer", kwlist,
                 &obj, &h_type, &nin, &offset, &like)) {
         HPy_Close(ctx, type);
@@ -3632,7 +3632,7 @@ array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "frombuffer", like, keywds, args, nargs);
+                "frombuffer", like, args, nargs, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPyTracker_Close(ctx, ht);
             return deferred;
@@ -3648,7 +3648,7 @@ array_frombuffer_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_s
 
 HPyDef_METH(array_concatenate, "concatenate", HPyFunc_KEYWORDS)
 static HPy
-array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy a0;
     HPy out = HPy_NULL;
@@ -3661,7 +3661,7 @@ array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_
     HPy h_axis = HPy_NULL;
     HPyTracker ht;
     // 'dtype' and 'casting' are expected to be passed as keywords only.. we are ignoring this for now
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOO:concatenate", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOOO:concatenate", kwlist,
                 &a0, &h_axis, &out, 
                 &h_dtype, &casting_obj)) {
         return HPy_NULL;
@@ -3719,14 +3719,14 @@ array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy
 
 HPyDef_METH(array_matrixproduct, "dot", HPyFunc_KEYWORDS)
 static HPy
-array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy v, a, o = HPy_NULL;
     HPy ret; // PyArrayObject *
     static const char* kwlist[] = {"a", "b", "out", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:matrixproduct",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OO|O:matrixproduct",
                                      kwlist, &a, &v, &o)) {
         return HPy_NULL;
     }
@@ -3869,7 +3869,7 @@ fail:
 }
 
 static int
-hpy_einsum_sub_op_from_str(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy *str_obj, char **subscripts,
+hpy_einsum_sub_op_from_str(HPyContext *ctx, const HPy *args, size_t nargs, HPy *str_obj, char **subscripts,
                        HPy /* PyArrayObject ** */ *op)
 {
     int i, nop;
@@ -4035,7 +4035,7 @@ hpy_einsum_list_to_subscripts(HPyContext *ctx, HPy obj, char *subscripts, int su
  * Returns -1 on error, number of operands placed in op otherwise.
  */
 static int
-hpy_einsum_sub_op_from_lists(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
+hpy_einsum_sub_op_from_lists(HPyContext *ctx, const HPy *args, size_t nargs,
                 char *subscripts, int subsize, HPy *op)
 {
     int subindex = 0;
@@ -4125,7 +4125,7 @@ fail:
 
 HPyDef_METH(array_einsum, "c_einsum", HPyFunc_KEYWORDS)
 static HPy
-array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kwnames)
 {
     char *subscripts = NULL, subscripts_buffer[256];
     HPy str_obj = HPy_NULL, str_key_obj = HPy_NULL;
@@ -4162,11 +4162,10 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
     }
 
     /* Get the keyword arguments */
-    if (!HPy_IsNull(kwds)) {
-        HPy keys = HPyDict_Keys(ctx, kwds);
-        HPy_ssize_t keys_len = HPy_Length(ctx, keys);
+    if (!HPy_IsNull(kwnames)) {
+        HPy_ssize_t keys_len = HPy_Length(ctx, kwnames);
         for (HPy_ssize_t i = 0; i < keys_len; i++) {
-            HPy key = HPy_GetItem_i(ctx, keys, i);
+            HPy key = HPy_GetItem_i(ctx, kwnames, i);
             const char *str = NULL;
 
             HPy_Close(ctx, str_key_obj);
@@ -4179,13 +4178,12 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
 
             if (str == NULL) {
                 HPy_Close(ctx, key);
-                HPy_Close(ctx, keys);
                 HPyErr_Clear(ctx);
                 HPyErr_SetString(ctx, ctx->h_TypeError, "invalid keyword");
                 goto finish;
             }
 
-            HPy value = HPy_GetItem(ctx, kwds, key);
+            HPy value = args[nargs + i];
             HPy_Close(ctx, key);
             if (strcmp(str,"out") == 0) {
                 if (HPyArray_Check(ctx, value)) {
@@ -4194,7 +4192,6 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
                 }
                 else {
                     HPy_Close(ctx, value);
-                    HPy_Close(ctx, keys);
                     HPyErr_SetString(ctx, ctx->h_TypeError,
                                 "keyword parameter out must be an "
                                 "array for einsum");
@@ -4204,34 +4201,29 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t
             else if (strcmp(str,"order") == 0) {
                 if (!HPyArray_OrderConverter(ctx, value, &order)) {
                     HPy_Close(ctx, value);
-                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else if (strcmp(str,"casting") == 0) {
                 if (!HPyArray_CastingConverter(ctx, value, &casting)) {
                     HPy_Close(ctx, value);
-                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else if (strcmp(str,"dtype") == 0) {
                 if (!HPyArray_DescrConverter2(ctx, value, &dtype)) {
                     HPy_Close(ctx, value);
-                    HPy_Close(ctx, keys);
                     goto finish;
                 }
             }
             else {
                 HPy_Close(ctx, value);
-                HPy_Close(ctx, keys);
                 HPyErr_Format_p(ctx, ctx->h_TypeError,
                             "'%s' is an invalid keyword for einsum",
                             str);
                 goto finish;
             }
         }
-        HPy_Close(ctx, keys);
     }
     CAPI_WARN("calling PyArray_EinsteinSum");
     PyArrayObject **py_op_in = HPy_AsPyObjectArray(ctx, op, nop);
@@ -4312,7 +4304,7 @@ array_correlate2(PyObject *NPY_UNUSED(dummy),
 
 HPyDef_METH(array_arange, "arange", HPyFunc_KEYWORDS)
 static HPy
-array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
+array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy o_start = HPy_NULL, o_stop = HPy_NULL, o_step = HPy_NULL, range = HPy_NULL;
     HPy typecode = HPy_NULL; // PyArray_Descr *
@@ -4324,7 +4316,7 @@ array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
     // 'like' is expected to be passed as keyword only.. we are ignoring this for now
     HPy h_typecode = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOOO:arange", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOOO:arange", kwlist,
             &o_start, &o_stop, &o_step, &h_typecode, &like)) {
         return HPy_NULL;
     }
@@ -4347,7 +4339,7 @@ array_arange_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize
 
     if (!HPy_IsNull(like)) {
         HPy deferred = hpy_array_implement_c_array_function_creation(ctx,
-                "frombuffer", like, kw, args, nargs);
+                "frombuffer", like, args, nargs, kwnames);
         if (!HPy_Is(ctx, deferred, ctx->h_NotImplemented)) {
             HPy_Close(ctx, typecode);
             HPyTracker_Close(ctx, ht);
@@ -4521,19 +4513,29 @@ array_set_string_function(PyObject *NPY_UNUSED(self), PyObject *args,
 
 HPyDef_METH(array_set_ops_function, "set_numeric_ops", HPyFunc_KEYWORDS)
 static HPy
-array_set_ops_function_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_set_ops_function_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy oldops = HPy_NULL;
+    HPy dummy, kwds;
 
     if (HPy_IsNull(oldops = _PyArray_GetNumericOps(ctx))) {
         return HPy_NULL;
+    }
+    if (!HPyHelpers_PackArgsAndKeywords(ctx, args+nargs, 0, kwnames, &dummy,
+            &kwds)) {
+        return HPy_NULL;
+    }
+    // We expect that 'dummy' is HPy_NULL because we pass 'nargs == 0'.
+    if (!HPy_IsNull(dummy)) {
+        HPyErr_SetString(ctx, ctx->h_ValueError,
+                "did not expect argument tuple");
     }
     /*
      * Should probably ensure that objects are at least callable
      *  Leave this to the caller for now --- error will be raised
      *  later when use is attempted
      */
-    if (!HPy_IsNull(kwds) && HPyArray_SetNumericOps(ctx, kwds) == -1) {
+    if (!HPy_IsNull(kwnames) && HPyArray_SetNumericOps(ctx, kwds) == -1) {
         HPy_Close(ctx, oldops);
         if (!HPyErr_Occurred(ctx)) {
             HPyErr_SetString(ctx, ctx->h_ValueError,
@@ -4765,14 +4767,14 @@ array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
 
 HPyDef_METH(array_lexsort, "lexsort", HPyFunc_KEYWORDS)
 static HPy
-array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     int axis = -1;
     HPy obj;
     static const char *kwlist[] = {"keys", "axis", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|i:lexsort", kwlist, &obj, &axis)) {
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|i:lexsort", kwlist, &obj, &axis)) {
         return HPy_NULL;
     }
     PyObject *py_obj = HPy_AsPyObject(ctx, obj);
@@ -4789,7 +4791,7 @@ array_lexsort_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssiz
 
 HPyDef_METH(array_can_cast_safely, "can_cast", HPyFunc_KEYWORDS)
 static HPy
-array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy from_obj = HPy_NULL;
     HPy d1 = HPy_NULL; // PyArray_Descr *
@@ -4801,7 +4803,7 @@ array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, 
 
     HPy h_d2 = HPy_NULL, h_casting = HPy_NULL;
     HPyTracker ht;
-    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:can_cast", kwlist,
+    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OO|O:can_cast", kwlist,
                 &from_obj,
                 &h_d2,
                 &h_casting)) {
@@ -5080,7 +5082,7 @@ error:
  */
 HPyDef_METH(dragon4_scientific, "dragon4_scientific", HPyFunc_KEYWORDS)
 static HPy
-dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
+dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj;
     int precision=-1, pad_left=-1, exp_digits=-1, min_digits=-1;
@@ -5098,7 +5100,7 @@ dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
     HPy h_exp_digits = HPy_NULL;
     HPy h_min_digits = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOO:dragon4_scientific",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOOOOOO:dragon4_scientific",
                 kwlist,
                 &obj,
                 &h_precision,
@@ -5155,7 +5157,7 @@ dragon4_scientific_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
  */
 HPyDef_METH(dragon4_positional, "dragon4_positional", HPyFunc_KEYWORDS)
 static HPy
-dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
+dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj;
     int precision=-1, pad_left=-1, pad_right=-1, min_digits=-1;
@@ -5176,7 +5178,7 @@ dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
     HPy h_pad_right = HPy_NULL;
     HPy h_min_digits = HPy_NULL;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "O|OOOOOOOO:dragon4_positional",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|OOOOOOOO:dragon4_positional",
                 kwlist,
                 &obj,
                 &h_precision,
@@ -5218,14 +5220,14 @@ dragon4_positional_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
 
 HPyDef_METH(format_longfloat, "format_longfloat", HPyFunc_KEYWORDS)
 static HPy
-format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
+format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy obj;
     unsigned int precision;
     static const char *kwlist[] = {"x", "precision", NULL};
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OI:format_longfloat", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OI:format_longfloat", kwlist,
                 &obj, &precision)) {
         return HPy_NULL;
     }
@@ -5243,7 +5245,7 @@ format_longfloat_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssi
 
 HPyDef_METH(compare_chararrays, "compare_chararrays", HPyFunc_KEYWORDS)
 static HPy
-compare_chararrays_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kwds)
+compare_chararrays_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy array;
     HPy other;
@@ -5258,7 +5260,7 @@ compare_chararrays_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_s
 
     HPy h_rstrip;
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OOsO:compare_chararrays",
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OOsO:compare_chararrays",
                 kwlist,
                 &array, &other, &cmp_str,
                 &h_rstrip)) {
@@ -5623,8 +5625,8 @@ _PyArray_GetSigintBuf(void)
 
 
 static HPy
-_array_shares_memory_impl(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
-                         HPy kwds, Py_ssize_t default_max_work,
+_array_shares_memory_impl(HPyContext *ctx, const HPy *args, size_t nargs,
+                         HPy kwnames, Py_ssize_t default_max_work,
                          int raise_exceptions)
 {
     HPy self_obj = HPy_NULL;
@@ -5642,7 +5644,7 @@ _array_shares_memory_impl(HPyContext *ctx, HPy *args, HPy_ssize_t nargs,
     max_work = default_max_work;
 
     HPyTracker ht;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds, "OO|O:shares_memory_impl", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "OO|O:shares_memory_impl", kwlist,
                                      &self_obj, &other_obj, &max_work_obj)) {
         return HPy_NULL;
     }
@@ -5746,22 +5748,22 @@ fail:
 
 HPyDef_METH(array_shares_memory, "shares_memory", HPyFunc_KEYWORDS)
 static HPy
-array_shares_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_shares_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
-    return _array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_EXACT, 1);
+    return _array_shares_memory_impl(ctx, args, nargs, kwnames, NPY_MAY_SHARE_EXACT, 1);
 }
 
 
 HPyDef_METH(array_may_share_memory, "may_share_memory", HPyFunc_KEYWORDS)
 static HPy
-array_may_share_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+array_may_share_memory_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
-    return _array_shares_memory_impl(ctx, args, nargs, kwds, NPY_MAY_SHARE_BOUNDS, 0);
+    return _array_shares_memory_impl(ctx, args, nargs, kwnames, NPY_MAY_SHARE_BOUNDS, 0);
 }
 
 HPyDef_METH(normalize_axis_index, "normalize_axis_index", HPyFunc_KEYWORDS)
 static HPy
-normalize_axis_index_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs, HPy kw)
+normalize_axis_index_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs, HPy kw)
 {
     static const char *kwlist[] = {"axis", "ndim", "msg_prefix", NULL};
 

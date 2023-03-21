@@ -1332,7 +1332,7 @@ string_too_short:
  */
 HPyDef_METH(datetime_as_string, "datetime_as_string", HPyFunc_KEYWORDS)
 static HPy
-datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kwds)
+datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy arr_in = HPy_NULL, unit_in = HPy_NULL, timezone_obj = HPy_NULL;
     NPY_DATETIMEUNIT unit;
@@ -1355,7 +1355,7 @@ datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy
 
     HPy h_casting = HPy_NULL;
     HPyTracker ht;
-    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwds,
+    if(!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames,
                                 "O|OOO:datetime_as_string", kwlist,
                                 &arr_in,
                                 &unit_in,

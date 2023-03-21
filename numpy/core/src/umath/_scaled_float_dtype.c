@@ -237,14 +237,14 @@ sfloat_get_scaling_impl(HPyContext *ctx, HPy /* PyArray_SFloatDescr * */ h_self)
 
 HPyDef_SLOT(sfloat_new, HPy_tp_new)
 static HPy
-sfloat_new_impl(HPyContext *ctx, HPy NPY_UNUSED(cls), HPy *args_h,
+sfloat_new_impl(HPyContext *ctx, HPy NPY_UNUSED(cls), const HPy *args_h,
                           HPy_ssize_t nargs, HPy kwds)
 {
     double scaling = 1.;
     static const char *kwargs_strs[] = {"scaling", NULL};
 
 
-    if (!HPyArg_ParseKeywords(ctx, NULL,
+    if (!HPyArg_ParseKeywordsDict(ctx, NULL,
             args_h, nargs, kwds, "|d:_ScaledFloatTestDType", kwargs_strs, &scaling)) {
         return HPy_NULL;
     }

@@ -98,7 +98,7 @@ static int npyiter_cache_values(HPyContext *ctx, HPy h_self, NewNpyArrayIterObje
 
 HPyDef_SLOT(npyiter_new, HPy_tp_new)
 static HPy
-npyiter_new_impl(HPyContext *ctx, HPy h_subtype, HPy *NPY_UNUSED(args_h),
+npyiter_new_impl(HPyContext *ctx, HPy h_subtype, const HPy *NPY_UNUSED(args_h),
                           HPy_ssize_t NPY_UNUSED(nargs), HPy NPY_UNUSED(kwds))
 {
     NewNpyArrayIterObject *self;
@@ -704,7 +704,7 @@ npyiter_convert_ops(HPyContext *ctx, HPy op_in, HPy op_flags_in,
 HPyDef_SLOT(npyiter_init, HPy_tp_init)
 static int
 npyiter_init_impl(HPyContext *ctx, HPy h_self,
-        HPy *args, HPy_ssize_t len_args, HPy kwds)
+        const HPy *args, HPy_ssize_t len_args, HPy kwds)
 {
     static const char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
                              "order", "casting", "op_axes", "itershape",
@@ -736,7 +736,7 @@ npyiter_init_impl(HPyContext *ctx, HPy h_self,
 
     HPyTracker ht;
     HPy h_flags = HPy_NULL, h_order = HPy_NULL, h_casting = HPy_NULL, h_itershape = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwds, "O|OOOOOOOi:nditer", kwlist,
+    if (!HPyArg_ParseKeywordsDict(ctx, &ht, args, len_args, kwds, "O|OOOOOOOi:nditer", kwlist,
                     &op_in,
                     &h_flags,
                     &op_flags_in,
@@ -864,7 +864,7 @@ fail:
 HPyDef_METH(NpyIter_NestedIters, "nested_iters", HPyFunc_KEYWORDS)
 NPY_NO_EXPORT HPy
 NpyIter_NestedIters_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
-        HPy *args, HPy_ssize_t len_args, HPy kwds)
+        const HPy *args, size_t len_args, HPy kwnames)
 {
     static const char *kwlist[] = {"op", "axes", "flags", "op_flags",
                              "op_dtypes", "order",
@@ -893,7 +893,7 @@ NpyIter_NestedIters_impl(HPyContext *ctx, HPy NPY_UNUSED(self),
 
     HPyTracker ht;
     HPy h_flags = HPy_NULL, h_order = HPy_NULL, h_casting = HPy_NULL;
-    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwds, "OO|OOOOOi", kwlist,
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, len_args, kwnames, "OO|OOOOOi", kwlist,
                     &op_in,
                     &axes_in,
                     &h_flags,
