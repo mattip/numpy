@@ -56,19 +56,21 @@ PyArray_typeinfo(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
     HPy type_obj)
 {
-    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinfoType);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
-    HPyStructSequenceBuilder_Set(ctx, entry, 4, type_obj);
+    HPy types[] = {
+            HPyLong_FromLong(ctx, typechar),
+            HPyLong_FromLong(ctx, typenum),
+            HPyLong_FromLong(ctx, nbits),
+            HPyLong_FromLong(ctx, align),
+            type_obj
+    };
+    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinfoType, 5, types);
+    for (int i=0; i < 4; i++)
+        HPy_Close(ctx, types[i]);
 
-    if (HPyErr_Occurred(ctx)) {
-        HPyStructSequenceBuilder_Cancel(ctx, entry);
+    if (HPy_IsNull(entry)) {
         return HPy_NULL;
     }
-
-    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinfoType);
+    return entry;
 }
 
 NPY_NO_EXPORT HPy
@@ -76,21 +78,23 @@ PyArray_typeinforanged(HPyContext *ctx,
     char typechar, int typenum, int nbits, int align,
     HPy max, HPy min, HPy type_obj)
 {
-    HPyStructSequenceBuilder entry = HPyStructSequenceBuilder_New(ctx, PyArray_typeinforangedType);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 0, typechar);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 1, typenum);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 2, nbits);
-    HPyStructSequenceBuilder_Set_i(ctx, entry, 3, align);
-    HPyStructSequenceBuilder_Set(ctx, entry, 4, max);
-    HPyStructSequenceBuilder_Set(ctx, entry, 5, min);
-    HPyStructSequenceBuilder_Set(ctx, entry, 6, type_obj);
+    HPy types[] = {
+            HPyLong_FromLong(ctx, typechar),
+            HPyLong_FromLong(ctx, typenum),
+            HPyLong_FromLong(ctx, nbits),
+            HPyLong_FromLong(ctx, align),
+            max,
+            min,
+            type_obj
+    };
+    HPy entry = HPyStructSequence_New(ctx, PyArray_typeinforangedType, 7, types);
+    for (int i=0; i < 4; i++)
+        HPy_Close(ctx, types[i]);
 
-    if (HPyErr_Occurred(ctx)) {
-        HPyStructSequenceBuilder_Cancel(ctx, entry);
+    if (HPy_IsNull(entry)) {
         return HPy_NULL;
     }
-
-    return HPyStructSequenceBuilder_Build(ctx, entry, PyArray_typeinforangedType);
+    return entry;
 }
 
 /* Python version needed for older PyPy */
