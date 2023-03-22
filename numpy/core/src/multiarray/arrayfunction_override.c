@@ -636,7 +636,7 @@ cleanup:
  */
 HPyDef_METH(implement_array_function, "implement_array_function", HPyFunc_VARARGS)
 static HPy
-implement_array_function_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+implement_array_function_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
     // if (!PyArg_UnpackTuple(
     //         positional_args, "implement_array_function", 5, 5,
@@ -881,7 +881,7 @@ hpy_array_implement_c_array_function_creation(HPyContext *ctx,
 HPyDef_METH(_get_implementing_args, "_get_implementing_args", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
 _get_implementing_args_impl(
-    HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+    HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
     HPy relevant_args;
     HPy implementing_args[NPY_MAXARGS];

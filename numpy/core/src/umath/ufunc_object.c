@@ -5623,7 +5623,7 @@ ufunc_geterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored))
 
 HPyDef_METH(ufunc_seterr, "seterrobj", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
-ufunc_seterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+ufunc_seterr_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     HPy thedict;
     int res;

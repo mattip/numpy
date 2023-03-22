@@ -105,7 +105,7 @@ int npy_legacy_print_mode = INT_MAX;
 
 HPyDef_METH(set_legacy_print_mode, "set_legacy_print_mode", HPyFunc_VARARGS)
 static HPy
-set_legacy_print_mode_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy *args, HPy_ssize_t nargs)
+set_legacy_print_mode_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_t nargs)
 {
     if (!HPyArg_Parse(ctx, NULL, args, nargs, "i", &npy_legacy_print_mode)) {
         return HPy_NULL;
@@ -3704,7 +3704,7 @@ array_concatenate_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args
 
 HPyDef_METH(array_innerproduct, "inner", HPyFunc_VARARGS)
 static HPy
-array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+array_innerproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     HPy b0, a0;
 
@@ -3749,7 +3749,7 @@ array_matrixproduct_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *ar
 
 HPyDef_METH(array_vdot, "vdot", HPyFunc_VARARGS)
 static HPy
-array_vdot_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+array_vdot_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     int typenum;
     char *ip1, *ip2, *op;
@@ -4256,7 +4256,7 @@ finish:
 
 HPyDef_METH(_fastCopyAndTranspose, "_fastCopyAndTranspose", HPyFunc_VARARGS)
 static HPy
-_fastCopyAndTranspose_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+_fastCopyAndTranspose_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
     HPy a0;
 
@@ -4431,7 +4431,7 @@ PyArray_GetEndianness(void)
 
 HPyDef_METH(_reconstruct, "_reconstruct", HPyFunc_VARARGS)
 static HPy
-_reconstruct_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+_reconstruct_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
 
     HPy ret;
@@ -4752,7 +4752,7 @@ PyArray_Where(PyObject *condition, PyObject *x, PyObject *y)
 
 HPyDef_METH(array_where, "where", HPyFunc_VARARGS)
 static HPy
-array_where_impl(HPyContext *ctx, HPy ignored, HPy *args, HPy_ssize_t nargs)
+array_where_impl(HPyContext *ctx, HPy ignored, const HPy *args, size_t nargs)
 {
     HPy obj = HPy_NULL, x = HPy_NULL, y = HPy_NULL;
 
@@ -4856,7 +4856,7 @@ array_can_cast_safely_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *
 
 HPyDef_METH(array_promote_types, "promote_types", HPyFunc_VARARGS)
 static HPy
-array_promote_types_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
+array_promote_types_impl(HPyContext *ctx, HPy dummy, const HPy *args, size_t nargs)
 {
     HPy d1 = HPy_NULL, h_d1;
     HPy d2 = HPy_NULL, h_d2;
@@ -4890,7 +4890,7 @@ array_promote_types_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t narg
 
 HPyDef_METH(array_min_scalar_type, "min_scalar_type", HPyFunc_VARARGS)
 static HPy
-array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
+array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, const HPy *args, size_t nargs)
 {
     HPy array_in = HPy_NULL;
     HPy array;
@@ -4912,7 +4912,7 @@ array_min_scalar_type_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t na
 
 HPyDef_METH(array_result_type, "result_type", HPyFunc_VARARGS)
 static HPy
-array_result_type_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+array_result_type_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     npy_intp i, len, narr = 0, ndtypes = 0;
     HPy *arr = NULL; // PyArrayObject **
@@ -4977,7 +4977,7 @@ finish:
 
 HPyDef_METH(array_datetime_data, "datetime_data", HPyFunc_VARARGS)
 static HPy
-array_datetime_data_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+array_datetime_data_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     HPy h_dtype = HPy_NULL, dtype =  HPy_NULL; // PyArray_Descr *
     PyArray_DatetimeMetaData *meta;
@@ -5568,7 +5568,7 @@ _vec_string(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *NPY_UNUSED(kw
 
 HPyDef_METH(_hpy_vec_string, "_vec_string", HPyFunc_VARARGS)
 static HPy
-_hpy_vec_string_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+_hpy_vec_string_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
     HPyErr_SetString(ctx, ctx->h_SystemError, "not ported to HPy yet");
     return HPy_NULL;

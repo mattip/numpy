@@ -66,7 +66,7 @@ HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type);
  * in a dict). It returns a the keywords dict.
  */
 NPY_NO_EXPORT HPy
-HPyFastcallToDict(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy kwnames);
+HPyFastcallToDict(HPyContext *ctx, const HPy *args, size_t nargs, HPy kwnames);
 
 static NPY_INLINE HPy *
 HPy_FromPyObjectArray(HPyContext *ctx, PyObject **arr, Py_ssize_t n)

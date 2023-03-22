@@ -2379,7 +2379,7 @@ array_sizeof(PyArrayObject *self, PyObject *NPY_UNUSED(args))
 
 HPyDef_METH(array_transpose, "transpose", HPyFunc_VARARGS)
 static HPy
-array_transpose_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, HPy *args, HPy_ssize_t n)
+array_transpose_impl(HPyContext *ctx, /*PyArrayObject*/ HPy h_self, const HPy *args, size_t n)
 {
     HPy shape = ctx->h_None;
     PyArray_Dims permute;
@@ -2589,7 +2589,7 @@ array_compress_impl(HPyContext *ctx, HPy h_self, const HPy *args, size_t nargs, 
 
 HPyDef_METH(array_nonzero, "nonzero", HPyFunc_VARARGS)
 static HPy
-array_nonzero_impl(HPyContext *ctx, HPy h_self, HPy *args, HPy_ssize_t nargs)
+array_nonzero_impl(HPyContext *ctx, HPy h_self, const HPy *args, size_t nargs)
 {
     if (!HPyArg_Parse(ctx, NULL, args, nargs, "")) {
         return HPy_NULL;

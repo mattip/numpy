@@ -103,7 +103,7 @@ HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type)
 }
 
 NPY_NO_EXPORT HPy
-HPyFastcallToDict(HPyContext *ctx, HPy *args, HPy_ssize_t nargs, HPy kwnames)
+HPyFastcallToDict(HPyContext *ctx, const HPy *args, size_t nargs, HPy kwnames)
 {
     HPy kw, kwname;
     HPy_ssize_t nkw, i;

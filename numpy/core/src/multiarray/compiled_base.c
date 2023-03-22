@@ -1498,7 +1498,7 @@ fail:
 
 HPyDef_METH(hpy_add_docstring, "add_docstring", HPyFunc_VARARGS)
 static HPy
-hpy_add_docstring_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), HPy *args, HPy_ssize_t nargs)
+hpy_add_docstring_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t nargs)
 {
     // HPy PORT: we will ignore adding docs and behave as `Py_OptimizeFlag > 1` path
     return HPy_Dup(ctx, ctx->h_None);

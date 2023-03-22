@@ -660,7 +660,7 @@ fromstring_null_term_c_api(PyObject *dummy, PyObject *byte_obj)
  */
 HPyDef_METH(create_custom_field_dtype, "create_custom_field_dtype", HPyFunc_VARARGS)
 static HPy
-create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, HPy *args, HPy_ssize_t nargs)
+create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, const HPy *args, size_t nargs)
 {
     PyArray_Descr *dtype;
     HPy h_dtype;

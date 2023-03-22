@@ -187,7 +187,7 @@ _hpy_arraydescr_try_convert_from_dtype_attr(HPyContext *ctx, HPy obj)
  */
 HPyDef_METH(array_set_typeDict, "set_typeDict", HPyFunc_VARARGS)
 NPY_NO_EXPORT HPy
-array_set_typeDict_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+array_set_typeDict_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     HPy dict;
 
@@ -2958,7 +2958,7 @@ _hpy_descr_find_object(HPyContext *ctx, HPy self, PyArray_Descr *self_struct)
  */
  HPyDef_METH(arraydescr_setstate, "__setstate__", HPyFunc_VARARGS)
 static HPy
-arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *args, HPy_ssize_t nargs)
+arraydescr_setstate_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, const HPy *args, size_t nargs)
 {
     int elsize = -1, alignment = -1;
     int version = 4;
@@ -3636,7 +3636,7 @@ HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char
 
 HPyDef_METH(arraydescr_newbyteorder, "newbyteorder", HPyFunc_VARARGS)
 static HPy
-arraydescr_newbyteorder_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, HPy *args, HPy_ssize_t nargs)
+arraydescr_newbyteorder_impl(HPyContext *ctx, HPy /* PyArray_Descr * */ self, const HPy *args, size_t nargs)
 {
     char endian=NPY_SWAP;
     HPy h_endian = HPy_NULL;

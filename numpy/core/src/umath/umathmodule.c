@@ -203,7 +203,7 @@ frompyfunc_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_t 
 /* docstring in numpy.add_newdocs.py */
 HPyDef_METH(add_newdoc_ufunc, "_add_newdoc_ufunc", HPyFunc_VARARGS)
 HPy
-add_newdoc_ufunc_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs)
+add_newdoc_ufunc_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_t nargs)
 {
     HPy ufunc; // PyUFuncObject *
     HPy str;

@@ -1394,7 +1394,7 @@ npyiter_iternext_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 HPyDef_METH(npyiter_remove_axis, "remove_axis", HPyFunc_VARARGS)
 static HPy
 npyiter_remove_axis_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
-                    HPy *args, HPy_ssize_t len_args)
+                    const HPy *args, size_t len_args)
 {
     int axis = 0;
 
@@ -2556,7 +2556,7 @@ npyiter_close_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self)
 HPyDef_METH(npyiter_exit, "__exit__", HPyFunc_VARARGS)
 static HPy
 npyiter_exit_impl(HPyContext *ctx, HPy /* NewNpyArrayIterObject * */ h_self, 
-                    HPy *args, HPy_ssize_t len_args)
+                    const HPy *args, size_t len_args)
 {
     /* even if called via exception handling, writeback any data */
     return npyiter_close_impl(ctx, h_self);
