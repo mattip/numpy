@@ -60,8 +60,7 @@ hpy_npy_ctypes_check(HPyContext *ctx, HPy /* PyTypeObject * */ obj)
         goto fail;
     }
 
-    HPy args = HPyTuple_Pack(ctx, 1, obj);
-    ret_obj = HPy_CallTupleDict(ctx, py_func, args, HPy_NULL); // PyObject_CallFunctionObjArgs
+    ret_obj = HPy_Call(ctx, py_func, &obj, 1, HPy_NULL); // PyObject_CallFunctionObjArgs
     if (HPy_IsNull(ret_obj)) {
         goto fail;
     }

@@ -316,13 +316,11 @@ PyArray_GenericBinaryFunction(PyObject *m1, PyObject *m2, PyObject *op)
     return PyObject_CallFunctionObjArgs(op, m1, m2, NULL);
 }
 
-static NPY_NO_EXPORT HPy
+static inline HPy
 __HPyArray_GenericHelper(HPyContext *ctx, HPyGlobal op, size_t n_args, HPy args[]) {
 
-    HPy args_tuple = HPyTuple_FromArray(ctx, args, n_args);
     HPy callable = HPyGlobal_Load(ctx, op);
-    HPy res = HPy_CallTupleDict(ctx, callable, args_tuple, HPy_NULL);
-    HPy_Close(ctx, args_tuple);
+    HPy res = HPy_Call(ctx, callable, args, n_args, HPy_NULL);
     HPy_Close(ctx, callable);
     return res;
 }
