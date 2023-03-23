@@ -102,6 +102,17 @@ _import_umath(void)
         }\
     } while(0)
 
+#define hpy_import_ufunc(ctx) \
+    do {\
+        CAPI_WARN("hpy_import_ufunc");\
+        UFUNC_NOFPE\
+        if (_import_umath() < 0) {\
+            PyErr_Print();\
+            HPyErr_SetString(ctx, ctx->h_ImportError,\
+                    "numpy.core.umath failed to import");\
+        }\
+    } while(0)
+
 #endif
 """
 

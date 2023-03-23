@@ -4384,52 +4384,54 @@ static PyMethodDef UMath_LinAlgMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        UMATH_LINALG_MODULE_NAME,
-        NULL,
-        -1,
-        UMath_LinAlgMethods,
-        NULL,
-        NULL,
-        NULL,
-        NULL
-};
-
-PyMODINIT_FUNC PyInit__umath_linalg(void)
+HPyDef_SLOT(_umath_linalg, HPy_mod_exec)
+static int _umath_linalg_impl(HPyContext *ctx, HPy h_mod)
 {
-    PyObject *m;
+    CAPI_WARN("_umath_linalg_impl");
+    PyObject *m = HPy_AsPyObject(ctx, h_mod);
     PyObject *d;
     PyObject *version;
 
     init_constants();
-    m = PyModule_Create(&moduledef);
-    if (m == NULL) {
-        return NULL;
-    }
 
-    import_array();
-    import_ufunc();
+    hpy_import_array(ctx);
+    hpy_import_ufunc(ctx);
 
     d = PyModule_GetDict(m);
+    Py_DECREF(m);
     if (d == NULL) {
-        return NULL;
+        return -1;
     }
 
     version = PyUnicode_FromString(umath_linalg_version_string);
     if (version == NULL) {
-        return NULL;
+        return -1;
     }
     int ret = PyDict_SetItemString(d, "__version__", version);
     Py_DECREF(version);
     if (ret < 0) {
-        return NULL;
+        return -1;
     }
 
     /* Load the ufunc operators into the module's namespace */
     if (addUfuncs(d) < 0) {
-        return NULL;
+        return -1;
     }
 
-    return m;
+    return 0;
 }
+
+static HPyDef *UMath_LinAlg_defines[] = {
+    &_umath_linalg,
+    NULL
+};
+
+static HPyModuleDef moduledef = {
+    .doc = NULL,
+#ifndef GRAALVM_PYTHON
+    .legacy_methods = UMath_LinAlgMethods,
+#endif
+    .defines = UMath_LinAlg_defines,
+};
+
+HPy_MODINIT(_umath_linalg, moduledef)

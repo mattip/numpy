@@ -12,7 +12,7 @@
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION
 
 #define PY_SSIZE_T_CLEAN
-#include <Python.h>
+#include <hpy.h>
 
 #include "numpy/arrayobject.h"
 
@@ -2355,31 +2355,33 @@ static struct PyMethodDef methods[] = {
     {NULL, NULL, 0, NULL}          /* sentinel */
 };
 
-static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        "_pocketfft_internal",
-        NULL,
-        -1,
-        methods,
-        NULL,
-        NULL,
-        NULL,
-        NULL
-};
-
 /* Initialization function for the module */
-PyMODINIT_FUNC PyInit__pocketfft_internal(void)
+HPyDef_SLOT(_pocketfft_internal_exec, HPy_mod_exec)
+static int _pocketfft_internal_exec_impl(HPyContext *ctx, HPy h_mod)
 {
-    PyObject *m;
-    m = PyModule_Create(&moduledef);
-    if (m == NULL) {
-        return NULL;
-    }
+    CAPI_WARN("_pocketfft_internal_exec_impl");
+    PyObject *m = HPy_AsPyObject(ctx, h_mod);
 
     /* Import the array object */
-    import_array();
+    hpy_import_array(ctx);
 
     /* XXXX Add constants here */
 
-    return m;
+    Py_DECREF(m);
+    return 0;
 }
+
+static HPyDef *pocket_fft_defines[] = {
+    &_pocketfft_internal_exec,
+    NULL
+};
+
+static HPyModuleDef moduledef = {
+    .doc = NULL,
+#ifndef GRAALVM_PYTHON
+    .legacy_methods = methods,
+#endif
+    .defines = pocket_fft_defines,
+};
+
+HPy_MODINIT(_pocketfft_internal, moduledef)

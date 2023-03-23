@@ -185,6 +185,10 @@ _import_array(void)
 
 #define himport_array2(ctx, msg, ret) {if (_import_array() < 0) {PyErr_Print(); HPyErr_SetString(ctx, ctx->h_ImportError, msg); return ret; } }
 
+#define hpy_import_array himport_array
+#define hpy_import_array1 himport_array1
+#define hpy_import_array2 himport_array2
+
 #endif
 
 #endif
