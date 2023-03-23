@@ -1211,6 +1211,7 @@ HPyArray_NewFromDescr_int(
                     arg = HPy_Dup(ctx, h_obj);
                 }
                 // result, arg
+                HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
                 HPy args = HPyTuple_Pack(ctx, 2, result, arg);
                 HPy res = HPy_CallTupleDict(ctx, func, args, HPy_NULL);
 

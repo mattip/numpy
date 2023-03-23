@@ -69,6 +69,7 @@ _hpy_try_convert_from_ctypes_type(HPyContext *ctx, HPy /* PyTypeObject * */ type
     if (HPy_IsNull(_numpy_dtype_ctypes)) {
         return HPy_NULL;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 1, type);
     HPy meth = HPy_GetAttr_s(ctx, _numpy_dtype_ctypes, "dtype_from_ctypes_type");
     res = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
@@ -827,6 +828,7 @@ _hpy_convert_from_commastring(HPyContext *ctx, HPy obj, int align)
     if (HPy_IsNull(_numpy_internal)) {
         return HPy_NULL;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 1, obj);
     HPy meth = HPy_GetAttr_s(ctx, _numpy_internal, "_commastring");
     HPy listobj = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
@@ -1164,6 +1166,7 @@ _hpy_convert_from_field_dict(HPyContext *ctx, HPy obj, int align)
         return HPy_NULL;
     }
     HPy h_align = HPyLong_FromLong(ctx, align);
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 2, obj, h_align);
     HPy_Close(ctx, h_align);
     HPy meth = HPy_GetAttr_s(ctx, _numpy_internal, "_usefields");
@@ -2207,6 +2210,7 @@ arraydescr_name_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_U
         return HPy_NULL;
     }
 
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     args = HPyTuple_Pack(ctx, 1, self);
     meth = HPy_GetAttr_s(ctx, _numpy_dtype, "_name_get");
     res = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
@@ -2297,6 +2301,7 @@ arraydescr_descr_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_
     if (HPy_IsNull(_numpy_internal)) {
         return HPy_NULL;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     args = HPyTuple_Pack(ctx, 1, self);
     meth = HPy_GetAttr_s(ctx, _numpy_internal, "_array_descr");
     res = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
@@ -3765,6 +3770,7 @@ arraydescr_repr_impl(HPyContext *ctx, HPy dtype)
     if (HPy_IsNull(_numpy_dtype)) {
         return HPy_NULL;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 1, dtype);
     HPy meth = HPy_GetAttr_s(ctx, _numpy_dtype, "__repr__");
     res = HPy_CallTupleDict(ctx, meth, args, HPy_NULL);
@@ -4041,6 +4047,7 @@ harraydescr_field_subset_view(HPyContext *ctx,
             HPy fmt = HPyUnicode_FromString(ctx,
                                    "duplicate field of name {!r}");
             if (!HPy_IsNull(fmt)) {
+                HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
                 HPy args = HPyTuple_Pack(ctx, 1, name);
                 HPy h_format = HPy_GetAttr_s(ctx, fmt, "format");
                 msg = HPy_CallTupleDict(ctx, h_format, args, HPy_NULL);

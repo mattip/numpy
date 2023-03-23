@@ -1620,6 +1620,7 @@ _void_compare(HPyContext *ctx,
                 res = temp;
             }
             else {
+                HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
                 HPy args = HPyTuple_Pack(ctx, 2, res, temp);
                 temp2 = HPy_CallTupleDict(ctx, op, args, HPy_NULL);
                 HPy_Close(ctx, args);

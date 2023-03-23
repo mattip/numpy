@@ -475,6 +475,7 @@ arrayflags_writebackifcopy_set(
                 "Cannot set flags on array scalars.");
         return -1;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     h_args = HPyTuple_Pack(ctx, 3,
                            ctx->h_None,
                            ctx->h_None, 
@@ -514,6 +515,7 @@ arrayflags_aligned_set(
                 "Cannot set flags on array scalars.");
         return -1;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     h_args = HPyTuple_Pack(ctx, 3,
                            ctx->h_None, 
                            HPy_IsTrue(ctx, obj) ? ctx->h_True : ctx->h_False,
@@ -554,6 +556,7 @@ arrayflags_writeable_set(
                 "Cannot set flags on array scalars.");
         return -1;
     }
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     h_args = HPyTuple_Pack(ctx, 3, HPy_IsTrue(ctx, obj) ? ctx->h_True : ctx->h_False, ctx->h_None, ctx->h_None);
     h_setflags = HPy_GetAttr_s(ctx, h_arr, "setflags");
     res = HPy_CallTupleDict(ctx, h_setflags, h_args, HPy_NULL);

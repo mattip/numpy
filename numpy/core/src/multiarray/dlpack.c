@@ -294,6 +294,7 @@ NPY_NO_EXPORT HPy
 _from_dlpack_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy obj) {
     HPy obj_type = HPy_Type(ctx, obj);
     HPy __dlpack__ = HPy_GetAttr_s(ctx, obj_type, "__dlpack__");
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 1, obj);
     HPy capsule = HPy_CallTupleDict(ctx, __dlpack__, args, HPy_NULL);
     HPy_Close(ctx, obj_type);

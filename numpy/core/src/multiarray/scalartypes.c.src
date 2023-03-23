@@ -3018,6 +3018,7 @@ static HPy
     void *data;
 #if defined(_@TYPE@_IS_UNICODE) || defined(_@TYPE@_IS_STRING) || defined(_@TYPE@_IS_DOUBLE)
     // TODO HPY LABS PORT: use some better calling API as soon as available
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy targs = HPyTuple_FromArray(ctx, args, nargs);
 #endif
 

@@ -279,6 +279,7 @@ hpy_check_and_adjust_axis_msg(HPyContext *ctx, int *axis, int ndim, HPy msg_pref
         }
 
         /* Invoke the AxisError constructor */
+        HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
         HPy args = HPy_BuildValue(ctx, "iiO", *axis, ndim, msg_prefix);
         exc = HPy_CallTupleDict(ctx, AxisError_cls, args, HPy_NULL);
         if (HPy_IsNull(exc)) {

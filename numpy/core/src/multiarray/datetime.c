@@ -2651,6 +2651,7 @@ hpy_convert_pydatetime_to_datetimestruct(HPyContext *ctx, HPy obj, npy_datetimes
             /* The utcoffset function should return a timedelta */
             HPy tmp_type = HPy_Type(ctx, tmp);
             HPy utcoffset = HPy_GetAttr_s(ctx, tmp_type, "utcoffset");
+            HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
             HPy args = HPyTuple_Pack(ctx, 1, obj);
             offset = HPy_CallTupleDict(ctx, utcoffset, args, HPy_NULL);
             HPy_Close(ctx, tmp_type);
@@ -2769,6 +2770,7 @@ hpy_get_tzoffset_from_pytzinfo(HPyContext *ctx, HPy timezone_obj, npy_datetimest
     /* Convert the datetime from UTC to local time */
     HPy obj_type = HPy_Type(ctx, timezone_obj);
     HPy fromutc = HPy_GetAttr_s(ctx, obj_type, "fromutc");
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 1, dt);
     loc_dt = HPy_CallTupleDict(ctx, fromutc, args, HPy_NULL);
     HPy_Close(ctx, obj_type);

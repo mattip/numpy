@@ -277,6 +277,7 @@ HPyArray_GenericReduceFunction(HPyContext *ctx,
     HPy args, ret = HPy_NULL, meth;
     HPy kwds;
 
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     args = HPy_BuildValue(ctx, "(Oi)", m1, axis);
     kwds = _hpy_get_keywords(ctx, rtype, out);
     meth = HPy_GetAttr_s(ctx, op, "reduce");

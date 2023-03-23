@@ -291,6 +291,7 @@ array_ctypes_get(HPyContext *ctx, HPy /*PyArrayObject*/ h_self, void *NPY_UNUSED
         return HPy_NULL;
     }
     PyArrayObject *self = PyArrayObject_AsStruct(ctx, h_self);
+    HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
     HPy args = HPyTuple_Pack(ctx, 2, h_self,
                               HPyLong_FromVoidPtr(ctx, PyArray_DATA(self)));
     HPy meth = HPy_GetAttr_s(ctx, _numpy_internal, "_ctypes");
@@ -537,6 +538,7 @@ array_descr_dtype_set(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy arg, 
             if (HPy_IsNull(checkfunc)) {
                 goto fail;
             }
+            HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
             HPy args = HPyTuple_Pack(ctx, 2, self_descr, newtype);
             safe = HPy_CallTupleDict(ctx, checkfunc, args, HPy_NULL);
             HPy_Close(ctx, args);

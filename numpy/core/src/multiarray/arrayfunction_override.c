@@ -380,6 +380,7 @@ hpy_call_array_function(HPyContext *ctx, HPy argument, HPy method,
         return hpy_array_function_method_impl(ctx, public_api, types, args, kwargs);
     }
     else {
+        HPY_PERFORMANCE_WARNING("packing args for HPy_CallTupleDict");
         HPy args_tuple = HPyTuple_Pack(ctx, 5, argument, public_api, types, args, kwargs);
         HPy ret = HPy_CallTupleDict(ctx, method, args_tuple, HPy_NULL);
         HPy_Close(ctx, args_tuple);
