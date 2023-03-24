@@ -202,7 +202,6 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             }
     }
 
-    HPy dtypemeta = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
     for (int i = 0; i < nargs; i++) {
         /*
          * Note that we could allow for output dtypes to not be specified
@@ -217,10 +216,9 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "ArrayMethod must provide all input and output DTypes. "
                     "(method: %s)", spec->name);
-            HPy_Close(ctx, dtypemeta);
             return -1;
         }
-        if (!HPy_TypeCheck(ctx, spec->dtypes[i], dtypemeta)) {
+        if (!HPyGlobal_TypeCheck(ctx, spec->dtypes[i], HPyArrayDTypeMeta_Type)) {
             // TODO HPY LABS PORT: PyErr_Format
             HPyErr_Format_p(ctx, ctx->h_TypeError,
                     "ArrayMethod provided object XX is not a DType."
@@ -228,7 +226,6 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             // PyErr_Format(PyExc_TypeError,
             //         "ArrayMethod provided object %R is not a DType."
             //         "(method: %s)", spec->dtypes[i], spec->name);
-            HPy_Close(ctx, dtypemeta);
             return -1;
         }
         if (NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, spec->dtypes[i]))) {
@@ -239,11 +236,9 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             // PyErr_Format(PyExc_TypeError,
             //         "abstract DType %S are currently not supported."
             //         "(method: %s)", spec->dtypes[i], spec->name);
-            HPy_Close(ctx, dtypemeta);
             return -1;
         }
     }
-    HPy_Close(ctx, dtypemeta);
     return 0;
 }
 

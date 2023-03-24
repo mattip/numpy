@@ -30,10 +30,7 @@ extern "C" {
 static NPY_INLINE int
 HPyArray_DescrCheck(HPyContext *ctx, HPy op)
 {
-    HPy array_descr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
-    int res = HPy_TypeCheck(ctx, op, array_descr_type);
-    HPy_Close(ctx, array_descr_type);
-    return res;
+    return HPyGlobal_TypeCheck(ctx,  op,  HPyArrayDescr_Type);
 }
 
 #define PyArray_Check(op) PyObject_TypeCheck(op, &PyArray_Type)
@@ -42,10 +39,7 @@ HPyArray_DescrCheck(HPyContext *ctx, HPy op)
 static NPY_INLINE int
 HPyArray_Check(HPyContext *ctx, HPy op)
 {
-    HPy array_type = HPyGlobal_Load(ctx, HPyArray_Type);
-    int res = HPy_TypeCheck(ctx, op, array_type);
-    HPy_Close(ctx, array_type);
-    return res;
+    return HPyGlobal_TypeCheck(ctx,  op,  HPyArray_Type);
 }
 
 static NPY_INLINE int

@@ -93,15 +93,6 @@ HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected)
     return is_dtype;
 }
 
-NPY_NO_EXPORT int
-HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type)
-{
-    HPy h_type = HPyGlobal_Load(ctx, type);
-    int res = HPy_TypeCheck(ctx, obj, h_type);
-    HPy_Close(ctx, h_type);
-    return res;
-}
-
 NPY_NO_EXPORT HPy
 HPyFastcallToDict(HPyContext *ctx, const HPy *args, size_t nargs, HPy kwnames)
 {

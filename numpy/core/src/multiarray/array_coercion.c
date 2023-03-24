@@ -1837,13 +1837,12 @@ HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
     int res = 0;
 
     if (!HPy_IsNull(dtype)) {
-        HPy h_PyArrayDTypeMeta_Type = HPyGlobal_Load(ctx, HPyArrayDTypeMeta_Type);
-        if (HPy_TypeCheck(ctx, dtype, h_PyArrayDTypeMeta_Type)) {
+        if (HPyGlobal_TypeCheck(ctx, dtype, HPyArrayDTypeMeta_Type)) {
             assert(!HPyGlobal_Is(ctx, dtype, HPyArrayDescr_Type));  /* not np.dtype */
             *out_DType = HPy_Dup(ctx, dtype);
         }
-        else if (HPy_TypeCheck(ctx, HPy_Type(ctx, dtype),
-                    h_PyArrayDTypeMeta_Type)) {
+        else if (HPyGlobal_TypeCheck(ctx, HPy_Type(ctx, dtype),
+                    HPyArrayDTypeMeta_Type)) {
             *out_DType = HNPY_DTYPE(ctx, dtype);
             if (!h_descr_is_legacy_parametric_instance(ctx, dtype)) {
                 *out_descr = HPy_Dup(ctx, dtype);
@@ -1854,7 +1853,6 @@ HPyArray_ExtractDTypeAndDescriptor(HPyContext *ctx, HPy dtype,
                     "dtype parameter must be a DType instance or class.");
             res = -1;
         }
-        HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     }
     return res;
 }
