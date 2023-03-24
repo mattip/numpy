@@ -11,6 +11,8 @@ extern "C" {
 #include <Python.h>
 #include "ndarraytypes.h"
 
+#include "hpy_utils.h"
+
 /* Includes the "function" C-API -- these are all stored in a
    list of pointers --- one for each file
    The two lists are concatenated into one in multiarray.
