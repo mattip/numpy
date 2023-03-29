@@ -275,12 +275,15 @@ _hfind_array_method(HPyContext *ctx, HPy args, HPy method_name)
     HPy obj;
     HPy with_method[NPY_MAXARGS], methods[NPY_MAXARGS];
     HPy method = HPy_NULL;
+    HPy_ssize_t n_args;
 
     n_methods = 0;
-    for (i = 0; i < HPy_Length(ctx, args); i++) {
+    n_args = HPy_Length(ctx, args);
+    for (i = 0; i < n_args; i++) {
         obj = HPy_GetItem_i(ctx, args, i);
         if (HPyArray_CheckExact(ctx, obj) ||
                 HPyArray_IsAnyScalar(ctx, obj)) {
+            HPy_Close(ctx, obj);
             continue;
         }
         method = HPy_GetAttr(ctx, obj, method_name);
@@ -291,11 +294,13 @@ _hfind_array_method(HPyContext *ctx, HPy args, HPy method_name)
                 ++n_methods;
             }
             else {
+                HPy_Close(ctx, obj);
                 HPy_Close(ctx, method);
                 method = HPy_NULL;
             }
         }
         else {
+            HPy_Close(ctx, obj);
             HPyErr_Clear(ctx);
         }
     }
