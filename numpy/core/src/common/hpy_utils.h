@@ -56,7 +56,8 @@ HPyUnicode_Concat_t(HPyContext *ctx, HPy s1, HPy s2);
 NPY_NO_EXPORT int
 HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected);
 
-#define HPyGlobal_TypeCheck HPy_TypeCheck_g
+NPY_NO_EXPORT int
+HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type);
 
 /**
  * Converts the vectorcall calling convention (i.e. the argument array contains
