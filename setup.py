@@ -421,7 +421,7 @@ def setup_package():
         cmdclass=cmdclass,
         python_requires='>=3.8',
         zip_safe=False,
-        setup_requires=['hpy>=0.0.4'],
+        setup_requires=['hpy>=0.9.0rc1'],
         # distutils doesn't load hpy.devel unless hpy_ext_modules is present
         # as a keyword
         hpy_ext_modules=[],
