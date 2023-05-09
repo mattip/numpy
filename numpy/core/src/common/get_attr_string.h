@@ -117,7 +117,11 @@ maybe_get_attr(PyObject *obj, char const *name)
 static NPY_INLINE HPy
 hpy_maybe_get_attr(HPyContext *ctx, HPy obj, char const *name)
 {
-    return HPy_MaybeGetAttr_s(ctx, obj, name);
+    HPy res = HPy_GetAttr_s(ctx, obj, name);
+    if (HPy_IsNull(res)) {
+        HPyErr_Clear(ctx);
+    }
+    return res;
 }
 
 /*
