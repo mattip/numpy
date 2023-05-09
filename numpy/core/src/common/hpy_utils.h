@@ -382,4 +382,7 @@ HPy_IsInstance(HPyContext *ctx, HPy obj, HPy type)
     return HPy_TypeCheck(ctx, obj, type);
 }
 
+#define HPyTupleBuilder_IsNull(...) 0
+#define HPyListBuilder_IsNull(...) 0
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
