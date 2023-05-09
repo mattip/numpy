@@ -731,7 +731,7 @@ create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, const HPy *args, size
          * Test that we reject this if the type is not set to something that
          * we are pretty sure can be safely replaced.
          */
-        HPy_SetType(ctx, h_dtype, h_scalar_type);
+        // HPy_SetType(ctx, h_dtype, h_scalar_type);
     }
     else if (error_path != 0) {
         HPyErr_SetString(ctx, ctx->h_ValueError,
@@ -741,7 +741,7 @@ create_custom_field_dtype_impl(HPyContext *ctx, HPy dummy, const HPy *args, size
     }
     if (HPyArray_RegisterDataType(ctx, h_dtype) < 0) {
         /* Fix original type in the error_path == 2 case and delete it */
-        HPy_SetType(ctx, h_dtype, h_original_type);
+        // HPy_SetType(ctx, h_dtype, h_original_type);
         HPy_Close(ctx, h_original_type);
         return HPy_NULL;
     }

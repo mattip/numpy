@@ -6445,7 +6445,7 @@ static int _multiarray_umath_impl(HPyContext *ctx, HPy h_mod) {
         goto err;
     }
     
-    init_arraytypes_hpy_global_state(ctx);
+    // init_arraytypes_hpy_global_state(ctx);
     // HPY: TODO comment on this
     if (init_scalartypes_basetypes(ctx) != 0) {
         goto err;
@@ -6621,6 +6621,7 @@ static int _multiarray_umath_impl(HPyContext *ctx, HPy h_mod) {
         goto err;
     }
 
+    init_arraytypes_hpy_global_state(ctx);
     if (set_typeinfo(ctx, h_d) != 0) {
         goto err;
     }

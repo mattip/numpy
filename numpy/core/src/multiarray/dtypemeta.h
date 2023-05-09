@@ -247,8 +247,8 @@ NPY_NO_EXPORT int
 python_builtins_are_known_scalar_types(HPyContext *ctx,
         HPy cls, HPy pytype);
 
-NPY_NO_EXPORT int
-dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *dtypem);
+NPY_NO_EXPORT HPy
+dtypemeta_init_legacy_descriptor(HPyContext *ctx, int type_num, PyArray_ArrFuncs *f, HPy h_typeobj, HPy array_descr_type);
 
 NPY_NO_EXPORT PyArray_Descr *
 default_descr_function_trampoline(PyArray_DTypeMeta *cls);

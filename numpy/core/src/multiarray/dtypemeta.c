@@ -678,43 +678,14 @@ hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy 
  *
  * @returns 0 on success, -1 on failure.
  */
-NPY_NO_EXPORT int
-dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *descr)
+NPY_NO_EXPORT HPy
+dtypemeta_init_legacy_descriptor(HPyContext *ctx, int type_num, PyArray_ArrFuncs *f, HPy h_typeobj, HPy array_descr_type)
 {
-    int result = -1;
-    HPy h_typeobj = HPy_NULL;
     HPy h_PyArrayDescr_Type = HPy_NULL;
     HPy h_PyArrayDTypeMeta_Type = HPy_NULL;
     HPy h_new_dtype_type = HPy_NULL;
 
-    HPy descr_type = HPy_Type(ctx, h_descr);
-    HPy array_descr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
-    int has_type_set = HPy_Is(ctx, descr_type, array_descr_type);
-    HPy_Close(ctx, array_descr_type);
-    if (!has_type_set) {
-        /* Accept if the type was filled in from an existing builtin dtype */
-        for (int i = 0; i < NPY_NTYPES; i++) {
-            HPy builtin = HPyArray_DescrFromType(ctx, i);
-            has_type_set = HPy_Is(ctx, descr_type, HPy_Type(ctx, builtin));
-            HPy_Close(ctx, builtin);
-            if (has_type_set) {
-                break;
-            }
-        }
-    }
-    HPy_Close(ctx, descr_type);
-
-    if (!has_type_set) {
-        HPyErr_SetString(ctx, ctx->h_RuntimeError,
-                "During creation/wrapping of legacy DType, the original class "
-                "was not of PyArrayDescr_Type (it is replaced in this step). "
-                "The extension creating a custom DType for type %S must be "
-                "modified to ensure `Py_TYPE(descr) == &PyArrayDescr_Type` or "
-                "that of an existing dtype (with the assumption it is just "
-                "copied over and can be replaced)."
-                /*, descr->typeobj, Py_TYPE(descr)*/);
-        goto cleanup;
-    }
+    // HPy array_descr_type = HPyGlobal_Load(ctx, HPyArrayDescr_Type);
 
     /*
      * Note: we have no intention of freeing the memory again since this
@@ -726,7 +697,6 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
      * However, this function remains necessary for legacy user dtypes.
      */
 
-    h_typeobj = HPyField_Load(ctx, h_descr, descr->typeobj);
     const char *scalar_name = HPyType_GetName(ctx, h_typeobj);
 
     /*
@@ -739,20 +709,22 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
     if (dot) {
         scalar_name = dot + 1;
     }
-    Py_ssize_t name_length = strlen(scalar_name) + 14;
+    size_t name_length = strlen(scalar_name) + 14;
 
-    char *tp_name = PyMem_Malloc(name_length);
+    // TODO HPY LABS PORT: PyMem_Malloc
+    char *tp_name = MEM_MALLOC(name_length);
     if (tp_name == NULL) {
-        PyErr_NoMemory();
-        return -1;
+        HPyErr_NoMemory(ctx);
+        goto cleanup;
     }
 
     snprintf(tp_name, name_length, "numpy.dtype[%s]", scalar_name);
 
-    NPY_DType_Slots *dt_slots = PyMem_Malloc(sizeof(NPY_DType_Slots));
+    // TODO HPY LABS PORT: PyMem_Malloc
+    NPY_DType_Slots *dt_slots = MEM_MALLOC(sizeof(NPY_DType_Slots));
     if (dt_slots == NULL) {
         PyMem_Free(tp_name);
-        return -1;
+        goto cleanup;
     }
     memset(dt_slots, '\0', sizeof(NPY_DType_Slots));
 
@@ -766,7 +738,7 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
 
     HPyType_SpecParam new_dtype_params[] = {
         { HPyType_SpecParam_Base, h_PyArrayDescr_Type},
-        // HPY STEVE TODO: do I need to specify the metaclass if the base already has it as its metaclass?
+        // TODO HPY LABS PORT: is it necessary to specify the metaclass if the base already has it as its metaclass?
         { HPyType_SpecParam_Metaclass, h_PyArrayDTypeMeta_Type },
         { 0 }
     };
@@ -790,11 +762,11 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
      * Fill DTypeMeta information that varies between DTypes, any variable
      * type information would need to be set before PyType_Ready().
      */
-    HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->singleton, h_descr);
+    // HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->singleton, h_descr);
     HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->scalar_type, h_typeobj);
-    new_dtype_data->type_num = descr->type_num;
+    new_dtype_data->type_num = type_num;
     new_dtype_data->flags = NPY_DT_LEGACY;
-    dt_slots->f = *(descr->f);
+    dt_slots->f = *f;
 
     /* Set default functions (correct for most dtypes, override below) */
     dt_slots->default_descr = nonparametric_default_descr;
@@ -811,15 +783,15 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
         dt_slots->is_known_scalar_type = signed_integers_is_known_scalar_types;
     }
 
-    if (PyTypeNum_ISUSERDEF(descr->type_num)) {
+    if (PyTypeNum_ISUSERDEF(type_num)) {
         dt_slots->common_dtype = legacy_userdtype_common_dtype_function;
         dt_slots->hpy_common_dtype = hpy_legacy_userdtype_common_dtype_function;
     }
-    else if (descr->type_num == NPY_OBJECT) {
+    else if (type_num == NPY_OBJECT) {
         dt_slots->common_dtype = object_common_dtype;
         dt_slots->hpy_common_dtype = hpy_object_common_dtype;
     }
-    else if (PyTypeNum_ISDATETIME(descr->type_num)) {
+    else if (PyTypeNum_ISDATETIME(type_num)) {
         /* Datetimes are flexible, but were not considered previously */
         new_dtype_data->flags |= NPY_DT_PARAMETRIC;
         dt_slots->default_descr = datetime_and_timedelta_default_descr;
@@ -831,13 +803,13 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
         dt_slots->hpy_common_dtype = hpy_datetime_common_dtype;
         dt_slots->common_instance = datetime_type_promotion;
         dt_slots->hpy_common_instance = hpy_datetime_type_promotion;
-        if (descr->type_num == NPY_DATETIME) {
+        if (type_num == NPY_DATETIME) {
             dt_slots->is_known_scalar_type = datetime_known_scalar_types;
         }
     }
-    else if (PyTypeNum_ISFLEXIBLE(descr->type_num)) {
+    else if (PyTypeNum_ISFLEXIBLE(type_num)) {
         new_dtype_data->flags |= NPY_DT_PARAMETRIC;
-        if (descr->type_num == NPY_VOID) {
+        if (type_num == NPY_VOID) {
             dt_slots->default_descr = void_default_descr;
             dt_slots->discover_descr_from_pyobject = (
                     void_discover_descr_from_pyobject);
@@ -860,29 +832,30 @@ dtypemeta_wrap_legacy_descriptor(HPyContext *ctx, HPy h_descr, PyArray_Descr *de
         }
     }
 
-    HPy descr_typeobj = HPyField_Load(ctx, h_descr, descr->typeobj);
-    if (_PyArray_MapPyTypeToDType(ctx, h_new_dtype_type, descr_typeobj,
+    // create singleton
+    PyArray_Descr *data;
+    HPy h_descr = HPy_New(ctx, h_new_dtype_type, &data);
+    HPyField_Store(ctx, h_new_dtype_type, &new_dtype_data->singleton, h_descr);
+
+    // HPy descr_typeobj = HPyField_Load(ctx, h_descr, h_typeobj);
+    if (_PyArray_MapPyTypeToDType(ctx, h_new_dtype_type, /* descr_typeobj */ h_typeobj,
             PyTypeNum_ISUSERDEF(new_dtype_data->type_num)) < 0) {
-        HPy_Close(ctx, descr_typeobj);
+        // HPy_Close(ctx, descr_typeobj);
         goto cleanup;
     }
-    HPy_Close(ctx, descr_typeobj);
+    // HPy_Close(ctx, descr_typeobj);
 
-    /* Finally, replace the current class of the descr */
-    // Re HPy_SetType: in longer term, this can be refactored: it seems that
-    // this whole function is here to support some legacy API, which we can keep
-    // in C API, and to initialize singleton descriptors like BOOL_Descr, which
-    // we can initialize with the right type already to avoid setting it ex-post
-    HPy_SetType(ctx, h_descr, h_new_dtype_type);
-    result = 0;
+    return h_descr;
 
 cleanup:
     HPy_Close(ctx, h_typeobj);
     HPy_Close(ctx, h_PyArrayDescr_Type);
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_new_dtype_type);
-    return result;
+    // HPy_Close(ctx, array_descr_type);
+    return HPy_NULL;
 }
+
 
 
 /*

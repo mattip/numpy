@@ -4836,8 +4836,17 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
 
 static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type) {
     PyArray_Descr *data;
-    HPy obj = HPy_New(ctx, desc_type, &data);
+    // HPy h_descr = HPy_New(ctx, desc_type, &data);
 
+    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
+    HPy h_descr = dtypemeta_init_legacy_descriptor(ctx, NPY_@from@, &_Py@NAME@_ArrFuncs, typeobj, desc_type);
+    if (HPy_IsNull(h_descr)) {
+        HPy_Close(ctx, typeobj);
+        // TODO HPY LABS PORT: error ?
+        return;
+    }
+
+    data = PyArray_Descr_AsStruct(ctx, h_descr);
     data->typeobj = HPyField_NULL;
     data->kind = NPY_@from@LTR;
     data->type = NPY_@from@LTR;
@@ -4853,12 +4862,11 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->metadata = NULL;
     data->c_metadata = NULL;
     data->hash = -1;
-    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
-    HPyField_Store(ctx, obj, &data->typeobj, typeobj);
+    HPyField_Store(ctx, h_descr, &data->typeobj, typeobj);
     HPy_Close(ctx, typeobj);
 
-    HPyGlobal_Store(ctx, global, obj);
-    HPy_Close(ctx, obj);
+    HPyGlobal_Store(ctx, global, h_descr);
+    HPy_Close(ctx, h_descr);
 }
 
 /**end repeat**/
@@ -4976,8 +4984,17 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
 
 static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type) {
     PyArray_Descr *data;
-    HPy obj = HPy_New(ctx, desc_type, &data);
+    // HPy h_descr = HPy_New(ctx, desc_type, &data);
 
+    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
+    HPy h_descr = dtypemeta_init_legacy_descriptor(ctx, NPY_@from@, &_Py@NAME@_ArrFuncs, typeobj, desc_type);
+    if (HPy_IsNull(h_descr)) {
+        HPy_Close(ctx, typeobj);
+        // TODO HPY LABS PORT: error ?
+        return;
+    }
+
+    data = PyArray_Descr_AsStruct(ctx, h_descr);
     data->typeobj = HPyField_NULL;
     data->kind = NPY_@kind@LTR;
     data->type = NPY_@from@LTR;
@@ -4993,12 +5010,11 @@ static void init_@from@_Descr(HPyContext *ctx, HPyGlobal *global, HPy desc_type)
     data->metadata = NULL;
     data->c_metadata = NULL;
     data->hash = -1;
-    HPy typeobj = HPyGlobal_Load(ctx, HPy@NAME@ArrType_Type);
-    HPyField_Store(ctx, obj, &data->typeobj, typeobj);
+    HPyField_Store(ctx, h_descr, &data->typeobj, typeobj);
     HPy_Close(ctx, typeobj);    
 
-    HPyGlobal_Store(ctx, global, obj);
-    HPy_Close(ctx, obj);
+    HPyGlobal_Store(ctx, global, h_descr);
+    HPy_Close(ctx, h_descr);
 }
 
 /**end repeat**/
@@ -5175,6 +5191,7 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
      * should be defined on the class and inherited to the scalar.
      * (NPY_HALF is the largest builtin one.)
      */
+     /*
     for (i = 0; i <= NPY_HALF; i++) {
         h_descr = HPyGlobal_Load(ctx, _hpy_builtin_descrs[i]);
         PyArray_Descr *descr = PyArray_Descr_AsStruct(ctx, h_descr);
@@ -5184,6 +5201,7 @@ set_typeinfo(HPyContext *ctx, HPy h_dict)
         }
         HPy_Close(ctx, h_descr);
     }
+    */
 
     /*
      * Add cast functions for the new types
