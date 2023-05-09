@@ -361,6 +361,16 @@ HPyDict_DelItem(HPyContext *ctx, HPy mp, HPy key)
 }
 
 static NPY_INLINE HPy
+HPyDict_GetItem(HPyContext *ctx, HPy mp, HPy key)
+{
+    HPy res = HPy_GetItem(ctx, mp, key);
+    if (HPy_IsNull(res)) {
+        HPyErr_Clear(ctx);
+    }
+    return res;
+}
+
+static NPY_INLINE HPy
 HPyUnicode_InternFromString(HPyContext *ctx, const char *s)
 {
     return HPyUnicode_FromString(ctx, s);
