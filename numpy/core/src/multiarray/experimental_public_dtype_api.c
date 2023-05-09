@@ -347,7 +347,7 @@ PyUFunc_AddLoopFromSpec(PyObject *ufunc, PyArrayMethod_Spec *spec)
     HPy h_method = HPyField_Load(ctx, h_bmeth, bmeth->method);
     PyArrayMethodObject *method = PyArrayMethodObject_AsStruct(ctx, h_method);
     int nargs = method->nin + method->nout;
-    HPy h_dtypes = HPyArray_TupleFromFieldItems(ctx,
+    HPy h_dtypes = HPyArray_TupleFromFields(ctx,
             nargs, h_bmeth, bmeth->dtypes, 1);
     if (HPy_IsNull(h_dtypes)) {
         return -1;

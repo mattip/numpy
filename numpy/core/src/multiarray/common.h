@@ -492,26 +492,6 @@ HPyArray_TupleFromItems(HPyContext *ctx, int n, HPy const *items, int make_null_
     return HPyTupleBuilder_Build(ctx, builder);
 }
 
-static NPY_INLINE HPy
-HPyArray_TupleFromFieldItems(HPyContext *ctx, int n, HPy h_method, HPyField const *items, int make_null_none)
-{
-    HPyTupleBuilder builder = HPyTupleBuilder_New(ctx, n);
-    if (HPyTupleBuilder_IsNull(builder)) {
-        return HPy_NULL;
-    }
-    for (int i = 0; i < n; i ++) {
-        HPy tmp;
-        if (!make_null_none || !HPyField_IsNull(items[i])) {
-            tmp = HPyField_Load(ctx, h_method, items[i]);
-        }
-        else {
-            tmp = ctx->h_None;
-        }
-        HPyTupleBuilder_Set(ctx, builder, i, tmp);
-    }
-    return HPyTupleBuilder_Build(ctx, builder);
-}
-
 /*
  * HPy version of PyArray_TupleFromItems
  */
