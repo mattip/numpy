@@ -95,7 +95,7 @@ npy_cpu_baseline_list(HPyContext *ctx)
     }
     return HPyListBuilder_Build(ctx, listBuilder);
 #else
-    return HPyList_New(0);
+    return HPyList_New(ctx, 0);
 #endif
 }
 
