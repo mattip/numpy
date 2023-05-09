@@ -2249,7 +2249,8 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, const HPy *args_h,
 }
 
 
-HPyDef_SLOT(array_iter, HPy_tp_iter)
+// HPyDef_SLOT(array_iter, HPy_tp_iter)
+HPyDef_METH(array_iter, "__iter__", HPyFunc_NOARGS)
 static HPy
 array_iter_impl(HPyContext *ctx, HPy h_arr)
 {
