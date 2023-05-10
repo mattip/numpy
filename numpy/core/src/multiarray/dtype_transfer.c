@@ -3278,11 +3278,8 @@ h_init_cast_info(HPyContext *ctx,
 
     if (HPy_Is(ctx, meth, ctx->h_None)) {
         HPy_Close(ctx, meth);
-        // TODO HPY LABS PORT: PyErr_Format
-        // PyErr_Format(PyExc_TypeError,
-        //        "Cannot cast data from %S to %S.", src_dtype, dst_dtype);
-        HPyErr_SetString(ctx, ctx->h_TypeError,
-                "Cannot cast data from %S to %S.");
+        HPyErr_Format(ctx, ctx->h_TypeError,
+                "Cannot cast data from %S to %S.", src_dtype, dst_dtype);
         goto fail;
     }
     /* Initialize the context and related data */
@@ -3315,11 +3312,8 @@ h_init_cast_info(HPyContext *ctx,
 
     if (NPY_UNLIKELY(*casting < 0)) {
         if (!HPyErr_Occurred(ctx)) {
-            // TODO HPY LABS PORT: PyErr_Format
-            // PyErr_Format(PyExc_TypeError,
-            //        "Cannot cast array data from %R to %R.", src_dtype, dst_dtype);
-            HPyErr_SetString(ctx, ctx->h_TypeError,
-                    "Cannot cast array data from %R to %R.");
+            HPyErr_Format(ctx, ctx->h_TypeError,
+                    "Cannot cast array data from %R to %R.", src_dtype, dst_dtype);
         }
         return -1;
     }
@@ -3343,14 +3337,11 @@ h_init_cast_info(HPyContext *ctx,
          * main cast (within the same DType) to be done in a single step.
          * This could be expanded at some point if the need arises.
          */
-        // TODO HPY LABS PORT: PyErr_Format
-        // PyErr_Format(PyExc_RuntimeError, ...
-        //        src_dtype, dst_dtype);
-        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+        HPyErr_Format(ctx, ctx->h_RuntimeError,
                 "Required internal cast from %R to %R was not done in a single "
                 "step (a secondary cast must currently be between instances of "
                 "the same DType class and such a cast must currently return "
-                "the input descriptors unmodified).");
+                "the input descriptors unmodified).", src_dtype, dst_dtype);
         HNPY_cast_info_xfree(ctx, cast_info);
         goto fail;
     }
@@ -3871,16 +3862,11 @@ get_wrapped_legacy_cast_function(HPyContext *ctx, int aligned,
          * However, normally we ensure that wrapping happens before calling
          * this function, so this path should never happen.
          */
-        // TODO HPY LABS PORT: PyErr_Format
-        // PyErr_Format(PyExc_RuntimeError,
-        //         "Internal NumPy error, casting %S to %S required wrapping, "
-        //         "probably it incorrectly flagged support for unaligned data. "
-        //         "(aligned passed to discovery is %d)",
-        //         src_dtype, dst_dtype, aligned);
-        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+        HPyErr_Format(ctx, ctx->h_RuntimeError,
                 "Internal NumPy error, casting %S to %S required wrapping, "
                 "probably it incorrectly flagged support for unaligned data. "
-                "(aligned passed to discovery is %d)");
+                "(aligned passed to discovery is %d)",
+                src_dtype, dst_dtype, aligned);
         goto fail;
     }
 

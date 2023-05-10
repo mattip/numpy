@@ -1543,11 +1543,8 @@ success:
     // TODO HPY LABS PORT: PyErr_Fetch
     // PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
     // PyErr_Fetch(&err_type, &err_value, &err_traceback);
-    HPyErr_SetString(ctx, ctx->h_TypeError,
-            "cannot cast dtype %S to %S.");
-    // TODO HPY LABS PORT: PyErr_Format
-    // PyErr_Format(PyExc_TypeError,
-    //         "cannot cast dtype %S to %S.", descr, given_DType);
+    HPyErr_Format(ctx, ctx->h_TypeError,
+             "cannot cast dtype %S to %S.", descr, given_DType);
     // TODO HPY LABS PORT: npy_PyErr_ChainExceptionsCause
     // npy_PyErr_ChainExceptionsCause(err_type, err_value, err_traceback);
     return HPy_NULL;
@@ -3053,12 +3050,9 @@ HPyArray_AddCastingImplementation(HPyContext *ctx, HPy bmeth)
             goto fail;
         }
         if (!HPyField_IsNull(HNPY_DT_SLOTS(ctx, h_dtype)->within_dtype_castingimpl)) {
-            // TODO HPY LABS PORT: PyErr_Format
-            // HPyErr_SetString(ctx, ctx->h_TypeError,
-            //        "A cast was already added for %S -> %S. (method: %s)",
-            //        meth->dtypes[0], meth->dtypes[1], meth->method->name);
-            HPyErr_SetString(ctx, ctx->h_TypeError,
-                    "A cast was already added for %S -> %S. (method: %s)");
+            HPyErr_Format(ctx, ctx->h_TypeError,
+                    "A cast was already added for %S -> %S. (method: %s)",
+                    h_dtype, h_dtype1, method_data->name);
             goto fail;
         }
 

@@ -63,14 +63,9 @@ use_new_as_default(HPyContext *ctx, HPy self)
      *       an abstract DType).
      */
     if (!HPyArray_DescrCheck(ctx, res)) {
-        // TODO HPY LABS PORT: PyErr_Format
-        // PyErr_Format(PyExc_RuntimeError,
-        //        "Instantiating %S did not return a dtype instance, this is "
-        //        "invalid (especially without a custom `default_descr()`).", self);
-
-        HPyErr_SetString(ctx, ctx->h_RuntimeError,
+        HPyErr_Format(ctx, ctx->h_RuntimeError,
                 "Instantiating %S did not return a dtype instance, this is "
-                "invalid (especially without a custom `default_descr()`).");
+                "invalid (especially without a custom `default_descr()`).", self);
         HPy_Close(ctx, res);
         return HPy_NULL;
     }

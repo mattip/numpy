@@ -1921,34 +1921,26 @@ broadcast_error: {
                 }
             }
             if (itershape == NULL) {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "operands could not be broadcast together with "
-                        "shapes %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                         "operands could not be broadcast together with "
                         "shapes %S", shape1);
-                */
                 HPy_Close(ctx, shape1);
                 return 0;
             }
             else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "operands could not be broadcast together with "
-                        "shapes %S and requested shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
                 CAPI_WARN("hnpyiter_fill_axisdata");
-                PyObject *shape2 = convert_shape_to_string(ndim, itershape, "");
-                if (shape2 == NULL) {
-                    Py_DECREF(shape1);
+                PyObject *py_shape2 = convert_shape_to_string(ndim, itershape, "");
+                if (py_shape2 == NULL) {
+                    HPy_Close(ctx, shape1);
                     return 0;
                 }
-                PyErr_Format(PyExc_ValueError,
+                HPy shape2 = HPy_FromPyObject(ctx, py_shape2);
+                Py_DECREF(py_shape2);
+                HPyErr_Format(ctx, ctx->h_ValueError,
                         "operands could not be broadcast together with "
                         "shapes %S and requested shape %S", shape1, shape2);
-                Py_DECREF(shape2);
-                */
                 HPy_Close(ctx, shape1);
+                HPy_Close(ctx, shape2);
                 return 0;
             }
         }
@@ -2007,36 +1999,26 @@ broadcast_error: {
                 }
             }
             if (itershape == NULL) {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "operands could not be broadcast together with "
-                        "remapped shapes [original->remapped]: %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                         "operands could not be broadcast together with "
                         "remapped shapes [original->remapped]: %S", shape1);
-                */
                 HPy_Close(ctx, shape1);
                 return 0;
             }
             else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                        "operands could not be broadcast together with "
-                        "remapped shapes [original->remapped]: %S and "
-                        "requested shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
                 CAPI_WARN("hpyiter_fill_axisdata");
                 PyObject *py_shape2 = convert_shape_to_string(ndim, itershape, "");
                 if (py_shape2 == NULL) {
                     HPy_Close(ctx, shape1);
                     return 0;
                 }
+                HPy shape2 = HPy_FromPyObject(ctx, py_shape2);
                 Py_DECREF(py_shape2);
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                         "operands could not be broadcast together with "
                         "remapped shapes [original->remapped]: %S and "
                         "requested shape %S", shape1, shape2);
                 HPy_Close(ctx, shape2);
-                */
                 HPy_Close(ctx, shape1);
                 return 0;
             }
@@ -2056,7 +2038,6 @@ operand_different_than_broadcast: {
         Py_DECREF(py_shape1);
 
         /* Broadcast shape */
-        /* TODO HPY LABS PORT: only needed for below PyErr_Format
         CAPI_WARN("hpyiter_fill_axisdata");
         PyObject *py_shape2 = convert_shape_to_string(ndim, broadcast_shape, "");
         if (py_shape2 == NULL) {
@@ -2065,33 +2046,22 @@ operand_different_than_broadcast: {
         }
         HPy shape2 = HPy_FromPyObject(ctx, py_shape2);
         Py_DECREF(py_shape2);
-        */
 
         if (op_axes == NULL || op_axes[iop] == NULL) {
             /* operand shape not remapped */
 
             if (op_flags[iop] & NPY_ITER_READONLY) {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                    "non-broadcastable operand with shape %S doesn't "
-                    "match the broadcast shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                     "non-broadcastable operand with shape %S doesn't "
                     "match the broadcast shape %S", shape1, shape2);
-                */
             }
             else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                    "non-broadcastable output operand with shape %S doesn't "
-                    "match the broadcast shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                     "non-broadcastable output operand with shape %S doesn't "
                     "match the broadcast shape %S", shape1, shape2);
-                */
             }
             HPy_Close(ctx, shape1);
-            // HPy_Close(ctx, shape2);
+            HPy_Close(ctx, shape2);
             return 0;
         }
         else {
@@ -2109,40 +2079,30 @@ operand_different_than_broadcast: {
                 }
             }
 
-            /* TODO HPY LABS PORT: only needed for below PyErr_Format
-            PyObject *shape3 = convert_shape_to_string(ndim, remdims, "");
-            if (shape3 == NULL) {
+            PyObject *py_shape3 = convert_shape_to_string(ndim, remdims, "");
+            if (py_shape3 == NULL) {
                 HPy_Close(ctx, shape1);
-                Py_DECREF(shape2);
+                HPy_Close(ctx, shape2);
                 return 0;
             }
-            */
+            HPy shape3 = HPy_FromPyObject(ctx, py_shape3);
+            Py_DECREF(py_shape3);
 
             if (op_flags[iop] & NPY_ITER_READONLY) {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                    "non-broadcastable operand with shape %S "
-                    "[remapped to %S] doesn't match the broadcast shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                     "non-broadcastable operand with shape %S "
                     "[remapped to %S] doesn't match the broadcast shape %S",
                     shape1, shape3, shape2);
-                */
             }
             else {
-                HPyErr_SetString(ctx, ctx->h_ValueError,
-                    "non-broadcastable output operand with shape %S "
-                    "[remapped to %S] doesn't match the broadcast shape %S");
-                /* TODO HPY LABS PORT: PyErr_Format
-                PyErr_Format(PyExc_ValueError,
+                HPyErr_Format(ctx, ctx->h_ValueError,
                     "non-broadcastable output operand with shape %S "
                     "[remapped to %S] doesn't match the broadcast shape %S",
                     shape1, shape3, shape2);
-                */
             }
             HPy_Close(ctx, shape1);
-            // HPy_Close(ctx, shape2);
-            // HPy_Close(ctx, shape3);
+            HPy_Close(ctx, shape2);
+            HPy_Close(ctx, shape3);
             return 0;
         }
     }

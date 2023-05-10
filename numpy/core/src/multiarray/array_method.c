@@ -181,7 +181,7 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
     int nargs = spec->nin + spec->nout;
     /* Check the passed spec for invalid fields/values */
     if (spec->nin < 0 || spec->nout < 0 || nargs > NPY_MAXARGS) {
-        HPyErr_Format_p(ctx, ctx->h_ValueError,
+        HPyErr_Format(ctx, ctx->h_ValueError,
                 "ArrayMethod inputs and outputs must be greater zero and"
                 "not exceed %d. (method: %s)", NPY_MAXARGS, spec->name);
         return -1;
@@ -195,7 +195,7 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
             break;
         default:
             if (spec->casting != -1) {
-                HPyErr_Format_p(ctx, ctx->h_TypeError,
+                HPyErr_Format(ctx, ctx->h_TypeError,
                         "ArrayMethod has invalid casting `%d`. (method: %s)",
                         spec->casting, spec->name);
                 return -1;
@@ -213,29 +213,21 @@ validate_spec(HPyContext *ctx, PyArrayMethod_Spec *spec)
          * traversal and trust the GC to deal with it.
          */
         if (HPy_IsNull(spec->dtypes[i])) {
-            HPyErr_Format_p(ctx, ctx->h_TypeError,
+            HPyErr_Format(ctx, ctx->h_TypeError,
                     "ArrayMethod must provide all input and output DTypes. "
                     "(method: %s)", spec->name);
             return -1;
         }
         if (!HPyGlobal_TypeCheck(ctx, spec->dtypes[i], HPyArrayDTypeMeta_Type)) {
-            // TODO HPY LABS PORT: PyErr_Format
-            HPyErr_Format_p(ctx, ctx->h_TypeError,
-                    "ArrayMethod provided object XX is not a DType."
-                    "(method: %s)", spec->name);
-            // PyErr_Format(PyExc_TypeError,
-            //         "ArrayMethod provided object %R is not a DType."
-            //         "(method: %s)", spec->dtypes[i], spec->name);
+            HPyErr_Format(ctx, ctx->h_TypeError,
+                    "ArrayMethod provided object %R is not a DType."
+                    "(method: %s)", spec->dtypes[i], spec->name);
             return -1;
         }
         if (NPY_DT_is_abstract(PyArray_DTypeMeta_AsStruct(ctx, spec->dtypes[i]))) {
-            // TODO HPY LABS PORT: PyErr_Format
-            HPyErr_Format_p(ctx, ctx->h_TypeError,
-                    "abstract DType XX are currently not supported."
-                    "(method: %s)", spec->name);
-            // PyErr_Format(PyExc_TypeError,
-            //         "abstract DType %S are currently not supported."
-            //         "(method: %s)", spec->dtypes[i], spec->name);
+            HPyErr_Format(ctx, ctx->h_TypeError,
+                    "abstract DType %S are currently not supported."
+                    "(method: %s)", spec->dtypes[i], spec->name);
             return -1;
         }
     }

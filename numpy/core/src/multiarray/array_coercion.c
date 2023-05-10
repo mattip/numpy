@@ -1679,21 +1679,14 @@ HPyArray_DiscoverDTypeAndShape(
                 }
             }
             else if (!too_deep) {
-                HPyErr_Format_p(ctx, ctx->h_ValueError,
+                HPy shape = HPyArray_IntTupleFromIntp(ctx, ndim, out_shape);
+                HPyErr_Format(ctx, ctx->h_ValueError,
                         "setting an array element with a sequence. The "
                         "requested array has an inhomogeneous shape after "
                         "%d dimensions. The detected shape was "
-                        "?? + inhomogeneous part.",
-                        ndim);
-                // TODO HPY LABS PORT: PyErr_Format
-                // PyObject *shape = PyArray_IntTupleFromIntp(ndim, out_shape);
-                // PyErr_Format(PyExc_ValueError,
-                //        "setting an array element with a sequence. The "
-                //        "requested array has an inhomogeneous shape after "
-                //        "%d dimensions. The detected shape was "
-                //        "%R + inhomogeneous part.",
-                //        ndim, shape);
-                // Py_DECREF(shape);
+                        "%R + inhomogeneous part.",
+                        ndim, shape);
+                HPy_Close(ctx, shape);
                 goto fail;
             }
             else {

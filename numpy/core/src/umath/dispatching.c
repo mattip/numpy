@@ -176,13 +176,9 @@ HPyUFunc_AddLoop(HPyContext *ctx, HPy /* (PyUFuncObject *) */ ufunc, HPy info, i
             res = 0;
             goto finish;
         }
-        HPyErr_Format_p(ctx, ctx->h_TypeError,
-                "A loop/promoter has already been registered with '%s' for ??",
-                ufunc_get_name_cstr(ufunc_data));
-        // TODO HPY LABS PORT: PyErr_Format
-        // PyErr_Format(PyExc_TypeError,
-        //        "A loop/promoter has already been registered with '%s' for %R",
-        //        ufunc_get_name_cstr(ufunc), DType_tuple);
+        HPyErr_Format(ctx, ctx->h_TypeError,
+                "A loop/promoter has already been registered with '%s' for %R",
+                ufunc_get_name_cstr(ufunc_data), DType_tuple);
         res = -1;
         goto finish;
     }

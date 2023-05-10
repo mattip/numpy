@@ -91,10 +91,9 @@ legacy_dtype_default_new_impl(HPyContext *ctx, HPy h_self,
     PyArray_DTypeMeta *self = PyArray_DTypeMeta_AsStruct(ctx, h_self);
     if (NPY_DT_is_parametric(self)) {
         /* reject parametric ones since we would need to get unit, etc. info */
-        // TODO HPY LABS PORT: PyErr_Format
-        HPyErr_SetString(ctx, ctx->h_TypeError,
+        HPyErr_Format(ctx, ctx->h_TypeError,
                 "Preliminary-API: Flexible/Parametric legacy DType '%S' can "
-                "only be instantiated using `np.dtype(...)`");
+                "only be instantiated using `np.dtype(...)`", h_self);
         return HPy_NULL;
     }
 

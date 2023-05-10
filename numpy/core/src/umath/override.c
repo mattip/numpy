@@ -49,11 +49,10 @@ hget_array_ufunc_overrides(HPyContext *ctx, HPy in_args, HPy out_args,
         /*
          * Have we seen this class before?  If so, ignore.
          */
+        HPy obj_type = HPy_Type(ctx, obj);
         for (j = 0; j < num_override_args; j++) {
-            HPy obj_type = HPy_Type(ctx, obj);
             HPy wo_type = HPy_Type(ctx, with_override[j]);
             new_class = !HPy_Is(ctx, obj_type, wo_type);
-            HPy_Close(ctx, obj_type);
             HPy_Close(ctx, wo_type);
             if (!new_class) {
                 HPy_Close(ctx, obj);
@@ -72,14 +71,10 @@ hget_array_ufunc_overrides(HPyContext *ctx, HPy in_args, HPy out_args,
                 continue;
             }
             if (HPy_Is(ctx, method, ctx->h_None)) {
-                // TODO HPY LABS PORT: PyErr_Format
-                // PyErr_Format(ctx, ctx->h_TypeError,
-                //             "operand '%.200s' does not support ufuncs "
-                //             "(__array_ufunc__=None)",
-                //             obj->ob_type->tp_name);
-                HPyErr_SetString(ctx, ctx->h_TypeError,
+                HPyErr_Format(ctx, ctx->h_TypeError,
                              "operand '%.200s' does not support ufuncs "
-                             "(__array_ufunc__=None)");
+                             "(__array_ufunc__=None)", HPyType_GetName(ctx, obj_type));
+                HPy_Close(ctx, obj_type);
                 HPy_Close(ctx, method);
                 HPy_Close(ctx, obj);
                 goto fail;
@@ -88,6 +83,7 @@ hget_array_ufunc_overrides(HPyContext *ctx, HPy in_args, HPy out_args,
             methods[num_override_args] = method;
             ++num_override_args;
         }
+        HPy_Close(ctx, obj_type);
     }
     return num_override_args;
 
