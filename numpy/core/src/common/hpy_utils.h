@@ -59,6 +59,9 @@ HPyGlobal_Is(HPyContext *ctx, HPy obj, HPyGlobal expected);
 NPY_NO_EXPORT int
 HPyGlobal_TypeCheck(HPyContext *ctx, HPy obj, HPyGlobal type);
 
+NPY_NO_EXPORT HPy
+HPySeqIter_New(HPyContext *ctx, HPy h);
+
 /**
  * Converts the vectorcall calling convention (i.e. the argument array contains
  * 'nargs' positional arguments and after that, the keyword argument values) to

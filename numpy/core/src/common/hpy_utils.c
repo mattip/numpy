@@ -137,3 +137,16 @@ HPyFastcallToDict(HPyContext *ctx, const HPy *args, size_t nargs, HPy kwnames)
     }
     return kw;
 }
+
+NPY_NO_EXPORT HPy
+HPySeqIter_New(HPyContext *ctx, HPy h)
+{
+    const HPy args[] = { h };
+    HPy h_name = HPyUnicode_FromString(ctx, "__iter__");
+    if (HPy_IsNull(h_name)) {
+        return HPy_NULL;
+    }
+    HPy h_iter = HPy_CallMethod(ctx, h_name, args, 1, HPy_NULL);
+    HPy_Close(ctx, h_name);
+    return h_iter;
+}

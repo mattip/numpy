@@ -201,6 +201,19 @@ PyArray_RegisterDataType(PyArray_Descr *descr)
 NPY_NO_EXPORT int
 HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
 {
+    /* TODO HPY LABS PORT: figure out how we can support this API or if it is
+     * even necessary. The main problem is the call to function
+     * 'dtypemeta_wrap_legacy_descriptor' at the end. We removed this function
+     * because if was using Py_SET_TYPE which HPy will not support. We already
+     * refactored other code using this function. The function basically
+     * converted a legacy descriptor to a dtypemeta-based one by creating a new
+     * type and then changing the type of the existing descriptor. We refactored
+     * that by first creating the new type and then instantiating the
+     * descriptor. However, in this case, it is not possible because the legacy
+     * descriptor is provided by the user (e.g. created with HPyArray_DescrNew).
+     */
+    hpy_abort_not_implemented("HPyArray_RegisterDataType");
+
     PyArray_Descr *s_descr = PyArray_Descr_AsStruct(ctx, h_descr);
     int typenum;
     int i;
@@ -272,11 +285,14 @@ HPyArray_RegisterDataType(HPyContext *ctx, HPy h_descr)
     HPyGlobal_Store(ctx, &userdescrs[NPY_NUMUSERTYPES++], h_descr);
 
     s_descr->type_num = typenum;
+    // TODO HPY LABS PORT: removed because 'dtypemeta_wrap_legacy_descriptor' was replaced with 'dtypemeta_init_legacy_descriptor'
+    /*
     if (dtypemeta_wrap_legacy_descriptor(ctx, h_descr, s_descr) < 0) {
         s_descr->type_num = -1;
         NPY_NUMUSERTYPES--;
         return -1;
     }
+    */
 
     return typenum;
 }
