@@ -394,4 +394,6 @@ HPySequence_Check(HPyContext *ctx, HPy h)
     return !HPyDict_Check(ctx, h) && HPy_HasAttr_s(ctx, h, "__getitem__");
 }
 
+#define HPyType_CheckSlot(ctx, type, slot) 0
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
