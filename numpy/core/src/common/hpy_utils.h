@@ -385,4 +385,10 @@ HPy_IsInstance(HPyContext *ctx, HPy obj, HPy type)
 #define HPyTupleBuilder_IsNull(...) 0
 #define HPyListBuilder_IsNull(...) 0
 
+static NPY_INLINE int
+HPySequence_Check(HPyContext *ctx, HPy h)
+{
+    return !HPyDict_Check(ctx, h) && HPy_HasAttr_s(ctx, h, "__getitem__");
+}
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_HPY_UTILS_H_ */
