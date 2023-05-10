@@ -1608,7 +1608,7 @@ try_trivial_single_output_loop(HPyContext *hctx, HPyArrayMethod_Context *context
      */
     char *data[NPY_MAXARGS];
     npy_intp count = PyArray_MultiplyList(operation_shape, operation_ndim);
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
@@ -1896,7 +1896,7 @@ execute_ufunc_loop(HPyContext *hctx, HPyArrayMethod_Context *context, int masked
     npy_intp *countptr = NpyIter_GetInnerLoopSizePtr(iter);
     int needs_api = NpyIter_IterationNeedsAPI(iter);
 
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     if (!(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
         npy_clear_floatstatus_barrier((char *)context);
@@ -2844,7 +2844,7 @@ PyUFunc_GeneralizedFunctionInternal(PyUFuncObject *ufunc,
         NpyIter_IterNextFunc *iternext;
         char **dataptr;
         npy_intp *count_ptr;
-        HPY_NPY_BEGIN_THREADS_DEF(hctx);
+        HPY_NPY_BEGIN_THREADS_DEF
 
         /* Get the variables needed for the loop */
         iternext = NpyIter_GetIterNext(iter, NULL);
@@ -3147,7 +3147,7 @@ reduce_loop(HPyContext *hctx, HPyArrayMethod_Context *context,
     npy_intp strides_copy[4];
     npy_bool masked;
 
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
     /* Get the number of operands, to determine whether "where" is used */
     masked = (NpyIter_GetNOp(iter) == 3);
 
@@ -3355,7 +3355,7 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
     /* These parameters come from extobj= or from a TLS global */
     int buffersize = 0, errormask = 0;
 
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s.accumulate\n", ufunc_name);
 
@@ -3764,7 +3764,7 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
 
     HPyContext *hctx = npy_get_context();
 
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     reduceat_ind = (npy_intp *)PyArray_DATA(ind);
     ind_size = PyArray_DIM(ind, 0);
@@ -6565,7 +6565,7 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     HPyArrayMethod_StridedLoop *strided_loop;
     NpyAuxData *auxdata = NULL;
 
-    HPY_NPY_BEGIN_THREADS_DEF(hctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     if (ufunc->nin > 2) {
         PyErr_SetString(PyExc_ValueError,

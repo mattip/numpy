@@ -804,7 +804,7 @@ HPyArray_PutMask(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy values0, H
         }
     }
     else {
-        HPY_NPY_BEGIN_THREADS_DEF(ctx);
+        HPY_NPY_BEGIN_THREADS_DEF
         HPY_NPY_BEGIN_THREADS_DESCR(ctx, self_descr_struct);
         npy_fastputmask(dest, src, mask_data, ni, nv, chunk);
         HPY_NPY_END_THREADS(ctx);
@@ -2547,7 +2547,7 @@ count_nonzero_int(HPyContext *ctx, int ndim, char *data, const npy_intp *ashape,
         return 0;
     }
 
-    HPY_NPY_BEGIN_THREADS_DEF(ctx);
+    HPY_NPY_BEGIN_THREADS_DEF
     HPY_NPY_BEGIN_THREADS_THRESHOLDED(ctx, shape[0]);
 
     #define NONZERO_CASE(LEN, SFX) \
@@ -2826,7 +2826,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
         char * data = PyArray_BYTES(self);
         npy_intp stride = PyArray_STRIDE(self, 0);
         npy_intp count = PyArray_DIM(self, 0);
-        HPY_NPY_BEGIN_THREADS_DEF(ctx);
+        HPY_NPY_BEGIN_THREADS_DEF
 
         /* nothing to do */
         if (nonzero_count == 0) {
@@ -2907,7 +2907,7 @@ HPyArray_Nonzero(HPyContext *ctx, HPy h_self)
 
     if (NpyIter_GetIterSize(iter) != 0) {
         npy_intp * multi_index;
-        HPY_NPY_BEGIN_THREADS_DEF(ctx);
+        HPY_NPY_BEGIN_THREADS_DEF
         /* Get the pointers for inner loop iteration */
         iternext = NpyIter_GetIterNext(iter, NULL);
         if (iternext == NULL) {

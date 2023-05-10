@@ -250,7 +250,7 @@ _monotonicity_impl(HPyContext *ctx, HPy NPY_UNUSED(self), const HPy *args, size_
     HPy arr_x = HPy_NULL; // PyArrayObject *
     long monotonic;
     npy_intp len_x;
-    HPY_NPY_BEGIN_THREADS_DEF(ctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     HPyTracker ht;
     if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kwnames, "O|_monotonicity", kwlist,

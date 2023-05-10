@@ -3760,7 +3760,7 @@ array_vdot_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *args, size_
     HPy ap1 = HPy_NULL, ap2  = HPy_NULL, ret = HPy_NULL; // PyArrayObject *
     HPy type; // PyArray_Descr *
     PyArray_DotFunc * vdot;
-    HPY_NPY_BEGIN_THREADS_DEF(ctx);
+    HPY_NPY_BEGIN_THREADS_DEF
 
     if (!HPyArg_Parse(ctx, NULL, args, nargs, "OO:vdot", &op1, &op2)) {
         return HPy_NULL;
