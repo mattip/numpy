@@ -2,6 +2,7 @@
 #include "npy_cpu_dispatch.h" // To guarantee the CPU baseline definitions are in scope.
 #include "numpy/npy_common.h" // for NPY_INLINE
 #include "numpy/npy_cpu.h" // To guarantee the CPU definitions are in scope.
+#include "hpy_utils.h"
 
 /******************** Private Definitions *********************/
 
