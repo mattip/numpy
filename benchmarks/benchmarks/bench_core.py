@@ -253,3 +253,21 @@ class StatsMethods(Benchmark):
 
     def time_sum(self, dtype, size):
         self.data.sum()
+
+class IndexFlat(Benchmark):
+    """ test fancy indexing a.flat[m] vs. a.flatten()[m]
+    """
+    def setup(self):
+        base = np.arange(50000, dtype='int32')
+        self.a = np.lib.stride_tricks.as_strided(base, (200,50000), (0,4))
+        self.m = np.sin(np.arange(200*50000))>-.2
+        self.flatten = self.a.flatten()
+
+    def time_flat_index(self):
+        self.a.flat[self.m]
+
+    def time_flatten_create_index(self):
+        self.a.flatten()[self.m]
+
+    def time_flatten_index(self):
+        self.flatten[self.m]
