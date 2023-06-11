@@ -38,7 +38,6 @@ jobs:
   get_commit_message:
     name: Get commit message
     runs-on: ubuntu-latest
-    if: "github.repository == 'numpy/numpy'"
     outputs:
       message: ${{ steps.commit_message.outputs.message }}
     steps:
@@ -105,17 +104,6 @@ jobs:
       - uses: actions/setup-python@bd6b4b6205c4dbad673328db7b31b7fab9e241c0 # v4.6.1
         with:
           python-version: "3.x"
-
-      # We need rtools 4.0 to have 32 bit support on windows
-      - if: runner.os == 'windows'
-        uses: r-windows/install-rtools@13886bb4048f1b862d33869a18b73cdd446a3961 # main
-
-      - name: setup rtools for 32-bit
-        run: |
-          echo "PLAT=i686" >> $env:GITHUB_ENV
-          echo "PATH=c:\rtools40\mingw32\bin;$env:PATH" >> $env:GITHUB_ENV
-          gfortran --version
-        if: ${{ matrix.buildplat[1] == 'win32' }}
 
       - name: Build wheels
         uses: pypa/cibuildwheel@51f5c7fe68ff24694d5a6ac0eb3ad476ddd062a8 # v2.13.0
