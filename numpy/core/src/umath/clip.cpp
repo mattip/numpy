@@ -71,7 +71,6 @@ _NPY_MIN(npy_cfloat a, npy_cfloat b, npy::complex_tag const &)
                 : (b);
 }
 
-#if NPY_SIZEOF_COMPLEX_LONGDOUBLE != NPY_SIZEOF_COMPLEX_DOUBLE
 npy_clongdouble
 _NPY_MIN(npy_clongdouble a, npy_clongdouble b, npy::complex_tag const &)
 {
@@ -79,7 +78,6 @@ _NPY_MIN(npy_clongdouble a, npy_clongdouble b, npy::complex_tag const &)
                 ? (a)
                 : (b);
 }
-#endif
 
 npy_cdouble
 _NPY_MAX(npy_cdouble a, npy_cdouble b, npy::complex_tag const &)
@@ -97,7 +95,6 @@ _NPY_MAX(npy_cfloat a, npy_cfloat b, npy::complex_tag const &)
                 : (b);
 }
 
-#if NPY_SIZEOF_COMPLEX_LONGDOUBLE != NPY_SIZEOF_COMPLEX_DOUBLE
 npy_clongdouble
 _NPY_MAX(npy_clongdouble a, npy_clongdouble b, npy::complex_tag const &)
 {
@@ -105,7 +102,6 @@ _NPY_MAX(npy_clongdouble a, npy_clongdouble b, npy::complex_tag const &)
                 ? (a)
                 : (b);
 }
-#endif
 
 template <class T>
 T
