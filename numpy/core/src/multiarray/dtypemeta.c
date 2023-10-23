@@ -675,7 +675,7 @@ hdiscover_descr_from_pyobject_function_trampoline(HPyContext *ctx, HPy cls, HPy 
  * @param descr The descriptor that should be wrapped.
  * @param name The name for the DType, if NULL the type character is used.
  *
- * @returns 0 on success, -1 on failure.
+ * @returns a new handle of the descriptor on success
  */
 NPY_NO_EXPORT HPy
 dtypemeta_init_legacy_descriptor(HPyContext *ctx, int type_num, PyArray_ArrFuncs *f, HPy h_typeobj, HPy array_descr_type)
@@ -852,6 +852,22 @@ cleanup:
     HPy_Close(ctx, h_PyArrayDTypeMeta_Type);
     HPy_Close(ctx, h_new_dtype_type);
     // HPy_Close(ctx, array_descr_type);
+
+    // Callers of dtypemeta_init_legacy_descriptor return void, so they cannot
+    // report an error to their callers
+    size_t err_length = strlen(scalar_name) + 40;
+    char *err_str = MEM_MALLOC(err_length);
+    HPy h_where;
+    if (!err_str) {
+        h_where = HPyUnicode_FromString(ctx, "dtypemeta_init_legacy_descriptor");
+    }
+    else {
+        snprintf(err_str, err_length, "dtypemeta_init_legacy_descriptor of %s", scalar_name);
+        h_where = HPyUnicode_FromString(ctx, err_str);
+    }
+    HPyErr_WriteUnraisable(ctx, h_where);
+    PyMem_Free(tp_name);
+    HPy_Close(ctx, h_where);
     return HPy_NULL;
 }
 

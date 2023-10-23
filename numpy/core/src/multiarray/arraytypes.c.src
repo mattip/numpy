@@ -4824,7 +4824,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         NULL, NULL, NULL
     },
 #endif
-    NULL,
+    HPyField_NULL,
     (PyArray_ScalarKindFunc*)NULL,
     NULL,
     NULL,
@@ -4972,7 +4972,7 @@ static PyArray_ArrFuncs _Py@NAME@_ArrFuncs = {
         NULL, NULL, NULL
     },
 #endif
-    NULL,
+    HPyField_NULL,
     (PyArray_ScalarKindFunc*)NULL,
     NULL,
     NULL,
@@ -5139,11 +5139,6 @@ HPyArray_DescrFromType(HPyContext *ctx, int type)
             h_ret = HPyGlobal_Load(ctx, _hpy_builtin_descrs[num]);
         }
     }
-    if (HPy_IsNull(h_ret)) {
-        HPyErr_SetString(ctx, ctx->h_ValueError,
-                "Invalid data-type for array");
-    }
-
     return h_ret;
 }
 

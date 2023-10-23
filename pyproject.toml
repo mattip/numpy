@@ -6,7 +6,7 @@ requires = [
     "wheel==0.37.0",
     "Cython==0.29.24",  # pin until PyPy releases v7.3.8
     # "Cython==0.29.24,<3.0",  # Note: keep in sync with tools/cythonize.py
-    "hpy @ git+https://github.com/hpyproject/hpy.git@92990828f064b174b52e7dfe39dd0226b47b92eb#egg=hpy"
+    "hpy==0.9.0",
 ]
 
 
