@@ -21,8 +21,8 @@ PyArrayIdentityHash_SetItem(PyArrayIdentityHash *tb, PyObject *cache_owner,
         PyObject *const *key, PyObject *value, int replace);
 
 NPY_NO_EXPORT PyObject *
-PyArrayIdentityHash_GetItem(PyObject *cache_owner,
-        PyArrayIdentityHash const *tb, PyObject *const *key);
+PyArrayIdentityHash_GetItem(PyArrayIdentityHash const *tb, PyObject *cache_owner,
+        PyObject *const *key);
 
 NPY_NO_EXPORT PyArrayIdentityHash *
 PyArrayIdentityHash_New(int key_len);

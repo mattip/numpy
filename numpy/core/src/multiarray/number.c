@@ -505,11 +505,11 @@ is_scalar_with_conversion(HPyContext *ctx, HPy h_o2, double* out_exponent)
     // NOTE: do partial porting approach, this looked small, but it isn't!
     else if (PyArray_IsScalar(o2, Integer) ||
                 (optimize_fpexps && PyArray_IsScalar(o2, Floating))) {
-        temp = Py_TYPE(o2)->tp_as_number->nb_float(o2);
+        temp = Py_TYPE(o2)->tp_as_number->nb_float((PyObject *)o2);
         if (temp == NULL) {
             return NPY_NOSCALAR;
         }
-        *out_exponent = PyFloat_AsDouble(o2);
+        *out_exponent = PyFloat_AsDouble((PyObject *)o2);
         Py_DECREF(temp);
 
         if (PyArray_IsScalar(o2, Integer)) {
@@ -520,7 +520,7 @@ is_scalar_with_conversion(HPyContext *ctx, HPy h_o2, double* out_exponent)
         }
     }
     else if (PyIndex_Check((PyObject*) o2)) {
-        PyObject* value = PyNumber_Index(o2);
+        PyObject* value = PyNumber_Index((PyObject *)o2);
         Py_ssize_t val;
         if (value == NULL) {
             if (PyErr_Occurred()) {

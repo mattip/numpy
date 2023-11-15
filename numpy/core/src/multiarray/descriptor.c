@@ -425,7 +425,7 @@ _hpy_convert_from_tuple(HPyContext *ctx, HPy obj, int align)
         }
         newdescr_struct->flags = type_struct->flags;
         newdescr_struct->alignment = type_struct->alignment;
-        newdescr_struct->subarray->base = HPy_AsPyObject(ctx, type);
+        newdescr_struct->subarray->base = (PyArray_Descr*)HPy_AsPyObject(ctx, type);
         HPy_Close(ctx, type);
         Py_XDECREF(newdescr_struct->fields);
         HPyField_Store(ctx, newdescr, &newdescr_struct->names, HPy_NULL);
@@ -2230,7 +2230,7 @@ arraydescr_base_get(HPyContext *ctx, HPy /* PyArray_Descr * */ self, void *NPY_U
         return HPy_Dup(ctx, self);
     }
     // Py_INCREF(self->subarray->base);
-    return HPy_FromPyObject(ctx, self_struct->subarray->base);
+    return HPy_FromPyObject(ctx, (PyObject*)self_struct->subarray->base);
 }
 
 HPyDef_GET(arraydescr_shape, "shape")
@@ -2585,7 +2585,7 @@ arraydescr_new_impl(HPyContext *ctx, HPy subtype, const HPy *args,
     if (!HPyGlobal_Is(ctx, subtype, HPyArrayDescr_Type)) {
         HPy subtype_type = HPy_Type(ctx, subtype);
         PyArray_DTypeMeta *DType = PyArray_DTypeMeta_AsStruct(ctx, subtype);
-        PyTypeObject *subtype_typeobj = HPy_AsPyObject(ctx, subtype);
+        PyTypeObject *subtype_typeobj = (PyTypeObject*)HPy_AsPyObject(ctx, subtype);
         if (HPyGlobal_Is(ctx, subtype_type, HPyArrayDTypeMeta_Type) &&
                 (HNPY_DT_SLOTS(ctx, subtype)) != NULL &&
                 !NPY_DT_is_legacy(DType) &&
@@ -3626,10 +3626,10 @@ HPyArray_DescrNewByteorder(HPyContext *ctx, HPy /* PyArray_Descr * */ self, char
         Py_DECREF(new_data->subarray->base);
         PyArray_Descr *self_data = PyArray_Descr_AsStruct(ctx, self);
         CAPI_WARN("using subarray->base");
-        HPy base = HPy_FromPyObject(ctx, self_data->subarray->base);
+        HPy base = HPy_FromPyObject(ctx, (PyObject*)(self_data->subarray->base));
         HPy byteorder = HPyArray_DescrNewByteorder(ctx, base, newendian);
         HPy_Close(ctx, base);
-        new_data->subarray->base = HPy_AsPyObject(ctx, byteorder);
+        new_data->subarray->base = (PyArray_Descr*)HPy_AsPyObject(ctx, byteorder);
         if (new_data->subarray->base == NULL) {
             HPy_Close(ctx, new);
             return HPy_NULL;

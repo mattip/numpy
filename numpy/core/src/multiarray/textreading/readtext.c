@@ -222,10 +222,10 @@ _load_from_filelike_impl(HPyContext *ctx, HPy NPY_UNUSED(mod),
         .imaginary_unit = 'j',
         .delimiter_is_whitespace = false,
         .ignore_leading_whitespace = false,
-        .python_byte_converters = false,
-        .c_byte_converters = false,
+        .python_byte_converters = (npy_bool)false,
+        .c_byte_converters = (npy_bool)false,
     };
-    bool filelike = true;
+    npy_bool filelike = true;
 
     HPy arr = HPy_NULL;
 

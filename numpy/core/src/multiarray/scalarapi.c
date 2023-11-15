@@ -757,7 +757,8 @@ PyArray_DescrFromTypeObject(PyObject *type)
             }
             new->fields = conv->fields;
             Py_XINCREF(new->fields);
-            HPyField_StorePyObj(new, &new->names, HPyField_LoadPyObj(conv, conv->names));
+            HPyField_StorePyObj((PyObject *)new, &new->names,
+                                HPyField_LoadPyObj((PyObject *)conv, conv->names));
             // Py_XINCREF(new->names);
             new->elsize = conv->elsize;
             new->subarray = conv->subarray;
@@ -765,7 +766,7 @@ PyArray_DescrFromTypeObject(PyObject *type)
         }
         Py_DECREF(conv);
         // Py_XDECREF(new->typeobj);
-        HPyField_StorePyObj(new, &new->typeobj, type);
+        HPyField_StorePyObj((PyObject *)new, &new->typeobj, type);
         // Py_INCREF(type);
         return new;
     }
@@ -1063,7 +1064,7 @@ PyArray_Scalar(void *data, PyArray_Descr *descr, PyObject *base)
         PyArrayScalar_RETURN_BOOL_FROM_LONG(*(npy_bool*)data);
     }
     else if (PyDataType_FLAGCHK(descr, NPY_USE_GETITEM)) {
-        return PyArray_Descr_GETITEM(descr, base, data);
+        return PyArray_Descr_GETITEM(descr, (PyArrayObject *)base, data);
     }
     itemsize = descr->elsize;
     copyswap = descr->f->copyswap;

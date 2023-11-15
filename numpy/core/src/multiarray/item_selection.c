@@ -1133,7 +1133,7 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
     size = it->size;
 
     HPyContext *ctx = npy_get_context();
-    HPy h_op = HPy_FromPyObject(ctx, op);
+    HPy h_op = HPy_FromPyObject(ctx, (PyObject *)op);
 
     if (needcopy) {
         buffer = PyDataMem_UserNEW(N * elsize, mem_handler);
@@ -1205,7 +1205,7 @@ _new_sortlike(PyArrayObject *op, int axis, PyArray_SortFunc *sort,
         if (needcopy) {
             if (hasrefs) {
                 if (swap) {
-                    HPy h_op = HPy_FromPyObject(ctx, op);
+                    HPy h_op = HPy_FromPyObject(ctx, (PyObject *)op);
                     copyswapn(ctx, buffer, elsize, NULL, 0, N, swap, h_op);
                 }
                 _unaligned_strided_byte_copy(it->dataptr, astride,

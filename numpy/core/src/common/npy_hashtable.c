@@ -257,7 +257,7 @@ PyArrayIdentityHash_SetItem(PyArrayIdentityHash *tb, PyObject *cache_owner,
 
 
 NPY_NO_EXPORT PyObject *
-PyArrayIdentityHash_GetItem(PyObject *cache_owner, PyArrayIdentityHash const *tb, PyObject *const *key)
+PyArrayIdentityHash_GetItem(PyArrayIdentityHash const *tb, PyObject *cache_owner, PyObject *const *key)
 {
     HPyContext *ctx = npy_get_context();
     HPy h_cache_owner = HPy_FromPyObject(ctx, cache_owner);

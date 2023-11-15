@@ -144,7 +144,7 @@ HPyArray_Item_INCREF(HPyContext *ctx, char *data, HPy h_descr)
         /* Subarrays are always contiguous in memory */
         size = descr->elsize / inner_elsize;
 
-        HPy h_base = HPy_FromPyObject(ctx, descr->subarray->base);
+        HPy h_base = HPy_FromPyObject(ctx, (PyObject *)(descr->subarray->base));
         for (i = 0; i < size; i++){
             /* Recursively increment the reference count of subarray elements */
             HPyArray_Item_INCREF(ctx, data + i * inner_elsize, h_base);
@@ -281,7 +281,7 @@ HPyArray_Item_XDECREF(HPyContext *ctx, char *data, HPy h_descr)
         /* Subarrays are always contiguous in memory */
         size = descr->elsize / inner_elsize;
 
-        HPy h_base = HPy_FromPyObject(ctx, descr->subarray->base);
+        HPy h_base = HPy_FromPyObject(ctx, (PyObject *)(descr->subarray->base));
         for (i = 0; i < size; i++){
             /* Recursively decrement the reference count of subarray elements */
             HPyArray_Item_XDECREF(ctx, data + i * inner_elsize, h_base);
@@ -510,7 +510,7 @@ _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
                                    0, NULL, NULL, NULL,
                                    0, NULL);
         if (arr!=NULL) {
-            setitem_trampoline(dtype->f->setitem, obj, optr, arr);
+            setitem_trampoline(dtype->f->setitem, obj, optr, (PyArrayObject*)arr);
         }
         Py_XDECREF(arr);
     }
@@ -630,7 +630,7 @@ _hpy_fillobject(HPyContext *ctx, char *optr, HPy obj, HPy /* PyArray_Descr * */ 
 
         /* Call _hpy_fillobject on each item recursively. */
         for (i = 0; i < size; i++){
-            HPy h_base = HPy_FromPyObject(ctx, dtype_struct->subarray->base);
+            HPy h_base = HPy_FromPyObject(ctx, (PyObject*)(dtype_struct->subarray->base));
             _hpy_fillobject(ctx, optr, obj, h_base);
             optr += inner_elsize;
             HPy_Close(ctx, h_base);

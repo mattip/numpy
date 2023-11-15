@@ -1644,7 +1644,7 @@ static PyObject *
 npyiter_next(NewNpyArrayIterObject *self)
 {
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     HPy h_ret = hpy_npyiter_next(ctx, h_self);
     PyObject *ret = HPy_AsPyObject(ctx, h_ret);
     HPy_Close(ctx, h_ret);

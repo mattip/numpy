@@ -53,8 +53,8 @@ typedef struct {
       * while normal object to string casts only accept ASCII, so it ensures
       * that that the object array already contains bytes and not strings.
       */
-     bool python_byte_converters;
-     bool c_byte_converters;
+     npy_bool python_byte_converters;
+     npy_bool c_byte_converters;
 } parser_config;
 
 

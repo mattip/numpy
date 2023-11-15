@@ -860,7 +860,7 @@ PyUFunc_SimpleUniformOperationTypeResolver(
                     Py_INCREF(out_dtypes[iop]);
                 }
                 HPyContext *ctx = npy_get_context();
-                HPy *h_out_types = HPy_FromPyObjectArray(ctx, out_dtypes, ufunc->nargs);
+                HPy *h_out_types = HPy_FromPyObjectArray(ctx, (PyObject **)out_dtypes, ufunc->nargs);
                 HPy h_ufunc = HPy_FromPyObject(ctx, (PyObject *) ufunc);
                 hpy_raise_no_loop_found_error(ctx, h_ufunc, h_out_types);
                 HPy_CloseAndFreeArray(ctx, h_out_types, ufunc->nargs);
@@ -2318,7 +2318,7 @@ hpy_linear_search_userloop_type_resolver(HPyContext *ctx,
                 return -1;
             }
             CAPI_WARN("PyUFunc_Loop1d->arg_dtypes is a (PyArray_Descr **)!");
-            HPy *arg_dtypes = HPy_FromPyObjectArray(ctx, funcdata->arg_dtypes, funcdata->nargs);
+            HPy *arg_dtypes = HPy_FromPyObjectArray(ctx, (PyObject **)(funcdata->arg_dtypes), funcdata->nargs);
             for (; funcdata != NULL; funcdata = funcdata->next) {
                 int *types = funcdata->arg_types;
                 switch (hpy_ufunc_loop_matches(ctx, self, self_struct, op,
@@ -3108,7 +3108,9 @@ hpy_type_tuple_type_resolver(HPyContext *ctx,
 
     ufunc_name = ufunc_get_name_cstr(self_struct);
 
-    use_min_scalar = should_use_min_scalar(nin, op, 0, NULL);
+    hpy_abort_not_implemented("convert op to PyArrayObject**");
+    PyArrayObject ** dummy;
+    use_min_scalar = should_use_min_scalar(nin, dummy, 0, NULL);
 
     /* Fill in specified_types from the tuple or string */
     const char *bad_type_tup_msg = (

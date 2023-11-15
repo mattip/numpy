@@ -2331,7 +2331,7 @@ HPyArray_FromAny(HPyContext *ctx, HPy op, HPy newtype, int min_depth,
             }
 
             // TODO HPY LABS PORT
-            PyArrayObject *py_ret = HPy_AsPyObject(ctx, ret);
+            PyArrayObject *py_ret = (PyArrayObject *)HPy_AsPyObject(ctx, ret);
             PyObject *py_op = HPy_AsPyObject(ctx, op);
             if (setArrayFromSequence(py_ret, py_op, 0, NULL) < 0) {
                 Py_DECREF(py_ret);
@@ -4986,7 +4986,7 @@ HPyArray_ArangeObj(HPyContext *ctx, HPy start, HPy stop, HPy step, HPy /* PyArra
         PyObject *new;
         PyObject *py_range = HPy_AsPyObject(ctx, range);
         CAPI_WARN("calling PyArray_Byteswap");
-        new = PyArray_Byteswap(py_range, 1);
+        new = PyArray_Byteswap((PyArrayObject *)py_range, 1);
         Py_DECREF(py_range);
         Py_DECREF(new);
         _hpy_set_descr(ctx, range, range_struct, dtype);

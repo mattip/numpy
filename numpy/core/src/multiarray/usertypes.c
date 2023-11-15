@@ -83,15 +83,16 @@ _default_nonzero(void *ip, void *arr)
 }
 
 static void
-_default_copyswapn(void *dst, npy_intp dstride, void *src,
-                   npy_intp sstride, npy_intp n, int swap, void *arr)
+_default_copyswapn(HPyContext * ctx, void *dst, npy_intp dstride, void *src,
+                   npy_intp sstride, npy_intp n, int swap, HPy hpy_arr)
 {
     npy_intp i;
     HPyArray_CopySwapFunc *copyswap;
     char *dstptr = dst;
     char *srcptr = src;
 
-    copyswap = PyArray_DESCR(arr)->f->copyswap;
+    PyObject * arr = HPy_AsPyObject(ctx, hpy_arr);
+    copyswap = PyArray_DESCR((PyArrayObject *)arr)->f->copyswap;
 
     for (i = 0; i < n; i++) {
         cpy_copyswap(copyswap, dstptr, srcptr, swap, arr);

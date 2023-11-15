@@ -106,7 +106,7 @@ hpy_array_get_dl_device(HPyContext *ctx, HPy /* PyArrayObject * */ self) {
 static DLDevice
 array_get_dl_device(PyArrayObject *self) {
     HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     DLDevice ret = hpy_array_get_dl_device(ctx, h_self);
     HPy_Close(ctx, h_self);
     return ret;
@@ -419,7 +419,7 @@ _from_dlpack_impl(HPyContext *ctx, HPy NPY_UNUSED(self), HPy obj) {
 
     HPy new_capsule = HPyCapsule_New(ctx, managed,
             NPY_DLPACK_INTERNAL_CAPSULE_NAME,
-            array_dlpack_internal_capsule_deleter);
+            (HPyCapsule_Destructor*)array_dlpack_internal_capsule_deleter);
     if (HPy_IsNull(new_capsule)) {
         HPy_Close(ctx, capsule);
         HPy_Close(ctx, ret);

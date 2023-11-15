@@ -2920,7 +2920,7 @@ hpy_get_decref_transfer_function(HPyContext *ctx, int aligned,
         }
         src_size = PyArray_MultiplyList(src_shape.ptr, src_shape.len);
         npy_free_cache_dim_obj(src_shape);
-        HPy h_base = HPy_FromPyObject(ctx, src_dtype_data->subarray->base);
+        HPy h_base = HPy_FromPyObject(ctx, (PyObject *)(src_dtype_data->subarray->base));
         PyArray_Descr *base_data = src_dtype_data->subarray->base;
         if (get_n_to_n_transfer_function(ctx, aligned,
                 src_stride, 0,
@@ -3669,13 +3669,13 @@ wrap_aligned_transferfunction(
     HPyContext *ctx = npy_get_context();
     /* These are always legacy casts that only support native-byte-order: */
     // Py_INCREF(src_wrapped_dtype); // HPy_FromPyObject will incref
-    castdata.main.descriptors[0] = HPy_FromPyObject(ctx, src_wrapped_dtype);
+    castdata.main.descriptors[0] = HPy_FromPyObject(ctx, (PyObject *)src_wrapped_dtype);
     if (HPy_IsNull(castdata.main.descriptors[0])) {
         castdata.main.descriptors[1] = HPy_NULL;
         goto fail;
     }
     // Py_INCREF(dst_wrapped_dtype); // HPy_FromPyObject will incref
-    castdata.main.descriptors[1] = HPy_FromPyObject(ctx, dst_wrapped_dtype);
+    castdata.main.descriptors[1] = HPy_FromPyObject(ctx, (PyObject *)dst_wrapped_dtype);
     if (HPy_IsNull(castdata.main.descriptors[1])) {
         goto fail;
     }

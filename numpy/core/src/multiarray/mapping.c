@@ -2641,6 +2641,7 @@ NPY_NO_EXPORT int
 array_assign_item_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy_ssize_t i, HPy op)
 {
     npy_index_info indices[2];
+    hpy_npy_index_info hpy_indices[2];
 
     if (HPy_IsNull(op)) {
         HPyErr_SetString(ctx, ctx->h_ValueError,
@@ -2664,6 +2665,8 @@ array_assign_item_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy
 
     indices[0].value = i;
     indices[0].type = HAS_INTEGER;
+    hpy_indices[0].value = i;
+    hpy_indices[0].type = HAS_INTEGER;
     if (PyArray_NDIM(self_struct) == 1) {
         char *item;
         if (get_item_pointer(self_struct, &item, indices, 1) < 0) {
@@ -2677,9 +2680,9 @@ array_assign_item_slot_impl(HPyContext *ctx, HPy /* PyArrayObject * */ self, HPy
     else {
         HPy view; // PyArrayObject *
         
-        indices[1].value = PyArray_NDIM(self_struct) - 1;
-        indices[1].type = HAS_ELLIPSIS;
-        if (hpy_get_view_from_index(ctx, self, self_struct, &view, indices, 2, 0) < 0) {
+        hpy_indices[1].value = PyArray_NDIM(self_struct) - 1;
+        hpy_indices[1].type = HAS_ELLIPSIS;
+        if (hpy_get_view_from_index(ctx, self, self_struct, &view, hpy_indices, 2, 0) < 0) {
             return -1;
         }
         PyArrayObject *view_struct = PyArrayObject_AsStruct(ctx, view);

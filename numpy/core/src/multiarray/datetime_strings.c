@@ -1533,7 +1533,7 @@ datetime_as_string_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), const HPy *arg
     op_flags[1] = NPY_ITER_WRITEONLY|
                   NPY_ITER_ALLOCATE;
 
-    iter = NpyIter_MultiNew(2, op, flags, NPY_KEEPORDER, NPY_UNSAFE_CASTING,
+    iter = HNpyIter_MultiNew(ctx, 2, op, flags, NPY_KEEPORDER, NPY_UNSAFE_CASTING,
                             op_flags, op_dtypes);
     if (iter == NULL) {
         goto fail;

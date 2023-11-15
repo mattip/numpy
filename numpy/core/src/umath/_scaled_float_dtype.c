@@ -282,7 +282,7 @@ static PyObject *
 sfloat_str(PyArray_SFloatDescr *self)
 {
     HPyContext *ctx = npy_get_context(); 
-    HPy h_self = HPy_FromPyObject(ctx, self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     HPy h_ret = sfloat_repr_impl(ctx, h_self);
     PyObject *ret = HPy_AsPyObject(ctx, h_ret);
     HPy_Close(ctx, h_self);

@@ -48,9 +48,11 @@ wrapping_method_resolve_descriptors(
     HPy orig_loop_descrs[NPY_MAXARGS];
 
     hpy_abort_not_implemented("where is translate_given_descrs going to?");
+    PyArray_DTypeMeta ** dummyMeta;
+    PyArray_Descr ** dummy;
     if (self_data->translate_given_descrs(
-            nin, nout, self_data->wrapped_dtypes,
-            given_descrs, orig_given_descrs) < 0) {
+            nin, nout, /* self_data->wrapped_dtypes */ dummyMeta,
+            /* given_descrs */ dummy, /* orig_given_descrs */ dummy) < 0) {
         return -1;
     }
     HPy h_wrapped_meth = HPyField_Load(ctx, self, self_data->wrapped_meth);
@@ -170,9 +172,11 @@ wrapping_method_get_loop(
     auxdata->orig_context.caller = context->caller;
 
     hpy_abort_not_implemented("where is translate_given_descrs going to?");
+    PyArray_DTypeMeta ** dummyMeta;
+    PyArray_Descr ** dummy;
     if (method->translate_given_descrs(
-            nin, nout, method->wrapped_dtypes,
-            context->descriptors, auxdata->orig_context.descriptors) < 0) {
+            nin, nout, /*method->wrapped_dtypes */ dummyMeta,
+            /* context->descriptors */ dummy, /* auxdata->orig_context.descriptors */ dummy) < 0) {
         NPY_AUXDATA_FREE((NpyAuxData *)auxdata);
         return -1;
     }
@@ -240,8 +244,8 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         if (cmp == 0) {
             continue;
         }
-        wrapped_meth = (PyArrayMethodObject *)PyTuple_GET_ITEM(item, 1);
-        if (!PyObject_TypeCheck(wrapped_meth, &PyArrayMethod_Type)) {
+        wrapped_meth = (PyArrayMethodObject *)PyTuple_GetItem(item, 1);
+        if (!PyObject_TypeCheck((PyObject *)wrapped_meth, &PyArrayMethod_Type)) {
             PyErr_SetString(PyExc_TypeError,
                     "Matching loop was not an ArrayMethod.");
             goto finish;
@@ -260,13 +264,15 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         {0, NULL}
     };
 
+    hpy_abort_not_implemented("translate new_dtypes from PyArray_DTypeMeta");
+    
     PyArrayMethod_Spec spec = {
         .name = "wrapped-method",
         .nin = wrapped_meth->nin,
         .nout = wrapped_meth->nout,
         .casting = wrapped_meth->casting,
         .flags = wrapped_meth->flags,
-        .dtypes = new_dtypes,
+        /* .dtypes = new_dtypes, */
         .slots = slots,
     };
     PyBoundArrayMethodObject *bmeth = PyArrayMethod_FromSpec_int(&spec, 1);
@@ -274,7 +280,7 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
         goto finish;
     }
 
-    meth = HPyField_LoadPyObj((PyObject *)bmeth, bmeth->method);
+    meth = (PyArrayMethodObject *)HPyField_LoadPyObj((PyObject *)bmeth, bmeth->method);
     Py_INCREF(meth);
     Py_SETREF(bmeth, NULL);
 
@@ -285,12 +291,12 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
     }
 
     // Py_INCREF(wrapped_meth);
-    HPyField_StorePyObj((PyObject *)meth, &meth->wrapped_meth, wrapped_meth);
+    HPyField_StorePyObj((PyObject *)meth, &meth->wrapped_meth, (PyObject *)wrapped_meth);
     meth->translate_given_descrs = translate_given_descrs;
     meth->translate_loop_descrs = translate_loop_descrs;
     for (int i = 0; i < ufunc->nargs; i++) {
         // Py_XINCREF(wrapped_dtypes[i]);
-        HPyField_StorePyObj(meth, &meth->wrapped_dtypes[i], wrapped_dtypes[i]);
+        HPyField_StorePyObj((PyObject *)meth, &meth->wrapped_dtypes[i], (PyObject *)(wrapped_dtypes[i]));
     }
 
     new_dt_tuple = PyArray_TupleFromItems(

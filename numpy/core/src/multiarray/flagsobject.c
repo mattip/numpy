@@ -741,7 +741,7 @@ static int
 arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
 {
     const char *key;
-    const char buf[16];
+    char buf[16];
     int n;
     if (HPyUnicode_Check(ctx, ind)) {
         HPy tmp_str;

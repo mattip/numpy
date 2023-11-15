@@ -4226,13 +4226,13 @@ array_einsum_impl(HPyContext *ctx, HPy NPY_UNUSED(dummy), const HPy *args, size_
         }
     }
     CAPI_WARN("calling PyArray_EinsteinSum");
-    PyArrayObject **py_op_in = HPy_AsPyObjectArray(ctx, op, nop);
-    PyArray_Descr *py_dtype = HPy_AsPyObject(ctx, dtype);
-    PyArrayObject *py_out = HPy_AsPyObject(ctx, out);
+    PyArrayObject **py_op_in = (PyArrayObject **)HPy_AsPyObjectArray(ctx, op, nop);
+    PyArray_Descr *py_dtype = (PyArray_Descr *)HPy_AsPyObject(ctx, dtype);
+    PyArrayObject *py_out = (PyArrayObject *)HPy_AsPyObject(ctx, out);
     PyObject *py_ret = (PyObject *)PyArray_EinsteinSum(subscripts, nop, py_op_in, py_dtype,
                                         order, casting, py_out);
     ret = HPy_FromPyObject(ctx, py_ret);
-    HPy_DecrefAndFreeArray(ctx, py_op_in, nop);
+    HPy_DecrefAndFreeArray(ctx, (PyObject**)py_op_in, nop);
     Py_XDECREF(py_dtype);
     Py_XDECREF(py_out);
     Py_XDECREF(py_ret);
