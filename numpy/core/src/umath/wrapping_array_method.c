@@ -245,7 +245,7 @@ PyUFunc_AddWrappingLoop(PyObject *ufunc_obj,
             continue;
         }
         wrapped_meth = (PyArrayMethodObject *)PyTuple_GetItem(item, 1);
-        if (!PyObject_TypeCheck((PyObject *)wrapped_meth, &PyArrayMethod_Type)) {
+        if (!PyObject_TypeCheck((PyObject *)wrapped_meth, PyArrayMethod_Type)) {
             PyErr_SetString(PyExc_TypeError,
                     "Matching loop was not an ArrayMethod.");
             goto finish;
