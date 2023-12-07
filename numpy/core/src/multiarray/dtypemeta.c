@@ -107,6 +107,15 @@ legacy_dtype_default_new_impl(HPyContext *ctx, HPy h_self,
     return HPyField_Load(ctx, h_self, self->singleton);
 }
 
+HPyDef_SLOT(legacy_dtype_tp_traverse, HPy_tp_traverse)
+static int legacy_dtype_tp_traverse_impl(void *self_p, HPyFunc_visitproc visit, void *arg) {
+    PyArray_Descr *self = (PyArray_Descr*) self_p;
+    if (&self->typeobj)
+        HPy_VISIT(&self->typeobj);
+    if (&self->names)
+        HPy_VISIT(&self->names);
+    return 0;
+}
 
 //static PyArray_Descr *
 //nonparametric_discover_descr_from_pyobject(
@@ -599,6 +608,7 @@ hpy_object_common_dtype(HPyContext *ctx, HPy /* PyArray_DTypeMeta * */ cls,
 
 static HPyDef *new_dtype_legacy_defines[] = {
     &legacy_dtype_default_new,
+    &legacy_dtype_tp_traverse,
     NULL
 };
 static HPyType_Spec New_PyArrayDescr_spec_prototype = {
