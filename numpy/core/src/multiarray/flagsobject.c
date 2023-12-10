@@ -937,6 +937,7 @@ NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec = {
     .basicsize = sizeof(PyArrayFlagsObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .defines = arrayflags_defines,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
 };
 
 NPY_NO_EXPORT PyTypeObject *_PyArrayFlags_Type_p;
