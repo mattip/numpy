@@ -900,6 +900,15 @@ arrayflags_new_impl(HPyContext *ctx, HPy self, const HPy *args, HPy_ssize_t narg
     return HPyArray_NewFlagsObject(ctx, self, arg);
 }
 
+HPyDef_SLOT(arrayflags_traverse, HPy_tp_traverse)
+static int
+arrayflags_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
+{
+    PyArrayFlagsObject *flags = (PyArrayFlagsObject *)self;
+    HPy_VISIT(&flags->arr);
+    return 0;
+}
+
 /*
 static PyType_Slot arrayflags_slots[] = {
         //{Py_tp_str, arrayflags_print},
@@ -929,6 +938,7 @@ static HPyDef *arrayflags_defines[] = {
         &arrayflags_carray,
         &arrayflags_farray,
         &arrayflags_num,
+        &arrayflags_traverse,
         NULL
 };
 

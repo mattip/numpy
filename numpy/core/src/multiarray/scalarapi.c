@@ -559,6 +559,12 @@ HPyArray_FromScalar(HPyContext *ctx, HPy h_scalar, /*PyArray_Descr*/ HPy h_outco
     }
     else {
         char *memptr = hpy_scalar_value(ctx, h_scalar, typecode);
+        if (memptr == NULL)
+        {
+            HPy_Close(ctx, h_r);
+            HPy_Close(ctx, h_typecode);
+            return HPy_NULL;
+        }
 
         memcpy(PyArray_DATA(r), memptr, typecode->elsize);
         if (PyDataType_FLAGCHK(typecode, NPY_ITEM_HASOBJECT)) {
