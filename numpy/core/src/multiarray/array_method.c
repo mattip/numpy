@@ -1154,4 +1154,5 @@ NPY_NO_EXPORT HPyType_Spec PyBoundArrayMethod_Type_Spec = {
     .basicsize = sizeof(PyBoundArrayMethodObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .defines = boundarraymethod_defines,
+    .builtin_shape = SHAPE(PyBoundArrayMethodObject),
 };
