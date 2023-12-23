@@ -1414,7 +1414,6 @@ hpy_prepare_index(HPyContext *ctx, HPy h_self, PyArrayObject *self, HPy h_index,
         }
     }
     else if (used_ndim > PyArray_NDIM(self)) {
-        // HPyErr_SetString does not take extra arguments
         HPyErr_Format(ctx, ctx->h_IndexError,
                      "too many indices for array: "
                      "array is %d-dimensional, but %d were indexed",
