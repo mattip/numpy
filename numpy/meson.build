@@ -218,8 +218,9 @@ endif
 # Copy the main __init__.py|pxd files to the build dir (needed for Cython)
 __init__py = fs.copyfile('__init__.py')
 __init__pxd = fs.copyfile('__init__.pxd')
+math_pxd = fs.copyfile('math.pxd')
 __init__pxd30 = fs.copyfile('__init__.cython-30.pxd')
-_cython_tree = [__init__py, __init__pxd, __init__pxd30]
+_cython_tree = [__init__py, __init__pxd, __init__pxd30, math_pxd]
 
 python_sources = [
   '__init__.cython-30.pxd',
@@ -239,6 +240,7 @@ python_sources = [
   'dtypes.py',
   'dtypes.pyi',
   'matlib.py',
+  'math.pxd',
   'py.typed',
   'version.pyi',
 ]

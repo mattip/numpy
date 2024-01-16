@@ -80,14 +80,19 @@ def test_cython(tmp_path):
     # not really part of this test, but it is a convenient place to check
 
     g = glob.glob(str(target_dir / "*" / "extending.pyx.c"))
+    init_txt = 'NumPy API declarations from "numpy/__init__'
+    math_txt = 'NumPy API declarations from "numpy/math'
+    found = set()
     with open(g[0]) as fid:
-        txt_to_find = 'NumPy API declarations from "numpy/__init__'
         for i, line in enumerate(fid):
-            if txt_to_find in line:
-                break
-        else:
-            assert False, ("Could not find '{}' in C file, "
-                           "wrong pxd used".format(txt_to_find))
+            if init_txt in line:
+                found.add("init")
+            elif math_txt in line:
+                found.add("math")
+    assert "math" in found, (f"Could not find '{math_txt}' in C file, "
+                           "numpy/math.pxd not used")
+    assert "init" in found, (f"Could not find '{init_txt}' in C file, "
+                           "numpy/__init__*.pxd not used")
     # import without adding the directory to sys.path
     suffix = sysconfig.get_config_var('EXT_SUFFIX')
 

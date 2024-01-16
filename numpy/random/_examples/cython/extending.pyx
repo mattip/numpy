@@ -6,6 +6,7 @@ from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
 
 import numpy as np
 cimport numpy as np
+cimport numpy.math   # needed for test that the correct math.pxd is used
 cimport cython
 
 from numpy.random cimport bitgen_t

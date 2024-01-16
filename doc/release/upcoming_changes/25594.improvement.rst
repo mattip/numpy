@@ -1,0 +1,4 @@
+Vendor math.pxd into NumPy
+--------------------------
+
+Vendor ``numpy/math.pxd`` into NumPy so Cython can eventually drop its copy.
