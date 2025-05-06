@@ -224,12 +224,13 @@ HPyType_LEGACY_HELPERS(PyArrayMethodObject)
  * on the `ArrayMethod` itself.
  */
 typedef struct {
+    PyObject_HEAD
     HPyField *dtypes; /* PyArray_DTypeMeta **dtypes */
     HPyField method; /* PyArrayMethodObject *method */
     int nargs; /* method->nin + method->nout */
 } PyBoundArrayMethodObject;
 
-HPyType_HELPERS(PyBoundArrayMethodObject)
+HPyType_LEGACY_HELPERS(PyBoundArrayMethodObject)
 
 
 extern NPY_NO_EXPORT PyTypeObject *PyArrayMethod_Type;

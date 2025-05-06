@@ -741,7 +741,7 @@ static int
 arrayflags_setitem_impl(HPyContext *ctx, HPy self, HPy ind, HPy item)
 {
     const char *key;
-    char buf[16];
+    const char buf[16];
     int n;
     if (HPyUnicode_Check(ctx, ind)) {
         HPy tmp_str;
@@ -900,6 +900,15 @@ arrayflags_new_impl(HPyContext *ctx, HPy self, const HPy *args, HPy_ssize_t narg
     return HPyArray_NewFlagsObject(ctx, self, arg);
 }
 
+HPyDef_SLOT(arrayflags_traverse, HPy_tp_traverse)
+static int
+arrayflags_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
+{
+    PyArrayFlagsObject *flags = (PyArrayFlagsObject *)self;
+    HPy_VISIT(&flags->arr);
+    return 0;
+}
+
 /*
 static PyType_Slot arrayflags_slots[] = {
         //{Py_tp_str, arrayflags_print},
@@ -929,6 +938,7 @@ static HPyDef *arrayflags_defines[] = {
         &arrayflags_carray,
         &arrayflags_farray,
         &arrayflags_num,
+        &arrayflags_traverse,
         NULL
 };
 
@@ -937,6 +947,7 @@ NPY_NO_EXPORT HPyType_Spec PyArrayFlags_Type_Spec = {
     .basicsize = sizeof(PyArrayFlagsObject),
     .flags = HPy_TPFLAGS_DEFAULT,
     .defines = arrayflags_defines,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
 };
 
 NPY_NO_EXPORT PyTypeObject *_PyArrayFlags_Type_p;

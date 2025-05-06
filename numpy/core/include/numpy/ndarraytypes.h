@@ -930,7 +930,7 @@ typedef struct PyArrayFlagsObject {
         int flags;
 } PyArrayFlagsObject;
 
-HPyType_HELPERS(PyArrayFlagsObject);
+HPyType_LEGACY_HELPERS(PyArrayFlagsObject);
 
 /* Mirrors buffer object to ptr */
 

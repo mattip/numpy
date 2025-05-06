@@ -108,18 +108,21 @@ NPY_NO_EXPORT HPyType_Spec HPyArray_PyIntAbstractDType_spec = {
     .name = "numpy._IntegerAbstractDType",
     .basicsize = sizeof(PyArray_Descr),
     .flags = Py_TPFLAGS_DEFAULT,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
 };
 
 NPY_NO_EXPORT HPyType_Spec HPyArray_PyFloatAbstractDType_spec = {
     .name = "numpy._FloatAbstractDType",
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
 };
 
 NPY_NO_EXPORT HPyType_Spec HPyArray_PyComplexAbstractDType_spec = {
     .name = "numpy._ComplexAbstractDType",
     .basicsize = sizeof(PyArray_Descr),
     .flags = HPy_TPFLAGS_DEFAULT,
+    .builtin_shape = HPyType_BuiltinShape_Legacy,
 };
 
 // "forward" declarations:
