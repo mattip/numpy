@@ -840,11 +840,14 @@ array_astype(PyArrayObject *self,
         ((PyArrayObject_fields *)ret)->nd = PyArray_NDIM(self);
         ((PyArrayObject_fields *)ret)->descr = dtype;
     }
-    int success = PyArray_CopyInto(ret, self);
-    if (success >=0 && casting == NPY_SAME_VALUE_CASTING) {
-        /* XXX FIXME */
-        PyErr_SetString(PyExc_RuntimeError, "implement same_value check in array_astype");
-        success = -1;
+    int success;
+    if (casting == NPY_SAME_VALUE_CASTING) {
+        success = PyArray_AssignArray(ret, self, NULL, casting);
+    } else {
+        success = PyArray_AssignArray(ret, self, NULL, NPY_UNSAFE_CASTING);
+    }
+    if (success < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "error when casting");
     }
 
     Py_DECREF(dtype);
