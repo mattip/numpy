@@ -76,6 +76,7 @@ class Casting(enum.IntEnum):
     safe = 2
     same_kind = 3
     unsafe = 4
+    same_value = 5
 
 
 def _get_cancast_table():
@@ -815,3 +816,33 @@ class TestCasting:
         res = nonstandard_bools.astype(dtype)
         expected = [0, 1, 1]
         assert_array_equal(res, expected)
+
+    @pytest.mark.parametrize("from_dtype",
+            np.typecodes["AllInteger"] + np.typecodes["Float"])
+    @pytest.mark.parametrize("to_dtype",
+            np.typecodes["AllInteger"] + np.typecodes["AllFloat"])
+    def test_same_value(self, from_dtype, to_dtype):
+        if from_dtype == to_dtype:
+            return
+        top1 = 0
+        top2 = 0
+        try:
+            top1 = np.iinfo(from_dtype).max
+        except ValueError:
+            top1 = np.finfo(from_dtype).max
+        try:
+            top2 = np.iinfo(to_dtype).max
+        except ValueError:
+            top2 = np.finfo(to_dtype).max
+        if top2 >= top1:
+            # No need to test, will be tested when the dtypes are reversed
+            return
+        # Happy path
+        arr1 = np.array([0] * 10, dtype=from_dtype)
+        arr2 = np.array([0] * 10, dtype=to_dtype)
+        assert_equal(arr1.astype(to_dtype, casting='same_value'), arr2, strict=True)
+        # Overflows
+        arr1[0] = top1
+        with pytest.raises(ValueError):
+            print("casting", top1, np.dtype(from_dtype), "to", np.dtype(to_dtype))
+            arr1.astype(to_dtype, casting='same_value')
