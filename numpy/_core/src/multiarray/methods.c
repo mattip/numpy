@@ -848,6 +848,7 @@ array_astype(PyArrayObject *self,
     }
     if (success < 0) {
         PyErr_SetString(PyExc_RuntimeError, "error when casting");
+        //npy_set_invalid_cast_error(PyArray_DESCR(self), dtype, casting, 0);
     }
 
     Py_DECREF(dtype);
