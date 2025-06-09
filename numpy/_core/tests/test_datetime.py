@@ -1890,7 +1890,6 @@ class TestDateTime:
                 np.datetime64('2032-01-01T00:00:00', 'us'), unit='auto'),
                 '2032-01-01')
 
-
     @pytest.mark.skipif(not _has_pytz, reason="The pytz module is not available.")
     def test_datetime_as_string_timezone(self):
         # timezone='local' vs 'UTC'
