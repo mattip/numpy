@@ -98,6 +98,8 @@ static inline int
 NPY_cast_info_copy(NPY_cast_info *cast_info, NPY_cast_info *original)
 {
     cast_info->context.descriptors = cast_info->descriptors;
+    cast_info->context._reserved = original->context._reserved;
+    cast_info->context.flags = original->context.flags;
 
     assert(original->func != NULL);
     cast_info->func = original->func;
