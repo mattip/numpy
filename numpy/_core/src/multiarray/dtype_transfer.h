@@ -97,20 +97,19 @@ NPY_cast_info_move(NPY_cast_info *cast_info, NPY_cast_info *original)
 static inline int
 NPY_cast_info_copy(NPY_cast_info *cast_info, NPY_cast_info *original)
 {
+    /* First copy the context, but override the descriptors */
+    cast_info->context = original->context;
+    Py_XINCREF(cast_info->context.caller);
+    Py_XINCREF(cast_info->context.method);
     cast_info->context.descriptors = cast_info->descriptors;
-    cast_info->context._reserved = original->context._reserved;
-    cast_info->context.flags = original->context.flags;
 
+    /* Now copy the rest of the fields */
     assert(original->func != NULL);
     cast_info->func = original->func;
     cast_info->descriptors[0] = original->descriptors[0];
     Py_XINCREF(cast_info->descriptors[0]);
     cast_info->descriptors[1] = original->descriptors[1];
     Py_XINCREF(cast_info->descriptors[1]);
-    cast_info->context.caller = original->context.caller;
-    Py_XINCREF(cast_info->context.caller);
-    cast_info->context.method = original->context.method;
-    Py_XINCREF(cast_info->context.method);
     if (original->auxdata == NULL) {
         cast_info->auxdata = NULL;
         return 0;
