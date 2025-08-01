@@ -18,7 +18,7 @@ jobs:
     name: x86-64, LP64 OpenBLAS
     runs-on: windows-2022
     # To enable this job on a fork, comment out:
-    if: github.repository == 'numpy/numpy'
+    # if: github.repository == 'numpy/numpy'
     strategy:
       fail-fast: false
       matrix:
@@ -89,7 +89,7 @@ jobs:
     name: arm64, LPARM64 OpenBLAS
     runs-on: windows-11-arm
     # To enable this job on a fork, comment out:
-    if: github.repository == 'numpy/numpy'
+    # if: github.repository == 'numpy/numpy'
     strategy:
       fail-fast: false
       matrix:
@@ -170,7 +170,7 @@ jobs:
           - os: windows-11-arm
             architecture: arm64
     # To enable this job on a fork, comment out:
-    if: github.repository == 'numpy/numpy'
+    # if: github.repository == 'numpy/numpy'
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

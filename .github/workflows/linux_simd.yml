@@ -53,7 +53,7 @@ permissions:
 jobs:
   baseline_only:
     # To enable this workflow on a fork, comment out:
-    if: github.repository == 'numpy/numpy'
+    # if: github.repository == 'numpy/numpy'
     runs-on: ubuntu-latest
     env:
       MESON_ARGS: "-Dallow-noblas=true -Dcpu-dispatch=none"
@@ -108,7 +108,7 @@ jobs:
       name: Build/Test against gcc-10
 
   arm64_simd:
-    if: github.repository == 'numpy/numpy'
+    # if: github.repository == 'numpy/numpy'
     needs: [baseline_only]
     runs-on: ubuntu-22.04-arm
     strategy:
