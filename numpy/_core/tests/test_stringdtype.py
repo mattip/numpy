@@ -14,7 +14,7 @@ import numpy as np
 from numpy._core.tests._natype import pd_NA
 from numpy.dtypes import StringDType
 from numpy.exceptions import ComplexWarning
-from numpy.testing import IS_PYPY, assert_array_equal
+from numpy.testing import assert_array_equal
 from numpy.testing._private.utils import run_with_memory_limit
 
 
@@ -1522,10 +1522,7 @@ def test_concatenate(string_list):
 
 def test_resize_method(string_list):
     sarr = np.array(string_list, dtype="T")
-    if IS_PYPY:
-        sarr.resize(len(string_list) + 3, refcheck=False)
-    else:
-        sarr.resize(len(string_list) + 3)
+    sarr.resize(len(string_list) + 3)
     assert_array_equal(sarr, np.array(string_list + [''] * 3,  dtype="T"))
 
 

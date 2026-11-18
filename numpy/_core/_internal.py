@@ -21,8 +21,6 @@ try:
 except ImportError:
     ctypes = None
 
-IS_PYPY = sys.implementation.name == 'pypy'
-
 if sys.byteorder == 'little':
     _nbo = '<'
 else:
@@ -951,12 +949,8 @@ def npy_ctypes_check(cls):
     try:
         # ctypes class are new-style, so have an __mro__. This probably fails
         # for ctypes classes with multiple inheritance.
-        if IS_PYPY:
-            # (..., _ctypes.basics._CData, Bufferable, object)
-            ctype_base = cls.__mro__[-3]
-        else:
-            # # (..., _ctypes._CData, object)
-            ctype_base = cls.__mro__[-2]
+        # # (..., _ctypes._CData, object)
+        ctype_base = cls.__mro__[-2]
         # right now, they're part of the _ctypes module
         return '_ctypes' in ctype_base.__module__
     except Exception:

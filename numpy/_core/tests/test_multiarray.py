@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import tracemalloc
 import warnings
 import weakref
 from contextlib import ExitStack, contextmanager
@@ -42,7 +43,6 @@ from numpy.testing import (
     HAS_SUBPROCESSES,
     IS_64BIT,
     IS_MUSL,
-    IS_PYPY,
     IS_WASM,
     assert_,
     assert_allclose,
@@ -1083,7 +1083,6 @@ class TestCreation:
 
     @pytest.mark.thread_unsafe(reason="tracemalloc is not thread-safe")
     def test_tracemalloc(self):
-        tracemalloc = pytest.importorskip("tracemalloc")
         with ExitStack() as ctx:
             if not tracemalloc.is_tracing():
                 tracemalloc.start()
@@ -4807,7 +4806,6 @@ class TestBinop:
     #   - defer if other has __array_ufunc__ and it is None
     #           or other is not a subclass and has higher array priority
     #   - else, call ufunc
-    @pytest.mark.xfail(IS_PYPY, reason="Bug in pypy, #24862")
     def test_ufunc_binop_interaction(self):
         # Python method name (without underscores)
         #   -> (numpy ufunc, has_in_place_version, preferred_dtype)
@@ -7306,8 +7304,6 @@ class TestFromBuffer:
     def test_empty(self):
         assert_array_equal(np.frombuffer(b''), np.array([]))
 
-    @pytest.mark.skip(reason="TODO: segfaults on PyPy when this test fails, "
-                       "see failing-test repr crash in arrayprint.py")
     def test_mmap_close(self):
         # The old buffer protocol was not safe for some things that the new
         # one is.  But `frombuffer` always used the old one for a long time.
@@ -7453,10 +7449,7 @@ class TestResize:
     @_no_tracing
     def test_basic(self):
         x = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        if IS_PYPY:
-            x.resize((5, 5), refcheck=False)
-        else:
-            x.resize((5, 5))
+        x.resize((5, 5))
         assert_array_equal(x.flat[:9],
                 np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]).flat)
         assert_array_equal(x[9:].flat, 0)
@@ -7481,16 +7474,11 @@ class TestResize:
             subprocess.check_output([sys.executable, "-c", code],
                                     stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
-            assert IS_PYPY or sys.version_info >= (3, 14)
+            assert sys.version_info >= (3, 14)
             assert "ValueError" in e.stdout
-            if IS_PYPY:
-                assert "cannot resize an array with refcheck=True on PyPy" \
-                        in e.stdout
-            else:
-                assert "It is possible that this is a false positive." \
-                        in e.stdout
+            assert "It is possible that this is a false positive." in e.stdout
         else:
-            if IS_PYPY or sys.version_info >= (3, 14):
+            if sys.version_info >= (3, 14):
                 raise AssertionError("Unexpected success of resize refcheck")
 
     def test_check_reference_2(self):
@@ -7515,10 +7503,7 @@ class TestResize:
     @_no_tracing
     def test_int_shape(self):
         x = np.eye(3)
-        if IS_PYPY:
-            x.resize(3, refcheck=False)
-        else:
-            x.resize(3)
+        x.resize(3)
         assert_array_equal(x, np.eye(3)[0, :])
 
     def test_none_shape(self):
@@ -7549,19 +7534,13 @@ class TestResize:
     @_no_tracing
     def test_freeform_shape(self):
         x = np.eye(3)
-        if IS_PYPY:
-            x.resize(3, 2, 1, refcheck=False)
-        else:
-            x.resize(3, 2, 1)
+        x.resize(3, 2, 1)
         assert_(x.shape == (3, 2, 1))
 
     @_no_tracing
     def test_zeros_appended(self):
         x = np.eye(3)
-        if IS_PYPY:
-            x.resize(2, 3, 3, refcheck=False)
-        else:
-            x.resize(2, 3, 3)
+        x.resize(2, 3, 3)
         assert_array_equal(x[0], np.eye(3))
         assert_array_equal(x[1], np.zeros((3, 3)))
 
@@ -7574,10 +7553,7 @@ class TestResize:
     def test_obj_obj(self):
         # check memory is initialized on resize, gh-4857
         a = np.ones(10, dtype=[('k', object, 2)])
-        if IS_PYPY:
-            a.resize(15, refcheck=False)
-        else:
-            a.resize(15,)
+        a.resize(15,)
         assert_equal(a.shape, (15,))
         assert_array_equal(a['k'][-5:], 0)
         assert_array_equal(a['k'][:-5], 1)
@@ -10908,7 +10884,6 @@ class TestWhere:
             np.where(a, x=a, y=a)
 
 
-@pytest.mark.skipif(IS_PYPY, reason="sys.getsizeof() is not valid on PyPy")
 class TestSizeOf:
 
     def test_empty_array(self):
@@ -11208,8 +11183,6 @@ class TestCTypes:
 
         # but when the `ctypes_ptr` object dies, so should `arr`
         del ctypes_ptr
-        if IS_PYPY:
-            break_cycles()
         assert_(
             arr_ref() is None,
             "unknowable whether ctypes pointer holds a reference",
@@ -11230,8 +11203,6 @@ class TestCTypes:
 
         # but when the `ctypes_ptr` object dies, so should `arr`
         del ctypes_ptr
-        if IS_PYPY:
-            break_cycles()
         assert_(
             arr_ref() is None,
             "unknowable whether ctypes pointer holds a reference",
@@ -12331,10 +12302,7 @@ class TestTextSignatures:
 
     @pytest.mark.parametrize(("func", "parameter_names"), [
         (np.arange, ("start_or_stop", "stop", "step", "dtype", "device", "like")),
-        pytest.param(
-            np.busdaycalendar, ("weekmask", "holidays"),
-            marks=pytest.mark.skipif(IS_PYPY, reason="PyPy does not modify tp_doc"),
-        ),
+        (np.busdaycalendar, ("weekmask", "holidays")),
         (np.char.compare_chararrays, ("a1", "a2", "cmp", "rstrip")),
         (np.datetime_data, ("dtype",)),
         (np.from_dlpack, ("x", "device", "copy")),

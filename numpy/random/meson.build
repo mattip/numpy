@@ -53,7 +53,7 @@ if host_machine.system() == 'cygwin'
   c_args_random += ['-Wl,--export-all-symbols']
 endif
 
-cython_args = []  
+cython_args = []
 if cy.version().version_compare('>=3.1.0')
   cython_args += ['-Xfreethreading_compatible=True']
 endif
